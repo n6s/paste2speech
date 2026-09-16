@@ -41,19 +41,19 @@ Do not disable all of port 443 or run `tailscale serve reset`: that would also r
 
 ## Open a PDF
 
-Expand **Open PDF** above the text box and choose a file on the Tailscale reader. PDFs up to 20 MB are sent to the workstation, where Poppler `pdftotext` extracts their existing text layer in memory. Files and extracted text are not saved. Successful imports replace the text box; failed imports leave it intact. Review the preview and press Play. Pages without text are skipped with a notice; image-only scans need OCR, which this version does not provide. Columns, tables, headers and footnotes may read out of order. Password-protected or damaged files may be rejected. Extraction times out after 30 seconds, and imports over one million characters are rejected.
+Expand **Open PDF** above the text box and choose a file on the Tailscale reader. PDFs up to 20 MB are sent to the workstation, where Poppler `pdftotext` extracts their existing text layer in memory. Files and extracted text are not saved. Successful imports replace the text box; failed imports leave it intact. Review the imported text in Edit, then tap Read to listen. Pages without text are skipped with a notice; image-only scans need OCR, which this version does not provide. Columns, tables, headers and footnotes may read out of order. Password-protected or damaged files may be rejected. Extraction times out after 30 seconds, and imports over one million characters are rejected.
 
 PDF import requires the workstation API and `poppler-utils` (`sudo apt-get install poppler-utils`); the static-only development server cannot import PDFs.
 
 ## One panel for editing and reading
 
-The page starts in **Edit**, showing your original text without a resize handle. **Read** shows the cleaned text in the same panel without starting playback. **Play / Resume** switches to Read automatically. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Switching modes alone preserves your place, prepared audio, and original text.
+The page starts in **Edit**, showing your original text without a resize handle. **Read** dismisses the text keyboard, shows the cleaned text, and starts or resumes playback. After finishing, Read replays from the beginning. **Play / Resume** does the same. While audio is playing or preparing, Read only switches views without interrupting it. With no readable text or supported engine, Read just opens the reading view. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Returning to Read preserves your place and prepared audio while playing or paused; the original text is always preserved.
 
 Cleanup settings always regenerate the reading text from the original, so filtered material is not lost. A successful PDF import shows the imported text in Edit; a failed import preserves your text and mode. Clear returns to an empty Edit view. The separate preview and duplicate current-reading display have been removed.
 
 ### Start at a reading section
 
-Paste text, choose **Read**, then tap any section. Reading starts at that section and continues to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
+Paste text and choose **Read** to start listening, then tap any section to jump there. Reading continues from that section to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
 
 Short paragraphs remain intact. Longer paragraphs appear as stable speech-sized sections of up to 180 UTF-16 code units, preferring sentence boundaries and then spaces. Resizing the preview does not change section boundaries or interrupt playback.
 

@@ -78,7 +78,14 @@ function setMode(mode) {
   if (reading) followParagraph($('preview').querySelector('[aria-current=true]'));
 }
 $('edit-mode').addEventListener('click', () => setMode('edit'));
-$('read-mode').addEventListener('click', () => setMode('read'));
+function readAndPlay() {
+  $('text').blur();
+  setMode('read');
+  if (!player || !canPlay() || !cleaned || ['playing', 'preparing'].includes(player.state)) return;
+  if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings());
+  else player.start(chunks, settings());
+}
+$('read-mode').addEventListener('click', readAndPlay);
 function followParagraph(button) {
   const pane = $('preview');
   if (!$('follow-reading').checked || $('read-view').hidden || !button) return;
@@ -143,7 +150,7 @@ $('text').addEventListener('input', () => { resetReading(); preview(); });
 $('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
-$('play').addEventListener('click', () => { if (!player) return; setMode('read'); if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings()); else player.start(chunks, settings()); });
+$('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
@@ -181,7 +188,7 @@ $('pdf-file').addEventListener('change', async () => {
     $('text').value = data.text;
     preview();
     setMode('edit');
-    $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Choose Read to review, then press Play. Columns and tables may read out of order.`;
+    $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the imported text, then choose Read to listen. Columns and tables may read out of order.`;
   } catch (error) {
     $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not reach the workstation. Check your connection and try again.' : error.message);
   } finally {

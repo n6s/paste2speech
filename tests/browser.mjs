@@ -26,7 +26,8 @@ try {
  await page.locator('#text').fill('# A moment to listen\n\n**Take a breath.** '+ 'This is a longer passage to read while taking a walk. '.repeat(18)+'\n\n```js\nnot spoken\n```\nciteturn0search0');
  await page.locator('#read-mode').click();
  assert.ok(!(await page.locator('#preview').textContent()).includes('not spoken'));
- assert.equal(await page.locator('#status').textContent(), 'Ready when you are');
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
+ assert.equal(await page.locator('#text').evaluate(el => el === document.activeElement), false);
  const originalText = await page.locator('#text').inputValue();
  await page.locator('#edit-mode').click();
  await page.locator('#voice').selectOption('test');
@@ -44,11 +45,18 @@ try {
 
  assert.ok((await page.locator('#position').textContent()).startsWith('2 /'));
  await page.locator('#pause').click(); assert.equal(await page.locator('#play').textContent(),'▶ Resume');
- await page.locator('#play').click(); await page.locator('#stop').click();
+ const pausedPosition = await page.locator('#position').textContent();
+ await page.locator('#read-mode').click();
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
+ assert.equal(await page.locator('#position').textContent(), pausedPosition);
+ await page.locator('#stop').click();
  assert.equal(await page.locator('#status').textContent(),'Ready when you are');
  await page.locator('#play').click();
  await page.evaluate(()=>{let count=0;while(document.querySelector('#status').textContent==='Reading aloud' && count++<100)speechSynthesis.spoken.at(-1).onend();});
  assert.equal(await page.locator('#status').textContent(),'All read. Take a breath.');
+ await page.locator('#read-mode').click();
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
+ assert.ok((await page.locator('#position').textContent()).startsWith('1 /'));
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.screenshot({path:'work/mobile.png',fullPage:true});
  await page.locator('#edit-mode').click();
@@ -98,6 +106,7 @@ try {
 
  await page.locator('#text').fill('Keep this 😀 https://example.com');
  await page.locator('#read-mode').focus(); await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
  await page.getByText('Clean up before reading', {exact:true}).click();
  await page.locator('#clean-emoji').check();
  assert.equal(await page.locator('#preview').textContent(), 'Keep this');
@@ -126,6 +135,8 @@ try {
  await page.reload(); assert.equal(await page.locator('#voice').inputValue(),'test'); assert.equal(await page.locator('#text').inputValue(),'');
  await page.locator('#read-mode').click();
  assert.equal(await page.locator('#preview').evaluate(el => el.offsetHeight), 300);
+ assert.equal(await page.evaluate(() => speechSynthesis.spoken.length), 0);
+ assert.equal(await page.locator('#read-mode').getAttribute('aria-pressed'), 'true');
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('<img src=x onerror=alert(1)>');
@@ -138,6 +149,11 @@ try {
  assert.deepEqual(errors,[]);
  const unsupported=await browser.newContext(); await unsupported.addInitScript(()=>{delete window.speechSynthesis;delete window.SpeechSynthesisUtterance;});
  const fallback=await unsupported.newPage(); await fallback.goto(baseURL);
+ assert.ok((await fallback.locator('#status').textContent()).includes('unavailable'));
+ await fallback.locator('#text').fill('Still available to read visually.');
+ await fallback.locator('#read-mode').click();
+ assert.equal(await fallback.locator('#read-mode').getAttribute('aria-pressed'), 'true');
+ assert.equal(await fallback.locator('#text').evaluate(el => el === document.activeElement), false);
  assert.ok((await fallback.locator('#status').textContent()).includes('unavailable'));
  console.log('Browser checks passed: mobile layout, cleanup, playback controls, sequential completion, persistence, safe preview, unsupported browser. Speech engine mocked; actual Pixel audio needs device testing.');
 } finally { await browser.close(); }
