@@ -3,6 +3,7 @@ import asyncio
 import io
 import json
 import os
+import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -106,5 +107,51 @@ async def speech(request: Request):
         raise HTTPException(500, 'Could not generate speech. Try another voice.') from None
     finally:
         app.state.busy = False
+
+def extract_pdf(data):
+    try:
+        result = subprocess.run(
+            ['pdftotext', '-enc', 'UTF-8', '-', '-'], input=data,
+            stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, timeout=30,
+            check=False,
+        )
+    except FileNotFoundError:
+        raise HTTPException(503, 'PDF import is unavailable on this workstation.') from None
+    except subprocess.TimeoutExpired:
+        raise HTTPException(422, 'This PDF took too long to read. Try a smaller PDF.') from None
+    if result.returncode:
+        raise HTTPException(422, 'Could not read this PDF. It may be damaged or password-protected.')
+    pages = result.stdout.decode('utf-8', errors='replace').split('\f')
+    if pages and not pages[-1].strip():
+        pages.pop()
+    text = '\n\n'.join(page.strip() for page in pages if page.strip())
+    if not text:
+        raise HTTPException(422, 'No readable text found. This version does not recognize text in scanned images (no OCR).')
+    if len(text) > 1_000_000:
+        raise HTTPException(413, 'Too much text. Try a smaller PDF or a section of it.')
+    return {'text': text, 'pages': len(pages), 'emptyPages': sum(not page.strip() for page in pages)}
+
+@app.post('/pdf-text')
+@app.post('/api/pdf-text')
+async def pdf_text(request: Request):
+    origin = request.headers.get('origin')
+    if origin and origin not in ALLOWED_ORIGINS:
+        raise HTTPException(403, 'Origin not allowed')
+    if request.headers.get('content-type', '').split(';')[0].strip() != 'application/pdf':
+        raise HTTPException(415, 'Choose a PDF file.')
+    data = bytearray()
+    async for chunk in request.stream():
+        data.extend(chunk)
+        if len(data) > 20 * 1024 * 1024:
+            raise HTTPException(413, 'Choose a PDF smaller than 20 MB.')
+    if not data.startswith(b'%PDF-'):
+        raise HTTPException(422, 'This file does not look like a PDF.')
+    if getattr(app.state, 'pdf_busy', False):
+        raise HTTPException(503, 'Another PDF is being read. Try again shortly.')
+    app.state.pdf_busy = True
+    try:
+        return await asyncio.to_thread(extract_pdf, bytes(data))
+    finally:
+        app.state.pdf_busy = False
 
 app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'public')), html=True), name='static')

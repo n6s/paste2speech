@@ -16,6 +16,43 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
     async def asyncTearDown(self):
         await self.client.aclose()
 
+    async def test_pdf_extracts_text_and_reports_empty_pages(self):
+        # A real two-page PDF: one text page and one blank page.
+        stream = b'BT /F1 12 Tf 72 720 Td (Hello PDF reader.) Tj ET'
+        objects = [
+            b'<< /Type /Catalog /Pages 2 0 R >>',
+            b'<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>',
+            b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>',
+            b'<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',
+            b'<< /Length ' + str(len(stream)).encode() + b' >>\nstream\n' + stream + b'\nendstream',
+            b'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>',
+        ]
+        pdf = bytearray(b'%PDF-1.4\n')
+        offsets = [0]
+        for number, obj in enumerate(objects, 1):
+            offsets.append(len(pdf))
+            pdf.extend(f'{number} 0 obj\n'.encode() + obj + b'\nendobj\n')
+        start = len(pdf)
+        pdf.extend(f'xref\n0 {len(offsets)}\n0000000000 65535 f \n'.encode())
+        for offset in offsets[1:]:
+            pdf.extend(f'{offset:010d} 00000 n \n'.encode())
+        pdf.extend(f'trailer\n<< /Size {len(offsets)} /Root 1 0 R >>\nstartxref\n{start}\n%%EOF\n'.encode())
+        response = await self.client.post('/pdf-text', content=bytes(pdf), headers={'content-type': 'application/pdf'})
+        self.assertEqual(response.status_code, 200, response.text)
+        self.assertEqual(response.json(), {'text': 'Hello PDF reader.', 'pages': 2, 'emptyPages': 1})
+        blank = bytes(pdf).replace(b'Hello PDF reader.', b'                 ')
+        response = await self.client.post('/pdf-text', content=blank, headers={'content-type': 'application/pdf'})
+        self.assertEqual(response.status_code, 422)
+        self.assertIn('no OCR', response.json()['detail'])
+
+    async def test_invalid_pdf_and_foreign_origin(self):
+        response = await self.client.post('/pdf-text', content=b'not a pdf', headers={'content-type': 'application/pdf'})
+        self.assertEqual(response.status_code, 422)
+        response = await self.client.post('/pdf-text', content=b'%PDF-broken', headers={'content-type': 'application/pdf'})
+        self.assertEqual(response.status_code, 422)
+        response = await self.client.post('/pdf-text', content=b'%PDF-', headers={'content-type': 'application/pdf', 'origin': 'https://unrelated.example'})
+        self.assertEqual(response.status_code, 403)
+
     async def test_valid_speech_and_headers(self):
         response = await self.client.post('/speech', json={'text':'Hello', 'voice':'af_heart','speed':1.0})
         self.assertEqual(response.status_code, 200)

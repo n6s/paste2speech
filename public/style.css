@@ -5,3 +5,5 @@
 .engine-label{display:block;margin-bottom:18px}
 
 .follow-toggle{display:flex;align-items:center;gap:9px;min-height:44px;margin:6px 0;font-weight:450}.follow-toggle input{width:19px;height:19px;accent-color:#24634f}
+
+.pdf-import{margin-top:12px;padding:12px;border-radius:10px;background:#f4f5ed}.pdf-import label{display:block;margin-bottom:8px}.pdf-import input{max-width:100%;font-size:.85rem}

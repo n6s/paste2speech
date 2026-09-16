@@ -39,6 +39,12 @@ sudo tailscale serve --https=443 --set-path=/speak off
 
 Do not disable all of port 443 or run `tailscale serve reset`: that would also remove Immich's route. Serve is private to devices/users allowed by your tailnet policy; no Funnel or router port forwarding is needed.
 
+## Open a PDF
+
+Choose **Open PDF** above the text box on the Tailscale reader. PDFs up to 20 MB are sent to the workstation, where Poppler `pdftotext` extracts their existing text layer in memory. Files and extracted text are not saved. Successful imports replace the text box; failed imports leave it intact. Review the preview and press Play. Pages without text are skipped with a notice; image-only scans need OCR, which this version does not provide. Columns, tables, headers and footnotes may read out of order. Password-protected or damaged files may be rejected. Extraction times out after 30 seconds, and imports over one million characters are rejected.
+
+PDF import requires the workstation API and `poppler-utils` (`sudo apt-get install poppler-utils`); the static-only development server cannot import PDFs.
+
 ## Start at a paragraph
 
 Paste text, then tap any paragraph in **Preview what will be read**. Reading starts at that paragraph and continues to the end. The active paragraph is highlighted. Tap another paragraph to jump there, even while playing or paused. Keyboard users can Tab to a paragraph and press Enter or Space.

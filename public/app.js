@@ -144,3 +144,38 @@ else $('status').textContent = 'Speech is unavailable in this browser. Try Chrom
 preview();
 
 discoverWorkstation();
+
+$('pdf-file').addEventListener('change', async () => {
+  const file = $('pdf-file').files[0];
+  if (!file) return;
+  if (file.size > 20 * 1024 * 1024) {
+    $('pdf-status').textContent = 'Choose a PDF smaller than 20 MB.';
+    $('pdf-file').value = '';
+    return;
+  }
+  player?.stop();
+  $('pdf-file').disabled = true;
+  $('text').readOnly = true;
+  $('clear').disabled = true;
+  $('pdf-status').textContent = `Reading ${file.name}…`;
+  try {
+    const response = await fetch(new URL('api/pdf-text', location.href), {
+      method: 'POST', headers: {'Content-Type': 'application/pdf'},
+      body: file, signal: AbortSignal.timeout(40000),
+    });
+    if (response.status === 404 || response.status === 405) throw new Error('PDF import needs the workstation service. Open the Tailscale reader URL.');
+    const data = await response.json();
+    if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not read this PDF.');
+    player?.stop();
+    $('text').value = data.text;
+    preview();
+    $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the preview, then press Play. Columns and tables may read out of order.`;
+  } catch (error) {
+    $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not reach the workstation. Check your connection and try again.' : error.message);
+  } finally {
+    $('pdf-file').disabled = false;
+    $('pdf-file').value = '';
+    $('text').readOnly = false;
+    $('clear').disabled = false;
+  }
+});
