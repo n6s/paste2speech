@@ -43,6 +43,8 @@ Do not disable all of port 443 or run `tailscale serve reset`: that would also r
 
 Paste text, then tap any paragraph in **Preview what will be read**. Reading starts at that paragraph and continues to the end. The active paragraph is highlighted. Tap another paragraph to jump there, even while playing or paused. Keyboard users can Tab to a paragraph and press Enter or Space.
 
+Enable **Follow reading** above the preview to keep the active paragraph visible as playback advances or you jump to another paragraph. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse the preview freely. Paragraphs taller than the preview are aligned to their beginning.
+
 Blank lines separate paragraphs. Long paragraphs still use short speech chunks internally. Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the paragraphs and stops playback.
 
 Voice and cleanup preferences are stored per browser origin. Moving from port 8443 to the default HTTPS port starts with fresh preferences; choose your preferred voice again.

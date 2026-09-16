@@ -7,6 +7,7 @@ try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; }
 const options = { ...defaults };
 for (const key of Object.keys(defaults)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
 $('rate').value = Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
+$('follow-reading').checked = saved.followReading === true;
 let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
@@ -43,7 +44,7 @@ async function discoverWorkstation() {
   }
 }
 function settings() { return { rate: Number($('rate').value), voice: isWorkstation() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
-function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value })); } catch {} }
+function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
@@ -66,6 +67,27 @@ function preview() {
   $('count').textContent = cleaned ? `· ${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
 }
+function followParagraph(button) {
+  const pane = $('preview');
+  if (!$('follow-reading').checked || !pane.closest('details').open || !button) return;
+  // Scroll only the preview, so playback controls and the page stay put.
+  const bounds = pane.getBoundingClientRect();
+  const paragraph = button.getBoundingClientRect();
+  const top = bounds.top + pane.clientTop;
+  const bottom = top + pane.clientHeight;
+  if (paragraph.height > pane.clientHeight || paragraph.top < top) {
+    pane.scrollTop += paragraph.top - top;
+  } else if (paragraph.bottom > bottom) {
+    pane.scrollTop += paragraph.bottom - bottom;
+  }
+}
+$('follow-reading').addEventListener('change', () => {
+  save();
+  followParagraph($('preview').querySelector('[aria-current=true]'));
+});
+$('preview').closest('details').addEventListener('toggle', () => {
+  followParagraph($('preview').querySelector('[aria-current=true]'));
+});
 function render(p, message) {
   $('status').textContent = message || ({ idle: 'Ready when you are', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
@@ -77,7 +99,11 @@ function render(p, message) {
   const active = ['playing', 'paused'].includes(p.state);
   for (const [index, button] of [...$('preview').children].entries()) {
     const current = active && p.index >= paragraphStarts[index] && p.index < (paragraphStarts[index + 1] ?? chunks.length);
-    if (current) button.setAttribute('aria-current', 'true');
+    if (current) {
+      const changed = !button.hasAttribute('aria-current');
+      button.setAttribute('aria-current', 'true');
+      if (changed) followParagraph(button);
+    }
     else button.removeAttribute('aria-current');
   }
   $('current').textContent = ['playing', 'paused'].includes(p.state) ? p.chunks[p.index] : '';

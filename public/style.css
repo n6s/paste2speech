@@ -3,3 +3,5 @@
 .paragraph{display:block;width:100%;text-align:left;white-space:pre-wrap;overflow-wrap:anywhere;font-weight:400;font-size:inherit;line-height:1.65;background:transparent;border:1px solid transparent;border-left:4px solid transparent;border-radius:8px;margin:0 0 10px;padding:10px 12px}.paragraph:last-child{margin-bottom:0}.paragraph[aria-current=true]{background:#e5eddf;border-left-color:#24634f}.paragraph:disabled{opacity:1}
 
 .engine-label{display:block;margin-bottom:18px}
+
+.follow-toggle{display:flex;align-items:center;gap:9px;min-height:44px;margin:6px 0;font-weight:450}.follow-toggle input{width:19px;height:19px;accent-color:#24634f}
