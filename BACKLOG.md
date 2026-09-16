@@ -10,10 +10,11 @@ After the background-playback upgrade, in order:
 
 Roger reported on 2026-09-16 that a long newsletter played on his Pixel with the screen off and finished naturally with five seconds remaining on a ten-minute countdown (approximately 9 minutes 55 seconds). This verifies screen-off playback through completion for that reading; it is just short of the planned ten-minute duration.
 
+Roger also confirmed that switching apps during prepared playback caused no audio interruption, and returning to the reader showed the correct currently playing section highlighted. App switching and preview synchronization passed.
+
 Remaining checks on Roger's Pixel:
 
 - Play a prepared reading for at least ten minutes with the screen locked.
-- Switch apps and return; confirm uninterrupted audio and accurate paragraph highlighting.
 - Exercise lock-screen/headphone pause, resume, and available seek controls.
 - Disconnect Tailscale after preparation and confirm playback continues.
 
