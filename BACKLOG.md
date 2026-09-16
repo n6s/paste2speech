@@ -1,9 +1,14 @@
 # Queued improvements
 
-No queued feature improvements remain.
+- Paste and Play near the text panel.
+- Persistent playback controls for easier access while scrolling.
+
+These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-16
 
+- Consolidated Edit/Read panel, preserving original text and cleanup settings. Mode changes preserve playback; editing resets it.
+- Removed editing resize handle and duplicate current-reading display; resizing remains available in Read mode.
 - Stable short preview sections for long paragraphs, using the existing speech chunks for section navigation and highlighting.
 - Manually resizable reading preview (native vertical handle, where supported), replacing the expandable-preview proposal.
 - PDF import collapsed by default under Open PDF.

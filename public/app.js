@@ -66,12 +66,22 @@ function preview() {
     $('preview').append(button);
   }
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
-  $('count').textContent = cleaned ? `· ${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
+  $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
 }
+function setMode(mode) {
+  const reading = mode === 'read';
+  $('edit-view').hidden = reading;
+  $('read-view').hidden = !reading;
+  $('edit-mode').setAttribute('aria-pressed', String(!reading));
+  $('read-mode').setAttribute('aria-pressed', String(reading));
+  if (reading) followParagraph($('preview').querySelector('[aria-current=true]'));
+}
+$('edit-mode').addEventListener('click', () => setMode('edit'));
+$('read-mode').addEventListener('click', () => setMode('read'));
 function followParagraph(button) {
   const pane = $('preview');
-  if (!$('follow-reading').checked || !pane.closest('details').open || !button) return;
+  if (!$('follow-reading').checked || $('read-view').hidden || !button) return;
   // Scroll only the preview, so playback controls and the page stay put.
   const bounds = pane.getBoundingClientRect();
   const paragraph = button.getBoundingClientRect();
@@ -85,9 +95,6 @@ function followParagraph(button) {
 }
 $('follow-reading').addEventListener('change', () => {
   save();
-  followParagraph($('preview').querySelector('[aria-current=true]'));
-});
-$('preview').closest('details').addEventListener('toggle', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
@@ -109,7 +116,6 @@ function render(p, message) {
     }
     else button.removeAttribute('aria-current');
   }
-  $('current').textContent = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state) ? p.chunks[p.index] : '';
 }
 for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji' })) {
   const wrapper = document.createElement('label'); const input = document.createElement('input');
@@ -134,10 +140,10 @@ function loadVoices() {
 }
 $('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { resetReading(); preview(); });
-$('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); $('text').focus(); });
+$('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
-$('play').addEventListener('click', () => { if (!player) return; if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings()); else player.start(chunks, settings()); });
+$('play').addEventListener('click', () => { if (!player) return; setMode('read'); if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings()); else player.start(chunks, settings()); });
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
@@ -174,7 +180,8 @@ $('pdf-file').addEventListener('change', async () => {
     resetReading();
     $('text').value = data.text;
     preview();
-    $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the preview, then press Play. Columns and tables may read out of order.`;
+    setMode('edit');
+    $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Choose Read to review, then press Play. Columns and tables may read out of order.`;
   } catch (error) {
     $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not reach the workstation. Check your connection and try again.' : error.message);
   } finally {

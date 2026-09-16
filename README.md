@@ -11,7 +11,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory public
 
 Open **http://127.0.0.1:8765** in a browser. Keep that terminal running; Ctrl+C stops it. Python only serves static files. Any static web server can replace it.
 
-Paste text, review **Preview what will be read**, choose **Browser voices** or **Workstation · Kokoro**, pick a voice and speed, and tap **Play**. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
+Paste text, choose **Read** to review the cleaned text, choose **Browser voices** or **Workstation · Kokoro**, pick a voice and speed, and tap **Play**. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
 
 ## Use it from your Pixel over Tailscale
 
@@ -45,15 +45,21 @@ Expand **Open PDF** above the text box and choose a file on the Tailscale reader
 
 PDF import requires the workstation API and `poppler-utils` (`sudo apt-get install poppler-utils`); the static-only development server cannot import PDFs.
 
-## Start at a reading section
+## One panel for editing and reading
 
-Paste text, then tap any section in **Preview what will be read**. Reading starts at that section and continues to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
+The page starts in **Edit**, showing your original text without a resize handle. **Read** shows the cleaned text in the same panel without starting playback. **Play / Resume** switches to Read automatically. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Switching modes alone preserves your place, prepared audio, and original text.
+
+Cleanup settings always regenerate the reading text from the original, so filtered material is not lost. A successful PDF import shows the imported text in Edit; a failed import preserves your text and mode. Clear returns to an empty Edit view. The separate preview and duplicate current-reading display have been removed.
+
+### Start at a reading section
+
+Paste text, choose **Read**, then tap any section. Reading starts at that section and continues to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
 
 Short paragraphs remain intact. Longer paragraphs appear as stable speech-sized sections of up to 180 UTF-16 code units, preferring sentence boundaries and then spaces. Resizing the preview does not change section boundaries or interrupt playback.
 
-Enable **Follow reading** above the preview to keep the active section visible. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse freely. Sections taller than the preview are aligned to their beginning.
+Enable **Follow reading** in Read mode to keep the active section visible. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse freely. Sections taller than the preview are aligned to their beginning.
 
-Drag the preview's bottom-right handle vertically where your browser supports it. The preview starts at 300px tall, with a 150px minimum; its height resets on reload. Touch browsers may not show a native resize handle.
+Drag the preview's bottom-right handle vertically where your browser supports it. The preview starts at 300px tall, with a 150px minimum; its height survives mode switches and resets on reload. Touch browsers may not show a native resize handle.
 
 Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the sections and stops playback.
 
