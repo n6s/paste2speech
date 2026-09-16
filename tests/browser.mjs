@@ -1,6 +1,7 @@
 // Optional: npm install --no-save --package-lock=false playwright
 // Start the README's local server first, then: node tests/browser.mjs
 import assert from 'node:assert/strict';
+import {chunkText} from '../public/text.js';
 import { mkdir } from 'node:fs/promises';
 await mkdir('work', {recursive:true});
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
@@ -46,7 +47,44 @@ try {
  await page.screenshot({path:'work/paragraphs-mobile.png',fullPage:true});
  await page.locator('#stop').click();
  assert.equal(await page.locator('.paragraph[aria-current=true]').count(),0);
+ const longText = 'Short section.\n\n' + 'A sentence to follow while reading. '.repeat(20) + '\n\n' + '😀'.repeat(190);
+ await page.locator('#text').fill(longText);
+ const expected = longText.split(/\n\s*\n/).flatMap(p => chunkText(p));
+ assert.deepEqual(await page.locator('.paragraph').allTextContents(), expected);
+ await page.locator('#follow-reading').check();
+ await page.locator('.paragraph').first().click();
+ const spokenStart = await page.evaluate(() => speechSynthesis.spoken.length - 1);
+ for (let i = 0; i < expected.length; i++) {
+  assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(), expected[i]);
+  await page.evaluate(() => speechSynthesis.spoken.at(-1).onend());
+ }
+ assert.deepEqual(await page.evaluate(start => speechSynthesis.spoken.slice(start).map(u => u.text), spokenStart), expected);
+ assert.ok(await page.locator('#preview').evaluate(el => el.scrollTop > 0));
+ await page.locator('.paragraph').nth(2).focus(); await page.keyboard.press('Enter');
+ const position = await page.locator('#position').textContent();
+ await page.locator('#preview').evaluate(el => el.style.height = '450px');
+ assert.equal(await page.locator('#position').textContent(), position);
+ assert.deepEqual(await page.locator('.paragraph').allTextContents(), expected);
+ assert.equal(await page.locator('#preview').evaluate(el => getComputedStyle(el).resize), 'vertical');
+ assert.equal(await page.locator('#preview').evaluate(el => el.offsetHeight), 450);
+ await page.locator('#stop').click();
+ assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
+ await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#pdf-file').isVisible(), true);
+ await page.route('**/api/pdf-text', r => r.fulfill({json:{text:'PDF success.',pages:1,emptyPages:0}}));
+ const pdf = {name:'sample.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 mock')};
+ await page.locator('#pdf-file').setInputFiles(pdf);
+ await page.waitForFunction(() => document.querySelector('#text').value === 'PDF success.');
+ assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), true);
+ await page.unroute('**/api/pdf-text');
+ await page.route('**/api/pdf-text', r => r.fulfill({status:400,json:{detail:'Invalid PDF'}}));
+ await page.locator('#pdf-file').setInputFiles(pdf);
+ await page.waitForFunction(() => document.querySelector('#pdf-status').textContent.includes('Invalid PDF'));
+ assert.equal(await page.locator('#text').inputValue(), 'PDF success.');
+ assert.equal(await page.locator('#pdf-status').isVisible(), true);
  await page.reload(); assert.equal(await page.locator('#voice').inputValue(),'test'); assert.equal(await page.locator('#text').inputValue(),'');
+ assert.equal(await page.locator('#preview').evaluate(el => el.offsetHeight), 300);
+ assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('#text').fill('<img src=x onerror=alert(1)>');
  assert.equal(await page.locator('#preview img').count(),0);
  await page.locator('#clear').click(); assert.equal(await page.locator('#play').isDisabled(),true);

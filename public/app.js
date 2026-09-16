@@ -52,16 +52,16 @@ function preview() {
   chunks = [];
   paragraphStarts = [];
   $('preview').replaceChildren();
-  for (const [index, paragraph] of cleaned.split(/\n\s*\n/).filter(Boolean).entries()) {
+  for (const [index, paragraph] of cleaned.split(/\n\s*\n/).filter(Boolean).flatMap(paragraph => chunkText(paragraph)).entries()) {
     const start = chunks.length;
     paragraphStarts.push(start);
-    chunks.push(...chunkText(paragraph));
+    chunks.push(paragraph);
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'paragraph';
     button.textContent = paragraph;
     button.disabled = !canPlay();
-    button.setAttribute('aria-label', `Read from paragraph ${index + 1}: ${paragraph}`);
+    button.setAttribute('aria-label', `Read from section ${index + 1}: ${paragraph}`);
     button.addEventListener('click', () => player?.start(chunks, settings(), start));
     $('preview').append(button);
   }

@@ -41,17 +41,21 @@ Do not disable all of port 443 or run `tailscale serve reset`: that would also r
 
 ## Open a PDF
 
-Choose **Open PDF** above the text box on the Tailscale reader. PDFs up to 20 MB are sent to the workstation, where Poppler `pdftotext` extracts their existing text layer in memory. Files and extracted text are not saved. Successful imports replace the text box; failed imports leave it intact. Review the preview and press Play. Pages without text are skipped with a notice; image-only scans need OCR, which this version does not provide. Columns, tables, headers and footnotes may read out of order. Password-protected or damaged files may be rejected. Extraction times out after 30 seconds, and imports over one million characters are rejected.
+Expand **Open PDF** above the text box and choose a file on the Tailscale reader. PDFs up to 20 MB are sent to the workstation, where Poppler `pdftotext` extracts their existing text layer in memory. Files and extracted text are not saved. Successful imports replace the text box; failed imports leave it intact. Review the preview and press Play. Pages without text are skipped with a notice; image-only scans need OCR, which this version does not provide. Columns, tables, headers and footnotes may read out of order. Password-protected or damaged files may be rejected. Extraction times out after 30 seconds, and imports over one million characters are rejected.
 
 PDF import requires the workstation API and `poppler-utils` (`sudo apt-get install poppler-utils`); the static-only development server cannot import PDFs.
 
-## Start at a paragraph
+## Start at a reading section
 
-Paste text, then tap any paragraph in **Preview what will be read**. Reading starts at that paragraph and continues to the end. The active paragraph is highlighted. Tap another paragraph to jump there, even while playing or paused. Keyboard users can Tab to a paragraph and press Enter or Space.
+Paste text, then tap any section in **Preview what will be read**. Reading starts at that section and continues to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
 
-Enable **Follow reading** above the preview to keep the active paragraph visible as playback advances or you jump to another paragraph. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse the preview freely. Paragraphs taller than the preview are aligned to their beginning.
+Short paragraphs remain intact. Longer paragraphs appear as stable speech-sized sections of up to 180 UTF-16 code units, preferring sentence boundaries and then spaces. Resizing the preview does not change section boundaries or interrupt playback.
 
-Blank lines separate paragraphs. Long paragraphs still use short speech chunks internally. Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the paragraphs and stops playback.
+Enable **Follow reading** above the preview to keep the active section visible. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse freely. Sections taller than the preview are aligned to their beginning.
+
+Drag the preview's bottom-right handle vertically where your browser supports it. The preview starts at 300px tall, with a 150px minimum; its height resets on reload. Touch browsers may not show a native resize handle.
+
+Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the sections and stops playback.
 
 Voice and cleanup preferences are stored per browser origin. Moving from port 8443 to the default HTTPS port starts with fresh preferences; choose your preferred voice again.
 
