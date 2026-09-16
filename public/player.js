@@ -4,8 +4,8 @@ export class Player {
   }
   emit(message = '') { this.onChange(this, message); }
   cancel() { this.generation++; clearTimeout(this.timer); this.synth.cancel(); this.utterance = null; }
-  start(chunks, settings) {
-    this.cancel(); this.chunks = chunks; this.settings = settings; this.index = 0; this.offset = 0;
+  start(chunks, settings, startIndex = 0) {
+    this.cancel(); this.chunks = chunks; this.settings = settings; this.index = Math.max(0, Math.min(chunks.length - 1, Math.trunc(startIndex) || 0)); this.offset = 0;
     this.state = chunks.length ? 'playing' : 'idle';
     if (chunks.length) this.speak(); else this.emit('Paste some readable text first.');
   }

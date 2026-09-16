@@ -15,28 +15,37 @@ Paste text, review **Preview what will be read**, choose a voice and speed, and 
 
 ## Use it from your Pixel over Tailscale
 
-1. Connect both workstation and Pixel to your Tailscale network. Keep the local server above running and the workstation awake.
-2. Inspect your existing routes:
-   ```sh
-   tailscale serve status
-   ```
-   At setup time this workstation already served another app on HTTPS port 443. Use a separate port for Paste to Speech:
-   ```sh
-   tailscale serve --bg --https=8443 http://127.0.0.1:8765
-   ```
-   If Tailscale asks you to enable HTTPS/Serve, follow the account setup link it prints. If it reports a permissions error, run the same Serve command with `sudo`. If port 8443 is already assigned to another app, choose a free HTTPS port instead.
-3. Open the HTTPS URL printed by that command on your Pixel, including **:8443**. On this workstation the expected URL is **https://pop-os.tailbd091c.ts.net:8443/**; use the actual printed address if it differs. Bookmark it or add it to your home screen in Chrome.
-4. Paste a long answer and test Play → Pause → Resume → Stop. Try a few voices: they depend on the Pixel’s installed speech services.
+Open **https://pop-os.tailbd091c.ts.net/speak/** with Tailscale connected on the Pixel. Immich remains at the hostname's root. Paste to Speech is served directly from `public/` by Tailscale; Python is only needed for local development.
 
-Serve is private to devices/users allowed by your tailnet policy. No Funnel or router port forwarding is needed. This repo's setup does not change any Tailscale routes automatically.
-
-`--bg` keeps the Tailscale route configured, but does **not** keep Python running or start it after reboot. For the initial version, restart the local server when needed. To remove only this app's route:
+The route is already configured. To recreate it:
 
 ```sh
-tailscale serve --https=8443 off
+sudo tailscale serve --bg --https=443 --set-path=/speak /home/roger/workarea/paste2speech/public
 ```
 
-Avoid `tailscale serve reset`, which would remove your other app's configuration too.
+The workstation must be awake and connected to Tailscale. The background route persists across restarts. Only the public directory is served. The old port 8443 route has been removed.
+
+To inspect routes:
+
+```sh
+tailscale serve status
+```
+
+To remove only Paste to Speech:
+
+```sh
+sudo tailscale serve --https=443 --set-path=/speak off
+```
+
+Do not disable all of port 443 or run `tailscale serve reset`: that would also remove Immich's route. Serve is private to devices/users allowed by your tailnet policy; no Funnel or router port forwarding is needed.
+
+## Start at a paragraph
+
+Paste text, then tap any paragraph in **Preview what will be read**. Reading starts at that paragraph and continues to the end. The active paragraph is highlighted. Tap another paragraph to jump there, even while playing or paused. Keyboard users can Tab to a paragraph and press Enter or Space.
+
+Blank lines separate paragraphs. Long paragraphs still use short speech chunks internally. Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the paragraphs and stops playback.
+
+Voice and cleanup preferences are stored per browser origin. Moving from port 8443 to the default HTTPS port starts with fresh preferences; choose your preferred voice again.
 
 ## Reading behavior and limits
 
@@ -61,6 +70,8 @@ Optional browser checks use Playwright and an installed Chrome. With the local s
 ```sh
 npm install --no-save --package-lock=false playwright
 node tests/browser.mjs
+# Or test the deployed path:
+TEST_URL=https://pop-os.tailbd091c.ts.net/speak/ node tests/browser.mjs
 ```
 
 Set `CHROME_PATH` if Chrome is somewhere other than `/usr/bin/google-chrome`. Screenshots are written to `work/`. The browser test mocks speech to deterministically check controls, progress, completion and error-independent UI behavior; it does not validate audible output on a Pixel.

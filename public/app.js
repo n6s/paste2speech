@@ -9,13 +9,31 @@ $('rate').value = Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.r
 let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
+let chunks = [];
+let paragraphStarts = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const player = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 function settings() { return { rate: Number($('rate').value), voice: voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: selectedVoice })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
-  $('preview').textContent = cleaned || 'Your cleaned text will appear here.';
+  chunks = [];
+  paragraphStarts = [];
+  $('preview').replaceChildren();
+  for (const [index, paragraph] of cleaned.split(/\n\s*\n/).filter(Boolean).entries()) {
+    const start = chunks.length;
+    paragraphStarts.push(start);
+    chunks.push(...chunkText(paragraph));
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'paragraph';
+    button.textContent = paragraph;
+    button.disabled = !supported;
+    button.setAttribute('aria-label', `Read from paragraph ${index + 1}: ${paragraph}`);
+    button.addEventListener('click', () => player?.start(chunks, settings(), start));
+    $('preview').append(button);
+  }
+  if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
   $('count').textContent = cleaned ? `· ${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !supported || !cleaned;
 }
@@ -27,6 +45,12 @@ function render(p, message) {
   $('play').disabled = p.state === 'playing' || !cleaned;
   $('pause').disabled = p.state !== 'playing';
   $('stop').disabled = p.state === 'idle';
+  const active = ['playing', 'paused'].includes(p.state);
+  for (const [index, button] of [...$('preview').children].entries()) {
+    const current = active && p.index >= paragraphStarts[index] && p.index < (paragraphStarts[index + 1] ?? chunks.length);
+    if (current) button.setAttribute('aria-current', 'true');
+    else button.removeAttribute('aria-current');
+  }
   $('current').textContent = ['playing', 'paused'].includes(p.state) ? p.chunks[p.index] : '';
 }
 for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji' })) {
@@ -46,7 +70,7 @@ $('text').addEventListener('input', () => { player?.stop(); preview(); });
 $('clear').addEventListener('click', () => { player?.stop(); $('text').value = ''; preview(); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (player?.state === 'playing') player.pause(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (player?.state === 'playing') player.pause(); save(); });
-$('play').addEventListener('click', () => { if (!player) return; if (player.state === 'paused') player.resume(settings()); else player.start(chunkText(cleaned), settings()); });
+$('play').addEventListener('click', () => { if (!player) return; if (player.state === 'paused') player.resume(settings()); else player.start(chunks, settings()); });
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => player?.pause());

@@ -66,3 +66,10 @@ test('new playback ignores callbacks from replaced text', () => {
  p.start(['new','next'],{rate:1}); old.onend(); assert.equal(p.index,0);
  assert.equal(synth.spoken.at(-1).text,'new'); p.stop();
 });
+test('start at a chosen chunk reads to the end and stop resets', () => {
+ const {synth,player:p}=setup(); p.start(['first','second','third'],{rate:1},1);
+ assert.equal(synth.spoken[0].text,'second'); assert.equal(p.index,1);
+ synth.spoken[0].onend(); assert.equal(synth.spoken[1].text,'third');
+ synth.spoken[1].onend(); assert.equal(p.state,'done');
+ p.stop(); assert.equal(p.index,0);
+});
