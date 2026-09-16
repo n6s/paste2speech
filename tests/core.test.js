@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cleanText, chunkText, defaults } from '../public/text.js';
+import { cleanText, chunkText, defaults, joinWrappedLines } from '../public/text.js';
 import { Player } from '../public/player.js';
 
 test('cleans a representative ChatGPT answer', () => {
@@ -72,4 +72,16 @@ test('start at a chosen chunk reads to the end and stop resets', () => {
  synth.spoken[0].onend(); assert.equal(synth.spoken[1].text,'third');
  synth.spoken[1].onend(); assert.equal(p.state,'done');
  p.stop(); assert.equal(p.index,0);
+});
+
+test('joins PDF hard wraps but keeps sentences and blank paragraphs', () => {
+ const input = 'A column wraps\nover several\nshort lines.\nNext sentence,\nwith a clause;\nand more.\n\nNew paragraph\nends here!';
+ const expected = 'A column wraps over several short lines.\nNext sentence, with a clause; and more.\n\nNew paragraph ends here!';
+ assert.equal(joinWrappedLines(input), expected);
+ assert.equal(cleanText(input, {...defaults, joinLines: true}), expected);
+ assert.equal(cleanText(input), input);
+ assert.equal(joinWrappedLines(expected), expected);
+ assert.equal(joinWrappedLines('He said “Done.”\r\nNext\r\n line?\r\nYes.'), 'He said “Done.”\nNext line?\nYes.');
+ assert.equal(joinWrappedLines('one\n \t\n two'), 'one\n \t\n two');
+ assert.equal(joinWrappedLines(''), '');
 });

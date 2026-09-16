@@ -115,6 +115,15 @@ try {
  assert.ok((await page.locator('#preview').textContent()).includes('https://example.com'));
  await page.locator('#clean-urls').check();
  await page.locator('#clean-emoji').uncheck();
+ await page.locator('#edit-mode').click();
+ await page.locator('#text').fill('A PDF column\nwraps here.\nNext sentence.');
+ await page.locator('#clean-joinLines').check();
+ assert.equal(await page.locator('#text').inputValue(), 'A PDF column\nwraps here.\nNext sentence.');
+ await page.locator('#read-mode').click();
+ assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'A PDF column wraps here.\nNext sentence.');
+ await page.locator('#clean-joinLines').uncheck();
+ assert.equal(await page.locator('#preview').textContent(), 'A PDF column\nwraps here.\nNext sentence.');
+
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#pdf-file').isVisible(), true);

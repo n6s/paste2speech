@@ -1,7 +1,8 @@
-export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false };
+export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: false };
 
 export function cleanText(input, options = defaults) {
   let text = input.replace(/\r\n?/g, '\n');
+  if (options.joinLines) text = joinWrappedLines(text);
   // Consume fenced blocks, including unfinished pasted blocks.
   text = text.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*(?:\n|$)|$(?![\s\S]))/gm,
     block => options.code ? '\n' : block);
@@ -55,4 +56,12 @@ export function chunkText(text, limit = 180) {
     remaining = remaining.slice(cut).trim();
   }
   return chunks.filter(Boolean);
+}
+
+// Repair hard wraps from PDF prose without removing paragraph boundaries.
+export function joinWrappedLines(input) {
+  return input.replace(/\r\n?/g, '\n').replace(
+    /([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/g,
+    (match, line) => /[.!?…]["'”’)}\]]*$/.test(line.trimEnd()) ? match : line.trimEnd() + ' '
+  );
 }

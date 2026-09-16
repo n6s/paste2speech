@@ -124,7 +124,7 @@ function render(p, message) {
     else button.removeAttribute('aria-current');
   }
 }
-for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji' })) {
+for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji', joinLines: 'Join wrapped lines' })) {
   const wrapper = document.createElement('label'); const input = document.createElement('input');
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;
   input.addEventListener('change', () => { resetReading(); options[key] = input.checked; save(); preview(); });
