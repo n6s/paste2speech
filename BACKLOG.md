@@ -12,13 +12,16 @@ Roger reported on 2026-09-16 that a long newsletter played on his Pixel with the
 
 Roger also confirmed that switching apps during prepared playback caused no audio interruption, and returning to the reader showed the correct currently playing section highlighted. App switching and preview synchronization passed.
 
-Roger confirmed that lock-screen media controls appeared and playback responded correctly. Lock-screen controls passed; headphone controls and the specific availability of seek buttons were not separately reported.
+Roger confirmed that lock-screen media controls appeared and playback responded correctly. Lock-screen pause/resume passed.
 
 Roger confirmed that after disconnecting Tailscale, prepared playback continued uninterrupted and pause/resume still worked. Playback without the workstation connection passed.
+
+Earbud check: pause worked, but resume did not. This is an open playback-control defect; the cause is not yet established. No backward/forward buttons appeared in the Pixel media player or lock screen, so device seeking could not be tested. Next diagnostic: after an earbud resume fails, try lock-screen Play and report whether it resumes.
 
 Remaining checks on Roger's Pixel:
 
 - Play a prepared reading for at least ten minutes with the screen locked.
-- Exercise headphone pause/resume and confirm backward/forward seeking where available.
+- Diagnose and fix earbud resume, then repeat headphone pause/resume testing.
+- Verify seeking if the device exposes seek controls; none were shown in this test.
 
 Do not mark background playback device-verified until these checks pass.
