@@ -1,0 +1,43 @@
+// Integration test against a running speech service; exercises real synthesis and Web Audio.
+import assert from 'node:assert/strict';
+import { mkdir } from 'node:fs/promises';
+await mkdir('work',{recursive:true});
+const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
+const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || '/usr/bin/google-chrome',headless:true});
+try {
+ const page=await browser.newPage({viewport:{width:393,height:851},isMobile:true});
+ const errors=[];page.on('pageerror',e=>errors.push(e.message));
+ await page.goto(process.env.TEST_URL || 'http://127.0.0.1:8766/');
+ await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
+ await page.locator('#engine').selectOption('kokoro');
+ assert.equal(await page.locator('#voice option').count(),6);
+ await page.locator('#text').fill('The first paragraph is a little introduction.\n\nHere is the second paragraph. This is a pleasant way to listen to text, without another subscription.\n\nAll done.');
+ const responsePromise=page.waitForResponse(r=>r.url().endsWith('/api/speech') && r.request().method()==='POST');
+ await page.locator('.paragraph').nth(1).click();
+ const response=await responsePromise; assert.equal(response.status(),200);
+ assert.equal((await response.body()).subarray(0,4).toString(),'RIFF');
+ await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
+ assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Here is the second paragraph. This is a pleasant way to listen to text, without another subscription.');
+ await page.locator('#pause').click();assert.equal(await page.locator('#play').textContent(),'▶ Resume');
+ await page.screenshot({path:'work/kokoro-mobile.png',fullPage:true});
+ await page.locator('#play').click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent==='All read. Take a breath.',{},{timeout:45000});
+ await page.locator('#voice').selectOption('bm_george');
+ await page.locator('.paragraph').nth(2).click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
+ await page.locator('#stop').click();
+ await page.reload();
+ await page.waitForFunction(()=>document.querySelector('#engine').value==='kokoro');
+ assert.equal(await page.locator('#voice').inputValue(),'bm_george');
+ await page.locator('#text').fill('Try again.');
+ await page.route('**/api/speech',r=>r.fulfill({status:500,body:'unavailable'}));
+ await page.locator('#play').click();
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('unavailable'));
+ assert.equal(await page.locator('#play').textContent(),'▶ Resume');
+ await page.locator('#engine').selectOption('browser');
+ assert.equal(await page.locator('#status').textContent(),'Ready when you are');
+ assert.equal(await page.locator('#play').isEnabled(),true);
+ assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
+ assert.deepEqual(errors,[]);
+ console.log('Real Kokoro browser checks passed: WAV decoding, mobile audio start, paragraph seek/highlight, pause/resume, automatic continuation/completion, British voice, saved preferences, failure recovery and browser fallback.');
+} finally {await browser.close();}

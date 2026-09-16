@@ -1,0 +1,23 @@
+[Unit]
+Description=Paste to Speech local Kokoro voices
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=%h/workarea/paste2speech
+ExecStart=%h/workarea/paste2speech/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8766 --no-access-log
+Environment=PYTHONUNBUFFERED=1
+Environment=HF_HUB_OFFLINE=1
+Environment=TRANSFORMERS_OFFLINE=1
+Environment=LOGURU_LEVEL=WARNING
+Environment=P2S_THREADS=4
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=30
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=full
+MemoryMax=3G
+
+[Install]
+WantedBy=default.target

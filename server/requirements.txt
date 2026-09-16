@@ -1,0 +1,7 @@
+# Install CPU torch first using https://download.pytorch.org/whl/cpu.
+torch==2.8.0
+kokoro==0.9.4
+transformers>=4.51,<5
+fastapi==0.116.1
+uvicorn==0.35.0
+soundfile==0.13.1

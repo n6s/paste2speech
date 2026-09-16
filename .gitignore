@@ -1,2 +1,5 @@
 node_modules/
 work/
+.venv/
+__pycache__/
+*.pyc

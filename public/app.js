@@ -1,5 +1,6 @@
 import { cleanText, chunkText, defaults } from './text.js';
 import { Player } from './player.js';
+import { AudioPlayer } from './audio-player.js';
 const $ = id => document.getElementById(id);
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
@@ -12,9 +13,37 @@ let cleaned = '';
 let chunks = [];
 let paragraphStarts = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-const player = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
-function settings() { return { rate: Number($('rate').value), voice: voices.find(v => v.voiceURI === $('voice').value) }; }
-function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: selectedVoice })); } catch {} }
+const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
+const workstationPlayer = new AudioPlayer(render);
+let player = browserPlayer;
+let workstationVoices = [];
+let browserVoice = selectedVoice;
+let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
+function isWorkstation() { return $('engine').value === 'kokoro'; }
+function canPlay() { return isWorkstation() || supported; }
+function changeEngine() {
+  player?.stop();
+  player = isWorkstation() ? workstationPlayer : browserPlayer;
+  selectedVoice = isWorkstation() ? workstationVoice : browserVoice;
+  loadVoices(); save(); preview();
+  if (player) render(player);
+}
+async function discoverWorkstation() {
+  try {
+    const response = await fetch(new URL('api/voices', location.href), {signal: AbortSignal.timeout(5000)});
+    if (!response.ok) throw new Error('unavailable');
+    const data = await response.json();
+    if (!Array.isArray(data.voices) || !data.voices.length) throw new Error('no voices');
+    workstationVoices = data.voices;
+    $('engine').options[1].disabled = false;
+    $('engine').options[1].textContent = 'Workstation · Kokoro';
+    if (saved.engine === 'kokoro' && (!player || player.state === 'idle')) { $('engine').value = 'kokoro'; changeEngine(); }
+  } catch {
+    $('engine').options[1].textContent = 'Workstation · unavailable';
+  }
+}
+function settings() { return { rate: Number($('rate').value), voice: isWorkstation() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
@@ -28,14 +57,14 @@ function preview() {
     button.type = 'button';
     button.className = 'paragraph';
     button.textContent = paragraph;
-    button.disabled = !supported;
+    button.disabled = !canPlay();
     button.setAttribute('aria-label', `Read from paragraph ${index + 1}: ${paragraph}`);
     button.addEventListener('click', () => player?.start(chunks, settings(), start));
     $('preview').append(button);
   }
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
   $('count').textContent = cleaned ? `· ${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
-  $('play').disabled = !supported || !cleaned;
+  $('play').disabled = !canPlay() || !cleaned;
 }
 function render(p, message) {
   $('status').textContent = message || ({ idle: 'Ready when you are', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
@@ -60,16 +89,25 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   wrapper.append(input, label); $('options').append(wrapper);
 }
 function loadVoices() {
-  voices = speechSynthesis.getVoices();
-  $('voice').replaceChildren(new Option('Device default', ''));
-  for (const voice of voices) $('voice').add(new Option(`${voice.name} · ${voice.lang}${voice.localService ? ' · on-device' : ' · network possible'}`, voice.voiceURI));
-  $('voice').value = voices.some(v => v.voiceURI === selectedVoice) ? selectedVoice : '';
-  $('voice-note').textContent = voices.length ? 'Voice availability depends on your device. On-device voices are labeled.' : 'No voice list yet. Play can still try the device default.';
+  $('voice').replaceChildren();
+  if (isWorkstation()) {
+    for (const voice of workstationVoices) $('voice').add(new Option(voice.name, voice.id));
+    $('voice').value = workstationVoices.some(v => v.id === selectedVoice) ? selectedVoice : 'af_heart';
+    workstationVoice = $('voice').value;
+    $('voice-note').textContent = 'Generated privately on your workstation. English voices; no cloud speech service.';
+  } else {
+    voices = supported ? speechSynthesis.getVoices() : [];
+    $('voice').add(new Option('Device default', ''));
+    for (const voice of voices) $('voice').add(new Option(`${voice.name} · ${voice.lang}${voice.localService ? ' · on-device' : ' · network possible'}`, voice.voiceURI));
+    $('voice').value = voices.some(v => v.voiceURI === selectedVoice) ? selectedVoice : '';
+    $('voice-note').textContent = voices.length ? 'Voice availability depends on your device. On-device voices are labeled.' : 'No voice list yet. Play can still try the device default.';
+  }
 }
+$('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { player?.stop(); preview(); });
 $('clear').addEventListener('click', () => { player?.stop(); $('text').value = ''; preview(); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (player?.state === 'playing') player.pause(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (player?.state === 'playing') player.pause(); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (player?.state === 'playing') player.pause(); save(); });
 $('play').addEventListener('click', () => { if (!player) return; if (player.state === 'paused') player.resume(settings()); else player.start(chunks, settings()); });
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
@@ -78,3 +116,5 @@ $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
 preview();
+
+discoverWorkstation();
