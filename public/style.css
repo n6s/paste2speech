@@ -11,3 +11,9 @@
 .pdf-import input{margin-top:8px}
 
 [hidden]{display:none!important}.mode-controls{display:flex;gap:8px;margin:16px 0}.mode-controls button[aria-pressed=true]{background:#204e40;color:#fff;border-color:#204e40}
+
+/* Keep mode selection obvious even while the selected button is hovered. */
+.mode-controls{display:inline-flex;gap:4px;padding:5px;background:#e4e9df;border:1px solid #bac8bb;border-radius:14px}
+.mode-controls button{min-width:100px;border-radius:9px;background:#fffef8;border:1px solid #b8c7ba;box-shadow:0 2px 0 #aebcaf}
+.mode-controls button[aria-pressed=true],.mode-controls button[aria-pressed=true]:hover{background:#204e40;color:#fff;border-color:#12382c;box-shadow:inset 0 3px 5px #0006,inset 0 0 0 2px #93b6a4;transform:translateY(1px)}
+.mode-controls button[aria-pressed=true]::before{content:"✓ ";font-weight:800}
