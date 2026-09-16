@@ -33,8 +33,13 @@ class Engine:
         import torch
         from kokoro import KPipeline
         torch.set_num_threads(int(os.environ.get('P2S_THREADS', '4')))
+        self.device = os.environ.get('P2S_DEVICE', 'cpu')
+        if self.device not in ('cpu', 'cuda'):
+            raise ValueError('P2S_DEVICE must be cpu or cuda')
+        if self.device == 'cuda' and not torch.cuda.is_available():
+            raise RuntimeError('P2S_DEVICE=cuda requires a CUDA-enabled PyTorch installation and available NVIDIA GPU')
         self.pipelines = {}
-        self.pipelines['a'] = KPipeline(lang_code='a', device='cpu', repo_id='hexgrad/Kokoro-82M')
+        self.pipelines['a'] = KPipeline(lang_code='a', device=self.device, repo_id='hexgrad/Kokoro-82M')
         self.pipelines['b'] = KPipeline(lang_code='b', model=self.pipelines['a'].model, repo_id='hexgrad/Kokoro-82M')
         for voice in VOICES:
             self.pipelines[voice[0]].load_voice(voice)
@@ -45,7 +50,7 @@ class Engine:
         import soundfile as sf
         import torch
         with torch.inference_mode():
-            arrays = [audio.numpy() for _, _, audio in self.pipelines[job.voice[0]](job.text, voice=job.voice, speed=job.speed) if audio is not None]
+            arrays = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](job.text, voice=job.voice, speed=job.speed) if audio is not None]
         if not arrays:
             raise ValueError('No speech generated')
         output = io.BytesIO()
@@ -70,7 +75,7 @@ async def no_cache(request, call_next):
 @app.get('/health')
 @app.get('/api/health')
 async def health():
-    return {'ready': hasattr(app.state, 'engine'), 'engine': 'Kokoro-82M', 'device': 'cpu'}
+    return {'ready': hasattr(app.state, 'engine'), 'engine': 'Kokoro-82M', 'device': app.state.engine.device}
 
 @app.get('/voices')
 @app.get('/api/voices')

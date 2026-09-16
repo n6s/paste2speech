@@ -5,12 +5,13 @@ After=network.target
 [Service]
 Type=simple
 WorkingDirectory=%h/workarea/paste2speech
-ExecStart=%h/workarea/paste2speech/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8766 --no-access-log
+ExecStart=%h/workarea/paste2speech/.venv-cuda/bin/uvicorn server.app:app --host 127.0.0.1 --port 8766 --no-access-log
 Environment=PYTHONUNBUFFERED=1
 Environment=HF_HUB_OFFLINE=1
 Environment=TRANSFORMERS_OFFLINE=1
 Environment=LOGURU_LEVEL=WARNING
 Environment=P2S_THREADS=4
+Environment=P2S_DEVICE=cuda
 Restart=on-failure
 RestartSec=5
 TimeoutStopSec=30

@@ -1,9 +1,12 @@
 import asyncio
 import unittest
+from unittest.mock import patch
+import os
 import httpx
-from server.app import app
+from server.app import app, Engine
 
 class FakeEngine:
+    device = 'cuda'
     def synthesize(self, job):
         return b'RIFFtest'
 
@@ -53,6 +56,10 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
         response = await self.client.post('/pdf-text', content=b'%PDF-', headers={'content-type': 'application/pdf', 'origin': 'https://unrelated.example'})
         self.assertEqual(response.status_code, 403)
 
+    async def test_health_reports_engine_device(self):
+        response = await self.client.get('/api/health')
+        self.assertEqual(response.json()['device'], 'cuda')
+
     async def test_valid_speech_and_headers(self):
         response = await self.client.post('/speech', json={'text':'Hello', 'voice':'af_heart','speed':1.0})
         self.assertEqual(response.status_code, 200)
@@ -73,6 +80,18 @@ class ServerTests(unittest.IsolatedAsyncioTestCase):
     async def test_busy_service_does_not_queue_unbounded_work(self):
         app.state.busy = True
         self.assertEqual((await self.client.post('/speech',json={'text':'hello'})).status_code,503)
+
+
+class DeviceTests(unittest.TestCase):
+    def test_cuda_unavailable_fails_explicitly(self):
+        with patch.dict(os.environ, {'P2S_DEVICE': 'cuda'}), patch('torch.cuda.is_available', return_value=False):
+            with self.assertRaisesRegex(RuntimeError, 'CUDA-enabled'):
+                Engine()
+
+    def test_invalid_device_is_rejected(self):
+        with patch.dict(os.environ, {'P2S_DEVICE': 'unknown'}):
+            with self.assertRaisesRegex(ValueError, 'cpu or cuda'):
+                Engine()
 
 if __name__ == '__main__':
     unittest.main()

@@ -79,7 +79,7 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 Choose **Read with → Workstation · Kokoro**. The default voice is **Heart**; Bella, Michael, Fenrir, Emma and George are also available. These are English voices. Browser voices remain available if the workstation speech service is unavailable. Refresh the page after restarting a failed service to rediscover voices.
 
-Kokoro runs on the workstation CPU with four inference threads. In a local sample, all six voices generated 7–8 seconds of speech in about 2 seconds. Initial playback waits for the complete reading to be generated, with preparation progress and a working Stop button. One in-memory WAV track plays through a persistent HTML audio element, with precise pause/resume and paragraph seeking. If automatic playback is blocked, tap Play when audio is ready. Changing voice or speed prepares a new track and resumes from the current chunk’s beginning. Failed generation retains completed chunks in memory for retry. Stop resets the position and retains completed audio for replay. Lock-screen/headphone controls support pause, resume, stop, and 15-second seeking where available.
+Kokoro runs on the workstation NVIDIA RTX 4060 Ti with CUDA. The CPU environment remains available for rollback. Initial playback waits for the complete reading to be generated, with preparation progress and a working Stop button. One in-memory WAV track plays through a persistent HTML audio element, with precise pause/resume and paragraph seeking. If automatic playback is blocked, tap Play when audio is ready. Changing voice or speed prepares a new track and resumes from the current chunk’s beginning. Failed generation retains completed chunks in memory for retry. Stop resets the position and retains completed audio for replay. Lock-screen/headphone controls support pause, resume, stop, and 15-second seeking where available.
 
 Keep the page open, but you can switch apps or lock the screen while the prepared track plays. Once preparation finishes, playback no longer requires Tailscale or the workstation connection. Text, audio, and position are temporary: Clear removes them, and reloading or closing the page discards them. Prepared PCM audio is limited to 256 MiB (about 93 minutes); split longer readings into smaller sections. No audio is stored on disk by the application. Pixel background-playback verification is still pending; desktop tests cannot establish Android behavior.
 
@@ -107,11 +107,10 @@ From the project directory, with Python 3.12:
 
 ```sh
 sudo apt-get install espeak-ng python3-venv
-python3 -m venv .venv
-.venv/bin/pip install torch==2.8.0 --index-url https://download.pytorch.org/whl/cpu
-.venv/bin/pip install -r server/requirements.lock.txt
+python3 -m venv .venv-cuda
+.venv-cuda/bin/pip install -r server/requirements-cuda.lock.txt
 # Download model/voice files and warm the model before offline service startup:
-.venv/bin/python -c 'from server.app import Engine; Engine()'
+P2S_DEVICE=cuda .venv-cuda/bin/python -c 'from server.app import Engine; Engine()'
 mkdir -p ~/.config/systemd/user
 cp deploy/paste2speech-kokoro.service ~/.config/systemd/user/
 systemctl --user daemon-reload
@@ -119,7 +118,40 @@ systemctl --user enable --now paste2speech-kokoro
 sudo tailscale serve --bg --https=443 --set-path=/speak/api http://127.0.0.1:8766
 ```
 
-Allow around 2 GB for the Python environment and model data, and roughly 1–2 GB RAM while the service is running. Models are downloaded from Hugging Face and the English language data comes from spaCy during setup. The service unit assumes the repository is at `~/workarea/paste2speech`. For another hostname, set `P2S_ORIGINS` to a comma-separated list of approved origins (scheme and host, no path) in a systemd override. Local development origins `http://localhost:8766` and `http://127.0.0.1:8766` are included by default.
+The installed CUDA environment uses about 7 GB, excluding shared cached model files, because it includes NVIDIA runtime libraries. The service retains its 3 GiB host-memory limit; GPU memory is separate. Models are downloaded from Hugging Face and the English language data comes from spaCy during setup. The service unit assumes the repository is at `~/workarea/paste2speech`. For another hostname, set `P2S_ORIGINS` to a comma-separated list of approved origins (scheme and host, no path) in a systemd override. Local development origins `http://localhost:8766` and `http://127.0.0.1:8766` are included by default.
+
+### Measured preparation performance
+
+Measured on 2026-09-16 with Heart at 1×, unchanged 180-character chunking, and identical input on an i5-14400 versus RTX 4060 Ti (8 GB):
+
+| Measurement | CPU | CUDA |
+| --- | ---: | ---: |
+| Warm short-request median (5 requests) | 2.106 s | 0.073 s |
+| Local API preparation, 24 chunks / 138.9 s of audio | 37.295 s | 1.435 s |
+| Full preparation through the deployed reader | 45.440 s | 1.627 s |
+
+The multi-minute local sample was approximately 26× faster on CUDA. These are synthetic sample measurements, not guarantees for every text, voice, or workstation load. The browser ran on the workstation through the Tailscale URL, so these results do not measure Pixel/mobile-network latency. Only about 0.2 seconds separated GPU local and browser preparation in this sample; batching is deferred.
+
+The sample repeats this paragraph twelve times, splitting each paragraph with `chunkText`: “Walking through the neighborhood gives us time to notice small changes. The trees provide shade along the quiet streets. Taking a short break can help us return to our work with a clearer mind.” Browser input uses those same chunks separated by blank lines. No synthesis-result cache is used.
+
+Startup/warm-up is separate from the table: a fresh CPU Engine initialization took 12.43 seconds; the temporary CUDA service reached healthy readiness in 6.03 seconds. These are single startup observations with different process wrappers/cache state. After built-in warm-up, first timed requests took 2.244 seconds on CPU and 0.121 seconds on CUDA.
+
+The temporary GPU process used about 960 MiB of GPU memory after the benchmark. Production used about 1.4 GiB of host memory (peak also about 1.4 GiB), below the existing 3 GiB limit, and about 1.2 GiB of GPU memory after real-audio browser tests. Full-track preparation, offline playback, section timestamps, and voice selection remain unchanged.
+
+### Device selection and CPU rollback
+
+`P2S_DEVICE` accepts `cpu` (default) or `cuda`. The installed service explicitly selects CUDA; unavailable CUDA causes a clear startup failure. `/speak/api/health` reports the selected device. Both language pipelines share one model. Display/graphics configuration is unaffected.
+
+The original `.venv` CPU environment is retained. To roll back, use `systemctl --user edit paste2speech-kokoro` with:
+
+```ini
+[Service]
+ExecStart=
+ExecStart=%h/workarea/paste2speech/.venv/bin/uvicorn server.app:app --host 127.0.0.1 --port 8766 --no-access-log
+Environment=P2S_DEVICE=cpu
+```
+
+Then run `systemctl --user daemon-reload` and `systemctl --user restart paste2speech-kokoro`. Remove only these override lines to return to CUDA, then reload and restart again. A fresh CPU environment can be created using `server/requirements.lock.txt` with the PyTorch CPU wheel index.
 
 To remove just the API route:
 
