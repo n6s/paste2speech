@@ -16,7 +16,7 @@ Roger confirmed that lock-screen media controls appeared and playback responded 
 
 Roger confirmed that after disconnecting Tailscale, prepared playback continued uninterrupted and pause/resume still worked. Playback without the workstation connection passed.
 
-Earbud check: pause worked, but resume did not. This is an open playback-control defect; the cause is not yet established. No backward/forward buttons appeared in the Pixel media player or lock screen, so device seeking could not be tested. Next diagnostic: after an earbud resume fails, try lock-screen Play and report whether it resumes.
+Earbud check: pause worked, but resume did not. This is an open playback-control defect; the cause is not yet established. No backward/forward buttons appeared in the Pixel media player or lock screen, so device seeking could not be tested. After earbud resume failed, lock-screen Play successfully resumed without opening the reader. The same earbuds successfully pause/resume Podcast Addict. This narrows investigation to the reader/browser media-control path, but does not distinguish application code from browser/Android behavior. Next comparison: test Google's Media Session audio sample in the same Pixel browser and screen state.
 
 Remaining checks on Roger's Pixel:
 
