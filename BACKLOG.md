@@ -16,12 +16,12 @@ Roger confirmed that lock-screen media controls appeared and playback responded 
 
 Roger confirmed that after disconnecting Tailscale, prepared playback continued uninterrupted and pause/resume still worked. Playback without the workstation connection passed.
 
-Earbud check: pause worked, but resume did not. This is an open playback-control defect; the cause is not yet established. No backward/forward buttons appeared in the Pixel media player or lock screen, so device seeking could not be tested. After earbud resume failed, lock-screen Play successfully resumed without opening the reader. The same earbuds successfully pause/resume Podcast Addict. This narrows investigation to the reader/browser media-control path, but does not distinguish application code from browser/Android behavior. Next comparison: test Google's Media Session audio sample in the same Pixel browser and screen state.
+Earbud check: pause worked, but resume did not. After earbud resume failed, lock-screen Play successfully resumed without opening the reader. The same earbuds successfully pause/resume Podcast Addict. Google's Media Session audio sample reproduced the same pause-success/resume-failure behavior in the Pixel browser. This supports a browser/Android headset-control compatibility issue rather than a confirmed reader-specific defect; the exact cause remains unverified. Workaround: resume from the lock-screen Play control. No backward/forward buttons appeared in the Pixel media player or lock screen, so device seeking could not be tested.
 
 Remaining checks on Roger's Pixel:
 
 - Play a prepared reading for at least ten minutes with the screen locked.
-- Diagnose and fix earbud resume, then repeat headphone pause/resume testing.
+- Track earbud resume as an unresolved browser/device compatibility issue; retest if a browser update or workaround becomes available.
 - Verify seeking if the device exposes seek controls; none were shown in this test.
 
 Do not mark background playback device-verified until these checks pass.
