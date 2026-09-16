@@ -14,10 +14,11 @@ Roger also confirmed that switching apps during prepared playback caused no audi
 
 Roger confirmed that lock-screen media controls appeared and playback responded correctly. Lock-screen controls passed; headphone controls and the specific availability of seek buttons were not separately reported.
 
+Roger confirmed that after disconnecting Tailscale, prepared playback continued uninterrupted and pause/resume still worked. Playback without the workstation connection passed.
+
 Remaining checks on Roger's Pixel:
 
 - Play a prepared reading for at least ten minutes with the screen locked.
 - Exercise headphone pause/resume and confirm backward/forward seeking where available.
-- Disconnect Tailscale after preparation and confirm playback continues.
 
 Do not mark background playback device-verified until these checks pass.
