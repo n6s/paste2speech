@@ -16,6 +16,7 @@ let paragraphStarts = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const workstationPlayer = new AudioPlayer(render);
+workstationPlayer.getSettings = settings;
 let player = browserPlayer;
 let workstationVoices = [];
 let browserVoice = selectedVoice;
@@ -24,6 +25,7 @@ function isWorkstation() { return $('engine').value === 'kokoro'; }
 function canPlay() { return isWorkstation() || supported; }
 function changeEngine() {
   player?.stop();
+  workstationPlayer.release();
   player = isWorkstation() ? workstationPlayer : browserPlayer;
   selectedVoice = isWorkstation() ? workstationVoice : browserVoice;
   loadVoices(); save(); preview();
@@ -89,14 +91,15 @@ $('preview').closest('details').addEventListener('toggle', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
-  $('status').textContent = message || ({ idle: 'Ready when you are', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  if (p !== player) return;
+  $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
-  $('play').textContent = p.state === 'paused' ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = p.state === 'playing' || !cleaned;
-  $('pause').disabled = p.state !== 'playing';
+  $('play').textContent = ['paused', 'failed'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
+  $('play').disabled = ['playing', 'preparing'].includes(p.state) || !cleaned;
+  $('pause').disabled = !['playing', 'preparing'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
-  const active = ['playing', 'paused'].includes(p.state);
+  const active = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state);
   for (const [index, button] of [...$('preview').children].entries()) {
     const current = active && p.index >= paragraphStarts[index] && p.index < (paragraphStarts[index + 1] ?? chunks.length);
     if (current) {
@@ -106,12 +109,12 @@ function render(p, message) {
     }
     else button.removeAttribute('aria-current');
   }
-  $('current').textContent = ['playing', 'paused'].includes(p.state) ? p.chunks[p.index] : '';
+  $('current').textContent = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state) ? p.chunks[p.index] : '';
 }
 for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji' })) {
   const wrapper = document.createElement('label'); const input = document.createElement('input');
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;
-  input.addEventListener('change', () => { player?.stop(); options[key] = input.checked; save(); preview(); });
+  input.addEventListener('change', () => { resetReading(); options[key] = input.checked; save(); preview(); });
   wrapper.append(input, label); $('options').append(wrapper);
 }
 function loadVoices() {
@@ -130,14 +133,16 @@ function loadVoices() {
   }
 }
 $('engine').addEventListener('change', changeEngine);
-$('text').addEventListener('input', () => { player?.stop(); preview(); });
-$('clear').addEventListener('click', () => { player?.stop(); $('text').value = ''; preview(); $('text').focus(); });
-$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (player?.state === 'playing') player.pause(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (player?.state === 'playing') player.pause(); save(); });
-$('play').addEventListener('click', () => { if (!player) return; if (player.state === 'paused') player.resume(settings()); else player.start(chunks, settings()); });
+$('text').addEventListener('input', () => { resetReading(); preview(); });
+$('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); $('text').focus(); });
+$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
+$('play').addEventListener('click', () => { if (!player) return; if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings()); else player.start(chunks, settings()); });
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
-window.addEventListener('pagehide', () => player?.pause());
+window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && player === workstationPlayer) workstationPlayer.sync(); });
+function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); }
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
@@ -166,7 +171,7 @@ $('pdf-file').addEventListener('change', async () => {
     if (response.status === 404 || response.status === 405) throw new Error('PDF import needs the workstation service. Open the Tailscale reader URL.');
     const data = await response.json();
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not read this PDF.');
-    player?.stop();
+    resetReading();
     $('text').value = data.text;
     preview();
     $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the preview, then press Play. Columns and tables may read out of order.`;

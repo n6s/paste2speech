@@ -60,16 +60,18 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 - Sends one short chunk at a time (up to 180 UTF-16 code units), preferring sentence boundaries and spaces. Keeps a strong reference to the active utterance and ignores stale callbacks after cancellation.
 - For browser voices, Pause cancels the utterance and retains the last reported word boundary. Resume repeats that word; voices without boundary events repeat the current chunk. This avoids relying on Android's inconsistent native pause/resume behavior.
 - A stalled or failed voice leaves the current position available for retry. It never automatically skips an unread chunk. A timeout can also occur with an unusually slow voice.
-- Keep the tab visible and the phone awake. Mobile browsers may suspend speech on screen lock, backgrounding, calls, or power saving. This is not a background audio player and chunking cannot guarantee every voice engine behaves correctly.
+- Browser voices need the tab visible and phone awake. Kokoro prepares a single audio track for background listening, with lock-screen/headphone controls where supported. Actual Pixel screen-lock acceptance testing remains pending; see BACKLOG.md.
 - Default cleanup removes Markdown formatting, ChatGPT citation tokens, URLs, fenced/indented code blocks and Markdown tables. Emoji removal is optional. Inline code stays readable. Cleanup is a best-effort text filter, not a full Markdown parser; inspect the preview for unusual formatting. Turn off “Markdown formatting” as well as “Code blocks” to preserve literal code formatting.
-- Only preferences are saved in browser local storage. Browser voices do not send pasted text to the workstation. Kokoro sends the current and next chunks over Tailscale to the local service; submitted text and audio stay in memory and are not saved by the application. The browser/OS speech provider may process text online for some browser voices. Choose a voice labeled “on-device” when desired; available voices vary by device.
+- Only preferences are saved in browser local storage. Browser voices do not send pasted text to the workstation. Kokoro sends all reading chunks sequentially over Tailscale to the local service; submitted text and audio stay in memory and are not saved by the application. The browser/OS speech provider may process text online for some browser voices. Choose a voice labeled “on-device” when desired; available voices vary by device.
 - Loading the page requires the workstation and Tailscale connection. There is no offline cache or service worker in this initial version.
 
 ## Workstation voices (Kokoro)
 
 Choose **Read with → Workstation · Kokoro**. The default voice is **Heart**; Bella, Michael, Fenrir, Emma and George are also available. These are English voices. Browser voices remain available if the workstation speech service is unavailable. Refresh the page after restarting a failed service to rediscover voices.
 
-Kokoro runs on the workstation CPU with four inference threads. In a local sample, all six voices generated 7–8 seconds of speech in about 2 seconds. Initial playback waits for generation; one chunk ahead is prefetched to reduce subsequent gaps. Audio is played through Web Audio, with precise pause/resume. Changing voice or speed while paused regenerates the current chunk from its beginning. Failed generation preserves the current chunk for retry. Keep the page open and phone awake; background playback is not guaranteed.
+Kokoro runs on the workstation CPU with four inference threads. In a local sample, all six voices generated 7–8 seconds of speech in about 2 seconds. Initial playback waits for the complete reading to be generated, with preparation progress and a working Stop button. One in-memory WAV track plays through a persistent HTML audio element, with precise pause/resume and paragraph seeking. If automatic playback is blocked, tap Play when audio is ready. Changing voice or speed prepares a new track and resumes from the current chunk’s beginning. Failed generation retains completed chunks in memory for retry. Stop resets the position and retains completed audio for replay. Lock-screen/headphone controls support pause, resume, stop, and 15-second seeking where available.
+
+Keep the page open, but you can switch apps or lock the screen while the prepared track plays. Once preparation finishes, playback no longer requires Tailscale or the workstation connection. Text, audio, and position are temporary: Clear removes them, and reloading or closing the page discards them. Prepared PCM audio is limited to 256 MiB (about 93 minutes); split longer readings into smaller sections. No audio is stored on disk by the application. Pixel background-playback verification is still pending; desktop tests cannot establish Android behavior.
 
 The service binds only to `127.0.0.1:8766`; Tailscale exposes it at `/speak/api`. `/speak/` still serves static files, and Immich remains at `/`. Requests accept a fixed voice list, bounded text and body sizes, and approved browser origins. Model inference is serialized; briefly busy requests are retried by the player. Request bodies and generated audio are not logged or stored. After setup, the service loads cached models in offline mode.
 
@@ -156,7 +158,7 @@ This validates desktop Chrome with a mobile viewport; actual Pixel audio still n
 - `public/text.js`: cleanup and chunking.
 - `public/player.js`: cancellable playback state machine.
 - `public/app.js`: page controls, voice discovery and preferences.
-- `public/audio-player.js`: workstation audio, prefetch, and pause/resume.
+- `public/audio-player.js`: prepared WAV audio, media controls, and pause/resume.
 - `server/`: local Kokoro API and pinned Python dependencies.
 - `deploy/`: automatic-start service definition.
 - `tests/`: text, state-machine and browser tests.

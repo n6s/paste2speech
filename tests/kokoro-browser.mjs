@@ -1,4 +1,4 @@
-// Integration test against a running speech service; exercises real synthesis and Web Audio.
+// Integration test against a running speech service; exercises real synthesis and prepared HTML audio.
 import assert from 'node:assert/strict';
 import { mkdir } from 'node:fs/promises';
 await mkdir('work',{recursive:true});
@@ -6,6 +6,17 @@ const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || '/usr/bin/google-chrome',headless:true});
 try {
  const page=await browser.newPage({viewport:{width:393,height:851},isMobile:true});
+ await page.addInitScript(() => {
+  const NativeAudio = window.Audio;
+  window.Audio = function(...args) { const audio = new NativeAudio(...args); window.testAudio = audio; return audio; };
+  const play = HTMLMediaElement.prototype.play;
+  HTMLMediaElement.prototype.play = function() { return window.blockPlayback ? Promise.reject(new DOMException('Tap required', 'NotAllowedError')) : play.call(this); };
+  window.mediaHandlers = {};
+  if (navigator.mediaSession) {
+   const set = navigator.mediaSession.setActionHandler.bind(navigator.mediaSession);
+   navigator.mediaSession.setActionHandler = (name, handler) => { window.mediaHandlers[name] = handler; set(name, handler); };
+  }
+ });
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(process.env.TEST_URL || 'http://127.0.0.1:8766/');
  await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
@@ -18,12 +29,27 @@ try {
  assert.equal((await response.body()).subarray(0,4).toString(),'RIFF');
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
  assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Here is the second paragraph. This is a pleasant way to listen to text, without another subscription.');
+ const before = await page.evaluate(() => testAudio.currentTime);
+ await page.evaluate(() => window.dispatchEvent(new Event('pagehide')));
+ await page.waitForTimeout(250);
+ assert.ok(await page.evaluate(previous => !testAudio.paused && testAudio.currentTime > previous, before));
+ assert.equal(await page.evaluate(() => navigator.mediaSession.metadata.title), 'Paste to Speech');
+ await page.evaluate(() => mediaHandlers.pause());
+ assert.equal(await page.locator('#play').textContent(), '▶ Resume');
+ await page.evaluate(() => mediaHandlers.play());
+ await page.waitForFunction(() => !testAudio.paused);
  await page.locator('#pause').click();assert.equal(await page.locator('#play').textContent(),'▶ Resume');
  await page.screenshot({path:'work/kokoro-mobile.png',fullPage:true});
+ await page.route('**/api/speech', r => r.abort());
  await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='All read. Take a breath.',{},{timeout:45000});
+ await page.unroute('**/api/speech');
+ await page.evaluate(() => window.blockPlayback = true);
  await page.locator('#voice').selectOption('bm_george');
  await page.locator('.paragraph').nth(2).click();
+ await page.waitForFunction(() => document.querySelector('#status').textContent === 'Audio ready · tap Play.');
+ await page.evaluate(() => window.blockPlayback = false);
+ await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
  await page.locator('#stop').click();
  await page.reload();
@@ -39,5 +65,10 @@ try {
  assert.equal(await page.locator('#play').isEnabled(),true);
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  assert.deepEqual(errors,[]);
- console.log('Real Kokoro browser checks passed: WAV decoding, mobile audio start, paragraph seek/highlight, pause/resume, automatic continuation/completion, British voice, saved preferences, failure recovery and browser fallback.');
+ await page.unroute('**/api/speech');
+ await page.route('**/api/pdf-text', r => r.fulfill({json: {text: 'Imported paragraph.', pages: 1, emptyPages: 0}}));
+ await page.locator('#pdf-file').setInputFiles({name: 'sample.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 mock')});
+ await page.waitForFunction(() => document.querySelector('#text').value === 'Imported paragraph.');
+ assert.equal(await page.locator('.paragraph').textContent(), 'Imported paragraph.');
+ console.log('Real Kokoro browser checks passed: WAV decoding, media controls, pagehide continuity, prepared offline playback, autoplay recovery, PDF import UI, mobile audio start, paragraph seek/highlight, pause/resume, automatic continuation/completion, British voice, saved preferences, failure recovery and browser fallback.');
 } finally {await browser.close();}
