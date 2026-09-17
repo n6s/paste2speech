@@ -11,7 +11,7 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory public
 
 Open **http://127.0.0.1:8765** in a browser. Keep that terminal running; Ctrl+C stops it. Python only serves static files. Any static web server can replace it.
 
-Paste text, choose **Read** to review the cleaned text, choose **Browser voices** or **Workstation · Kokoro**, pick a voice and speed, and tap **Play**. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
+Paste text, choose **Read** to review the cleaned text, choose **Browser voices** or **Workstation · Kokoro**, expand **Voice & speed** to pick a voice and speed, and tap **Play**. This row starts collapsed on each visit and shows your current voice and speed. **Read with** and **Clean up before reading** are inside it; your preferences are still remembered. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
 
 ## Use it from your Pixel over Tailscale
 

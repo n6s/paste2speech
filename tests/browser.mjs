@@ -31,6 +31,7 @@ try {
  assert.equal(await page.locator('#text').evaluate(el => el === document.activeElement), false);
  const originalText = await page.locator('#text').inputValue();
  await page.locator('#edit-mode').click();
+ await page.locator('#voice-settings > summary').click();
  await page.locator('#voice').selectOption('test');
  await page.locator('#play').click(); assert.equal(await page.locator('#status').textContent(),'Reading aloud');
  assert.equal(await page.locator('#read-mode').getAttribute('aria-pressed'), 'true');

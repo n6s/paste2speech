@@ -193,6 +193,12 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   input.addEventListener('change', () => { resetReading(); options[key] = input.checked; save(); preview(); });
   wrapper.append(input, label); $('options').append(wrapper);
 }
+function updateVoiceSummary() {
+  const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
+  const summary = `${voice} · ${$('rate').value}×`;
+  $('voice-settings-summary').textContent = summary;
+  $('voice-settings-summary').title = summary;
+}
 function loadVoices() {
   $('voice').replaceChildren();
   if (isWorkstation()) {
@@ -207,6 +213,7 @@ function loadVoices() {
     $('voice').value = voices.some(v => v.voiceURI === selectedVoice) ? selectedVoice : '';
     $('voice-note').textContent = voices.length ? 'Voice availability depends on your device. On-device voices are labeled.' : 'No voice list yet. Play can still try the device default.';
   }
+  updateVoiceSummary();
 }
 $('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { resetReading(); preview(); });
@@ -225,8 +232,8 @@ $('text').addEventListener('paste', event => {
   }
 });
 $('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
-$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
+$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
@@ -236,6 +243,7 @@ function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate();
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
+updateVoiceSummary();
 preview();
 
 discoverWorkstation();

@@ -23,6 +23,7 @@ try {
  const errors=[];page.on('pageerror',e=>errors.push(e.message));
  await page.goto(process.env.TEST_URL || 'http://127.0.0.1:8766/');
  await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
+ await page.locator('#voice-settings > summary').click();
  await page.locator('#engine').selectOption('kokoro');
  assert.equal(await page.locator('#voice option').count(),6);
  await page.locator('#text').focus();
@@ -168,6 +169,7 @@ try {
  await page.unroute('**/api/speech');
  await page.locator('#read-mode').click();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
+ await page.locator('#voice-settings > summary').click();
  await page.locator('#engine').selectOption('browser');
  assert.equal(await page.locator('#status').textContent(),'Ready when you are');
  assert.equal(await page.locator('#play').isEnabled(),true);

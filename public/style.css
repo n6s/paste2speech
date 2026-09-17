@@ -26,3 +26,14 @@
 #reading-size-toggle[aria-expanded=true]{background:#e5eddf}
 #reading-size-panel{position:absolute;right:0;top:calc(100% + 6px);z-index:2;width:240px;max-width:calc(100vw - 64px);padding:14px 16px;background:#fffef8;border:1px solid #c8d3c8;border-radius:12px;box-shadow:0 6px 24px #203d3726}
 .reading-size{display:block;margin:0}
+
+.voice-settings-card{padding-top:10px;padding-bottom:10px}
+#voice-settings{border:0;margin:0;padding:0}
+#voice-settings>summary{display:flex;align-items:center;gap:8px;min-height:44px}
+#voice-settings>summary::before{content:"▸";flex:none}
+#voice-settings[open]>summary::before{content:"▾"}
+#voice-settings>summary::-webkit-details-marker{display:none}
+#voice-settings>summary>span:first-of-type{flex:none}
+#voice-settings-summary{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#597068;font-weight:450}
+#voice-settings-summary::before{content:"· ";}
+.voice-settings-content{padding:14px 0 8px}
