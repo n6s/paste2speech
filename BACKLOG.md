@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Subtle Kokoro quote boundaries: 125 ms minimum silence around paired quotes within a reading section. Counts existing silence on both sides, avoids nested/colon pause stacking, and preserves apostrophes. Verified automated audio tests and real generated audio around “responsibility and incentive”; Pixel listening feedback remains open.
+
 - Deliberate Kokoro colon pauses: whitespace after a colon separates synthesis phrases; colon-ending sections top up trailing silence to 250 ms without stacking a full extra pause. Verified with PCM regression tests and a real live Kokoro response. Pixel listening feedback remains useful for tuning pause length.
 
 - Join wrapped lines now preserves short multiword all-caps newsletter titles followed by mixed-case prose, including Roger's Gmail example with a leading emoji. Joining defaults to enabled for new settings; saved choices are respected. Text/chunk regression and mobile browser checks pass; audible Pixel confirmation remains open.

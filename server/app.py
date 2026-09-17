@@ -29,6 +29,47 @@ class Speech(BaseModel):
     voice: str = 'af_heart'
     speed: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
 
+def speech_phrases(text):
+    """Plan pauses within one reading section; ignore unpaired quotation marks."""
+    boundaries = {}
+    for match in re.finditer(r':(?=\s|$)', text):
+        boundaries[match.end()] = 6000  # 250 ms at 24 kHz
+    stack = []
+    pairs = {'“': '”', '‘': '’', '"': '"'}
+    for index, char in enumerate(text):
+        before = text[index - 1] if index else ''
+        after = text[index + 1] if index + 1 < len(text) else ''
+        # Apostrophes, possessives and inch marks are not quote delimiters.
+        if char in '‘’' and before.isalnum() and after.isalnum():
+            continue
+        if stack and char == stack[-1][1]:
+            start, _ = stack.pop()
+            if not stack and any(c.isalnum() for c in text[start + 1:index]):
+                # Keep trailing punctuation with the quote, not in its own
+                # synthesis request. Use only outer pairs for nested quotes.
+                end = index + 1
+                while end < len(text) and text[end] in ',.;:!?…':
+                    end += 1
+                if start and text[:start].strip():
+                    boundaries[start] = max(boundaries.get(start, 0), 3000)
+                if text[end:].strip():
+                    boundaries[end] = max(boundaries.get(end, 0), 3000)
+        elif char in pairs and not before.isalnum():
+            stack.append((index, pairs[char]))
+    phrases = []
+    start = 0
+    for end, pause in sorted(boundaries.items()):
+        phrase = text[start:end].strip()
+        if phrase:
+            phrases.append([phrase, pause])
+        elif phrases:
+            phrases[-1][1] = max(phrases[-1][1], pause)
+        start = end
+    if text[start:].strip():
+        phrases.append([text[start:].strip(), 0])
+    return phrases
+
+
 class Engine:
     def __init__(self):
         import torch
@@ -51,24 +92,27 @@ class Engine:
         import soundfile as sf
         import torch
         arrays = []
-        # Keep time/URL colons intact. A trailing colon also marks a boundary
-        # when the frontend has already separated a line or paragraph.
-        phrases = re.split(r'(?<=:)\s+(?=\S)', job.text)
+        previous_pause = 0
+        previous_trailing = 0
         with torch.inference_mode():
-            for phrase in phrases:
+            for phrase, pause in speech_phrases(job.text):
                 generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](phrase, voice=job.voice, speed=job.speed) if audio is not None]
                 if not generated:
                     raise ValueError('No speech generated')
                 pcm = np.concatenate(generated)
-                if phrase.rstrip().endswith(':'):
-                    # Top up to 250 ms rather than stacking a pause on existing
-                    # trailing silence (including a paragraph-ending label).
-                    audible = np.flatnonzero(np.abs(pcm) > 0.0001)
-                    trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
-                    missing = max(0, 6000 - trailing)
-                    if missing:
-                        pcm = np.concatenate([pcm, np.zeros(missing, dtype=pcm.dtype)])
+                audible = np.flatnonzero(np.abs(pcm) > 0.0001)
+                leading = int(audible[0]) if len(audible) else len(pcm)
+                trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
+                # Count silence on both sides; coincident boundaries use the
+                # larger target instead of adding colon and quote pauses.
+                missing = max(0, previous_pause - previous_trailing - leading)
+                if missing:
+                    arrays.append(np.zeros(missing, dtype=pcm.dtype))
                 arrays.append(pcm)
+                previous_pause, previous_trailing = pause, trailing
+        missing = max(0, previous_pause - previous_trailing)
+        if missing and arrays:
+            arrays.append(np.zeros(missing, dtype=arrays[-1].dtype))
         if not arrays:
             raise ValueError('No speech generated')
         output = io.BytesIO()

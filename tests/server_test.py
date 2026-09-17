@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 import os
 import httpx
-from server.app import app, Engine, Speech
+from server.app import app, Engine, Speech, speech_phrases
 
 class FakeEngine:
     device = 'cuda'
@@ -93,12 +93,10 @@ class DeviceTests(unittest.TestCase):
             with self.assertRaisesRegex(ValueError, 'cpu or cuda'):
                 Engine()
 
-if __name__ == '__main__':
-    unittest.main()
 
 
 class ColonPauseTests(unittest.TestCase):
-    def synthesize(self, text, trailing=0):
+    def synthesize(self, text, trailing=0, leading=0):
         import io
         import numpy as np
         import soundfile as sf
@@ -106,7 +104,7 @@ class ColonPauseTests(unittest.TestCase):
         calls = []
         def pipeline(phrase, **kwargs):
             calls.append(phrase)
-            yield None, None, torch.tensor(np.concatenate([np.full(240, .5), np.zeros(trailing)]), dtype=torch.float32)
+            yield None, None, torch.tensor(np.concatenate([np.zeros(leading), np.full(240, .5), np.zeros(trailing)]), dtype=torch.float32)
         engine = Engine.__new__(Engine)
         engine.pipelines = {'a': pipeline}
         audio = engine.synthesize(Speech(text=text))
@@ -135,3 +133,40 @@ class ColonPauseTests(unittest.TestCase):
         calls, pcm = self.synthesize('Nate: Try this: a simple deck.')
         self.assertEqual(calls, ['Nate:', 'Try this:', 'a simple deck.'])
         self.assertEqual(len(pcm), 3 * 240 + 2 * 6000)
+
+
+class QuotePauseTests(unittest.TestCase):
+    synthesize = ColonPauseTests.synthesize
+
+    def test_quote_boundaries_have_short_pcm_pauses(self):
+        for opening, closing in [('“', '”'), ('"', '"'), ('‘', '’')]:
+            calls, pcm = self.synthesize(f'Its own {opening}responsibility and incentive{closing} for safety.')
+            self.assertEqual(calls, ['Its own', f'{opening}responsibility and incentive{closing}', 'for safety.'])
+            self.assertEqual(len(pcm), 3 * 240 + 2 * 3000)
+            self.assertTrue((pcm[240:3240] == 0).all())
+            self.assertTrue((pcm[3480:6480] == 0).all())
+
+    def test_punctuation_and_nested_quotes_do_not_stack(self):
+        self.assertEqual(speech_phrases('He said: “Try ‘this’ first,” then left.'),
+                         [['He said:', 6000], ['“Try ‘this’ first,”', 3000], ['then left.', 0]])
+        self.assertEqual(speech_phrases('He said “Done.”'), [['He said', 3000], ['“Done.”', 0]])
+        calls, pcm = self.synthesize('He said “Done,” then left.', trailing=4000)
+        self.assertEqual(len(pcm), 3 * (240 + 4000))
+
+    def test_apostrophes_measurements_and_unpaired_quotes_are_unchanged(self):
+        for text in ["Amodei's essay isn't here.", 'Amodei’s essay isn’t here.', 'A 12" board and 6" ruler.', 'An unmatched “quote here.', 'A closing quote” here.']:
+            self.assertEqual(speech_phrases(text), [[text, 0]])
+
+    def test_silence_on_both_sides_counts_toward_target(self):
+        calls, pcm = self.synthesize('Before “quoted” after.', trailing=1500, leading=1500)
+        self.assertEqual(len(pcm), 3 * (1500 + 240 + 1500))
+        calls, pcm = self.synthesize('Label: “quoted” after.')
+        self.assertEqual(len(pcm), 3 * 240 + 6000 + 3000)
+
+    def test_repeated_quotes_preserve_all_content(self):
+        self.assertEqual(speech_phrases('A “first” and “second” example.'),
+                         [['A', 3000], ['“first”', 3000], ['and', 3000], ['“second”', 3000], ['example.', 0]])
+
+
+if __name__ == '__main__':
+    unittest.main()
