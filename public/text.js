@@ -80,8 +80,10 @@ export function cleanText(input, options = defaults) {
       if (!options.markdown) return separate(cleanInline(block.text, options));
       return separate(block.rows.map(row => row.map(cell => cleanInline(cell, options)).join('; ')).join('\n\n'));
     }
-    let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, options);
+    let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, {...options, emoji: false});
     if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value, block.type === 'prose');
+    // Preserve emoji as a heading cue before applying the removal preference.
+    if (options.emoji) value = cleanInline(value, {emoji: true});
     return block.type === 'prose' ? value : separate(value);
   });
   // Normalize layout around blocks without ever normalizing the contents of code.
@@ -177,10 +179,11 @@ function joinProseLines(input, detectTitles = true) {
     input = lines.map((line, index) => {
       const title = line.trim();
       const next = lines[index + 1] || '';
-      // Short, multiword all-caps labels followed by mixed-case prose are likely
-      // newsletter headings. Avoid single acronyms and all-caps wrapped prose.
+      // Short all-caps labels followed by mixed-case prose are likely headings.
+      // A single word needs an emoji-led next line to avoid splitting acronyms.
       const words = title.match(/\p{L}+/gu) || [];
-      const heading = title.length <= 100 && words.length >= 2 && words.length <= 12
+      const singleTitle = words.length === 1 && words[0].length >= 2 && /^\s*\p{Extended_Pictographic}/u.test(next);
+      const heading = title.length <= 100 && (words.length >= 2 || singleTitle) && words.length <= 12
         && /\p{Lu}/u.test(title) && !/\p{Ll}/u.test(title)
         && !/[.!?…]["'”’)}\]]*$/.test(title)
         && /\p{Lu}/u.test(next) && /\p{Ll}/u.test(next);

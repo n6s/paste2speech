@@ -1,4 +1,4 @@
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-title-break-1';
+import { cleanText, chunkText, defaults } from './text.js?v=20260917-title-break-2';
 import { Player } from './player.js';
 import { AudioPlayer } from './audio-player.js';
 const $ = id => document.getElementById(id);

@@ -241,3 +241,19 @@ test('newsletter all-caps titles stay separate while body wraps join', () => {
  assert.equal(cleanText('```\n'+input+'\n```', {...defaults, code:false}), input);
  assert.equal(joinWrappedLines(joinWrappedLines(input)), `${title}\n\n${body}`);
 });
+
+
+test('single all-caps newsletter headings split before emoji-led titles', () => {
+ const input = 'GOOGLE\n🧠 Google DeepMind starts an AGI think tank';
+ const expected = 'GOOGLE\n\n🧠 Google DeepMind starts an AGI think tank';
+ assert.equal(cleanText(input), expected);
+ assert.equal(joinWrappedLines(input), expected);
+ assert.deepEqual(chunkText(cleanText(input)), ['GOOGLE', '🧠 Google DeepMind starts an AGI think tank']);
+ assert.equal(cleanText(input, {...defaults, emoji:true}), expected.replace('🧠 ', ''));
+ assert.equal(cleanText(input, {...defaults, joinLines:false}), input);
+ assert.equal(cleanText('NASA\nResearch continues'), 'NASA Research continues');
+ assert.equal(cleanText('Google\n🧠 Research continues'), 'Google 🧠 Research continues');
+ assert.equal(cleanText('GOOGLE\n🧠 ALL CAPS CONTINUATION'), 'GOOGLE 🧠 ALL CAPS CONTINUATION');
+ assert.equal(cleanText('```\n' + input + '\n```', {...defaults, code:false}), input);
+ assert.equal(cleanText(cleanText(input)), expected);
+});
