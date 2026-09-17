@@ -50,6 +50,7 @@ def spoken_text(text):
     """Speech-only expansion; preserve URLs and nonnumeric identifiers."""
     digits = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
     def expand(part):
+        part = re.sub(r'(?<![\w:./])1:1(?![\w:/]|\.\w)', 'one to one', part)
         def unit(match):
             number, name, period = match.groups()
             word = ('pound' if float(number.replace(',', '')) == 1 else 'pounds') if name.lower().startswith('lb') else ('square feet' if name.lower().startswith('sq') else 'feet')

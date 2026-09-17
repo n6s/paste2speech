@@ -221,6 +221,17 @@ class SpokenTextTests(unittest.TestCase):
         text = '1,2,3 12,34 1,2345 v150,700 https://example.com/150,700-sq-ft'
         self.assertEqual(spoken_text(text), text)
 
+    def test_one_to_one_ratio_is_a_narrow_speech_only_rule(self):
+        text = 'Siemens software built a 1:1 digital twin of the factory, letting engineers simulate material flows and AGV routes before changing the physical line.'
+        expected = text.replace('1:1', 'one to one')
+        self.assertEqual(spoken_text(text), expected)
+        calls, pcm = self.synthesize(text)
+        self.assertEqual(calls, [expected])
+        self.assertEqual(spoken_text('(1:1), 1:1.'), '(one to one), one to one.')
+        self.assertNotIn('one to one', spoken_text('0.1:1 1:1.5'))
+        unchanged = '11:1 1:10 10:30 1:1:30 v1:1 1:1pm https://example.com/1:1 www.example.com/1:1'
+        self.assertEqual(spoken_text(unchanged), unchanged)
+
     def test_identifiers_and_urls_are_not_decimal_numbers(self):
         text = 'v7.2 1.2.3 192.168.1.1 https://example.com/7.2 www.example.com/50lb soft ftps'
         self.assertEqual(spoken_text(text), text)
