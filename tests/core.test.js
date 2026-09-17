@@ -318,3 +318,44 @@ test('approximation tildes become about only in prose before numbers', () => {
  assert.equal(cleanText('    ~100', {...defaults,code:false}), '    ~100');
  assert.equal(cleanText('~100', {...defaults,markdown:false}), '~100');
 });
+
+test('newsletter dollar suffixes become exact currency words', () => {
+ const examples = [
+  ['$300M', 'three hundred million dollars'],
+  ['$1.78M', 'one point seven eight million dollars'],
+  ['$140.2M', 'one hundred forty point two million dollars'],
+  ['$2.5B', 'two point five billion dollars'],
+  ['$88M', 'eighty eight million dollars'],
+  ['\\~$48M', 'about forty eight million dollars'],
+  ['$8.5B', 'eight point five billion dollars'],
+  ['$20B', 'twenty billion dollars'],
+  ['$1B', 'one billion dollars'],
+  ['$7.6B', 'seven point six billion dollars'],
+  ['$1.4B', 'one point four billion dollars'],
+  ['$337M', 'three hundred thirty seven million dollars'],
+  ['$138B', 'one hundred thirty eight billion dollars'],
+  ['$10M', 'ten million dollars'],
+ ];
+ for (const [input, expected] of examples) {
+  assert.equal(cleanText(input), expected);
+  assert.equal(cleanText('Raised **'+input+'**.'), 'Raised '+expected+'.');
+ }
+ assert.equal(cleanText('~ $48M and ~$100'), 'about forty eight million dollars and about $100');
+ assert.equal(cleanText('$1.02B'), 'one point zero two billion dollars');
+ assert.equal(cleanText('$1,079M'), 'one thousand seventy nine million dollars');
+ assert.equal(cleanText('$2025M'), 'two thousand twenty five million dollars');
+ assert.equal(cleanText('$0M'), 'zero million dollars');
+ assert.equal(cleanText('$1000000000000000000M'), '$1000000000000000000M');
+});
+
+test('currency expansion preserves code, URLs, identifiers and bare units', () => {
+ const text = '300 MB 300M 2B $300MB $10Million a$10M $10M_test $10M/path $1,20M $1.2.3M';
+ assert.equal(cleanText(text), text);
+ const urls = 'https://example.com/$10M www.example.com/~$48M';
+ assert.equal(cleanText(urls, {...defaults,urls:false}), urls);
+ assert.equal(cleanText('`$300M` and $300M'), '$300M and three hundred million dollars');
+ assert.equal(cleanText('`\\~$48M`'), '\\~$48M');
+ assert.equal(cleanText('```\n$300M\n~$48M\n```', {...defaults,code:false}), '$300M\n~$48M');
+ assert.equal(cleanText('    $300M', {...defaults,code:false}), '    $300M');
+ assert.equal(cleanText('$300M', {...defaults,markdown:false}), '$300M');
+});

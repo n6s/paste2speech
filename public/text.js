@@ -127,13 +127,45 @@ function inlineLiterals(text, markdown) {
   const literals = [];
   const shield = value => { literals.push(value); return `${prefix}${literals.length - 1}\uE001`; };
   if (markdown) text = text.replace(/(`+)([^`]+)\1/g, (_, fence, code) => shield(code));
-  if (markdown) text = text.replace(/\\~(?=[ \t]*[0-9])/g, '~');
+  if (markdown) text = text.replace(/\\~(?=[ \t]*\$?[0-9])/g, '~');
   if (markdown) text = text.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, (_, char) => shield(char));
   text = text.replace(entityPattern, entity => {
     const value = decodeEntity(entity);
     return /[\\*_~`[\]()!>#|+-]/.test(value) ? shield(value) : value;
   });
   return {text, restore: value => value.replace(new RegExp(prefix + '(\\d+)\uE001', 'g'), (_, index) => literals[Number(index)])};
+}
+
+// Currency-only cardinal expansion avoids a year-style reading of four digits.
+function currencyNumberWords(value) {
+  const [integer, fraction] = value.replace(/,/g, '').split('.');
+  const digits = integer.replace(/^0+(?=\d)/, '');
+  if (digits.length > 18) return null;
+  const small = ['zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine', 'ten', 'eleven', 'twelve', 'thirteen', 'fourteen', 'fifteen', 'sixteen', 'seventeen', 'eighteen', 'nineteen'];
+  const tens = ['', '', 'twenty', 'thirty', 'forty', 'fifty', 'sixty', 'seventy', 'eighty', 'ninety'];
+  const scales = ['', 'thousand', 'million', 'billion', 'trillion', 'quadrillion'];
+  const groups = [];
+  for (let end = digits.length, scale = 0; end > 0; end -= 3, scale++) {
+    let n = Number(digits.slice(Math.max(0, end - 3), end));
+    if (!n) continue;
+    const words = [];
+    if (n >= 100) { words.push(small[Math.floor(n / 100)], 'hundred'); n %= 100; }
+    if (n >= 20) { words.push(tens[Math.floor(n / 10)]); n %= 10; }
+    if (n) words.push(small[n]);
+    if (scales[scale]) words.push(scales[scale]);
+    groups.unshift(words.join(' '));
+  }
+  return (groups.join(' ') || 'zero') + (fraction ? ' point ' + [...fraction].map(d => small[Number(d)]).join(' ') : '');
+}
+
+function proseAmounts(text) {
+  return text.replace(
+    /(^|[\s([{:;,"“‘])(~[ \t]*)?\$((?:[0-9]{1,3}(?:,[0-9]{3})+|[0-9]+)(?:\.[0-9]+)?)([MB])(?=$|[\s,;:!?)}\]"”’]|\.(?![\w/]))/g,
+    (match, prefix, about, amount, scale) => {
+      const words = currencyNumberWords(amount);
+      return words === null ? match : `${prefix}${about ? 'about ' : ''}${words} ${scale === 'M' ? 'million' : 'billion'} dollars`;
+    }
+  );
 }
 
 function cleanInline(text, options, decode = true) {
@@ -158,8 +190,8 @@ function cleanInline(text, options, decode = true) {
     .replace(/(^|\s)[*_]([^\n*_]+)[*_](?=\s|[.,!?;:]|$)/g, '$1$2');
   if (options.markdown) {
     // Skip URLs and path-like tokens; the tilde must introduce a prose number.
-    text = text.split(/((?:https?:\/\/|www\.)[^\s]+)/gi).map((part, index) => index % 2 ? part : part.replace(
-      /(^|[\s([{:;,"“‘])~[ \t]*(?=[0-9]+(?:\.[0-9]+)?(?:%?)(?=$|[\s,;:!?)}\]"”’]|\.(?![\w/])))/g,
+    text = text.split(/((?:https?:\/\/|www\.)[^\s]+)/gi).map((part, index) => index % 2 ? part : proseAmounts(part).replace(
+      /(^|[\s([{:;,"“‘])~[ \t]*(?=\$?[0-9]+(?:\.[0-9]+)?(?:%?)(?=$|[\s,;:!?)}\]"”’]|\.(?![\w/])))/g,
       '$1about '
     )).join('');
   }

@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Currency-specific prose expansion: all 14 supplied newsletter dollar figures now read as million/billion dollars, with decimal digits spoken individually. Approximation handles `~$48M`, including Markdown escaping. Code, URLs, bare M/B units, and longer identifiers stay excluded. 57 unit tests, mobile browser checks, and live Kokoro currency playback passed; original Edit text is preserved.
+
 - Comma-grouped quantities now expand directly into cardinal words: `1,079` reads “one thousand seventy nine.” Ungrouped years stay untouched. Grouped decimals and square-foot measurements remain supported; installed phoneme checks and live American/British synthesis passed.
 
 - Approximation tildes before prose numbers now read as “about” under Markdown cleanup, including escaped newsletter tildes. Protects code, retained URLs, and paths; preserves original Edit text. Exact Waymo example verified on the live page, plus 55 tests and mobile browser checks.

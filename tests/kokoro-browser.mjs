@@ -25,6 +25,17 @@ try {
  await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
  await page.locator('#engine').selectOption('kokoro');
  assert.equal(await page.locator('#voice option').count(),6);
+ const currency = 'A $1.78M round, $2.5B valuation, and \\~$48M loss.';
+ const expandedCurrency = 'A one point seven eight million dollars round, two point five billion dollars valuation, and about forty eight million dollars loss.';
+ await page.locator('#text').fill(currency);
+ const currencyRequest = page.waitForRequest(request => request.url().endsWith('/api/speech') && request.method()==='POST');
+ await page.locator('#read-mode').click();
+ assert.equal((await currencyRequest).postDataJSON().text, expandedCurrency);
+ await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
+ assert.equal(await page.locator('#preview').textContent(), expandedCurrency);
+ assert.equal(await page.locator('#text').inputValue(), currency);
+ await page.locator('#stop').click();
+ await page.locator('#edit-mode').click();
  // Exact newsletter regression: real service audio and the final assembled WAV.
  const newsletter = await readFile(new URL('./fixtures/newsletter-tools.md', import.meta.url), 'utf8');
  const sourceWavs = [];
