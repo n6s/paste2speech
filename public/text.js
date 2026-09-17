@@ -257,6 +257,9 @@ function joinProseLines(input, detectTitles = true) {
     input = lines.map((line, index) => {
       const title = line.trim();
       const next = lines[index + 1] || '';
+      // Copied newsletter quizzes lose Markdown, but keep their Q1 · labels.
+      // Start those question lines separately while still joining their wraps.
+      if (/^Q[0-9]+[ \t\u00a0]*·[ \t\u00a0]*\S/u.test(title)) return '\n' + line;
       // Short all-caps labels followed by mixed-case prose are likely headings.
       // A single word needs an emoji-led next line to avoid splitting acronyms.
       const words = title.match(/\p{L}+/gu) || [];

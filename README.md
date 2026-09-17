@@ -69,6 +69,8 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
+When Join wrapped lines is enabled, a line starting with a numbered question marker such as `Q1 ·` begins a separate paragraph. This preserves a preceding plain-text newsletter heading even when copying has lost its Markdown. Wrapped lines within the question still join; inline Q1 references and retained code are unaffected. A line break before the marker must still exist in the pasted text.
+
 With Markdown cleanup enabled, complete dollar amounts ending in uppercase `M` or `B` expand in Read mode and speech input: `$300M` → “three hundred million dollars,” `$1.78M` → “one point seven eight million dollars,” and `$2.5B` → “two point five billion dollars.” Decimal digits are retained individually. `~$48M`, `~ $48M`, and Markdown-escaped tildes become “about forty eight million dollars”; the plain-number tilde rule also accepts a dollar sign (`~$100` → “about $100”). Original Edit text stays unchanged. Bare M/B values, megabytes, longer identifiers, URLs, and inline or retained block code are excluded. Unsupported or malformed amounts stay literal; integer parts longer than 18 significant digits are left alone rather than rounded. Disabling Markdown cleanup disables these prose conversions.
 
 Kokoro reads standalone `1:1` as “one to one” in speech input, keeping the displayed text unchanged. This is deliberately a narrow rule: other ratios, times, larger colon-separated numbers, identifiers, and URLs are not converted by it.

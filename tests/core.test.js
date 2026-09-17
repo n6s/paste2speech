@@ -359,3 +359,22 @@ test('currency expansion preserves code, URLs, identifiers and bare units', () =
  assert.equal(cleanText('    $300M', {...defaults,code:false}), '    $300M');
  assert.equal(cleanText('$300M', {...defaults,markdown:false}), '$300M');
 });
+
+test('plain newsletter question labels preserve the preceding heading', () => {
+ const entries = [
+  ['September Edition A', 'Q1 \u00a0·\u00a0 You find a site offering the iPhone 18 Pro at 30% off retail with "limited pre-order slots." The site looks professional, has reviews, and accepts Apple Pay. What should you check before paying?'],
+  ['August Edition B', 'Q1 \u00a0·\u00a0 You get a WhatsApp message from an unknown number: "Hi, sorry to bother you — I think I have the wrong number, but since we\'re talking, I work in crypto investments and have a great opportunity if you\'re interested." What is this?'],
+  ['August Edition A', 'Q1 \u00a0·\u00a0 You are about to check in for a flight and get a text: "Your booking requires urgent confirmation. Click here or your seat will be released in 30 minutes." The link leads to a page that looks exactly like the airline\'s site. What do you do?'],
+ ];
+ const source = entries.map(([heading,question]) => heading+'\n'+question).join('\n\n');
+ const expected = entries.flatMap(([heading,question]) => [heading,question.replace(/[ \u00a0]+/g,' ')]).join('\n\n');
+ assert.equal(cleanText(source), expected);
+ assert.equal(cleanText(source, {...defaults,markdown:false}), expected);
+ assert.equal(cleanText(expected), expected);
+ assert.equal(cleanText('September Edition A\n**Q1 ·** A wrapped\nquestion continues here.\nQ2 · A second\nquestion.'), 'September Edition A\n\nQ1 · A wrapped question continues here.\n\nQ2 · A second question.');
+ assert.equal(joinWrappedLines('Heading\nQ12 · Wrapped\nquestion'), 'Heading\n\nQ12 · Wrapped question');
+ assert.equal(cleanText('Ordinary prose\nmentions Q1 · inline'), 'Ordinary prose mentions Q1 · inline');
+ assert.equal(cleanText('Results from\nQ1 grew steadily.'), 'Results from Q1 grew steadily.');
+ assert.equal(cleanText('Heading\nQ1 · Question', {...defaults,joinLines:false}), 'Heading\nQ1 · Question');
+ assert.equal(cleanText('```\nHeading\nQ1 · Code\n```', {...defaults,code:false}), 'Heading\nQ1 · Code');
+});
