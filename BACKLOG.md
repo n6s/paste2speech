@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Added the first explicit Kokoro pronunciation dictionary entries: Waymo (case-insensitive), robotaxi, and robotaxis, with American/British phonemes. Installed phonemizer checks, pause integration regression, and live synthesis with Heart and Emma passed; Roger's listening confirmation remains open.
+
 - Kokoro speech-only measurement and decimal pronunciation (`50 lb.` → pounds, `7.2-ft.` → seven point two feet) and 150 ms em-dash pauses. Original display and section boundaries retained. Exact robot-news sentence covered by regression tests; live synthesis and dash timing checked. Phone pronunciation feedback remains useful.
 
 - Structure-preserving prose cleanup and playback: decode HTML entities literally outside protected code, remove short empty layout tables without merging neighbors, and retain paragraph boundaries through prepared WAV assembly with a 250 ms minimum gap. Exact newsletter fixture, timing/retry/cache/size-limit regressions, mobile browser checks, and real Kokoro integration passed. Live sample naturally supplied about 455 ms at the heading-to-item boundary, so no extra silence was added. Phone comfort confirmation remains with Roger.

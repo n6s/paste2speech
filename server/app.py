@@ -29,6 +29,23 @@ class Speech(BaseModel):
     voice: str = 'af_heart'
     speed: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
 
+# Kokoro/Misaki phonemes: explicit pronunciations, independent of capitalization.
+PRONUNCIATIONS = {
+    'a': {'waymo': 'wˈAmO', 'robotaxi': 'rˈObOtˌæksi', 'robotaxis': 'rˈObOtˌæksiz'},
+    'b': {'waymo': 'wˈAmQ', 'robotaxi': 'rˈQbQtˌaksiː', 'robotaxis': 'rˈQbQtˌaksiːz'},
+}
+
+
+def pronunciation_text(text, voice):
+    entries = PRONUNCIATIONS[voice[0]]
+    pattern = r'\b(?:' + '|'.join(re.escape(word) for word in entries) + r')\b'
+    def correct(part):
+        return re.sub(pattern, lambda match: f'[{match[0]}](/{entries[match[0].lower()]}/)', part, flags=re.I)
+    # Apply only at the synthesis boundary, after pause planning and cleanup.
+    return ''.join(part if re.match(r'(?:https?://|www\.)', part, re.I) else correct(part)
+                   for part in re.split(r'((?:https?://|www\.)[^\s]+)', text, flags=re.I))
+
+
 def spoken_text(text):
     """Speech-only expansion; preserve URLs and nonnumeric identifiers."""
     digits = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
@@ -117,7 +134,7 @@ class Engine:
         previous_trailing = 0
         with torch.inference_mode():
             for phrase, pause in speech_phrases(spoken_text(job.text)):
-                generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](phrase, voice=job.voice, speed=job.speed) if audio is not None]
+                generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](pronunciation_text(phrase, job.voice), voice=job.voice, speed=job.speed) if audio is not None]
                 if not generated:
                     raise ValueError('No speech generated')
                 pcm = np.concatenate(generated)

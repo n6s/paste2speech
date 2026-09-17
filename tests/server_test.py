@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 import os
 import httpx
-from server.app import app, Engine, Speech, speech_phrases, spoken_text
+from server.app import app, Engine, Speech, speech_phrases, spoken_text, pronunciation_text, PRONUNCIATIONS
 
 class FakeEngine:
     device = 'cuda'
@@ -206,6 +206,31 @@ class SpokenTextTests(unittest.TestCase):
         self.assertEqual(speech_phrases('Before — — after.'), [['Before', 3600], ['after.', 0]])
         self.assertEqual(speech_phrases('Label: — after.'), [['Label:', 6000], ['after.', 0]])
         self.assertEqual(speech_phrases('A well-known 7.2-ft shelf.'), [['A well-known 7.2-ft shelf.', 0]])
+
+
+class PronunciationTests(unittest.TestCase):
+    def test_dictionary_applies_case_insensitively_and_keeps_possessives(self):
+        for word in ['WAYMO', 'Waymo', 'waymo', 'robotaxi', 'robotaxis', 'Robotaxis']:
+            for voice in ['af_heart', 'bf_emma']:
+                phones = PRONUNCIATIONS[voice[0]][word.lower()]
+                self.assertEqual(pronunciation_text(word, voice), f'[{word}](/{phones}/)')
+        self.assertEqual(pronunciation_text("Waymo's robotaxis", 'af_heart'), "[Waymo](/wˈAmO/)'s [robotaxis](/rˈObOtˌæksiz/)")
+
+    def test_urls_and_longer_words_stay_unchanged(self):
+        text = 'https://waymo.com/robotaxis www.waymo.com waymology robotaxism'
+        self.assertEqual(pronunciation_text(text, 'af_heart'), text)
+
+    def test_installed_phonemizer_uses_explicit_sounds(self):
+        from misaki import en
+        for dialect, voice in [(False, 'af_heart'), (True, 'bf_emma')]:
+            g2p = en.G2P(british=dialect)
+            for word, expected in PRONUNCIATIONS[voice[0]].items():
+                phones, _ = g2p(pronunciation_text(word, voice))
+                self.assertEqual(phones, expected)
+
+    def test_overrides_reach_synthesis_after_pause_planning(self):
+        calls, pcm = ColonPauseTests.synthesize(self, 'WAYMO: “robotaxis” arrive.')
+        self.assertEqual(calls, ['[WAYMO](/wˈAmO/):', '“[robotaxis](/rˈObOtˌæksiz/)”', 'arrive.'])
 
 
 if __name__ == '__main__':
