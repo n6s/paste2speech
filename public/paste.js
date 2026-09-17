@@ -10,7 +10,7 @@ export function clipboardMarkdown(html) {
     const codeBlocks = [];
     const ignored = new Set(['SCRIPT', 'STYLE', 'LINK', 'META', 'BASE', 'TITLE', 'NOSCRIPT', 'TEMPLATE', 'IFRAME', 'OBJECT', 'EMBED', 'IMG', 'PICTURE', 'SVG', 'VIDEO', 'AUDIO', 'SOURCE', 'TRACK', 'INPUT']);
     const escape = text => text.replace(/\\/g, '\\\\').replace(/[`*_~\[\]]/g, '\\$&')
-      .replace(/(^|\n)([ \t]*)([># +\-]|\d+[.)])(?=\s|$)/g, '$1$2\\$3');
+      .replace(/(^|\n)([ \t]*)([>#+\-]|\d+[.)])(?=\s|$)/g, '$1$2\\$3');
     const block = text => text.trim() ? '\n\n' + text.trim() + '\n\n' : '';
     const children = (node, depth) => [...node.childNodes].map(child => render(child, depth + 1)).join('');
     function render(node, depth = 0) {

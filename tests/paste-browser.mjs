@@ -7,7 +7,7 @@ try {
  page.on('pageerror',error=>errors.push(error.message));
  await page.route('https://paste-test.invalid/**',route=>{external.push(route.request().url());return route.abort();});
  await page.addInitScript(()=>{
-  const synth=new EventTarget();synth.getVoices=()=>[];synth.cancel=()=>{};synth.speak=()=>{};
+  const synth=new EventTarget();synth.getVoices=()=>[];synth.cancel=()=>{};synth.speak=utterance=>window.lastSpoken=utterance.text;
   Object.defineProperty(window,'speechSynthesis',{value:synth});
   window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
  });
@@ -72,6 +72,23 @@ try {
  await paste('<p>Literal &lt;script&gt; and **not emphasis**.</p>');
  assert.equal(await page.locator('#preview').textContent(),'Literal <script> and **not emphasis**.');
  assert.equal(await page.locator('#preview script').count(),0);
+ // Spaces between formatted elements must never acquire Markdown escapes.
+ for (const space of [' ', '  ', '&nbsp;', '\n  ']) {
+  await page.locator('#text').fill('');
+  await paste('<p><strong>Why:</strong>'+space+'<em>A professional</em></p>');
+  assert.equal(await page.locator('#text').inputValue(),'**Why:** *A professional*');
+  assert.equal(await page.locator('#preview').textContent(),'Why: A professional');
+ }
+ await page.locator('#read-mode').click();
+ assert.equal(await page.evaluate(()=>window.lastSpoken),'Why: A professional');
+ await page.locator('#edit-mode').click();
+ await page.locator('#text').fill('');
+ await paste('<p><strong>Why:</strong> <em>A professional</em></p><p>Path: C:\\Users\\Roger</p>');
+ assert.equal(await page.locator('#preview').textContent(),'Why: A professional\n\nPath: C:\\Users\\Roger');
+ await page.locator('#text').fill('');
+ await paste('<p># literal heading marker</p>');
+ assert.equal(await page.locator('#text').inputValue(),'\\# literal heading marker');
+ assert.equal(await page.locator('#preview').textContent(),'# literal heading marker');
  // Exercise insertion fallback on browsers lacking native undo-friendly insertText.
  await page.evaluate(()=>{document.execCommand=()=>false;});
  await page.locator('#text').fill('Old');await page.locator('#text').evaluate(el=>el.select());
