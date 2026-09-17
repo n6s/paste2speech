@@ -51,9 +51,9 @@ def speech_phrases(text):
                 while end < len(text) and text[end] in ',.;:!?…':
                     end += 1
                 if start and text[:start].strip():
-                    boundaries[start] = max(boundaries.get(start, 0), 3000)
+                    boundaries[start] = max(boundaries.get(start, 0), 1800)
                 if text[end:].strip():
-                    boundaries[end] = max(boundaries.get(end, 0), 3000)
+                    boundaries[end] = max(boundaries.get(end, 0), 1800)
         elif char in pairs and not before.isalnum():
             stack.append((index, pairs[char]))
     phrases = []

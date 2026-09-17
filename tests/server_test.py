@@ -142,14 +142,14 @@ class QuotePauseTests(unittest.TestCase):
         for opening, closing in [('“', '”'), ('"', '"'), ('‘', '’')]:
             calls, pcm = self.synthesize(f'Its own {opening}responsibility and incentive{closing} for safety.')
             self.assertEqual(calls, ['Its own', f'{opening}responsibility and incentive{closing}', 'for safety.'])
-            self.assertEqual(len(pcm), 3 * 240 + 2 * 3000)
-            self.assertTrue((pcm[240:3240] == 0).all())
-            self.assertTrue((pcm[3480:6480] == 0).all())
+            self.assertEqual(len(pcm), 3 * 240 + 2 * 1800)
+            self.assertTrue((pcm[240:2040] == 0).all())
+            self.assertTrue((pcm[2280:4080] == 0).all())
 
     def test_punctuation_and_nested_quotes_do_not_stack(self):
         self.assertEqual(speech_phrases('He said: “Try ‘this’ first,” then left.'),
-                         [['He said:', 6000], ['“Try ‘this’ first,”', 3000], ['then left.', 0]])
-        self.assertEqual(speech_phrases('He said “Done.”'), [['He said', 3000], ['“Done.”', 0]])
+                         [['He said:', 6000], ['“Try ‘this’ first,”', 1800], ['then left.', 0]])
+        self.assertEqual(speech_phrases('He said “Done.”'), [['He said', 1800], ['“Done.”', 0]])
         calls, pcm = self.synthesize('He said “Done,” then left.', trailing=4000)
         self.assertEqual(len(pcm), 3 * (240 + 4000))
 
@@ -161,11 +161,11 @@ class QuotePauseTests(unittest.TestCase):
         calls, pcm = self.synthesize('Before “quoted” after.', trailing=1500, leading=1500)
         self.assertEqual(len(pcm), 3 * (1500 + 240 + 1500))
         calls, pcm = self.synthesize('Label: “quoted” after.')
-        self.assertEqual(len(pcm), 3 * 240 + 6000 + 3000)
+        self.assertEqual(len(pcm), 3 * 240 + 6000 + 1800)
 
     def test_repeated_quotes_preserve_all_content(self):
         self.assertEqual(speech_phrases('A “first” and “second” example.'),
-                         [['A', 3000], ['“first”', 3000], ['and', 3000], ['“second”', 3000], ['example.', 0]])
+                         [['A', 1800], ['“first”', 1800], ['and', 1800], ['“second”', 1800], ['example.', 0]])
 
 
 if __name__ == '__main__':
