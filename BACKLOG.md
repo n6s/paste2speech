@@ -1,5 +1,6 @@
 # Queued improvements
 
+- Investigate occasional unnatural Kokoro pauses reported during mobile soak testing (2026-09-17). No exact passage captured yet. Check preserved line breaks, long-sentence splits, ambiguous abbreviation boundaries, and silence generated within each audio section; the player concatenates prepared audio without adding gaps. Capture the affected wording and voice when a case is available.
 - Paste and Play near the text panel.
 - Persistent playback controls for easier access while scrolling.
 

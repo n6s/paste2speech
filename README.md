@@ -59,6 +59,8 @@ Sentences flow together as continuous paragraphs, with blank lines separating pa
 
 Enable **Follow reading** in Read mode to keep the active section visible. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse freely. Sections taller than the preview are aligned to their beginning.
 
+Adjust **Text size** in Read mode from 14 to 32 pixels (default 20). The size is remembered in this browser. Changing it preserves playback and the highlighted section; Follow reading keeps that section in view.
+
 Drag the preview's bottom-right handle vertically where your browser supports it. The preview starts at 300px tall, with a 150px minimum; its height survives mode switches and resets on reload. Touch browsers may not show a native resize handle.
 
 Pause/Resume retains your position; Stop resets to the beginning, and Replay reads the entire text. Editing text or cleanup options rebuilds the sections and stops playback.

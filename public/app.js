@@ -8,6 +8,14 @@ const options = { ...defaults };
 for (const key of Object.keys(defaults)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
 $('rate').value = Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
 $('follow-reading').checked = saved.followReading === true;
+$('reading-size').value = Number.isFinite(saved.readingSize) ? Math.min(32, Math.max(14, Math.round(saved.readingSize))) : 20;
+function applyReadingSize() {
+  const size = Number($('reading-size').value);
+  $('preview').style.setProperty('--reading-font-size', `${size}px`);
+  $('reading-size-value').textContent = `${size} px`;
+  $('reading-size').setAttribute('aria-valuetext', `${size} pixels`);
+}
+applyReadingSize();
 let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
@@ -46,7 +54,7 @@ async function discoverWorkstation() {
   }
 }
 function settings() { return { rate: Number($('rate').value), voice: isWorkstation() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
-function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked })); } catch {} }
+function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
@@ -123,6 +131,11 @@ function followParagraph(button) {
   }
 }
 $('follow-reading').addEventListener('change', () => {
+  save();
+  followParagraph($('preview').querySelector('[aria-current=true]'));
+});
+$('reading-size').addEventListener('input', () => {
+  applyReadingSize();
   save();
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
