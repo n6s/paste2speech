@@ -41,10 +41,16 @@ function blocks(text) {
       push('code', start, i, {body: lines.slice(start, i).join('\n')}); continue;
     }
     const separator = tableCells(lines[i + 1] || '');
-    if (line.includes('|') && separator?.length && separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
-      i += 2; while (i < lines.length && lines[i].trim() && lines[i].includes('|')) i++;
-      const rows = [line, ...lines.slice(start + 2, i)].map(tableCells);
-      push('table', start, i, {rows: rows.every(row => row && row.length === separator.length) ? rows : null}); continue;
+    if (line.includes('|') && separator?.length && separator.every(cell => /^:?-+:?$/.test(cell))) {
+      let end = i + 2;
+      while (end < lines.length && lines[end].trim() && lines[end].includes('|')) end++;
+      const rows = [line, ...lines.slice(i + 2, end)].map(tableCells);
+      const valid = rows.every(row => row && row.length === separator.length);
+      const emptyLayout = valid && rows.every(row => row.every(cell => !decodeEntityText(cell).trim()));
+      if (emptyLayout || separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
+        i = end;
+        push('table', start, i, {rows: valid ? rows : null, emptyLayout}); continue;
+      }
     }
     const heading = atxHeading(line);
     if (heading || (line.trim() && !listStart(line) && underline(lines[i + 1] || ''))) {
@@ -77,13 +83,14 @@ export function cleanText(input, options = defaults) {
     if (block.type === 'table') {
       if (options.tables) return '\n';
       if (!block.rows) return separate(block.text);
+      if (block.emptyLayout) return separate(cleanInline(block.text, {...options, markdown: false}));
       if (!options.markdown) return separate(cleanInline(block.text, options));
       return separate(block.rows.map(row => row.map(cell => cleanInline(cell, options)).join('; ')).join('\n\n'));
     }
     let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, {...options, emoji: false});
     if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value, block.type === 'prose');
     // Preserve emoji as a heading cue before applying the removal preference.
-    if (options.emoji) value = cleanInline(value, {emoji: true});
+    if (options.emoji) value = cleanInline(value, {emoji: true}, false);
     return block.type === 'prose' ? value : separate(value);
   });
   // Normalize layout around blocks without ever normalizing the contents of code.
@@ -100,7 +107,36 @@ export function cleanText(input, options = defaults) {
   return output + (output ? tail : tail.replace(/^\n+/, ''));
 }
 
-function cleanInline(text, options) {
+const entityPattern = /&(?:#x[0-9a-f]+|#[0-9]+|nbsp|amp|quot|apos|lt|gt);/gi;
+function decodeEntity(entity) {
+  const named = {nbsp: ' ', amp: '&', quot: '"', apos: "'", lt: '<', gt: '>'};
+  if (entity[1] !== '#') return named[entity.slice(1, -1).toLowerCase()];
+  const hex = entity[2].toLowerCase() === 'x';
+  const point = Number.parseInt(entity.slice(hex ? 3 : 2, -1), hex ? 16 : 10);
+  return point > 0 && point <= 0x10ffff && !(point >= 0xd800 && point <= 0xdfff)
+    ? String.fromCodePoint(point) : entity;
+}
+function decodeEntityText(text) { return text.replace(entityPattern, decodeEntity); }
+
+// Decode before cleanup, shielding decoded/escaped Markdown punctuation so it
+// stays literal. The prefix cannot collide with either original or decoded text.
+function inlineLiterals(text, markdown) {
+  let prefix = '\uE000';
+  const decoded = decodeEntityText(text);
+  while (text.includes(prefix) || decoded.includes(prefix)) prefix += '\uE000';
+  const literals = [];
+  const shield = value => { literals.push(value); return `${prefix}${literals.length - 1}\uE001`; };
+  if (markdown) text = text.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, (_, char) => shield(char));
+  text = text.replace(entityPattern, entity => {
+    const value = decodeEntity(entity);
+    return /[\\*_~`[\]()!>#|+-]/.test(value) ? shield(value) : value;
+  });
+  return {text, restore: value => value.replace(new RegExp(prefix + '(\\d+)\uE001', 'g'), (_, index) => literals[Number(index)])};
+}
+
+function cleanInline(text, options, decode = true) {
+  const literal = decode ? inlineLiterals(text, options.markdown) : {text, restore: value => value};
+  text = literal.text;
   if (options.citations) text = text
     .replace(/\uE200[\s\S]*?\uE201/g, '')
     .replace(/[^]*/g, '')
@@ -118,8 +154,9 @@ function cleanInline(text, options) {
     .replace(/(`+)([^`]+)\1/g, '$2')
     .replace(/(\*\*|__|~~)([\s\S]+?)\1/g, '$2')
     .replace(/(^|\s)[*_]([^\n*_]+)[*_](?=\s|[.,!?;:]|$)/g, '$1$2');
+  text = literal.restore(text);
   if (options.emoji) text = text.replace(/(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)/gu, '');
-  return text.replace(/[\t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
+  return text.replace(/[\t \u00a0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
 // Only protect predictable continuations; ambiguous sentence endings stay with Intl.

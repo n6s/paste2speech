@@ -257,3 +257,39 @@ test('single all-caps newsletter headings split before emoji-led titles', () => 
  assert.equal(cleanText('```\n' + input + '\n```', {...defaults, code:false}), input);
  assert.equal(cleanText(cleanText(input)), expected);
 });
+
+test('newsletter Markdown becomes two clean prose paragraphs', async () => {
+ const {readFile} = await import('node:fs/promises');
+ const input = await readFile(new URL('./fixtures/newsletter-tools.md', import.meta.url), 'utf8');
+ const item = 'Incogni - Remove your personal data from the web so scammers and identity thieves can’t access it. Use code RUNDOWN to get 55% off*';
+ assert.equal(cleanText(input), 'Trending AI Tools\n\n' + item);
+ assert.equal(cleanText(input, {...defaults, joinLines:false}), 'Trending AI Tools\n\n' + item);
+ const plain = '🛠️ Trending AI Tools\n\n🔒 ' + item;
+ assert.equal(cleanText(plain), plain);
+ assert.equal(cleanText(plain, {...defaults, emoji:true}), 'Trending AI Tools\n\n' + item);
+ assert.equal(cleanText(input, Object.fromEntries(Object.keys(defaults).map(k => [k,false]))), input);
+});
+
+test('short empty layout tables vanish without joining neighboring blocks', () => {
+ for (const separator of ['-', ':-', '-:', ':-:']) {
+  const table = '| &nbsp; |\n| '+separator+' |';
+  assert.equal(cleanText('Before\n'+table+'\nAfter'), 'Before\n\nAfter');
+  assert.ok(cleanText(table, {...defaults, tables:false}).includes('|'));
+ }
+ assert.equal(cleanText('| A |\n| - |'), '| A | | - |');
+ assert.equal(cleanText('| |\n| - |\n| data |'), '| | | - | | data |');
+ assert.equal(cleanText('Before\n| |\n| - |\n# Heading\n- Item\n  continuation'), 'Before\n\nHeading\n\nItem continuation');
+});
+
+test('entities decode once as literal text, without creating Markdown', () => {
+ assert.equal(cleanText('**A&nbsp;B** &amp; &quot;yes&quot; &apos;no&apos; &#x35;&#53; &#x1F9E0;'), 'A B & "yes" \'no\' 55 🧠');
+ assert.equal(cleanText('&#42;&#42;literal&#42;&#42;'), '**literal**');
+ assert.equal(cleanText('&#35; Heading\n&#45; item'), '# Heading - item');
+ assert.equal(cleanText('&gt; literal &lt;b&gt;tag&lt;/b&gt;'), '> literal <b>tag</b>');
+ assert.equal(cleanText('&amp;lt; &unknown; &#x110000; &#xD800; &#0;'), '&lt; &unknown; &#x110000; &#xD800; &#0;');
+ assert.equal(cleanText('&amp;lt;', {...defaults, emoji:true}), '&lt;');
+ assert.equal(cleanText('**&#65;**', {...defaults, markdown:false}), '**A**');
+ const code = '```\n&#65; **literal**\n```';
+ assert.equal(cleanText(code, {...defaults, code:false}), '&#65; **literal**');
+ assert.equal(cleanText(code, {...defaults, code:false, markdown:false}), code);
+});

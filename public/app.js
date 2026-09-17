@@ -1,6 +1,6 @@
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-title-break-2';
+import { cleanText, chunkText, defaults } from './text.js?v=20260917-prose-structure-1';
 import { Player } from './player.js';
-import { AudioPlayer } from './audio-player.js';
+import { AudioPlayer } from './audio-player.js?v=20260917-prose-structure-1';
 const $ = id => document.getElementById(id);
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
@@ -20,6 +20,7 @@ let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
 let chunks = [];
+let paragraphStarts = [];
 let sentenceElements = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
@@ -53,17 +54,19 @@ async function discoverWorkstation() {
     $('engine').options[1].textContent = 'Workstation · unavailable';
   }
 }
-function settings() { return { rate: Number($('rate').value), voice: isWorkstation() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isWorkstation() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
+  paragraphStarts = [];
   sentenceElements = [];
   $('preview').replaceChildren();
   for (const paragraph of cleaned.split(/\n\s*\n/).filter(Boolean)) {
     if (sentenceElements.length) $('preview').append('\n\n');
     const group = document.createElement('p');
     group.className = 'reading-paragraph';
+    paragraphStarts.push(chunks.length);
     let cursor = 0;
     for (const chunk of chunkText(paragraph)) {
       const start = chunks.length;

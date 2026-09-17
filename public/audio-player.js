@@ -27,6 +27,26 @@ export function assembleWav(parts, size) {
   tag(36, 'data'); view.setUint32(40, size, true);
   return new Blob([header, ...parts], {type: 'audio/wav'});
 }
+// Inspect only the 250 ms needed for a paragraph boundary (24 kHz PCM16).
+function edgeSilence(pcm, leading) {
+  const view = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+  const samples = pcm.length / 2;
+  let quiet = 0;
+  while (quiet < Math.min(samples, 6000)) {
+    const index = leading ? quiet : samples - quiet - 1;
+    if (Math.abs(view.getInt16(index * 2, true)) > 3) break;
+    quiet++;
+  }
+  return quiet;
+}
+function paragraphStarts(settings) {
+  return [...new Set((settings.paragraphStarts || []).filter(index => Number.isInteger(index) && index > 0))].sort((a, b) => a - b);
+}
+function sameSettings(left, right) {
+  const a = paragraphStarts(left || {}), b = paragraphStarts(right);
+  return left?.voice === right.voice && left?.rate === right.rate && a.length === b.length && a.every((index, i) => index === b[i]);
+}
+
 export class AudioPlayer {
   constructor(onChange = () => {}, { audio = new Audio(), fetcher = globalThis.fetch.bind(globalThis), urls = URL, media = globalThis.navigator?.mediaSession, maxBytes = MAX_PCM_BYTES } = {}) {
     Object.assign(this, {onChange, audio, fetcher, urls, media, maxBytes, state: 'idle', chunks: [], index: 0, generation: 0, parts: [], starts: [], bytes: 0});
@@ -73,13 +93,13 @@ export class AudioPlayer {
     this.stop();
     if (this.url) this.urls.revokeObjectURL(this.url);
     this.url = null; this.audio.removeAttribute('src'); this.audio.load();
-    this.parts = []; this.starts = []; this.bytes = 0; this.format = null; this.duration = 0; this.chunks = [];
+    this.parts = []; this.starts = []; this.bytes = 0; this.trailingSilence = 0; this.format = null; this.duration = 0; this.chunks = [];
     this.release();
   }
   start(chunks, settings, startIndex = 0) {
-    const same = this.settings?.voice === settings.voice && this.settings?.rate === settings.rate && chunks.length === this.chunks.length && chunks.every((text, i) => text === this.chunks[i]);
+    const same = sameSettings(this.settings, settings) && chunks.length === this.chunks.length && chunks.every((text, i) => text === this.chunks[i]);
     if (!same) this.invalidate(); else this.interrupt();
-    this.chunks = [...chunks]; this.settings = {...settings};
+    this.chunks = [...chunks]; this.settings = {...settings, paragraphStarts: paragraphStarts(settings)};
     this.index = Math.max(0, Math.min(chunks.length - 1, Math.trunc(startIndex) || 0));
     if (!chunks.length) { this.state = 'idle'; return this.emit('Paste some readable text first.'); }
     this.claim();
@@ -116,10 +136,17 @@ export class AudioPlayer {
         try { part = await this.request(this.chunks[this.parts.length], controller.signal); }
         finally { clearTimeout(timer); }
         if (generation !== this.generation) return;
-        if (this.bytes + part.pcm.length > this.maxBytes) throw new Error('This reading exceeds the audio limit. Split it into smaller readings.');
+        const boundary = this.parts.length > 0 && this.settings.paragraphStarts.includes(this.parts.length);
+        const gapBytes = boundary ? 2 * Math.max(0, 6000 - this.trailingSilence - edgeSilence(part.pcm, true)) : 0;
+        if (this.bytes + gapBytes + part.pcm.length > this.maxBytes) throw new Error('This reading exceeds the audio limit. Split it into smaller readings.');
         if (this.format && this.format.join() !== part.format.join()) throw new Error('Workstation audio formats do not match.');
-        this.format = part.format; this.starts.push(this.bytes / 48000);
-        this.parts.push(part.pcm); this.bytes += part.pcm.length;
+        const trailing = edgeSilence(part.pcm, false);
+        let pcm = part.pcm;
+        if (gapBytes) { pcm = new Uint8Array(gapBytes + part.pcm.length); pcm.set(part.pcm, gapBytes); }
+        // Commit only a complete accepted chunk, so retries cannot duplicate a
+        // gap. Seeking to a paragraph skips its inserted leading silence.
+        this.format = part.format; this.starts.push((this.bytes + gapBytes) / 48000);
+        this.parts.push(pcm); this.bytes += pcm.length; this.trailingSilence = trailing;
       }
       if (generation !== this.generation) return;
       this.duration = this.bytes / 48000;
@@ -142,7 +169,7 @@ export class AudioPlayer {
   }
   resume(settings) {
     if (this.state === 'playing' || this.state === 'preparing') return;
-    if (settings.voice !== this.settings?.voice || settings.rate !== this.settings?.rate) return this.start(this.chunks, settings, Math.min(this.index, this.chunks.length - 1));
+    if (!sameSettings(this.settings, settings)) return this.start(this.chunks, settings, Math.min(this.index, this.chunks.length - 1));
     this.claim();
     if (this.url) { if (this.state === 'done') this.audio.currentTime = 0; this.play(); }
     else { this.generation++; this.prepare(); }

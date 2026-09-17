@@ -69,6 +69,12 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
+Cleanup identifies Markdown blocks before removing formatting or content. Headings and individual list items become separate prose paragraphs; wrapped lines join only within prose or a list continuation. Empty pipe-layout tables, including short separators such as `| - |` and `| :- |`, disappear when table removal is enabled without merging the text on either side. Nonempty tables still require standard separators for recognition.
+
+Within non-code text, numeric HTML entities and `nbsp`, `amp`, `quot`, `apos`, `lt`, and `gt` decode once as literal characters. Encoded or escaped Markdown punctuation stays literal, never becoming new Markdown structure or HTML. Nonbreaking spaces normalize to ordinary spaces. Retained code stays protected, saved cleanup choices remain in force, and disabling every cleanup option preserves the source apart from newline normalization.
+
+Kokoro carries the paragraphs shown in Read mode into audio preparation. Between paragraphs, it adds only enough silence to reach a 250 ms minimum, counting existing silence on both sides and preserving longer natural pauses. No additional paragraph silence is added between sentences within the same paragraph or stacked onto an already sufficient colon pause. The final output remains one continuous WAV track; tapping a paragraph skips its inserted gap and seeks to that paragraph's audio. Paragraph metadata is internal, not saved as a preference or sent to the speech service. Changing paragraph boundaries invalidates prepared audio, even if its spoken words are unchanged. Browser voices retain their device-managed timing.
+
 Kokoro gives colons followed by whitespace a short pause by synthesizing the label and following text separately. It tops up existing silence across the boundary to at least 250 ms rather than adding a second full pause. A colon at the end of an existing reading section receives the same treatment, covering line and paragraph boundaries. Times such as `10:30` and URLs such as `https://example.com` remain intact. Displayed text and section highlighting do not change; browser voices retain their device punctuation behavior. This can add some preparation work for colon-heavy text. Already-prepared audio must be regenerated to pick up changes.
 
 Kokoro also gives paired curly quotes (double or single) and straight double quotes a lighter 50 ms boundary pause. Excess near-silence introduced by separate synthesis is trimmed at quote boundaries, keeping a 5 ms buffer beside each speech edge; short gaps are padded to the target. Adjacent colon boundaries use the longer 250 ms target, and nested quotes only mark the outer pair. Apostrophes and inch marks are left alone. Closing punctuation stays with the quotation, with no additional quote pause at the end of a reading section. Only pairs contained within one section are recognized; unmatched marks and quotations spanning sections retain normal voice behavior. Text and highlighting remain unchanged.
@@ -192,7 +198,7 @@ Server validation tests use the isolated Python environment:
 .venv/bin/python -m unittest discover -s tests -p '*_test.py'
 ```
 
-The real-audio integration test requires the running Kokoro service. It generates speech, decodes and plays it in Chrome, checks paragraph navigation, pause/resume, completion, saved settings, and recovery from service errors:
+The real-audio integration test requires the running Kokoro service. It verifies the exact newsletter Markdown fixture and measures its assembled heading-to-item silence, generates speech, decodes and plays it in Chrome, checks paragraph navigation, pause/resume, completion, saved settings, and recovery from service errors:
 
 ```sh
 TEST_URL=https://pop-os.tailbd091c.ts.net/speak/ node tests/kokoro-browser.mjs

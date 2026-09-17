@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Structure-preserving prose cleanup and playback: decode HTML entities literally outside protected code, remove short empty layout tables without merging neighbors, and retain paragraph boundaries through prepared WAV assembly with a 250 ms minimum gap. Exact newsletter fixture, timing/retry/cache/size-limit regressions, mobile browser checks, and real Kokoro integration passed. Live sample naturally supplied about 455 ms at the heading-to-item boundary, so no extra silence was added. Phone comfort confirmation remains with Roger.
+
 - Subtle Kokoro quote boundaries: 50 ms target silence around paired quotes within a reading section. Counts existing silence on both sides, avoids nested/colon pause stacking, and preserves apostrophes. Verified automated audio tests and real generated audio around “responsibility and incentive”; Roger still found the 75 ms minimum too long. A live sample showed natural gaps around 430 and 590 ms; quote boundaries now trim excess near-silence to a 50 ms target, retaining small speech-edge buffers. Colon behavior is unchanged. Regression tests and live generated audio verified.
 
 - Deliberate Kokoro colon pauses: whitespace after a colon separates synthesis phrases; colon-ending sections top up trailing silence to 250 ms without stacking a full extra pause. Verified with PCM regression tests and a real live Kokoro response. Pixel listening feedback remains useful for tuning pause length.

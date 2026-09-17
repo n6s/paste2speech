@@ -1,12 +1,15 @@
 // Integration test against a running speech service; exercises real synthesis and prepared HTML audio.
 import assert from 'node:assert/strict';
-import { mkdir } from 'node:fs/promises';
+import { mkdir, readFile } from 'node:fs/promises';
+import {parseWav} from '../public/audio-player.js';
 await mkdir('work',{recursive:true});
 const {chromium}=await import(process.env.PLAYWRIGHT_MODULE || 'playwright');
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH || '/usr/bin/google-chrome',headless:true});
 try {
  const page=await browser.newPage({viewport:{width:393,height:851},isMobile:true});
  await page.addInitScript(() => {
+  const createURL = URL.createObjectURL.bind(URL);
+  URL.createObjectURL = blob => { window.preparedBlob = blob; return createURL(blob); };
   const NativeAudio = window.Audio;
   window.Audio = function(...args) { const audio = new NativeAudio(...args); window.testAudio = audio; return audio; };
   const play = HTMLMediaElement.prototype.play;
@@ -22,6 +25,43 @@ try {
  await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
  await page.locator('#engine').selectOption('kokoro');
  assert.equal(await page.locator('#voice option').count(),6);
+ // Exact newsletter regression: real service audio and the final assembled WAV.
+ const newsletter = await readFile(new URL('./fixtures/newsletter-tools.md', import.meta.url), 'utf8');
+ const sourceWavs = [];
+ await page.route('**/api/speech', async route => {
+  const response = await route.fetch();
+  assert.equal(response.status(),200);
+  const buffer = await response.body();
+  sourceWavs.push(parseWav(buffer.buffer.slice(buffer.byteOffset,buffer.byteOffset+buffer.byteLength)).pcm);
+  await route.fulfill({response});
+ });
+ await page.evaluate(() => window.blockPlayback = true);
+ await page.locator('#text').fill(newsletter);
+ await page.locator('#read-mode').click();
+ await page.waitForFunction(() => document.querySelector('#status').textContent === 'Audio ready · tap Play.');
+ assert.equal(await page.locator('.reading-paragraph').count(),2);
+ assert.equal(await page.locator('.reading-paragraph').first().textContent(),'Trending AI Tools');
+ assert.ok((await page.locator('.reading-paragraph').nth(1).textContent()).endsWith('get 55% off*'));
+ assert.equal(sourceWavs.length,3);
+ const bytes = new Uint8Array(await page.evaluate(async () => [...new Uint8Array(await preparedBlob.arrayBuffer())]));
+ const prepared = parseWav(bytes.buffer).pcm;
+ const quiet = (pcm, fromStart) => {
+  const view = new DataView(pcm.buffer,pcm.byteOffset,pcm.byteLength); let n=0;
+  while (n < pcm.length/2 && Math.abs(view.getInt16((fromStart ? n : pcm.length/2-1-n)*2,true))<=3) n++;
+  return n;
+ };
+ const trailing = quiet(sourceWavs[0],false), leading = quiet(sourceWavs[1],true);
+ const added = Math.max(0,6000-trailing-leading)*2;
+ assert.equal(prepared.length,sourceWavs.reduce((sum,pcm)=>sum+pcm.length,0)+added);
+ assert.ok(trailing+leading+added/2>=6000);
+ await page.locator('.sentence').nth(1).click();
+ assert.ok(Math.abs(await page.evaluate(() => testAudio.currentTime) - (sourceWavs[0].length+added)/48000)<0.001);
+ assert.equal(await page.locator('.sentence[aria-current=true]').getAttribute('aria-label'),await page.locator('.sentence').nth(1).getAttribute('aria-label'));
+ console.log(`Newsletter live boundary: ${((trailing+leading+added/2)/24).toFixed(1)} ms; correct paragraph seek and markup cleanup.`);
+ await page.screenshot({path:'work/newsletter-structure-mobile.png',fullPage:true});
+ await page.unroute('**/api/speech');
+ await page.evaluate(() => window.blockPlayback = false);
+ await page.locator('#stop').click();
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('The first paragraph is a little introduction.\n\nHere is the second paragraph. This is a pleasant way to listen to text, without another subscription.\n\nAll done.');
  let releaseSpeech;

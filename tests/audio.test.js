@@ -83,3 +83,81 @@ test('temporary busy service retries without skipping chunks', async () => {
  p.start(['a'], settings); await new Promise(resolve => setTimeout(resolve, 750));
  assert.equal(p.state, 'playing'); assert.equal(calls, 2);
 });
+
+async function spokenWav({leading = 0, trailing = 0} = {}) {
+ const pcm = new Uint8Array(48000), view = new DataView(pcm.buffer);
+ for (let i = leading; i < 24000 - trailing; i++) view.setInt16(i * 2, 16000, true);
+ return assembleWav([pcm], pcm.length).arrayBuffer();
+}
+const spokenResponse = edges => ({ok:true, arrayBuffer:() => spokenWav(edges)});
+
+test('paragraph silence tops up both edges with exact timestamps and seeking', async () => {
+ const requests = [];
+ const p = player(async (_, options) => {requests.push(JSON.parse(options.body)); return spokenResponse({leading:480, trailing:720});});
+ p.start(['heading', 'item sentence', 'same paragraph'], {...settings, paragraphStarts:[0,1]}); await tick();
+ assert.deepEqual(p.starts, [0,1.2,2.2]); assert.equal(p.duration,3.2);
+ const pcm = parseWav(await p.blobs[0].arrayBuffer()).pcm;
+ assert.equal(pcm.length, 153600);
+ const samples = new DataView(pcm.buffer, pcm.byteOffset, pcm.byteLength);
+ for (let i = 24000 - 720; i < 24000 + 4800 + 480; i++) assert.equal(samples.getInt16(i * 2,true),0);
+ assert.equal(samples.getInt16((24000 + 4800 + 480)*2,true),16000);
+ p.seekTo(1.1); assert.equal(p.index,0);
+ p.seekTo(1.2); assert.equal(p.index,1);
+ p.pause(); p.resume({...settings,paragraphStarts:[0,1]}); await tick(); assert.equal(p.audio.currentTime,1.2);
+ p.start(p.chunks, {...settings,paragraphStarts:[0,1]},2); await tick(); assert.equal(p.audio.currentTime,2.2);
+ assert.equal(requests.length,3);
+ assert.deepEqual(Object.keys(requests[0]).sort(), ['speed','text','voice']);
+ p.audio.dispatchEvent(new Event('ended')); assert.equal(p.index,3); assert.equal(p.state,'done');
+});
+
+test('paragraphs preserve sufficient natural silence and do not stack colon pauses', async () => {
+ for (const edges of [{leading:3000,trailing:3000},{leading:0,trailing:8000}]) {
+  const p = player(async () => spokenResponse(edges));
+  p.start(['Label:', 'Body.'], {...settings,paragraphStarts:[1]}); await tick();
+  assert.deepEqual(p.starts,[0,1]); assert.equal(p.duration,2);
+ }
+ const p = player(async () => spokenResponse());
+ p.start(['Sentence one.', 'Sentence two.'],settings); await tick();
+ assert.equal(p.duration,2);
+});
+
+test('boundary metadata is copied and participates in prepared audio reuse', async () => {
+ let calls = 0;
+ const p = player(async () => {calls++; return spokenResponse();});
+ const boundaries = [1];
+ p.start(['a','b'], {...settings,paragraphStarts:boundaries}); boundaries.length=0; await tick();
+ assert.equal(p.duration,2.25);
+ p.pause(); p.resume({...settings,paragraphStarts:[]}); await tick();
+ assert.equal(p.duration,2); assert.equal(calls,4); assert.equal(p.revoked.length,1);
+ p.start(['a','b'], {...settings,paragraphStarts:[1]}); await tick();
+ assert.equal(p.duration,2.25); assert.equal(calls,6);
+});
+
+test('failed paragraph preparation retries without duplicating silence or timestamps', async () => {
+ let fail = true; const calls = [];
+ const p = player(async (_,options) => {
+  const {text} = JSON.parse(options.body); calls.push(text);
+  return text==='b' && fail ? {ok:false} : spokenResponse();
+ });
+ const options = {...settings,paragraphStarts:[1]};
+ p.start(['a','b'],options); await tick();
+ assert.equal(p.state,'failed'); assert.equal(p.bytes,48000); assert.deepEqual(p.starts,[0]);
+ fail=false; p.resume(options); await tick();
+ assert.deepEqual(calls,['a','b','b']); assert.deepEqual(p.starts,[0,1.25]); assert.equal(p.duration,2.25);
+});
+
+test('paragraph padding counts toward the memory limit before accepting a chunk', async () => {
+ const p = player(async () => spokenResponse(), {maxBytes:96000});
+ p.start(['a','b'],{...settings,paragraphStarts:[1]}); await tick();
+ assert.equal(p.state,'failed'); assert.equal(p.bytes,48000); assert.equal(p.parts.length,1);
+ assert.deepEqual(p.starts,[0]); assert.equal(p.blobs.length,0);
+});
+
+test('cancelled paragraph request cannot add stale audio or silence', async () => {
+ let complete; let count=0;
+ const p = player(async () => ++count===2 ? new Promise(resolve=>complete=resolve) : spokenResponse());
+ const options={...settings,paragraphStarts:[1]};
+ p.start(['a','b'],options); await tick(); p.pause(); p.resume(options); await tick();
+ complete(spokenResponse()); await tick();
+ assert.equal(p.blobs.length,1); assert.deepEqual(p.starts,[0,1.25]); assert.equal(p.duration,2.25);
+});
