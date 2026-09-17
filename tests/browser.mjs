@@ -142,6 +142,25 @@ try {
  await page.locator('#clean-joinLines').uncheck();
  assert.deepEqual(await page.locator('.sentence').allTextContents(), ['A PDF column', 'wraps here.', 'Next sentence.']);
 
+ await page.locator('#edit-mode').click();
+ const structured = '# Status\nWrapped\nprose.\n- First\n  continuation\n- Second\n| Name | Status |\n| --- | --- |\n| Alice | Ready |\n```js\n  x  =  1\n  y()\n```';
+ await page.locator('#text').fill(structured);
+ await page.locator('#clean-code').uncheck();
+ await page.locator('#clean-tables').uncheck();
+ await page.locator('#clean-joinLines').check();
+ await page.locator('#read-mode').click();
+ const reading = ['Status', 'Wrapped prose.', 'First continuation', 'Second', 'Name; Status', 'Alice; Ready', 'x  =  1', 'y()'];
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), reading);
+ assert.deepEqual(await page.locator('.reading-paragraph').allTextContents(), ['Status', 'Wrapped prose.', 'First continuation', 'Second', 'Name; Status', 'Alice; Ready', '  x  =  1\n  y()']);
+ assert.equal(await page.locator('#text').inputValue(), structured);
+ const speechStart = await page.evaluate(() => speechSynthesis.spoken.length - 1);
+ for (let i = 0; i < reading.length; i++) await page.evaluate(() => speechSynthesis.spoken.at(-1).onend());
+ assert.deepEqual(await page.evaluate(start => speechSynthesis.spoken.slice(start).map(item => item.text), speechStart), reading);
+ await page.screenshot({path:'work/structured-cleanup-mobile.png',fullPage:true});
+ await page.locator('#clean-code').check();
+ await page.locator('#clean-tables').check();
+ await page.locator('#clean-joinLines').uncheck();
+
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#pdf-file').isVisible(), true);

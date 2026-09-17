@@ -1,34 +1,115 @@
 export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: false };
 
+// Split structure before any destructive cleanup. Code is always opaque.
+const fenceStart = line => /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
+const listStart = line => /^( *)([-+*]|\d+[.)])([ \t]+)(\S.*)$/.exec(line);
+const atxHeading = line => /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
+const underline = line => /^ {0,3}(?:=+|-+)[ \t]*$/.test(line);
+const indented = line => /^(?: {4}|\t)/.test(line);
+
+function tableCells(line) {
+  // Backtick spans containing pipes have ambiguous dialect-specific semantics.
+  if (line.includes('`')) return null;
+  const cells = []; let cell = ''; let lastPipe = -1;
+  for (let i = 0; i < line.length; i++) {
+    if (line[i] === '\\' && i + 1 < line.length) {
+      const next = line[++i]; cell += next === '|' ? '|' : '\\' + next;
+    } else if (line[i] === '|') { cells.push(cell.trim()); cell = ''; lastPipe = i; }
+    else cell += line[i];
+  }
+  cells.push(cell.trim());
+  if (lastPipe < 0) return null;
+  if (/^[ \t]*\|/.test(line)) cells.shift();
+  if (!line.slice(lastPipe + 1).trim()) cells.pop();
+  return cells;
+}
+
+function blocks(text) {
+  const lines = text.split('\n'); const result = [];
+  const push = (type, start, end, extra = {}) => result.push({type, text: lines.slice(start, end).join('\n'), ...extra});
+  for (let i = 0; i < lines.length;) {
+    const start = i; const line = lines[i]; const fence = fenceStart(line);
+    if (fence) {
+      const close = new RegExp('^ {0,3}' + fence[1][0] + '{' + fence[1].length + ',}[ \t]*$');
+      i++; while (i < lines.length && !close.test(lines[i])) i++;
+      const body = lines.slice(start + 1, i).join('\n');
+      if (i < lines.length) i++;
+      push('code', start, i, {body}); continue;
+    }
+    if (indented(line) && !listStart(line)) {
+      i++; while (i < lines.length && ((indented(lines[i]) && !listStart(lines[i])) || (!lines[i].trim() && indented(lines[i + 1] || '')))) i++;
+      push('code', start, i, {body: lines.slice(start, i).join('\n')}); continue;
+    }
+    const separator = tableCells(lines[i + 1] || '');
+    if (line.includes('|') && separator?.length && separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
+      i += 2; while (i < lines.length && lines[i].trim() && lines[i].includes('|')) i++;
+      const rows = [line, ...lines.slice(start + 2, i)].map(tableCells);
+      push('table', start, i, {rows: rows.every(row => row && row.length === separator.length) ? rows : null}); continue;
+    }
+    const heading = atxHeading(line);
+    if (heading || (line.trim() && !listStart(line) && underline(lines[i + 1] || ''))) {
+      i += heading ? 1 : 2;
+      push('heading', start, i, {body: heading ? heading[1].replace(/[ \t]+#+[ \t]*$/, '') : line}); continue;
+    }
+    const list = listStart(line);
+    if (list) {
+      i++;
+      // Only indented continuations belong to this item; nested items start new blocks.
+      while (i < lines.length && lines[i].trim() && !listStart(lines[i]) && !fenceStart(lines[i]) && !atxHeading(lines[i]) && /^ +/.exec(lines[i])?.[0].length > list[1].length) i++;
+      let body = (/^\d/.test(list[2]) ? list[2] + ' ' : '') + list[4].replace(/^\[([ xX])\][ \t]*/, (_, mark) => mark === ' ' ? 'Unchecked: ' : 'Checked: ');
+      body += lines.slice(start + 1, i).map(value => '\n' + value.trimStart()).join('');
+      push('list', start, i, {body}); continue;
+    }
+    // Prose lines may be combined only with other prose lines.
+    if (result.at(-1)?.type === 'prose') result.at(-1).text += '\n' + line;
+    else push('prose', i, i + 1);
+    i++;
+  }
+  return result;
+}
+
 export function cleanText(input, options = defaults) {
-  let text = input.replace(/\r\n?/g, '\n');
-  if (options.joinLines) text = joinWrappedLines(text);
-  // Consume fenced blocks, including unfinished pasted blocks.
-  text = text.replace(/^ {0,3}(`{3,}|~{3,})[^\n]*\n[\s\S]*?(?:^ {0,3}\1[^\n]*(?:\n|$)|$(?![\s\S]))/gm,
-    block => options.code ? '\n' : block);
-  if (options.code) text = text.replace(/^(?:(?: {4}|\t)[^\n]*(?:\n|$))+/gm, '\n');
+  const text = input.replace(/\r\n?/g, '\n');
+  if (!Object.values(options).some(Boolean)) return text;
+  const rendered = blocks(text).flatMap(block => {
+    const separate = value => options.markdown || options.joinLines ? '\n' + value + '\n' : value;
+    if (block.type === 'code') return options.code ? '\n' : ['\n', {literal: options.markdown ? block.body : block.text}, '\n'];
+    if (block.type === 'table') {
+      if (options.tables) return '\n';
+      if (!block.rows) return separate(block.text);
+      if (!options.markdown) return separate(cleanInline(block.text, options));
+      return separate(block.rows.map(row => row.map(cell => cleanInline(cell, options)).join('; ')).join('\n\n'));
+    }
+    let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, options);
+    if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value);
+    return block.type === 'prose' ? value : separate(value);
+  });
+  // Normalize layout around blocks without ever normalizing the contents of code.
+  let output = ''; let pending = '';
+  for (const part of rendered) {
+    if (typeof part === 'string') pending += (pending ? '\n' : '') + part;
+    else {
+      const gap = pending.replace(/\n{3,}/g, '\n\n');
+      output += (output ? gap : gap.replace(/^\n+/, '')) + part.literal;
+      pending = '\n';
+    }
+  }
+  const tail = pending.replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
+  return output + (output ? tail : tail.replace(/^\n+/, ''));
+}
+
+function cleanInline(text, options) {
   if (options.citations) text = text
     .replace(/\uE200[\s\S]*?\uE201/g, '')
     .replace(/[^]*/g, '')
     .replace(/【[^】]*(?:†|turn\d|source)[^】]*】/gi, '')
     .replace(/\[\^\d+\](?::[^\n]*)?/g, '')
     .replace(/\b(?:turn\d+(?:search|view|fetch|file|news)\d+)\b/g, '');
-  if (options.tables) {
-    const lines = text.split('\n');
-    const separator = line => /^\s*\|?\s*:?-{3,}:?\s*\|[\s|:\-]*$/.test(line);
-    const skip = new Set();
-    for (let i = 1; i < lines.length; i++) if (separator(lines[i]) && lines[i-1].includes('|')) {
-      skip.add(i-1); skip.add(i);
-      for (let j = i+1; j < lines.length && lines[j].includes('|') && lines[j].trim(); j++) skip.add(j);
-    }
-    text = lines.filter((_, i) => !skip.has(i)).join('\n');
-  }
   if (options.markdown || options.urls) text = text.replace(/!?\[([^\]]*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
     (_, label, url) => options.urls ? label : `${label} (${url})`);
   if (options.urls) text = text.replace(/(?:https?:\/\/|www\.)[^\s<>]+/gi, '').replace(/<\s*>/g, '');
   if (options.markdown) text = text
-    .replace(/^\s{0,3}(?:#{1,6}\s+|>\s?|[-+*]\s+|\d+[.)]\s+)/gm, '')
-    .replace(/^\s*\[[ xX]\]\s*/gm, '')
+    .replace(/^ {0,3}>[ \t]?/gm, '')
     .replace(/^\s*(?:[-*_]\s*){3,}$/gm, '')
     .replace(/!?(\[([^\]]+)\])\[[^\]]*\]/g, '$2')
     .replace(/^\s*\[[^\]]+\]:\s+.*$/gm, '')
@@ -42,6 +123,7 @@ export function cleanText(input, options = defaults) {
 // Only protect predictable continuations; ambiguous sentence endings stay with Intl.
 function protectedBoundary(before, after) {
   const next = after.trimStart();
+  if (/^\d+\.$/.test(before.trim())) return true;
   if (/(?:^|[\s“‘"'(\[{])(?:Mr|Mrs|Ms|Dr|Prof|Rev|Fr|Sr|Jr)\.$/i.test(before.trimEnd())) return /^\p{L}/u.test(next);
   if (/(?:^|[\s“‘"'(\[{])[A-HJ-Z]\.$/.test(before.trimEnd())) return /^[A-Z]\p{L}*/u.test(next);
   return /(?:^|[\s“‘"'(\[{])(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$/i.test(before.trimEnd()) && /^\d/.test(next);
@@ -84,6 +166,12 @@ export function chunkText(text, limit = 500) {
 
 // Repair hard wraps from PDF prose without removing paragraph boundaries.
 export function joinWrappedLines(input) {
+  const text = input.replace(/\r\n?/g, '\n');
+  if (blocks(text).every(block => block.type === 'prose')) return joinProseLines(text);
+  return cleanText(text, {...Object.fromEntries(Object.keys(defaults).map(key => [key, false])), joinLines: true});
+}
+
+function joinProseLines(input) {
   return input.replace(/\r\n?/g, '\n').replace(
     /([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/g,
     (match, line) => /[.!?…]["'”’)}\]]*$/.test(line.trimEnd()) ? match : line.trimEnd() + ' '

@@ -42,7 +42,7 @@ test('article labels and headings stay separate and inflation stays intact', () 
  const input = 'Spotify\nApple Podcasts\n\n1. Fed raises rates for first time since 2023\n   The Federal Reserve raised interest rates Wednesday for the first time in more than three years as stubborn inflation and resilient consumer spending complicate its efforts to stabilize prices.';
  const cleaned = cleanText(input);
  const chunks = chunkText(cleaned);
- assert.deepEqual(chunks.slice(0, 3), ['Spotify', 'Apple Podcasts', 'Fed raises rates for first time since 2023']);
+ assert.deepEqual(chunks.slice(0, 3), ['Spotify', 'Apple Podcasts', '1. Fed raises rates for first time since 2023']);
  assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), cleaned.split(/\s+/));
  assert.equal(chunks.length, 4);
  assert.equal(chunks[3], cleaned.split('\n').at(-1));
@@ -164,4 +164,63 @@ test('joins PDF hard wraps but keeps sentences and blank paragraphs', () => {
  assert.equal(joinWrappedLines('He said “Done.”\r\nNext\r\n line?\r\nYes.'), 'He said “Done.”\nNext line?\nYes.');
  assert.equal(joinWrappedLines('one\n \t\n two'), 'one\n \t\n two');
  assert.equal(joinWrappedLines(''), '');
+});
+
+const keepContent = {...defaults, code: false, tables: false, joinLines: true};
+test('Markdown headings create boundaries before prose joining', () => {
+ const input = 'Before\n# Title ##\nA wrapped\nparagraph\nUnderlined\n===\nMore\nwords.';
+ assert.equal(cleanText(input, keepContent), 'Before\n\nTitle\n\nA wrapped paragraph\n\nUnderlined\n\nMore words.');
+ assert.equal(cleanText('# Title\nBody\nwrap', {...keepContent, joinLines:false}), 'Title\n\nBody\nwrap');
+ assert.equal(cleanText('Title\n---\nBody', keepContent), 'Title\n\nBody');
+ assert.equal(cleanText('# Title\nBody\nwrap', {...keepContent, markdown:false}), '# Title\n\nBody wrap');
+});
+test('list items, nested items, numbers and task status survive joining', () => {
+ const input = '- First\n  continuation\n    - Nested\n      continuation\n- [ ] Pending\n- [X] Finished\n3. Third\n   continuation';
+ assert.equal(cleanText(input, keepContent), 'First continuation\n\nNested continuation\n\nUnchecked: Pending\n\nChecked: Finished\n\n3. Third continuation');
+ assert.equal(cleanText('- First\n  continuation\n- Second', {...keepContent, joinLines:false}), 'First\ncontinuation\n\nSecond');
+ assert.deepEqual(chunkText(cleanText('1. First\n2. Second', keepContent)), ['1. First', '2. Second']);
+ assert.equal(cleanText('- First\n  continuation\n- Second', {...keepContent, markdown:false}), '- First continuation\n\n- Second');
+});
+test('retained tables read rows with pauses and preserve empty cells and escaped pipes', () => {
+ const input = 'Before\n| Name | Status | Note |\n| --- | :---: | ---: |\n| Alice | | A\\|B |\n| Bob | Ready | |\nAfter';
+ assert.equal(cleanText(input, keepContent), 'Before\n\nName; Status; Note\n\nAlice; ; A|B\n\nBob; Ready; \n\nAfter');
+ assert.deepEqual(chunkText(cleanText(input, keepContent)), ['Before','Name; Status; Note','Alice; ; A|B','Bob; Ready;','After']);
+ assert.equal(cleanText('A | B\n--- | ---\nx | y', keepContent), 'A; B\n\nx; y');
+ const ambiguous = '| A | B |\n| --- | --- |\n| one | two | three |';
+ assert.equal(cleanText(ambiguous, keepContent), ambiguous);
+ const inlineCode = '| A | B |\n| --- | --- |\n| `x|y` | z |';
+ assert.equal(cleanText(inlineCode, keepContent), inlineCode);
+ assert.equal(cleanText(input, {...keepContent, markdown:false}), input.replace('Before\n','Before\n\n').replace('\nAfter','\n\nAfter'));
+ assert.equal(cleanText(input, {...keepContent, tables:true}), 'Before\n\nAfter');
+ assert.equal(cleanText('Choose A | B\nnext line', keepContent), 'Choose A | B next line');
+});
+test('retained code is opaque to every prose cleanup option', () => {
+ const body = '    **bold**  https://example.com\n\t# heading 😀\n\n\nturn1search0\n- item';
+ for (const fence of ['```js','~~~~python']) {
+  const closing = fence.startsWith('`') ? '````' : '~~~~';
+  const input = `Before\n${fence}\n${body}\n${closing}\nAfter`;
+  assert.equal(cleanText(input, {...keepContent, emoji:true}), `Before\n\n${body}\n\nAfter`);
+  assert.equal(cleanText(input, {...keepContent, markdown:false}), `Before\n\n${fence}\n${body}\n${closing}\n\nAfter`);
+  assert.equal(cleanText(input, {...keepContent, code:true}), 'Before\n\nAfter');
+ }
+ assert.equal(cleanText('```js\n  unfinished\n x', keepContent), '  unfinished\n x');
+ assert.equal(cleanText('```\n\n  x\n\n```', keepContent), '\n  x\n');
+ assert.equal(cleanText('Before\n    x  =  1\n\ty()\nAfter', keepContent), 'Before\n\n    x  =  1\n\ty()\n\nAfter');
+});
+test('all switches off preserve literal whitespace, structures and content', () => {
+ const input = '  # Heading\n\n- [ ] Task\n  continuation\n```\n  x  =  1\n```\n| A | B |\n| --- | --- |\n| x | y |\n';
+ assert.equal(cleanText(input, Object.fromEntries(Object.keys(defaults).map(key => [key,false]))), input);
+});
+test('removing blocks does not join neighboring prose', () => {
+ const input = 'Before\n```\nx\n```\nAfter\n| A | B |\n| --- | --- |\n| x | y |\nEnd';
+ assert.equal(cleanText(input, {...defaults, joinLines:true}), 'Before\n\nAfter\n\nEnd');
+ assert.equal(joinWrappedLines('# Heading\nwrapped\nprose'), '# Heading\n\nwrapped prose');
+});
+
+test('nested list items are not removed as indented code', () => {
+ assert.equal(cleanText('- Parent\n    - Child\n      continuation', {...defaults, joinLines:true}), 'Parent\n\nChild continuation');
+});
+test('table URL cleanup works even when Markdown syntax is retained', () => {
+ const input = '| A | B |\n| --- | --- |\n| https://example.com | kept |';
+ assert.equal(cleanText(input, {...keepContent, markdown:false}), '| A | B |\n| --- | --- |\n| | kept |');
 });
