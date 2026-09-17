@@ -210,14 +210,14 @@ class SpokenTextTests(unittest.TestCase):
 
 class PronunciationTests(unittest.TestCase):
     def test_dictionary_applies_case_insensitively_and_keeps_possessives(self):
-        for word in ['WAYMO', 'Waymo', 'waymo', 'robotaxi', 'robotaxis', 'Robotaxis']:
+        for word in ['WAYMO', 'Waymo', 'waymo', 'robotaxi', 'robotaxis', 'Robotaxis', 'UBTECH', 'Ubtech', 'ubtech']:
             for voice in ['af_heart', 'bf_emma']:
                 phones = PRONUNCIATIONS[voice[0]][word.lower()]
                 self.assertEqual(pronunciation_text(word, voice), f'[{word}](/{phones}/)')
         self.assertEqual(pronunciation_text("Waymo's robotaxis", 'af_heart'), "[Waymo](/wˈAmO/)'s [robotaxis](/rˈObOtˌæksiz/)")
 
     def test_urls_and_longer_words_stay_unchanged(self):
-        text = 'https://waymo.com/robotaxis www.waymo.com waymology robotaxism'
+        text = 'https://waymo.com/robotaxis www.waymo.com waymology robotaxism https://ubtech.com/UBTECH ubtechnology'
         self.assertEqual(pronunciation_text(text, 'af_heart'), text)
 
     def test_installed_phonemizer_uses_explicit_sounds(self):

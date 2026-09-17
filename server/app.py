@@ -31,8 +31,8 @@ class Speech(BaseModel):
 
 # Kokoro/Misaki phonemes: explicit pronunciations, independent of capitalization.
 PRONUNCIATIONS = {
-    'a': {'waymo': 'wˈAmO', 'robotaxi': 'rˈObOtˌæksi', 'robotaxis': 'rˈObOtˌæksiz'},
-    'b': {'waymo': 'wˈAmQ', 'robotaxi': 'rˈQbQtˌaksiː', 'robotaxis': 'rˈQbQtˌaksiːz'},
+    'a': {'ubtech': 'jˈubˌitɛk', 'waymo': 'wˈAmO', 'robotaxi': 'rˈObOtˌæksi', 'robotaxis': 'rˈObOtˌæksiz'},
+    'b': {'ubtech': 'jˈuːbˌiːtɛk', 'waymo': 'wˈAmQ', 'robotaxi': 'rˈQbQtˌaksiː', 'robotaxis': 'rˈQbQtˌaksiːz'},
 }
 
 
