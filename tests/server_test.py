@@ -253,7 +253,7 @@ class SpokenTextTests(unittest.TestCase):
 
 class PronunciationTests(unittest.TestCase):
     def test_dictionary_applies_case_insensitively_and_keeps_possessives(self):
-        for word in ['WAYMO', 'Waymo', 'waymo', 'robotaxi', 'robotaxis', 'Robotaxis', 'UBTECH', 'Ubtech', 'ubtech']:
+        for word in ['WAYMO', 'Waymo', 'waymo', 'robotaxi', 'robotaxis', 'Robotaxis', 'UBTECH', 'Ubtech', 'ubtech', 'demos', 'Demos', 'DEMOS']:
             for voice in ['af_heart', 'bf_emma']:
                 phones = PRONUNCIATIONS[voice[0]][word.lower()]
                 self.assertEqual(pronunciation_text(word, voice), f'[{word}](/{phones}/)')
@@ -270,6 +270,13 @@ class PronunciationTests(unittest.TestCase):
             for word, expected in PRONUNCIATIONS[voice[0]].items():
                 phones, _ = g2p(pronunciation_text(word, voice))
                 self.assertEqual(phones, expected)
+
+    def test_demos_in_the_robot_benchmark_sentence(self):
+        text = 'Robocurve raised a $10M seed round to build independent, real-world benchmarks for robot AI, testing models on practical tasks rather than relying on polished demos.'
+        calls, _ = ColonPauseTests.synthesize(self, text)
+        self.assertEqual(calls, [text.replace('demos', '[demos](/dˈɛmOz/)')])
+        unchanged = 'demonstrations demographics https://example.com/demos'
+        self.assertEqual(pronunciation_text(unchanged, 'af_heart'), unchanged)
 
     def test_overrides_reach_synthesis_after_pause_planning(self):
         calls, pcm = ColonPauseTests.synthesize(self, 'WAYMO: “robotaxis” arrive.')
