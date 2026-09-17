@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Comma-grouped quantities now expand directly into cardinal words: `1,079` reads “one thousand seventy nine.” Ungrouped years stay untouched. Grouped decimals and square-foot measurements remain supported; installed phoneme checks and live American/British synthesis passed.
+
 - Approximation tildes before prose numbers now read as “about” under Markdown cleanup, including escaped newsletter tildes. Protects code, retained URLs, and paths; preserves original Edit text. Exact Waymo example verified on the live page, plus 55 tests and mobile browser checks.
 
 - Added the first explicit Kokoro pronunciation dictionary entries: Waymo (case-insensitive), robotaxi, and robotaxis, with American/British phonemes. Installed phonemizer checks, pause integration regression, and live synthesis with Heart and Emma passed; Roger's listening confirmation remains open.

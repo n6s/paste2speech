@@ -69,7 +69,7 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
-Kokoro normalizes valid comma-grouped numbers in speech input (`150,700` → `150700`) and expands numeric `sq-ft`, `sq ft`, `sq. ft.`, and `sqft` measurements to “square feet.” This lets `150,700-sq-ft` read as “one hundred fifty thousand seven hundred square feet,” without altering the preview. Comma-separated lists, malformed digit groupings, and URLs are excluded from thousands normalization.
+Kokoro converts valid comma-grouped numbers directly to cardinal words in speech input (`1,079` → “one thousand seventy nine”), leaving ungrouped numbers such as `2025` to the voice’s existing year/number handling, and expands numeric `sq-ft`, `sq ft`, `sq. ft.`, and `sqft` measurements to “square feet.” This lets `150,700-sq-ft` read as “one hundred fifty thousand seven hundred square feet,” without altering the preview. Comma-separated lists, malformed digit groupings, and URLs are excluded from thousands normalization.
 
 With Markdown cleanup enabled, a prose tilde before a number (`~100`, `~ 100`, or Markdown-escaped `\~100`) becomes “about 100” in Read mode and the speech input. The original paste in Edit mode is preserved. Inline/fenced/indented code, retained URLs, and path-like tokens such as `~/Documents` and `~100/file` are excluded. This applies to both speech engines; disabling Markdown cleanup leaves tildes unchanged.
 

@@ -191,17 +191,31 @@ class SpokenTextTests(unittest.TestCase):
 
     def test_grouped_square_foot_measurements(self):
         sentence = 'The 150,700-sq-ft plant just began production'
-        expected = 'The 150700 square feet plant just began production'
+        expected = 'The one hundred fifty thousand seven hundred square feet plant just began production'
         self.assertEqual(spoken_text(sentence), expected)
         calls, pcm = self.synthesize(sentence)
         self.assertEqual(calls, [expected])
         for unit in ['sq-ft', 'sq ft', 'sq. ft.', 'sqft', 'SQ-FT']:
-            self.assertEqual(spoken_text('150,700-' + unit + ' plant'), '150700 square feet plant')
-        self.assertEqual(spoken_text('1,234,567 and 1,200.5 lb.'), '1234567 and 1200 point five pounds.')
+            self.assertEqual(spoken_text('150,700-' + unit + ' plant'), 'one hundred fifty thousand seven hundred square feet plant')
+        self.assertEqual(spoken_text('1,234,567 and 1,200.5 lb.'), 'one million two hundred thirty four thousand five hundred sixty seven and one thousand two hundred point five pounds.')
         from misaki import en
         for british in [False, True]:
             g2p = en.G2P(british=british)
             self.assertEqual(g2p(spoken_text('150,700-sq-ft'))[0], g2p('one hundred fifty thousand seven hundred square feet')[0])
+
+    def test_grouped_quantities_are_cardinals_but_years_stay_numeric(self):
+        text = 'UBTECH sold 1,079 humanoids in 2025 and 921 in H1 2026, generating $88M in first-half category revenue, but still posted a ~ $48M net loss for the period.'
+        expected = text.replace('1,079', 'one thousand seventy nine')
+        self.assertEqual(spoken_text(text), expected)
+        calls, _ = self.synthesize(text)
+        self.assertEqual(calls, [pronunciation_text(expected, 'af_heart')])
+        self.assertEqual(spoken_text('1,079, 2025; 2,025.'), 'one thousand seventy nine, 2025; two thousand twenty five.')
+        self.assertEqual(spoken_text('1,079.02'), 'one thousand seventy nine point zero two')
+        from misaki import en
+        for british in [False, True]:
+            g2p = en.G2P(british=british)
+            self.assertEqual(g2p(spoken_text('1,079'))[0], g2p('one thousand seventy nine')[0])
+            self.assertEqual(spoken_text('2025'), '2025')
 
     def test_grouping_does_not_change_lists_identifiers_or_urls(self):
         text = '1,2,3 12,34 1,2345 v150,700 https://example.com/150,700-sq-ft'
