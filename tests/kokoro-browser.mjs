@@ -40,9 +40,9 @@ try {
  assert.equal((await response.body()).subarray(0,4).toString(),'RIFF');
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
  await page.unroute('**/api/speech');
- await page.locator('.paragraph').nth(1).click();
- await page.waitForFunction(() => document.querySelector('.paragraph[aria-current=true]')?.textContent.startsWith('Here is the second paragraph.'));
- assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Here is the second paragraph.');
+ await page.locator('.sentence').nth(1).click();
+ await page.waitForFunction(() => document.querySelector('.sentence[aria-current=true]')?.textContent.startsWith('Here is the second paragraph.'));
+ assert.equal(await page.locator('.sentence[aria-current=true]').textContent(),'Here is the second paragraph.');
  const preparedSource = await page.evaluate(() => testAudio.src);
  const original = await page.locator('#text').inputValue();
  await page.locator('#edit-mode').click();
@@ -53,7 +53,7 @@ try {
  assert.ok(await page.evaluate(previous => !testAudio.paused && testAudio.currentTime > previous, before));
  await page.locator('#read-mode').click();
  assert.equal(await page.evaluate(() => testAudio.src), preparedSource);
- assert.equal(await page.locator('.paragraph[aria-current=true]').count(), 1);
+ assert.equal(await page.locator('.sentence[aria-current=true]').count(), 1);
  assert.equal(await page.evaluate(() => navigator.mediaSession.metadata.title), 'Paste to Speech');
  await page.evaluate(() => mediaHandlers.pause());
  assert.equal(await page.locator('#play').textContent(), '▶ Resume');
@@ -67,7 +67,7 @@ try {
  await page.unroute('**/api/speech');
  await page.evaluate(() => window.blockPlayback = true);
  await page.locator('#voice').selectOption('bm_george');
- await page.locator('.paragraph').nth(2).click();
+ await page.locator('.sentence').nth(2).click();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Audio ready · tap Play.');
  await page.evaluate(() => window.blockPlayback = false);
  await page.locator('#read-mode').click();
@@ -76,18 +76,18 @@ try {
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('This longer paragraph has several sentences to listen to. '.repeat(7));
  await page.locator('#read-mode').click();
- const sections = await page.locator('.paragraph').allTextContents();
+ const sections = await page.locator('.sentence').allTextContents();
  assert.ok(sections.length > 1);
  await page.locator('#follow-reading').check();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
  await page.locator('#preview').evaluate(el => el.style.height = '150px');
- await page.locator('.paragraph').last().focus(); await page.keyboard.press('Enter');
+ await page.locator('.sentence').last().focus(); await page.keyboard.press('Enter');
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
- await page.waitForFunction(text => document.querySelector('.paragraph[aria-current=true]')?.textContent === text, sections.at(-1));
+ await page.waitForFunction(text => document.querySelector('.sentence[aria-current=true]')?.textContent === text, sections.at(-1));
  assert.ok(await page.locator('#preview').evaluate(el => el.scrollTop > 0));
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), sections);
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), sections);
  await page.locator('#pause').click();
- assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(), sections.at(-1));
+ assert.equal(await page.locator('.sentence[aria-current=true]').textContent(), sections.at(-1));
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('Editing invalidates prepared audio.');
  assert.equal(await page.locator('#status').textContent(), 'Ready when you are');
@@ -113,6 +113,6 @@ try {
  await page.route('**/api/pdf-text', r => r.fulfill({json: {text: 'Imported paragraph.', pages: 1, emptyPages: 0}}));
  await page.locator('#pdf-file').setInputFiles({name: 'sample.pdf', mimeType: 'application/pdf', buffer: Buffer.from('%PDF-1.4 mock')});
  await page.waitForFunction(() => document.querySelector('#text').value === 'Imported paragraph.');
- assert.equal(await page.locator('.paragraph').textContent(), 'Imported paragraph.');
+ assert.equal(await page.locator('.sentence').textContent(), 'Imported paragraph.');
  console.log('Real Kokoro browser checks passed: WAV decoding, media controls, pagehide continuity, prepared offline playback, autoplay recovery, PDF import UI, mobile audio start, paragraph seek/highlight, pause/resume, automatic continuation/completion, British voice, saved preferences, failure recovery and browser fallback.');
 } finally {await browser.close();}

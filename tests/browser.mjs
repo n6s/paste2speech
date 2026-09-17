@@ -41,7 +41,7 @@ try {
  await page.evaluate(()=>speechSynthesis.spoken.at(-1).onend());
  await page.locator('#read-mode').click();
  assert.equal(await page.evaluate(() => speechSynthesis.spoken.length), utteranceCount + 1);
- assert.equal(await page.locator('.paragraph[aria-current=true]').count(), 1);
+ assert.equal(await page.locator('.sentence[aria-current=true]').count(), 1);
 
  assert.ok((await page.locator('#position').textContent()).startsWith('2 /'));
  await page.locator('#pause').click(); assert.equal(await page.locator('#play').textContent(),'▶ Resume');
@@ -62,40 +62,56 @@ try {
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('First paragraph. Second paragraph. Third paragraph.');
  await page.locator('#read-mode').click();
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['First paragraph.', 'Second paragraph.', 'Third paragraph.']);
- await page.locator('.paragraph').nth(1).click();
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), ['First paragraph.', 'Second paragraph.', 'Third paragraph.']);
+ await page.locator('.sentence').nth(1).click();
  assert.equal(await page.evaluate(()=>speechSynthesis.spoken.at(-1).text),'Second paragraph.');
- assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Second paragraph.');
+ assert.equal(await page.locator('.sentence[aria-current=true]').textContent(),'Second paragraph.');
  await page.evaluate(()=>{window.oldUtterance=speechSynthesis.spoken.at(-1);speechSynthesis.spoken.at(-1).onend();});
  assert.equal(await page.evaluate(()=>speechSynthesis.spoken.at(-1).text),'Third paragraph.');
  await page.locator('#pause').click();
- await page.locator('.paragraph').nth(0).focus(); await page.keyboard.press('Enter');
+ await page.locator('.sentence').nth(0).focus(); await page.keyboard.press('Enter');
  assert.equal(await page.evaluate(()=>speechSynthesis.spoken.at(-1).text),'First paragraph.');
  await page.evaluate(()=>window.oldUtterance.onend());
  assert.equal(await page.locator('#position').textContent(),'1 / 3');
  await page.screenshot({path:'work/paragraphs-mobile.png',fullPage:true});
  await page.locator('#stop').click();
- assert.equal(await page.locator('.paragraph[aria-current=true]').count(),0);
+ assert.equal(await page.locator('.sentence[aria-current=true]').count(),0);
+ const prose = 'Heading\nDr. Smith arrived. J. R. Jones waved.\n\nAnother paragraph. “Welcome!” ' + 'x'.repeat(1100);
+ await page.locator('#edit-mode').click();
+ await page.locator('#text').fill(prose);
+ await page.locator('#read-mode').click();
+ assert.equal(await page.locator('#preview').textContent(), prose);
+ assert.equal(await page.locator('.reading-paragraph').count(), 2);
+ assert.deepEqual((await page.locator('.sentence').allTextContents()).slice(0, 3), ['Heading', 'Dr. Smith arrived.', 'J. R. Jones waved.']);
+ await page.locator('.sentence').nth(2).focus(); await page.keyboard.press('Space');
+ assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'J. R. Jones waved.');
+ assert.equal(await page.locator('.sentence[aria-current=true]').count(), 1);
+ assert.ok(await page.locator('#preview').evaluate(el => el.scrollWidth <= el.clientWidth));
+ await page.screenshot({path:'work/prose-mobile.png',fullPage:true});
+ await page.setViewportSize({width:1100,height:900});
+ assert.ok(await page.locator('#preview').evaluate(el => el.scrollWidth <= el.clientWidth));
+ await page.screenshot({path:'work/prose-desktop.png',fullPage:true});
+ await page.setViewportSize({width:393,height:851});
  const longText = 'Short section.\n\n' + 'A sentence to follow while reading. '.repeat(20) + '\n\n' + '😀'.repeat(190);
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill(longText);
  await page.locator('#read-mode').click();
  const expected = longText.split(/\n\s*\n/).flatMap(p => chunkText(p));
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), expected);
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), expected);
  await page.locator('#follow-reading').check();
- await page.locator('.paragraph').first().click();
+ await page.locator('.sentence').first().click();
  const spokenStart = await page.evaluate(() => speechSynthesis.spoken.length - 1);
  for (let i = 0; i < expected.length; i++) {
-  assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(), expected[i]);
+  assert.equal(await page.locator('.sentence[aria-current=true]').textContent(), expected[i]);
   await page.evaluate(() => speechSynthesis.spoken.at(-1).onend());
  }
  assert.deepEqual(await page.evaluate(start => speechSynthesis.spoken.slice(start).map(u => u.text), spokenStart), expected);
  assert.ok(await page.locator('#preview').evaluate(el => el.scrollTop > 0));
- await page.locator('.paragraph').nth(2).focus(); await page.keyboard.press('Enter');
+ await page.locator('.sentence').nth(2).focus(); await page.keyboard.press('Enter');
  const position = await page.locator('#position').textContent();
  await page.locator('#preview').evaluate(el => el.style.height = '450px');
  assert.equal(await page.locator('#position').textContent(), position);
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), expected);
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), expected);
  assert.equal(await page.locator('#preview').evaluate(el => getComputedStyle(el).resize), 'vertical');
  await page.locator('#edit-mode').click();
  await page.locator('#read-mode').click();
@@ -103,7 +119,7 @@ try {
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('Changed original.');
  assert.equal(await page.locator('#status').textContent(), 'Ready when you are');
- assert.equal(await page.locator('.paragraph[aria-current=true]').count(), 0);
+ assert.equal(await page.locator('.sentence[aria-current=true]').count(), 0);
 
  await page.locator('#text').fill('Keep this 😀 https://example.com');
  await page.locator('#read-mode').focus(); await page.keyboard.press('Enter');
@@ -122,9 +138,9 @@ try {
  assert.equal(await page.locator('#text').inputValue(), 'A PDF column\nwraps here.\nNext sentence.');
  await page.locator('#read-mode').click();
  assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'A PDF column wraps here.');
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['A PDF column wraps here.', 'Next sentence.']);
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), ['A PDF column wraps here.', 'Next sentence.']);
  await page.locator('#clean-joinLines').uncheck();
- assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['A PDF column', 'wraps here.', 'Next sentence.']);
+ assert.deepEqual(await page.locator('.sentence').allTextContents(), ['A PDF column', 'wraps here.', 'Next sentence.']);
 
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');

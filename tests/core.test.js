@@ -78,6 +78,29 @@ test('older browsers fall back to bounded punctuation and word chunks', t => {
  assert.ok(parts.every(p => p.length <= 500));
  assert.deepEqual(parts.flatMap(p => p.split(/\s+/)), input.trim().split(/\s+/));
 });
+test('protects predictable abbreviations without swallowing real sentence endings', () => {
+ for (const title of ['Mr.', 'Mrs.', 'Ms.', 'Dr.', 'Prof.', 'Rev.', 'Fr.', 'Sr.', 'Jr.']) {
+  assert.deepEqual(chunkText(`${title} Smith arrived. Then left.`), [`${title} Smith arrived.`, 'Then left.']);
+ }
+ assert.deepEqual(chunkText('J. R. Smith arrived. I. Next section.'), ['J. R. Smith arrived.', 'I.', 'Next section.']);
+ assert.deepEqual(chunkText('Jan. 5 was cold. No. 4 arrived.'), ['Jan. 5 was cold.', 'No. 4 arrived.']);
+ assert.deepEqual(chunkText('We visited the U.S. Then left. Meet at 5 p.m. Tomorrow works. We bought fruit, etc. Then ate.'),
+  ['We visited the U.S.', 'Then left.', 'Meet at 5 p.m.', 'Tomorrow works.', 'We bought fruit, etc.', 'Then ate.']);
+ assert.deepEqual(chunkText('Dr.\nSmith arrived.'), ['Dr.', 'Smith arrived.']);
+ const long = 'Dr. Smith ' + 'walked slowly '.repeat(100) + 'home.';
+ assert.deepEqual(chunkText(long).flatMap(p => p.split(/\s+/)), long.split(/\s+/));
+ assert.ok(chunkText(long).every(p => p.length <= 500));
+});
+test('fallback ignores protected punctuation when choosing a preferred break', t => {
+ const original = Intl.Segmenter;
+ Intl.Segmenter = undefined;
+ t.after(() => { Intl.Segmenter = original; });
+ for (const title of ['Dr.', 'J.', 'Jan.', 'No.']) {
+  const next = ['Jan.', 'No.'].includes(title) ? '5' : 'Smith';
+  const input = `Some ordinary words ${title} ${next} walked slowly along the street today`;
+  assert.equal(chunkText(input, 45)[0], input.slice(0, 46).slice(0, input.slice(0, 46).lastIndexOf(' ')));
+ }
+});
 function setup() {
  const synth = { spoken: [], cancel() {}, speak(u) { this.spoken.push(u); } };
  class Utterance { constructor(text) { this.text=text; } }

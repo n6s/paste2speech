@@ -39,6 +39,14 @@ export function cleanText(input, options = defaults) {
   return text.replace(/[\t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
+// Only protect predictable continuations; ambiguous sentence endings stay with Intl.
+function protectedBoundary(before, after) {
+  const next = after.trimStart();
+  if (/(?:^|\s)(?:Mr|Mrs|Ms|Dr|Prof|Rev|Fr|Sr|Jr)\.$/i.test(before.trimEnd())) return /^\p{L}/u.test(next);
+  if (/(?:^|\s)[A-HJ-Z]\.$/.test(before.trimEnd())) return /^[A-Z]\p{L}*/u.test(next);
+  return /(?:^|\s)(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$/i.test(before.trimEnd()) && /^\d/.test(next);
+}
+
 export function chunkText(text, limit = 500) {
   if (!Number.isInteger(limit) || limit < 2) throw new RangeError('Chunk limit must be an integer of at least 2.');
   const chunks = [];
@@ -46,14 +54,19 @@ export function chunkText(text, limit = 500) {
     ? new Intl.Segmenter('en', { granularity: 'sentence' }) : null;
   // Preserve headings and other line boundaries before finding sentences.
   for (const line of text.split(/\r\n?|\n/)) {
-    const sentences = segmenter ? Array.from(segmenter.segment(line), part => part.segment) : [line];
+    const sentences = [];
+    for (const part of segmenter ? Array.from(segmenter.segment(line), part => part.segment) : [line]) {
+      if (sentences.length && protectedBoundary(sentences.at(-1), part)) sentences[sentences.length - 1] += part;
+      else sentences.push(part);
+    }
     for (const sentence of sentences) {
       let remaining = sentence.trim();
       while (remaining) {
         let cut = remaining.length;
         if (cut > limit) {
           const head = remaining.slice(0, limit + 1);
-          const breaks = [...head.matchAll(segmenter ? /[,;:]\s/g : /[.!?;:]\s/g)];
+          const breaks = [...head.matchAll(segmenter ? /[,;:]\s/g : /[.!?;:]\s/g)].filter(match =>
+            !protectedBoundary(remaining.slice(0, match.index + 1), remaining.slice(match.index + 1)));
           const phraseCut = breaks.length ? breaks.at(-1).index + 1 : -1;
           const spaces = [...head.matchAll(/\s/g)];
           const wordCut = spaces.length ? spaces.at(-1).index : -1;

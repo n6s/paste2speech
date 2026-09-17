@@ -12,7 +12,7 @@ let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
 let chunks = [];
-let paragraphStarts = [];
+let sentenceElements = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const workstationPlayer = new AudioPlayer(render);
@@ -50,20 +50,39 @@ function save() { try { localStorage.setItem('paste2speech.settings', JSON.strin
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
-  paragraphStarts = [];
+  sentenceElements = [];
   $('preview').replaceChildren();
-  for (const [index, paragraph] of cleaned.split(/\n\s*\n/).filter(Boolean).flatMap(paragraph => chunkText(paragraph)).entries()) {
-    const start = chunks.length;
-    paragraphStarts.push(start);
-    chunks.push(paragraph);
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'paragraph';
-    button.textContent = paragraph;
-    button.disabled = !canPlay();
-    button.setAttribute('aria-label', `Read from section ${index + 1}: ${paragraph}`);
-    button.addEventListener('click', () => player?.start(chunks, settings(), start));
-    $('preview').append(button);
+  for (const paragraph of cleaned.split(/\n\s*\n/).filter(Boolean)) {
+    if (sentenceElements.length) $('preview').append('\n\n');
+    const group = document.createElement('p');
+    group.className = 'reading-paragraph';
+    let cursor = 0;
+    for (const chunk of chunkText(paragraph)) {
+      const start = chunks.length;
+      const offset = paragraph.indexOf(chunk, cursor);
+      group.append(paragraph.slice(cursor, offset));
+      cursor = offset + chunk.length;
+      chunks.push(chunk);
+      const button = document.createElement('span');
+      button.className = 'sentence';
+      button.textContent = chunk;
+      button.setAttribute('role', 'button');
+      button.tabIndex = canPlay() ? 0 : -1;
+      button.setAttribute('aria-disabled', String(!canPlay()));
+      button.setAttribute('aria-label', `Read from section ${start + 1}: ${chunk}`);
+      const activate = () => { if (canPlay()) player?.start(chunks, settings(), start); };
+      button.addEventListener('click', activate);
+      button.addEventListener('keydown', event => {
+        if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          if (!event.repeat) activate();
+        }
+      });
+      sentenceElements.push(button);
+      group.append(button);
+    }
+    group.append(paragraph.slice(cursor));
+    $('preview').append(group);
   }
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
@@ -91,7 +110,10 @@ function followParagraph(button) {
   if (!$('follow-reading').checked || $('read-view').hidden || !button) return;
   // Scroll only the preview, so playback controls and the page stay put.
   const bounds = pane.getBoundingClientRect();
-  const paragraph = button.getBoundingClientRect();
+  const rects = [...button.getClientRects()];
+  if (!rects.length) return;
+  const paragraph = {top: rects[0].top, bottom: rects.at(-1).bottom};
+  paragraph.height = paragraph.bottom - paragraph.top;
   const top = bounds.top + pane.clientTop;
   const bottom = top + pane.clientHeight;
   if (paragraph.height > pane.clientHeight || paragraph.top < top) {
@@ -114,8 +136,8 @@ function render(p, message) {
   $('pause').disabled = !['playing', 'preparing'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   const active = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state);
-  for (const [index, button] of [...$('preview').children].entries()) {
-    const current = active && p.index >= paragraphStarts[index] && p.index < (paragraphStarts[index + 1] ?? chunks.length);
+  for (const [index, button] of sentenceElements.entries()) {
+    const current = active && p.index === index;
     if (current) {
       const changed = !button.hasAttribute('aria-current');
       button.setAttribute('aria-current', 'true');
