@@ -189,6 +189,24 @@ class SpokenTextTests(unittest.TestCase):
         self.assertEqual(spoken_text('7.02 and 0.5; 7.2.'), '7 point zero two and 0 point five; 7 point two.')
         self.assertEqual(spoken_text('50 lb. Next sentence.'), '50 pounds. Next sentence.')
 
+    def test_grouped_square_foot_measurements(self):
+        sentence = 'The 150,700-sq-ft plant just began production'
+        expected = 'The 150700 square feet plant just began production'
+        self.assertEqual(spoken_text(sentence), expected)
+        calls, pcm = self.synthesize(sentence)
+        self.assertEqual(calls, [expected])
+        for unit in ['sq-ft', 'sq ft', 'sq. ft.', 'sqft', 'SQ-FT']:
+            self.assertEqual(spoken_text('150,700-' + unit + ' plant'), '150700 square feet plant')
+        self.assertEqual(spoken_text('1,234,567 and 1,200.5 lb.'), '1234567 and 1200 point five pounds.')
+        from misaki import en
+        for british in [False, True]:
+            g2p = en.G2P(british=british)
+            self.assertEqual(g2p(spoken_text('150,700-sq-ft'))[0], g2p('one hundred fifty thousand seven hundred square feet')[0])
+
+    def test_grouping_does_not_change_lists_identifiers_or_urls(self):
+        text = '1,2,3 12,34 1,2345 v150,700 https://example.com/150,700-sq-ft'
+        self.assertEqual(spoken_text(text), text)
+
     def test_identifiers_and_urls_are_not_decimal_numbers(self):
         text = 'v7.2 1.2.3 192.168.1.1 https://example.com/7.2 www.example.com/50lb soft ftps'
         self.assertEqual(spoken_text(text), text)

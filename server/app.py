@@ -50,14 +50,18 @@ def spoken_text(text):
     """Speech-only expansion; preserve URLs and nonnumeric identifiers."""
     digits = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
     def expand(part):
+        # Remove only valid thousands grouping so compound measurements don't
+        # turn the comma into a spoken break. Keep lists and malformed groups.
+        part = re.sub(r'(?<![\w.,])\d{1,3}(?:,\d{3})+(?![\w,])',
+                      lambda match: match[0].replace(',', ''), part)
         def unit(match):
             number, name, period = match.groups()
-            word = ('pound' if float(number) == 1 else 'pounds') if name.lower().startswith('lb') else 'feet'
+            word = ('pound' if float(number) == 1 else 'pounds') if name.lower().startswith('lb') else ('square feet' if name.lower().startswith('sq') else 'feet')
             following = part[match.end():].lstrip()
             # An abbreviation dot before continuing prose isn't a sentence end.
             end = period if not following or not following[0].islower() else ''
             return f'{number} {word}{end}'
-        part = re.sub(r'(?<![\w.])(\d+(?:\.\d+)?)[ \t]*[-‑–]?[ \t]*(lbs?|ft)\b(\.?)', unit, part, flags=re.I)
+        part = re.sub(r'(?<![\w.])(\d+(?:\.\d+)?)[ \t]*[-‑–]?[ \t]*(lbs?|sq\.?[ \t]*[-‑–]?[ \t]*ft|ft)\b(\.?)', unit, part, flags=re.I)
         return re.sub(r'(?<![\w.])(\d+)\.(\d+)(?!\w|\.\w)',
                       lambda m: m[1] + ' point ' + ' '.join(digits[int(d)] for d in m[2]), part)
     return ''.join(part if re.match(r'(?:https?://|www\.)', part, re.I) else expand(part)
