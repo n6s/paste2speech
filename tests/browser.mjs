@@ -120,9 +120,10 @@ try {
  await page.locator('#clean-joinLines').check();
  assert.equal(await page.locator('#text').inputValue(), 'A PDF column\nwraps here.\nNext sentence.');
  await page.locator('#read-mode').click();
- assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'A PDF column wraps here.\nNext sentence.');
+ assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'A PDF column wraps here.');
+ assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['A PDF column wraps here.', 'Next sentence.']);
  await page.locator('#clean-joinLines').uncheck();
- assert.equal(await page.locator('#preview').textContent(), 'A PDF column\nwraps here.\nNext sentence.');
+ assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['A PDF column', 'wraps here.', 'Next sentence.']);
 
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');

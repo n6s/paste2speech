@@ -32,6 +32,21 @@ test('chunking preserves words and bounds long tokens and emoji', () => {
  }
  assert.deepEqual(chunkText('   '), []);
 });
+test('early punctuation never forces a split inside a normal word', () => {
+ const text = 'Intro: ' + 'stubborn inflation and resilient consumer spending '.repeat(8);
+ const chunks = chunkText(text);
+ assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), text.trim().split(/\s+/));
+ assert.ok(chunks.every(c => c.length <= 180));
+});
+test('article labels and headings stay separate and inflation stays intact', () => {
+ const input = 'Spotify\nApple Podcasts\n\n1. Fed raises rates for first time since 2023\n   The Federal Reserve raised interest rates Wednesday for the first time in more than three years as stubborn inflation and resilient consumer spending complicate its efforts to stabilize prices.';
+ const cleaned = cleanText(input);
+ const chunks = chunkText(cleaned);
+ assert.deepEqual(chunks.slice(0, 3), ['Spotify', 'Apple Podcasts', 'Fed raises rates for first time since 2023']);
+ assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), cleaned.split(/\s+/));
+ assert.ok(chunks.some(c => c.split(/\s+/).includes('inflation')));
+ assert.deepEqual(chunkText('Heading\nBody.'), ['Heading', 'Body.']);
+});
 function setup() {
  const synth = { spoken: [], cancel() {}, speak(u) { this.spoken.push(u); } };
  class Utterance { constructor(text) { this.text=text; } }
