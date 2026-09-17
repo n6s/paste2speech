@@ -84,6 +84,10 @@ def speech_phrases(text):
         boundaries[match.end()] = 6000  # 250 ms at 24 kHz
     for match in re.finditer(r"—+", text):
         boundaries[match.end()] = max(boundaries.get(match.end(), 0), 3600)  # 150 ms
+    # Answer labels are structural; ordinary closing parentheses are not.
+    answer_labels = r'(?:^[ \t]*|(?i:\bcorrect[ \t]+answer:)[ \t]*)[A-Z]\)(?=\s+\S)'
+    for match in re.finditer(answer_labels, text):
+        boundaries[match.end()] = max(boundaries.get(match.end(), 0), 3600)
     stack = []
     pairs = {'“': '”', '‘': '’', '"': '"'}
     for index, char in enumerate(text):
@@ -156,7 +160,7 @@ class Engine:
                 trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
                 if previous_pause in (1200, 3600) and arrays and len(audible) and previous_trailing < len(arrays[-1]):
                     # Independent synthesis adds substantial edge silence. Cap
-                    # quote/dash gaps at their targets, keeping 5 ms beside each speech edge.
+                    # quote/dash/answer-label gaps at their targets, keeping 5 ms beside each speech edge.
                     excess = max(0, previous_trailing + leading - previous_pause)
                     trim_end = min(excess, max(0, previous_trailing - 120))
                     if trim_end:

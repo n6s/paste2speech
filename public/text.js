@@ -2,7 +2,7 @@ export const defaults = { markdown: true, citations: true, urls: true, code: tru
 
 // Split structure before any destructive cleanup. Code is always opaque.
 const fenceStart = line => /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-const listStart = line => /^( *)([-+*]|\d+[.)])([ \t]+)(\S.*)$/.exec(line);
+const listStart = line => /^( *)([-+*]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
 const atxHeading = line => /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
 const underline = line => /^ {0,3}(?:=+|-+)[ \t]*$/.test(line);
 const indented = line => /^(?: {4}|\t)/.test(line);
@@ -62,7 +62,7 @@ function blocks(text) {
       i++;
       // Only indented continuations belong to this item; nested items start new blocks.
       while (i < lines.length && lines[i].trim() && !listStart(lines[i]) && !fenceStart(lines[i]) && !atxHeading(lines[i]) && /^ +/.exec(lines[i])?.[0].length > list[1].length) i++;
-      let body = (/^\d/.test(list[2]) ? list[2] + ' ' : '') + list[4].replace(/^\[([ xX])\][ \t]*/, (_, mark) => mark === ' ' ? 'Unchecked: ' : 'Checked: ');
+      let body = (/^(?:\d|[A-Z]\))/.test(list[2]) ? list[2] + ' ' : '') + list[4].replace(/^\[([ xX])\][ \t]*/, (_, mark) => mark === ' ' ? 'Unchecked: ' : 'Checked: ');
       body += lines.slice(start + 1, i).map(value => '\n' + value.trimStart()).join('');
       push('list', start, i, {body}); continue;
     }

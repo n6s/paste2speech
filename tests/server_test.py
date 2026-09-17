@@ -283,5 +283,25 @@ class PronunciationTests(unittest.TestCase):
         self.assertEqual(calls, ['[WAYMO](/wˈAmO/):', '“[robotaxis](/rˈObOtˌæksiz/)”', 'arrive.'])
 
 
+class AnswerLabelTests(unittest.TestCase):
+    synthesize = ColonPauseTests.synthesize
+
+    def test_labels_have_short_pauses_without_stacking_silence(self):
+        for label in ['A', 'B', 'D', 'Z']:
+            calls, pcm = self.synthesize(label + ') The answer.', leading=6000, trailing=9000)
+            self.assertEqual(calls, [label + ')', 'The answer.'])
+            self.assertEqual(len(pcm), 2 * 240 + 6000 + 9000 + 3600)
+        calls, pcm = self.synthesize('A) The answer.')
+        self.assertEqual(len(pcm), 2 * 240 + 3600)
+
+    def test_correct_answer_and_adjacent_quote_boundary(self):
+        self.assertEqual(speech_phrases('Correct Answer: B) Building trust.'), [['Correct Answer:', 6000], ['B)', 3600], ['Building trust.', 0]])
+        self.assertEqual(speech_phrases('A) “Quoted answer” continues.'), [['A)', 3600], ['“Quoted answer”', 1200], ['continues.', 0]])
+
+    def test_normal_parentheses_are_unchanged(self):
+        for text in ['The company (founded in 2020) makes robots.', 'The interface (API) supports it.', 'Pick option A) if needed.', 'a) Lowercase.', 'AB) Two letters.']:
+            self.assertEqual(speech_phrases(text), [[text, 0]])
+
+
 if __name__ == '__main__':
     unittest.main()

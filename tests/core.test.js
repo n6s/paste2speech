@@ -378,3 +378,18 @@ test('plain newsletter question labels preserve the preceding heading', () => {
  assert.equal(cleanText('Heading\nQ1 · Question', {...defaults,joinLines:false}), 'Heading\nQ1 · Question');
  assert.equal(cleanText('```\nHeading\nQ1 · Code\n```', {...defaults,code:false}), 'Heading\nQ1 · Code');
 });
+
+test('answer labels become separate paragraphs without losing their letters', () => {
+ const question = 'Q2 · Someone you met online mentions an investment. What is the clearest red flag?';
+ const options = ['A) They met you online rather than in person', 'B) Building trust over weeks then steering the relationship toward a financial opportunity is the exact playbook of a romance investment scam', 'C) They are talking about crypto, which is inherently risky', 'D) They offered to help you personally rather than sending a link'];
+ const answer = '**Correct Answer: B)** Building trust over weeks is the playbook.';
+ const why = '**Why:** Romance investment scams often start with attention.';
+ const result = cleanText([question,...options,answer,why].join('\n'));
+ assert.deepEqual(result.split('\n\n'), [question,...options,'Correct Answer: B) Building trust over weeks is the playbook.\nWhy: Romance investment scams often start with attention.']);
+ assert.deepEqual(cleanText('A) First wrapped\n  answer\nB) Second choice').split('\n\n'),['A) First wrapped answer','B) Second choice']);
+ assert.equal(cleanText('A)\u00a0First\nB)\u00a0Second'), 'A) First\n\nB) Second');
+ assert.equal(cleanText('The company (founded in 2020)\nmakes robots.'),'The company (founded in 2020) makes robots.');
+ assert.equal(cleanText('```\nA) code\nB) code\n```',{...defaults,code:false}),'A) code\nB) code');
+ const unchanged=Object.fromEntries(Object.keys(defaults).map(k=>[k,false]));
+ assert.equal(cleanText('A) First\nB) Second',unchanged),'A) First\nB) Second');
+});

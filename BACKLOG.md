@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Multiple-choice labels: separate uppercase A)–Z) answer lines into paragraphs and add 150 ms Kokoro pauses after the labels, including Correct Answer labels. Normal parentheses remain unchanged. 94 automated tests, browser checks, live paragraph/playback checks, and real answer-label pause measurements passed.
+
 - Formatting-aware paste in the existing Edit textarea: formatted clipboard HTML becomes Markdown with heading/list/paragraph structure; ordinary text paste stays native. Conversion is local and inert. Browser tests cover undo/selection, playback reset, code, layout tables, and no embedded-resource requests. Actual Gmail/Pixel rich clipboard availability remains a device acceptance check.
 
 - Currency-specific prose expansion: all 14 supplied newsletter dollar figures now read as million/billion dollars, with decimal digits spoken individually. Approximation handles `~$48M`, including Markdown escaping. Code, URLs, bare M/B units, and longer identifiers stay excluded. 57 unit tests, mobile browser checks, and live Kokoro currency playback passed; original Edit text is preserved.
