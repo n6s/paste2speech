@@ -45,6 +45,12 @@ Expand **Open PDF** above the text box and choose a file on the Tailscale reader
 
 PDF import requires the workstation API and `poppler-utils` (`sudo apt-get install poppler-utils`); the static-only development server cannot import PDFs.
 
+## Formatting-aware paste
+
+Paste into the existing Edit box normally. When the source supplies formatted clipboard content, the reader converts it locally to editable Markdown: headings, paragraphs, line breaks, numbered/bulleted lists, emphasis, links, quotes, and code retain their structure. Email layout tables become separate content blocks; simple data tables with header cells become Markdown tables. Read mode then uses the usual cleanup preferences and paragraph pauses. Plain-text-only clipboard content uses the browser's ordinary paste behavior, so mobile support depends on what the source app copies.
+
+Conversion uses a detached, inert template and writes only text into the textarea. Images and executable/embedded content are omitted; clipboard HTML is never attached to the page, and the app does not fetch its links or images. Only HTTP(S) and mailto link destinations are retained. The app does not request ongoing clipboard access or save the clipboard content. Empty, oversized (over two million HTML characters or one million output characters), or unconvertible rich content falls back to normal paste. Pasting replaces the selected text and resets playback just like typing. Native undo is preserved where supported; browsers without native text insertion use selection replacement as a fallback.
+
 ## One panel for editing and reading
 
 The page starts in **Edit**, showing your original text without a resize handle. **Read** dismisses the text keyboard, shows the cleaned text, and starts or resumes playback. After finishing, Read replays from the beginning. **Play / Resume** does the same. While audio is playing or preparing, Read only switches views without interrupting it. With no readable text or supported engine, Read just opens the reading view. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Returning to Read preserves your place and prepared audio while playing or paused; the original text is always preserved.
@@ -204,6 +210,14 @@ node tests/browser.mjs
 TEST_URL=https://pop-os.tailbd091c.ts.net/speak/ node tests/browser.mjs
 ```
 
+Formatted-paste browser checks can run against the same server:
+
+```sh
+TEST_URL=https://pop-os.tailbd091c.ts.net/speak/ node tests/paste-browser.mjs
+```
+
+They test synthetic clipboard HTML, selection replacement, undo, safe fallback, protected code, and absence of image/frame/style requests. Real phone clipboard format availability still requires a device check.
+
 Set `CHROME_PATH` if Chrome is somewhere other than `/usr/bin/google-chrome`. Screenshots are written to `work/`. The browser test mocks speech to deterministically check controls, progress, completion and error-independent UI behavior; it does not validate audible output on a Pixel.
 
 Server validation tests use the isolated Python environment:
@@ -224,6 +238,7 @@ This validates desktop Chrome with a mobile viewport; actual Pixel audio still n
 
 - `public/`: the only directory to serve.
 - `public/text.js`: cleanup and chunking.
+- `public/paste.js`: inert clipboard HTML-to-Markdown conversion.
 - `public/player.js`: cancellable playback state machine.
 - `public/app.js`: page controls, voice discovery and preferences.
 - `public/audio-player.js`: prepared WAV audio, media controls, and pause/resume.

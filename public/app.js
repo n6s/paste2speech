@@ -1,6 +1,7 @@
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-question-boundary-1';
+import { clipboardMarkdown } from './paste.js?v=20260917-rich-paste-1';
+import { cleanText, chunkText, defaults } from './text.js?v=20260917-rich-paste-1';
 import { Player } from './player.js';
-import { AudioPlayer } from './audio-player.js?v=20260917-question-boundary-1';
+import { AudioPlayer } from './audio-player.js?v=20260917-rich-paste-1';
 const $ = id => document.getElementById(id);
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
@@ -185,6 +186,20 @@ function loadVoices() {
 }
 $('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { resetReading(); preview(); });
+$('text').addEventListener('paste', event => {
+  let markdown;
+  try { markdown = clipboardMarkdown(event.clipboardData?.getData('text/html')); } catch { return; }
+  if (!markdown) return;
+  event.preventDefault();
+  // Native insertion preserves the browser's undo history when available.
+  let inserted = false;
+  try { inserted = document.execCommand('insertText', false, markdown); } catch {}
+  if (!inserted) {
+    const input = $('text');
+    input.setRangeText(markdown, input.selectionStart, input.selectionEnd, 'end');
+    input.dispatchEvent(new Event('input', {bubbles:true}));
+  }
+});
 $('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });

@@ -25,6 +25,19 @@ try {
  await page.waitForFunction(()=>!document.querySelector('#engine').options[1].disabled);
  await page.locator('#engine').selectOption('kokoro');
  assert.equal(await page.locator('#voice option').count(),6);
+ await page.locator('#text').focus();
+ await page.evaluate(() => {
+  const clipboardData = new DataTransfer();
+  clipboardData.setData('text/html','<h2>September Edition A</h2><p><b>Q1 ·</b> A question to read.</p>');
+  clipboardData.setData('text/plain','September Edition A\nQ1 · A question to read.');
+  document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData,bubbles:true,cancelable:true}));
+ });
+ assert.equal(await page.locator('#text').inputValue(),'## September Edition A\n\n**Q1 ·** A question to read.');
+ await page.locator('#read-mode').click();
+ await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
+ assert.deepEqual(await page.locator('.reading-paragraph').allTextContents(),['September Edition A','Q1 · A question to read.']);
+ await page.locator('#stop').click();
+ await page.locator('#edit-mode').click();
  const currency = 'A $1.78M round, $2.5B valuation, and \\~$48M loss.';
  const expandedCurrency = 'A one point seven eight million dollars round, two point five billion dollars valuation, and about forty eight million dollars loss.';
  await page.locator('#text').fill(currency);

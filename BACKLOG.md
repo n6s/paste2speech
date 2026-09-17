@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Formatting-aware paste in the existing Edit textarea: formatted clipboard HTML becomes Markdown with heading/list/paragraph structure; ordinary text paste stays native. Conversion is local and inert. Browser tests cover undo/selection, playback reset, code, layout tables, and no embedded-resource requests. Actual Gmail/Pixel rich clipboard availability remains a device acceptance check.
+
 - Currency-specific prose expansion: all 14 supplied newsletter dollar figures now read as million/billion dollars, with decimal digits spoken individually. Approximation handles `~$48M`, including Markdown escaping. Code, URLs, bare M/B units, and longer identifiers stay excluded. 57 unit tests, mobile browser checks, and live Kokoro currency playback passed; original Edit text is preserved.
 
 - Comma-grouped quantities now expand directly into cardinal words: `1,079` reads “one thousand seventy nine.” Ungrouped years stay untouched. Grouped decimals and square-foot measurements remain supported; installed phoneme checks and live American/British synthesis passed.
