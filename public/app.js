@@ -17,6 +17,29 @@ function applyReadingSize() {
   $('reading-size').setAttribute('aria-valuetext', `${size} pixels`);
 }
 applyReadingSize();
+function closeReadingSize() {
+  $('reading-size-panel').hidden = true;
+  $('reading-size-toggle').setAttribute('aria-expanded', 'false');
+}
+$('reading-size-toggle').addEventListener('click', () => {
+  const opening = $('reading-size-panel').hidden;
+  $('reading-size-panel').hidden = !opening;
+  $('reading-size-toggle').setAttribute('aria-expanded', String(opening));
+  if (opening) $('reading-size').focus({ preventScroll: true });
+});
+document.addEventListener('click', event => {
+  if (!$('reading-size-control').contains(event.target)) closeReadingSize();
+});
+document.addEventListener('focusin', event => {
+  if (!$('reading-size-control').contains(event.target)) closeReadingSize();
+});
+document.addEventListener('keydown', event => {
+  if (event.key === 'Escape' && !$('reading-size-panel').hidden) {
+    event.preventDefault();
+    closeReadingSize();
+    $('reading-size-toggle').focus({ preventScroll: true });
+  }
+});
 let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
@@ -102,6 +125,7 @@ function preview() {
 }
 function setMode(mode) {
   const reading = mode === 'read';
+  if (!reading) closeReadingSize();
   $('edit-view').hidden = reading;
   $('read-view').hidden = !reading;
   $('edit-mode').setAttribute('aria-pressed', String(!reading));
