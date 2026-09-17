@@ -51,9 +51,9 @@ def speech_phrases(text):
                 while end < len(text) and text[end] in ',.;:!?…':
                     end += 1
                 if start and text[:start].strip():
-                    boundaries[start] = max(boundaries.get(start, 0), 1800)
+                    boundaries[start] = max(boundaries.get(start, 0), 1200)
                 if text[end:].strip():
-                    boundaries[end] = max(boundaries.get(end, 0), 1800)
+                    boundaries[end] = max(boundaries.get(end, 0), 1200)
         elif char in pairs and not before.isalnum():
             stack.append((index, pairs[char]))
     phrases = []
@@ -103,6 +103,18 @@ class Engine:
                 audible = np.flatnonzero(np.abs(pcm) > 0.0001)
                 leading = int(audible[0]) if len(audible) else len(pcm)
                 trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
+                if previous_pause == 1200 and arrays and len(audible) and previous_trailing < len(arrays[-1]):
+                    # Independent synthesis adds substantial edge silence. Cap
+                    # quote gaps at 50 ms, keeping 5 ms beside each speech edge.
+                    excess = max(0, previous_trailing + leading - previous_pause)
+                    trim_end = min(excess, max(0, previous_trailing - 120))
+                    if trim_end:
+                        arrays[-1] = arrays[-1][:-trim_end]
+                        previous_trailing -= trim_end
+                    trim_start = min(excess - trim_end, max(0, leading - 120))
+                    if trim_start:
+                        pcm = pcm[trim_start:]
+                        leading -= trim_start
                 # Count silence on both sides; coincident boundaries use the
                 # larger target instead of adding colon and quote pauses.
                 missing = max(0, previous_pause - previous_trailing - leading)

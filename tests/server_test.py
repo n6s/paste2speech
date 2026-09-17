@@ -142,16 +142,16 @@ class QuotePauseTests(unittest.TestCase):
         for opening, closing in [('“', '”'), ('"', '"'), ('‘', '’')]:
             calls, pcm = self.synthesize(f'Its own {opening}responsibility and incentive{closing} for safety.')
             self.assertEqual(calls, ['Its own', f'{opening}responsibility and incentive{closing}', 'for safety.'])
-            self.assertEqual(len(pcm), 3 * 240 + 2 * 1800)
-            self.assertTrue((pcm[240:2040] == 0).all())
-            self.assertTrue((pcm[2280:4080] == 0).all())
+            self.assertEqual(len(pcm), 3 * 240 + 2 * 1200)
+            self.assertTrue((pcm[240:1440] == 0).all())
+            self.assertTrue((pcm[1680:2880] == 0).all())
 
     def test_punctuation_and_nested_quotes_do_not_stack(self):
         self.assertEqual(speech_phrases('He said: “Try ‘this’ first,” then left.'),
-                         [['He said:', 6000], ['“Try ‘this’ first,”', 1800], ['then left.', 0]])
-        self.assertEqual(speech_phrases('He said “Done.”'), [['He said', 1800], ['“Done.”', 0]])
+                         [['He said:', 6000], ['“Try ‘this’ first,”', 1200], ['then left.', 0]])
+        self.assertEqual(speech_phrases('He said “Done.”'), [['He said', 1200], ['“Done.”', 0]])
         calls, pcm = self.synthesize('He said “Done,” then left.', trailing=4000)
-        self.assertEqual(len(pcm), 3 * (240 + 4000))
+        self.assertEqual(len(pcm), 3 * 240 + 2 * 1200 + 4000)
 
     def test_apostrophes_measurements_and_unpaired_quotes_are_unchanged(self):
         for text in ["Amodei's essay isn't here.", 'Amodei’s essay isn’t here.', 'A 12" board and 6" ruler.', 'An unmatched “quote here.', 'A closing quote” here.']:
@@ -159,13 +159,25 @@ class QuotePauseTests(unittest.TestCase):
 
     def test_silence_on_both_sides_counts_toward_target(self):
         calls, pcm = self.synthesize('Before “quoted” after.', trailing=1500, leading=1500)
-        self.assertEqual(len(pcm), 3 * (1500 + 240 + 1500))
+        self.assertEqual(len(pcm), 3 * 240 + 2 * 1200 + 3000)
         calls, pcm = self.synthesize('Label: “quoted” after.')
-        self.assertEqual(len(pcm), 3 * 240 + 6000 + 1800)
+        self.assertEqual(len(pcm), 3 * 240 + 6000 + 1200)
+
+    def test_long_quote_silence_is_capped_without_losing_speech(self):
+        import numpy as np
+        calls, pcm = self.synthesize('Before “quoted” after.', trailing=9000, leading=6000)
+        self.assertEqual(len(pcm), 3 * 240 + 2 * 1200 + 6000 + 9000)
+        self.assertEqual(int(np.count_nonzero(pcm)), 3 * 240)
+        edges = np.diff(np.r_[False, pcm == 0, False].astype(int))
+        runs = [(a, b) for a, b in zip(np.where(edges == 1)[0], np.where(edges == -1)[0]) if a > 0 and b < len(pcm)]
+        self.assertEqual([b - a for a, b in runs], [1200, 1200])
+        # Longer colon pauses retain their established behavior.
+        calls, pcm = self.synthesize('Label: content.', trailing=9000, leading=6000)
+        self.assertEqual(len(pcm), 2 * (6000 + 240 + 9000))
 
     def test_repeated_quotes_preserve_all_content(self):
         self.assertEqual(speech_phrases('A “first” and “second” example.'),
-                         [['A', 1800], ['“first”', 1800], ['and', 1800], ['“second”', 1800], ['example.', 0]])
+                         [['A', 1200], ['“first”', 1200], ['and', 1200], ['“second”', 1200], ['example.', 0]])
 
 
 if __name__ == '__main__':
