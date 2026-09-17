@@ -293,3 +293,9 @@ test('entities decode once as literal text, without creating Markdown', () => {
  assert.equal(cleanText(code, {...defaults, code:false}), '&#65; **literal**');
  assert.equal(cleanText(code, {...defaults, code:false, markdown:false}), code);
 });
+
+test('measurement sentence stays intact for speech-only pronunciation handling', () => {
+ const sentence = 'It can lift 50 lb. and reach 7.2-ft. shelves, with its battery giving 90 min runtime on just 9 min of charge — fast enough, Agility says, for 20+ hours of work per day.';
+ assert.equal(cleanText('- ' + sentence), sentence);
+ assert.deepEqual(chunkText(sentence), [sentence]);
+});

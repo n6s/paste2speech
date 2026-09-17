@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 import os
 import httpx
-from server.app import app, Engine, Speech, speech_phrases
+from server.app import app, Engine, Speech, speech_phrases, spoken_text
 
 class FakeEngine:
     device = 'cuda'
@@ -178,6 +178,34 @@ class QuotePauseTests(unittest.TestCase):
     def test_repeated_quotes_preserve_all_content(self):
         self.assertEqual(speech_phrases('A “first” and “second” example.'),
                          [['A', 1200], ['“first”', 1200], ['and', 1200], ['“second”', 1200], ['example.', 0]])
+
+
+class SpokenTextTests(unittest.TestCase):
+    synthesize = ColonPauseTests.synthesize
+
+    def test_measurements_and_decimal_digits(self):
+        self.assertEqual(spoken_text('50 lb. and 7.2-ft. shelves'), '50 pounds and 7 point two feet shelves')
+        self.assertEqual(spoken_text('1 lb, 2 lbs, 50lb and 7 ft.'), '1 pound, 2 pounds, 50 pounds and 7 feet.')
+        self.assertEqual(spoken_text('7.02 and 0.5; 7.2.'), '7 point zero two and 0 point five; 7 point two.')
+        self.assertEqual(spoken_text('50 lb. Next sentence.'), '50 pounds. Next sentence.')
+
+    def test_identifiers_and_urls_are_not_decimal_numbers(self):
+        text = 'v7.2 1.2.3 192.168.1.1 https://example.com/7.2 www.example.com/50lb soft ftps'
+        self.assertEqual(spoken_text(text), text)
+
+    def test_exact_robot_sentence_and_dash_audio(self):
+        text = 'It can lift 50 lb. and reach 7.2-ft. shelves, with its battery giving 90 min runtime on just 9 min of charge — fast enough, Agility says, for 20+ hours of work per day.'
+        calls, pcm = self.synthesize(text)
+        self.assertEqual(calls, ['It can lift 50 pounds and reach 7 point two feet shelves, with its battery giving 90 min runtime on just 9 min of charge', 'fast enough, Agility says, for 20+ hours of work per day.'])
+        self.assertEqual(len(pcm), 2 * 240 + 3600)
+        calls, pcm = self.synthesize('Before—after.', leading=6000, trailing=9000)
+        self.assertEqual(calls, ['Before', 'after.'])
+        self.assertEqual(len(pcm), 2 * 240 + 6000 + 9000 + 3600)
+
+    def test_dash_boundaries_merge_and_keep_other_hyphens(self):
+        self.assertEqual(speech_phrases('Before — — after.'), [['Before', 3600], ['after.', 0]])
+        self.assertEqual(speech_phrases('Label: — after.'), [['Label:', 6000], ['after.', 0]])
+        self.assertEqual(speech_phrases('A well-known 7.2-ft shelf.'), [['A well-known 7.2-ft shelf.', 0]])
 
 
 if __name__ == '__main__':

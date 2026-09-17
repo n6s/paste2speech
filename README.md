@@ -69,6 +69,8 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
+Kokoro applies speech-only pronunciation rules without changing displayed text: numeric `lb`/`lbs` measurements become pounds (pound for 1), `ft` becomes feet, and decimal fractions are spoken digit by digit with “point” (`7.02` → “7 point zero two”). Hyphenated measurements such as `7.2-ft.` are supported, and abbreviation dots before continuing lowercase prose are removed from the speech input. URLs and dotted version/IP identifiers are left intact. Em dashes create a short 150 ms pause, trimming excess near-silence with the same speech-edge buffers used for quotes. Adjacent pause markers use the longer pause rather than stacking. Ordinary hyphens are unchanged. Browser voices retain their own pronunciation behavior.
+
 Cleanup identifies Markdown blocks before removing formatting or content. Headings and individual list items become separate prose paragraphs; wrapped lines join only within prose or a list continuation. Empty pipe-layout tables, including short separators such as `| - |` and `| :- |`, disappear when table removal is enabled without merging the text on either side. Nonempty tables still require standard separators for recognition.
 
 Within non-code text, numeric HTML entities and `nbsp`, `amp`, `quot`, `apos`, `lt`, and `gt` decode once as literal characters. Encoded or escaped Markdown punctuation stays literal, never becoming new Markdown structure or HTML. Nonbreaking spaces normalize to ordinary spaces. Retained code stays protected, saved cleanup choices remain in force, and disabling every cleanup option preserves the source apart from newline normalization.

@@ -29,11 +29,31 @@ class Speech(BaseModel):
     voice: str = 'af_heart'
     speed: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
 
+def spoken_text(text):
+    """Speech-only expansion; preserve URLs and nonnumeric identifiers."""
+    digits = ('zero', 'one', 'two', 'three', 'four', 'five', 'six', 'seven', 'eight', 'nine')
+    def expand(part):
+        def unit(match):
+            number, name, period = match.groups()
+            word = ('pound' if float(number) == 1 else 'pounds') if name.lower().startswith('lb') else 'feet'
+            following = part[match.end():].lstrip()
+            # An abbreviation dot before continuing prose isn't a sentence end.
+            end = period if not following or not following[0].islower() else ''
+            return f'{number} {word}{end}'
+        part = re.sub(r'(?<![\w.])(\d+(?:\.\d+)?)[ \t]*[-‑–]?[ \t]*(lbs?|ft)\b(\.?)', unit, part, flags=re.I)
+        return re.sub(r'(?<![\w.])(\d+)\.(\d+)(?!\w|\.\w)',
+                      lambda m: m[1] + ' point ' + ' '.join(digits[int(d)] for d in m[2]), part)
+    return ''.join(part if re.match(r'(?:https?://|www\.)', part, re.I) else expand(part)
+                   for part in re.split(r'((?:https?://|www\.)[^\s]+)', text, flags=re.I))
+
+
 def speech_phrases(text):
     """Plan pauses within one reading section; ignore unpaired quotation marks."""
     boundaries = {}
     for match in re.finditer(r':(?=\s|$)', text):
         boundaries[match.end()] = 6000  # 250 ms at 24 kHz
+    for match in re.finditer(r"—+", text):
+        boundaries[match.end()] = max(boundaries.get(match.end(), 0), 3600)  # 150 ms
     stack = []
     pairs = {'“': '”', '‘': '’', '"': '"'}
     for index, char in enumerate(text):
@@ -59,14 +79,15 @@ def speech_phrases(text):
     phrases = []
     start = 0
     for end, pause in sorted(boundaries.items()):
-        phrase = text[start:end].strip()
+        phrase = text[start:end].replace('—', ' ').strip()
         if phrase:
             phrases.append([phrase, pause])
         elif phrases:
             phrases[-1][1] = max(phrases[-1][1], pause)
         start = end
-    if text[start:].strip():
-        phrases.append([text[start:].strip(), 0])
+    tail = text[start:].replace('—', ' ').strip()
+    if tail:
+        phrases.append([tail, 0])
     return phrases
 
 
@@ -95,7 +116,7 @@ class Engine:
         previous_pause = 0
         previous_trailing = 0
         with torch.inference_mode():
-            for phrase, pause in speech_phrases(job.text):
+            for phrase, pause in speech_phrases(spoken_text(job.text)):
                 generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](phrase, voice=job.voice, speed=job.speed) if audio is not None]
                 if not generated:
                     raise ValueError('No speech generated')
@@ -103,9 +124,9 @@ class Engine:
                 audible = np.flatnonzero(np.abs(pcm) > 0.0001)
                 leading = int(audible[0]) if len(audible) else len(pcm)
                 trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
-                if previous_pause == 1200 and arrays and len(audible) and previous_trailing < len(arrays[-1]):
+                if previous_pause in (1200, 3600) and arrays and len(audible) and previous_trailing < len(arrays[-1]):
                     # Independent synthesis adds substantial edge silence. Cap
-                    # quote gaps at 50 ms, keeping 5 ms beside each speech edge.
+                    # quote/dash gaps at their targets, keeping 5 ms beside each speech edge.
                     excess = max(0, previous_trailing + leading - previous_pause)
                     trim_end = min(excess, max(0, previous_trailing - 120))
                     if trim_end:
