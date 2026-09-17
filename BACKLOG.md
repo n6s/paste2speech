@@ -8,6 +8,10 @@ GPU request batching is deferred: first measure Pixel preparation with CUDA; the
 
 These convenience features are deferred from the consolidated-panel update.
 
+## Completed — 2026-09-17
+
+- Join wrapped lines now preserves short multiword all-caps newsletter titles followed by mixed-case prose, including Roger's Gmail example with a leading emoji. Joining defaults to enabled for new settings; saved choices are respected. Text/chunk regression and mobile browser checks pass; audible Pixel confirmation remains open.
+
 ## Completed — 2026-09-16
 
 - NVIDIA CUDA synthesis: 138.9 seconds of audio prepared in 1.43 seconds locally (CPU: 37.3 seconds), or 1.63 seconds through the workstation browser (CPU: 45.4 seconds). CPU environment retained for rollback; Pixel preparation speed still needs user confirmation.

@@ -16,6 +16,7 @@ try {
   Object.defineProperty(window,'speechSynthesis',{value:synth});
   window.SpeechSynthesisUtterance=class {constructor(text){this.text=text;}};
  });
+ await context.addInitScript(() => { if (!localStorage.getItem('paste2speech.settings')) localStorage.setItem('paste2speech.settings', JSON.stringify({joinLines:false})); });
  const page = await context.newPage(); const errors=[]; page.on('pageerror',e=>errors.push(e.message));
  await page.goto(baseURL);
  assert.equal(await page.locator('#play').isDisabled(),true);

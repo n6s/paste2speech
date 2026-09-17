@@ -1,4 +1,4 @@
-export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: false };
+export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: true };
 
 // Split structure before any destructive cleanup. Code is always opaque.
 const fenceStart = line => /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
@@ -81,7 +81,7 @@ export function cleanText(input, options = defaults) {
       return separate(block.rows.map(row => row.map(cell => cleanInline(cell, options)).join('; ')).join('\n\n'));
     }
     let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, options);
-    if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value);
+    if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value, block.type === 'prose');
     return block.type === 'prose' ? value : separate(value);
   });
   // Normalize layout around blocks without ever normalizing the contents of code.
@@ -171,7 +171,22 @@ export function joinWrappedLines(input) {
   return cleanText(text, {...Object.fromEntries(Object.keys(defaults).map(key => [key, false])), joinLines: true});
 }
 
-function joinProseLines(input) {
+function joinProseLines(input, detectTitles = true) {
+  if (detectTitles) {
+    const lines = input.split('\n');
+    input = lines.map((line, index) => {
+      const title = line.trim();
+      const next = lines[index + 1] || '';
+      // Short, multiword all-caps labels followed by mixed-case prose are likely
+      // newsletter headings. Avoid single acronyms and all-caps wrapped prose.
+      const words = title.match(/\p{L}+/gu) || [];
+      const heading = title.length <= 100 && words.length >= 2 && words.length <= 12
+        && /\p{Lu}/u.test(title) && !/\p{Ll}/u.test(title)
+        && !/[.!?…]["'”’)}\]]*$/.test(title)
+        && /\p{Lu}/u.test(next) && /\p{Ll}/u.test(next);
+      return heading ? '\n' + line + '\n' : line;
+    }).join('\n').replace(/^\n+|\n+$/g, '');
+  }
   return input.replace(/\r\n?/g, '\n').replace(
     /([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/g,
     (match, line) => /[.!?…]["'”’)}\]]*$/.test(line.trimEnd()) ? match : line.trimEnd() + ' '

@@ -40,7 +40,7 @@ test('early punctuation never forces a split inside a normal word', () => {
 });
 test('article labels and headings stay separate and inflation stays intact', () => {
  const input = 'Spotify\nApple Podcasts\n\n1. Fed raises rates for first time since 2023\n   The Federal Reserve raised interest rates Wednesday for the first time in more than three years as stubborn inflation and resilient consumer spending complicate its efforts to stabilize prices.';
- const cleaned = cleanText(input);
+ const cleaned = cleanText(input, {...defaults, joinLines: false});
  const chunks = chunkText(cleaned);
  assert.deepEqual(chunks.slice(0, 3), ['Spotify', 'Apple Podcasts', '1. Fed raises rates for first time since 2023']);
  assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), cleaned.split(/\s+/));
@@ -159,7 +159,7 @@ test('joins PDF hard wraps but keeps sentences and blank paragraphs', () => {
  const expected = 'A column wraps over several short lines.\nNext sentence, with a clause; and more.\n\nNew paragraph ends here!';
  assert.equal(joinWrappedLines(input), expected);
  assert.equal(cleanText(input, {...defaults, joinLines: true}), expected);
- assert.equal(cleanText(input), input);
+ assert.equal(cleanText(input, {...defaults, joinLines: false}), input);
  assert.equal(joinWrappedLines(expected), expected);
  assert.equal(joinWrappedLines('He said “Done.”\r\nNext\r\n line?\r\nYes.'), 'He said “Done.”\nNext line?\nYes.');
  assert.equal(joinWrappedLines('one\n \t\n two'), 'one\n \t\n two');
@@ -223,4 +223,21 @@ test('nested list items are not removed as indented code', () => {
 test('table URL cleanup works even when Markdown syntax is retained', () => {
  const input = '| A | B |\n| --- | --- |\n| https://example.com | kept |';
  assert.equal(cleanText(input, {...keepContent, markdown:false}), '| A | B |\n| --- | --- |\n| | kept |');
+});
+
+
+test('newsletter all-caps titles stay separate while body wraps join', () => {
+ const title = 'TOGETHER WITH UNWRAP';
+ const body = "🚒 See what's burning before it becomes your next fire drill";
+ const input = `${title}\n${body}`;
+ assert.equal(defaults.joinLines, true);
+ assert.equal(cleanText(input), `${title}\n\n${body}`);
+ assert.deepEqual(chunkText(cleanText(input)), [title, body]);
+ assert.equal(cleanText(input, {...defaults, emoji:true}), `${title}\n\n${body.slice(3)}`);
+ assert.equal(cleanText(input, {...defaults, joinLines:false}), input);
+ assert.equal(joinWrappedLines(`Intro ends here.\n${input}\nwith a wrapped continuation`), `Intro ends here.\n\n${title}\n\n${body} with a wrapped continuation`);
+ assert.equal(joinWrappedLines('NASA\nResearch continues'), 'NASA Research continues');
+ assert.equal(joinWrappedLines('THIS IS WRAPPED\nALL CAPS PROSE'), 'THIS IS WRAPPED ALL CAPS PROSE');
+ assert.equal(cleanText('```\n'+input+'\n```', {...defaults, code:false}), input);
+ assert.equal(joinWrappedLines(joinWrappedLines(input)), `${title}\n\n${body}`);
 });
