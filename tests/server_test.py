@@ -3,7 +3,7 @@ import unittest
 from unittest.mock import patch
 import os
 import httpx
-from server.app import app, Engine
+from server.app import app, Engine, Speech
 
 class FakeEngine:
     device = 'cuda'
@@ -95,3 +95,43 @@ class DeviceTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+
+class ColonPauseTests(unittest.TestCase):
+    def synthesize(self, text, trailing=0):
+        import io
+        import numpy as np
+        import soundfile as sf
+        import torch
+        calls = []
+        def pipeline(phrase, **kwargs):
+            calls.append(phrase)
+            yield None, None, torch.tensor(np.concatenate([np.full(240, .5), np.zeros(trailing)]), dtype=torch.float32)
+        engine = Engine.__new__(Engine)
+        engine.pipelines = {'a': pipeline}
+        audio = engine.synthesize(Speech(text=text))
+        return calls, sf.read(io.BytesIO(audio))[0]
+
+    def test_labels_and_whitespace_have_real_pcm_pause(self):
+        for whitespace in [' ', '\t', '\n', '\r\n', '\n\n']:
+            calls, pcm = self.synthesize('Nate:' + whitespace + 'Ask AI for a deck.')
+            self.assertEqual(calls, ['Nate:', 'Ask AI for a deck.'])
+            self.assertEqual(len(pcm), 240 + 6000 + 240)
+            self.assertTrue((pcm[240:6240] == 0).all())
+            self.assertGreater(pcm[6240], 0)
+
+    def test_times_urls_and_no_space_colons_stay_intact(self):
+        text = 'At 10:30 see https://example.com and A:B.'
+        calls, pcm = self.synthesize(text)
+        self.assertEqual(calls, [text])
+        self.assertEqual(len(pcm), 240)
+
+    def test_existing_pause_is_topped_up_not_stacked(self):
+        for trailing in [2400, 6000, 8000]:
+            calls, pcm = self.synthesize('Nate:', trailing)
+            self.assertEqual(len(pcm), 240 + max(trailing, 6000))
+
+    def test_multiple_labels_preserve_every_word(self):
+        calls, pcm = self.synthesize('Nate: Try this: a simple deck.')
+        self.assertEqual(calls, ['Nate:', 'Try this:', 'a simple deck.'])
+        self.assertEqual(len(pcm), 3 * 240 + 2 * 6000)

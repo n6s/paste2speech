@@ -3,6 +3,7 @@ import asyncio
 import io
 import json
 import os
+import re
 import subprocess
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -49,8 +50,25 @@ class Engine:
         import numpy as np
         import soundfile as sf
         import torch
+        arrays = []
+        # Keep time/URL colons intact. A trailing colon also marks a boundary
+        # when the frontend has already separated a line or paragraph.
+        phrases = re.split(r'(?<=:)\s+(?=\S)', job.text)
         with torch.inference_mode():
-            arrays = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](job.text, voice=job.voice, speed=job.speed) if audio is not None]
+            for phrase in phrases:
+                generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](phrase, voice=job.voice, speed=job.speed) if audio is not None]
+                if not generated:
+                    raise ValueError('No speech generated')
+                pcm = np.concatenate(generated)
+                if phrase.rstrip().endswith(':'):
+                    # Top up to 250 ms rather than stacking a pause on existing
+                    # trailing silence (including a paragraph-ending label).
+                    audible = np.flatnonzero(np.abs(pcm) > 0.0001)
+                    trailing = len(pcm) - int(audible[-1]) - 1 if len(audible) else len(pcm)
+                    missing = max(0, 6000 - trailing)
+                    if missing:
+                        pcm = np.concatenate([pcm, np.zeros(missing, dtype=pcm.dtype)])
+                arrays.append(pcm)
         if not arrays:
             raise ValueError('No speech generated')
         output = io.BytesIO()

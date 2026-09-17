@@ -69,6 +69,8 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
+Kokoro gives colons followed by whitespace a short pause by synthesizing the label and following text separately. It tops up existing trailing silence to at least 250 ms rather than adding a second full pause. A colon at the end of an existing reading section receives the same treatment, covering line and paragraph boundaries. Times such as `10:30` and URLs such as `https://example.com` remain intact. Displayed text and section highlighting do not change; browser voices retain their device punctuation behavior. This can add some preparation work for colon-heavy text. Already-prepared audio must be regenerated to pick up changes.
+
 - Both speech engines use the same sentence-based sections (up to 500 UTF-16 code units), with clause/word splitting for long sentences. Keeps a strong reference to the active utterance and ignores stale callbacks after cancellation.
 - For browser voices, Pause cancels the utterance and retains the last reported word boundary. Resume repeats that word; voices without boundary events repeat the current chunk. This avoids relying on Android's inconsistent native pause/resume behavior.
 - A stalled or failed voice leaves the current position available for retry. It never automatically skips an unread chunk. A timeout can also occur with an unusually slow voice.
