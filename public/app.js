@@ -140,7 +140,7 @@ function readAndPlay() {
   if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings());
   else player.start(chunks, settings());
 }
-$('read-mode').addEventListener('click', readAndPlay);
+$('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
 function followParagraph(button) {
   const pane = $('preview');
   if (!$('follow-reading').checked || $('read-view').hidden || !button) return;
@@ -231,7 +231,56 @@ $('text').addEventListener('paste', event => {
     input.dispatchEvent(new Event('input', {bubbles:true}));
   }
 });
-$('clear').addEventListener('click', () => { resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+// Read first: denied, empty, or unreadable clipboards must not erase a reading.
+let pasteRequest = 0;
+async function clipboardText() {
+  if (navigator.clipboard?.read) {
+    const items = await navigator.clipboard.read();
+    for (const item of items) {
+      if (item.types.includes('text/html')) {
+        try {
+          const markdown = clipboardMarkdown(await (await item.getType('text/html')).text());
+          if (markdown?.trim()) return markdown;
+        } catch { /* Try the plain-text representation of this item. */ }
+      }
+      if (item.types.includes('text/plain')) {
+        const text = await (await item.getType('text/plain')).text();
+        if (text.trim()) return text;
+      }
+    }
+    return '';
+  }
+  if (navigator.clipboard?.readText) return navigator.clipboard.readText();
+  throw new Error('Clipboard access unavailable');
+}
+$('paste-play').addEventListener('click', async () => {
+  const request = ++pasteRequest;
+  const previousText = $('text').value;
+  $('paste-play').disabled = true;
+  $('paste-status').hidden = true;
+  try {
+    const text = await clipboardText();
+    if (request !== pasteRequest || $('text').value !== previousText) return;
+    if (!text.trim()) throw new Error('empty');
+    resetReading();
+    $('text').value = text;
+    preview();
+    readAndPlay();
+    if (!cleaned) {
+      $('paste-status').textContent = 'Pasted, but nothing remains after cleanup. Adjust cleanup options to read it.';
+      $('paste-status').hidden = false;
+    }
+  } catch (error) {
+    if (request !== pasteRequest) return;
+    $('paste-status').textContent = error.message === 'empty'
+      ? 'The clipboard has no text to read. Your current text is unchanged.'
+      : 'Clipboard access was unavailable. Paste into Edit, then press Play. Your current text is unchanged.';
+    $('paste-status').hidden = false;
+  } finally {
+    $('paste-play').disabled = false;
+  }
+});
+$('clear').addEventListener('click', () => { pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isWorkstation()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
 $('play').addEventListener('click', readAndPlay);

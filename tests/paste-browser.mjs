@@ -27,6 +27,7 @@ try {
  assert.equal(markdown,'## September Edition A\n\n**Q1 ·** You find a site.\n\n## August Edition B\n\nQ1 · You get a message.\n\n## August Edition A\n\nQ1 · You check in for a flight.');
  assert.deepEqual(await page.locator('.reading-paragraph').allTextContents(),['September Edition A','Q1 · You find a site.','August Edition B','Q1 · You get a message.','August Edition A','Q1 · You check in for a flight.']);
  await page.locator('#read-mode').click();
+ await page.locator('#play').click();
  assert.equal(await page.locator('#status').textContent(),'Reading aloud');
  await page.locator('#edit-mode').click();
  await page.locator('#text').evaluate(el=>el.setSelectionRange(0,el.value.length));
@@ -80,6 +81,7 @@ try {
   assert.equal(await page.locator('#preview').textContent(),'Why: A professional');
  }
  await page.locator('#read-mode').click();
+ await page.locator('#play').click();
  assert.equal(await page.evaluate(()=>window.lastSpoken),'Why: A professional');
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('');

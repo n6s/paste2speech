@@ -26,6 +26,8 @@ try {
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('# A moment to listen\n\n**Take a breath.** '+ 'This is a longer passage to read while taking a walk. '.repeat(18)+'\n\n```js\nnot spoken\n```\nciteturn0search0');
  await page.locator('#read-mode').click();
+ assert.equal(await page.evaluate(() => speechSynthesis.spoken.length), 0);
+ await page.locator('#play').click();
  assert.ok(!(await page.locator('#preview').textContent()).includes('not spoken'));
  assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
  assert.equal(await page.locator('#text').evaluate(el => el === document.activeElement), false);
@@ -49,6 +51,8 @@ try {
  await page.locator('#pause').click(); assert.equal(await page.locator('#play').textContent(),'▶ Resume');
  const pausedPosition = await page.locator('#position').textContent();
  await page.locator('#read-mode').click();
+ assert.notEqual(await page.locator('#status').textContent(), 'Reading aloud');
+ await page.locator('#play').click();
  assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
  assert.equal(await page.locator('#position').textContent(), pausedPosition);
  await page.locator('#stop').click();
@@ -57,6 +61,8 @@ try {
  await page.evaluate(()=>{let count=0;while(document.querySelector('#status').textContent==='Reading aloud' && count++<100)speechSynthesis.spoken.at(-1).onend();});
  assert.equal(await page.locator('#status').textContent(),'All read. Take a breath.');
  await page.locator('#read-mode').click();
+ assert.notEqual(await page.locator('#status').textContent(), 'Reading aloud');
+ await page.locator('#play').click();
  assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
  assert.ok((await page.locator('#position').textContent()).startsWith('1 /'));
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
@@ -125,6 +131,8 @@ try {
 
  await page.locator('#text').fill('Keep this 😀 https://example.com');
  await page.locator('#read-mode').focus(); await page.keyboard.press('Enter');
+ assert.equal(await page.locator('#status').textContent(), 'Ready when you are');
+ await page.locator('#play').click();
  assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
  await page.getByText('Clean up before reading', {exact:true}).click();
  await page.locator('#clean-emoji').check();
@@ -139,6 +147,7 @@ try {
  await page.locator('#clean-joinLines').check();
  assert.equal(await page.locator('#text').inputValue(), 'A PDF column\nwraps here.\nNext sentence.');
  await page.locator('#read-mode').click();
+ await page.locator('#play').click();
  assert.equal(await page.evaluate(() => speechSynthesis.spoken.at(-1).text), 'A PDF column wraps here.');
  assert.deepEqual(await page.locator('.sentence').allTextContents(), ['A PDF column wraps here.', 'Next sentence.']);
  await page.locator('#clean-joinLines').uncheck();
@@ -155,6 +164,7 @@ try {
  assert.deepEqual(await page.locator('.sentence').allTextContents(), reading);
  assert.deepEqual(await page.locator('.reading-paragraph').allTextContents(), ['Status', 'Wrapped prose.', 'First continuation', 'Second', 'Name; Status', 'Alice; Ready', '  x  =  1\n  y()']);
  assert.equal(await page.locator('#text').inputValue(), structured);
+ await page.locator('#play').click();
  const speechStart = await page.evaluate(() => speechSynthesis.spoken.length - 1);
  for (let i = 0; i < reading.length; i++) await page.evaluate(() => speechSynthesis.spoken.at(-1).onend());
  assert.deepEqual(await page.evaluate(start => speechSynthesis.spoken.slice(start).map(item => item.text), speechStart), reading);
@@ -194,6 +204,28 @@ try {
  assert.equal(await page.locator('#text').isVisible(), true);
  await page.screenshot({path:'work/edit-mobile.png',fullPage:true});
  await page.setViewportSize({width:1280,height:900}); await page.screenshot({path:'work/desktop.png',fullPage:true});
+ await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{readText:async()=> 'New clipboard reading.'}}));
+ await page.locator('#paste-play').click();
+ await page.waitForFunction(() => document.querySelector('#text').value === 'New clipboard reading.');
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
+ assert.equal(await page.locator('#read-mode').getAttribute('aria-pressed'), 'true');
+ await page.locator('#pause').click();
+ await page.locator('#edit-mode').click();
+ await page.locator('#read-mode').click();
+ assert.equal(await page.locator('#status').textContent(), 'Paused · your place is saved');
+ for (const kind of ['empty', 'denied']) {
+  await page.evaluate(kind => Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{readText:async()=>{if(kind==='denied') throw new Error('denied'); return '  ';}}}), kind);
+  await page.locator('#paste-play').click();
+  await page.waitForFunction(() => !document.querySelector('#paste-play').disabled);
+  assert.equal(await page.locator('#text').inputValue(), 'New clipboard reading.');
+  assert.equal(await page.locator('#status').textContent(), 'Paused · your place is saved');
+  assert.equal(await page.locator('#paste-status').isVisible(), true);
+ }
+ await page.evaluate(() => Object.defineProperty(navigator, 'clipboard', {configurable:true, value:{read:async()=>[{types:['text/html','text/plain'],getType:async type=>new Blob([type==='text/html'?'<h1>Clipboard heading</h1><p>Fresh paragraph.</p>':'Fallback'],{type})}]}}));
+ await page.locator('#paste-play').click();
+ await page.waitForFunction(() => document.querySelector('#text').value.includes('# Clipboard heading'));
+ assert.equal(await page.locator('#status').textContent(), 'Reading aloud');
+ assert.equal(await page.locator('#paste-status').isVisible(), false);
  assert.deepEqual(errors,[]);
  const unsupported=await browser.newContext(); await unsupported.addInitScript(()=>{delete window.speechSynthesis;delete window.SpeechSynthesisUtterance;});
  const fallback=await unsupported.newPage(); await fallback.goto(baseURL);

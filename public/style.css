@@ -37,3 +37,7 @@
 #voice-settings-summary{min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#597068;font-weight:450}
 #voice-settings-summary::before{content:"· ";}
 .voice-settings-content{padding:14px 0 8px}
+
+.text-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap}
+.text-actions button{padding:8px 10px}
+@media(max-width:380px){.text-actions{gap:0}.text-actions button{padding:8px 6px;font-size:.78rem}}

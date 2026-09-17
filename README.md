@@ -11,7 +11,9 @@ python3 -m http.server 8765 --bind 127.0.0.1 --directory public
 
 Open **http://127.0.0.1:8765** in a browser. Keep that terminal running; Ctrl+C stops it. Python only serves static files. Any static web server can replace it.
 
-Paste text, choose **Read** to review the cleaned text, choose **Browser voices** or **Workstation · Kokoro**, expand **Voice & speed** to pick a voice and speed, and tap **Play**. This row starts collapsed on each visit and shows your current voice and speed. **Read with** and **Clean up before reading** are inside it; your preferences are still remembered. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
+Use **Clear, Paste & Play** beside **Clear** to replace the text with your clipboard and start reading with your saved settings. Your browser may ask for clipboard permission. Empty or inaccessible clipboards leave the existing text intact. Formatted clipboard text keeps the same cleanup as normal paste.
+
+Or paste text, choose **Read** to review the cleaned text without starting or resuming playback, choose **Browser voices** or **Workstation · Kokoro**, expand **Voice & speed** to pick a voice and speed, and tap **Play**. This row starts collapsed on each visit and shows your current voice and speed. **Read with** and **Clean up before reading** are inside it; your preferences are still remembered. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
 
 ## Use it from your Pixel over Tailscale
 
@@ -53,7 +55,7 @@ Conversion uses a detached, inert template and writes only text into the textare
 
 ## One panel for editing and reading
 
-The page starts in **Edit**, showing your original text without a resize handle. **Read** dismisses the text keyboard, shows the cleaned text, and starts or resumes playback. After finishing, Read replays from the beginning. **Play / Resume** does the same. While audio is playing or preparing, Read only switches views without interrupting it. With no readable text or supported engine, Read just opens the reading view. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Returning to Read preserves your place and prepared audio while playing or paused; the original text is always preserved.
+The page starts in **Edit**, showing your original text without a resize handle. **Read** dismisses the text keyboard and shows the cleaned text without starting, resuming, or replaying audio. **Play / Resume** opens Read and starts or resumes playback; after completion, **Replay** starts from the beginning. **Clear, Paste & Play** replaces the text from the clipboard and starts a new reading. Switching back to Edit leaves audio playing; changing the text stops playback and discards prepared audio. Returning to Read preserves your place and prepared audio while playing or paused; the original text is always preserved.
 
 Cleanup settings always regenerate the reading text from the original, so filtered material is not lost. A successful PDF import shows the imported text in Edit; a failed import preserves your text and mode. Clear returns to an empty Edit view. The separate preview and duplicate current-reading display have been removed.
 
