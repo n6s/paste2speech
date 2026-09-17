@@ -91,6 +91,17 @@ test('protects predictable abbreviations without swallowing real sentence ending
  assert.deepEqual(chunkText(long).flatMap(p => p.split(/\s+/)), long.split(/\s+/));
  assert.ok(chunkText(long).every(p => p.length <= 500));
 });
+test('quoted initials and titles stay together without merging the next sentence', () => {
+ const first = 'Protect single uppercase initials followed by another initial or a capitalized name, so “J. R. Smith” stays together.';
+ const second = 'Exclude the standalone pronoun “I.”';
+ assert.deepEqual(chunkText(`${first} ${second}`), [first, second]);
+ for (const [open, close] of [['“', '”'], ['"', '"'], ['‘', '’'], ["'", "'"], ['(', ')'], ['[', ']']]) {
+  for (const name of ['J. R. Smith', 'Dr. Smith']) {
+   const sentence = `We greeted ${open}${name}${close} today.`;
+   assert.deepEqual(chunkText(`${sentence} Then left.`), [sentence, 'Then left.']);
+  }
+ }
+});
 test('fallback ignores protected punctuation when choosing a preferred break', t => {
  const original = Intl.Segmenter;
  Intl.Segmenter = undefined;

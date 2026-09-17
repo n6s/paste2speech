@@ -42,9 +42,9 @@ export function cleanText(input, options = defaults) {
 // Only protect predictable continuations; ambiguous sentence endings stay with Intl.
 function protectedBoundary(before, after) {
   const next = after.trimStart();
-  if (/(?:^|\s)(?:Mr|Mrs|Ms|Dr|Prof|Rev|Fr|Sr|Jr)\.$/i.test(before.trimEnd())) return /^\p{L}/u.test(next);
-  if (/(?:^|\s)[A-HJ-Z]\.$/.test(before.trimEnd())) return /^[A-Z]\p{L}*/u.test(next);
-  return /(?:^|\s)(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$/i.test(before.trimEnd()) && /^\d/.test(next);
+  if (/(?:^|[\s“‘"'(\[{])(?:Mr|Mrs|Ms|Dr|Prof|Rev|Fr|Sr|Jr)\.$/i.test(before.trimEnd())) return /^\p{L}/u.test(next);
+  if (/(?:^|[\s“‘"'(\[{])[A-HJ-Z]\.$/.test(before.trimEnd())) return /^[A-Z]\p{L}*/u.test(next);
+  return /(?:^|[\s“‘"'(\[{])(?:Jan|Feb|Mar|Apr|Jun|Jul|Aug|Sep|Sept|Oct|Nov|Dec|No)\.$/i.test(before.trimEnd()) && /^\d/.test(next);
 }
 
 export function chunkText(text, limit = 500) {
