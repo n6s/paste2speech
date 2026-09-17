@@ -60,8 +60,9 @@ try {
  assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));
  await page.screenshot({path:'work/mobile.png',fullPage:true});
  await page.locator('#edit-mode').click();
- await page.locator('#text').fill('First paragraph.\n\nSecond paragraph.\n\nThird paragraph.');
+ await page.locator('#text').fill('First paragraph. Second paragraph. Third paragraph.');
  await page.locator('#read-mode').click();
+ assert.deepEqual(await page.locator('.paragraph').allTextContents(), ['First paragraph.', 'Second paragraph.', 'Third paragraph.']);
  await page.locator('.paragraph').nth(1).click();
  assert.equal(await page.evaluate(()=>speechSynthesis.spoken.at(-1).text),'Second paragraph.');
  assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Second paragraph.');

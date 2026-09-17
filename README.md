@@ -55,7 +55,7 @@ Cleanup settings always regenerate the reading text from the original, so filter
 
 Paste text and choose **Read** to start listening, then tap any section to jump there. Reading continues from that section to the end. The active section is highlighted. Tap another section to jump there, even while playing or paused. Keyboard users can Tab to a section and press Enter or Space.
 
-Short paragraphs remain intact. Longer paragraphs appear as stable speech-sized sections of up to 180 UTF-16 code units, preferring sentence boundaries and then spaces. Resizing the preview does not change section boundaries or interrupt playback.
+Each sentence is its own highlighted, tappable section, even when it is short. Headings and preserved line breaks stay separate. English sentence detection uses `Intl.Segmenter`; punctuation and abbreviations are best-effort and may produce unexpected boundaries. Sentences longer than 500 UTF-16 code units split at a clause boundary where practical, then at whitespace; only oversized unbroken tokens are hard-split. Older browsers without sentence segmentation use bounded punctuation/word chunks instead. “Join wrapped lines” remains optional and merges lines before sentence detection; leave it off to preserve heading breaks. Resizing the preview does not change section boundaries or interrupt playback.
 
 Enable **Follow reading** in Read mode to keep the active section visible. Only the preview scrolls; your page position stays put. The toggle is remembered in this browser. Turn it off to browse freely. Sections taller than the preview are aligned to their beginning.
 
@@ -67,7 +67,7 @@ Voice and cleanup preferences are stored per browser origin. Moving from port 84
 
 ## Reading behavior and limits
 
-- Sends one short chunk at a time (up to 180 UTF-16 code units), preferring sentence boundaries and spaces. Keeps a strong reference to the active utterance and ignores stale callbacks after cancellation.
+- Both speech engines use the same sentence-based sections (up to 500 UTF-16 code units), with clause/word splitting for long sentences. Keeps a strong reference to the active utterance and ignores stale callbacks after cancellation.
 - For browser voices, Pause cancels the utterance and retains the last reported word boundary. Resume repeats that word; voices without boundary events repeat the current chunk. This avoids relying on Android's inconsistent native pause/resume behavior.
 - A stalled or failed voice leaves the current position available for retry. It never automatically skips an unread chunk. A timeout can also occur with an unusually slow voice.
 - Browser voices need the tab visible and phone awake. Kokoro prepares a single audio track for background listening, with lock-screen/headphone controls where supported. Actual Pixel screen-lock acceptance testing remains pending; see BACKLOG.md.

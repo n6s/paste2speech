@@ -39,27 +39,31 @@ export function cleanText(input, options = defaults) {
   return text.replace(/[\t ]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();
 }
 
-export function chunkText(text, limit = 180) {
+export function chunkText(text, limit = 500) {
+  if (!Number.isInteger(limit) || limit < 2) throw new RangeError('Chunk limit must be an integer of at least 2.');
   const chunks = [];
-  // A preserved line break is a reading boundary, even in a short passage.
-  for (const line of text.split(/\r?\n/)) {
-    let remaining = line.trim();
-    while (remaining) {
-      let cut = remaining.length;
-      if (cut > limit) {
-        const head = remaining.slice(0, limit + 1);
-        const sentences = [...head.matchAll(/[.!?;:]\s/g)];
-        const sentenceCut = sentences.length ? sentences.at(-1).index + 1 : -1;
-        const spaces = [...head.matchAll(/\s/g)];
-        const wordCut = spaces.length ? spaces.at(-1).index : -1;
-        // An early sentence break must not force a hard cut through a word.
-        cut = sentenceCut >= limit / 3 ? sentenceCut : wordCut > 0 ? wordCut : limit;
-        // Only an unbroken token longer than the limit needs a hard cut.
-        // Do not split a UTF-16 surrogate pair.
-        if (/[\uD800-\uDBFF]/.test(remaining[cut - 1])) cut--;
+  const segmenter = typeof Intl.Segmenter === 'function'
+    ? new Intl.Segmenter('en', { granularity: 'sentence' }) : null;
+  // Preserve headings and other line boundaries before finding sentences.
+  for (const line of text.split(/\r\n?|\n/)) {
+    const sentences = segmenter ? Array.from(segmenter.segment(line), part => part.segment) : [line];
+    for (const sentence of sentences) {
+      let remaining = sentence.trim();
+      while (remaining) {
+        let cut = remaining.length;
+        if (cut > limit) {
+          const head = remaining.slice(0, limit + 1);
+          const breaks = [...head.matchAll(segmenter ? /[,;:]\s/g : /[.!?;:]\s/g)];
+          const phraseCut = breaks.length ? breaks.at(-1).index + 1 : -1;
+          const spaces = [...head.matchAll(/\s/g)];
+          const wordCut = spaces.length ? spaces.at(-1).index : -1;
+          cut = phraseCut >= limit / 3 ? phraseCut : wordCut > 0 ? wordCut : limit;
+          // Only oversized unbroken tokens need a hard cut; keep surrogate pairs intact.
+          if (/[\uD800-\uDBFF]/.test(remaining[cut - 1])) cut--;
+        }
+        chunks.push(remaining.slice(0, cut).trim());
+        remaining = remaining.slice(cut).trim();
       }
-      chunks.push(remaining.slice(0, cut).trim());
-      remaining = remaining.slice(cut).trim();
     }
   }
   return chunks.filter(Boolean);

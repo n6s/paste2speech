@@ -42,7 +42,7 @@ try {
  await page.unroute('**/api/speech');
  await page.locator('.paragraph').nth(1).click();
  await page.waitForFunction(() => document.querySelector('.paragraph[aria-current=true]')?.textContent.startsWith('Here is the second paragraph.'));
- assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Here is the second paragraph. This is a pleasant way to listen to text, without another subscription.');
+ assert.equal(await page.locator('.paragraph[aria-current=true]').textContent(),'Here is the second paragraph.');
  const preparedSource = await page.evaluate(() => testAudio.src);
  const original = await page.locator('#text').inputValue();
  await page.locator('#edit-mode').click();

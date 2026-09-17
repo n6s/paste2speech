@@ -26,7 +26,7 @@ test('table option preserves ordinary pipe prose', () => { assert.equal(cleanTex
 test('chunking preserves words and bounds long tokens and emoji', () => {
  for (const text of ['One sentence. '.repeat(300), 'word '.repeat(1000), 'x'.repeat(1000), '😀'.repeat(300)]) {
   const chunks = chunkText(text);
-  assert.ok(chunks.every(c => c.length <= 180 && c.length > 0));
+  assert.ok(chunks.every(c => c.length <= 500 && c.length > 0));
   assert.equal(chunks.join('').replace(/\s/g,''), text.replace(/\s/g,''));
   assert.ok(chunks.every(c => !/[\uD800-\uDBFF]$/.test(c)));
  }
@@ -36,7 +36,7 @@ test('early punctuation never forces a split inside a normal word', () => {
  const text = 'Intro: ' + 'stubborn inflation and resilient consumer spending '.repeat(8);
  const chunks = chunkText(text);
  assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), text.trim().split(/\s+/));
- assert.ok(chunks.every(c => c.length <= 180));
+ assert.ok(chunks.every(c => c.length <= 500));
 });
 test('article labels and headings stay separate and inflation stays intact', () => {
  const input = 'Spotify\nApple Podcasts\n\n1. Fed raises rates for first time since 2023\n   The Federal Reserve raised interest rates Wednesday for the first time in more than three years as stubborn inflation and resilient consumer spending complicate its efforts to stabilize prices.';
@@ -44,8 +44,39 @@ test('article labels and headings stay separate and inflation stays intact', () 
  const chunks = chunkText(cleaned);
  assert.deepEqual(chunks.slice(0, 3), ['Spotify', 'Apple Podcasts', 'Fed raises rates for first time since 2023']);
  assert.deepEqual(chunks.flatMap(c => c.split(/\s+/)), cleaned.split(/\s+/));
- assert.ok(chunks.some(c => c.split(/\s+/).includes('inflation')));
+ assert.equal(chunks.length, 4);
+ assert.equal(chunks[3], cleaned.split('\n').at(-1));
  assert.deepEqual(chunkText('Heading\nBody.'), ['Heading', 'Body.']);
+});
+test('sentences retain quotes, decimals, abbreviations, and line boundaries', () => {
+ assert.deepEqual(chunkText('Heading\n\n“Ready?” “Yes!” The U.S. economy grew 3.5 percent. Use e.g. apples and pears. Done.'),
+  ['Heading', '“Ready?”', '“Yes!”', 'The U.S. economy grew 3.5 percent.', 'Use e.g. apples and pears.', 'Done.']);
+ assert.deepEqual(chunkText('One. Two! Three?'), ['One.', 'Two!', 'Three?']);
+ assert.deepEqual(chunkText('A\rB\r\nC'), ['A', 'B', 'C']);
+});
+test('long sentences prefer late clauses, then word boundaries', () => {
+ const text = 'alpha beta gamma, delta epsilon zeta eta theta iota kappa lambda.';
+ assert.equal(chunkText(text, 40)[0], 'alpha beta gamma,');
+ const earlyClause = 'Hi, alpha beta gamma delta epsilon zeta eta theta.';
+ assert.equal(chunkText(earlyClause, 40)[0], 'Hi, alpha beta gamma delta epsilon zeta');
+ for (const input of [text, earlyClause, 'word '.repeat(300), '😀'.repeat(600), 'x'.repeat(1200)]) {
+  for (const limit of [39, 180, 500]) {
+   const parts = chunkText(input, limit);
+   assert.ok(parts.every(p => p.length > 0 && p.length <= limit && !/[\uD800-\uDBFF]$/.test(p)));
+   assert.equal(parts.join('').replace(/\s/g, ''), input.replace(/\s/g, ''));
+  }
+ }
+ assert.throws(() => chunkText('text', 1), RangeError);
+});
+test('older browsers fall back to bounded punctuation and word chunks', t => {
+ const original = Intl.Segmenter;
+ Intl.Segmenter = undefined;
+ t.after(() => { Intl.Segmenter = original; });
+ assert.deepEqual(chunkText('Heading\nOne. Two.'), ['Heading', 'One. Two.']);
+ const input = 'Intro: ' + 'ordinary words '.repeat(80);
+ const parts = chunkText(input);
+ assert.ok(parts.every(p => p.length <= 500));
+ assert.deepEqual(parts.flatMap(p => p.split(/\s+/)), input.trim().split(/\s+/));
 });
 function setup() {
  const synth = { spoken: [], cancel() {}, speak(u) { this.spoken.push(u); } };
