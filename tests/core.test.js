@@ -299,3 +299,22 @@ test('measurement sentence stays intact for speech-only pronunciation handling',
  assert.equal(cleanText('- ' + sentence), sentence);
  assert.deepEqual(chunkText(sentence), [sentence]);
 });
+
+test('approximation tildes become about only in prose before numbers', () => {
+ const text = 'Waymo is partnering with taxi-app giant GO and nearly century-old operator Nihon Kotsu, starting with a small fleet before scaling to \\~100 vehicles.';
+ assert.equal(cleanText(text), text.replace('\\~100', 'about 100'));
+ for (const value of ['~100', '~ 100', '~\t100', '~7.2', '~100%']) {
+  assert.equal(cleanText('Approximately (' + value + ').'), 'Approximately (about ' + value.replace(/^~\s*/, '') + ').');
+ }
+ for (const text of ['~/Documents', '/tmp/~100', '~100/file', 'name~100', 'x = ~mask', '~word', '~~100~~']) {
+  assert.ok(!cleanText(text).includes('about'));
+ }
+ const urls = 'https://example.com/~100 www.example.com/~100';
+ assert.equal(cleanText(urls, {...defaults,urls:false}), urls);
+ assert.equal(cleanText('**~100** and *~ 100*'), 'about 100 and about 100');
+ assert.equal(cleanText('`~100` and ~100'), '~100 and about 100');
+ assert.equal(cleanText('`\\~100` and ~100'), '\\~100 and about 100');
+ assert.equal(cleanText('```\n~100\n```', {...defaults,code:false}), '~100');
+ assert.equal(cleanText('    ~100', {...defaults,code:false}), '    ~100');
+ assert.equal(cleanText('~100', {...defaults,markdown:false}), '~100');
+});

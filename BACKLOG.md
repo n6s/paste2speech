@@ -10,6 +10,8 @@ These convenience features are deferred from the consolidated-panel update.
 
 ## Completed — 2026-09-17
 
+- Approximation tildes before prose numbers now read as “about” under Markdown cleanup, including escaped newsletter tildes. Protects code, retained URLs, and paths; preserves original Edit text. Exact Waymo example verified on the live page, plus 55 tests and mobile browser checks.
+
 - Added the first explicit Kokoro pronunciation dictionary entries: Waymo (case-insensitive), robotaxi, and robotaxis, with American/British phonemes. Installed phonemizer checks, pause integration regression, and live synthesis with Heart and Emma passed; Roger's listening confirmation remains open.
 
 - Kokoro speech-only measurement and decimal pronunciation (`50 lb.` → pounds, `7.2-ft.` → seven point two feet) and 150 ms em-dash pauses. Original display and section boundaries retained. Exact robot-news sentence covered by regression tests; live synthesis and dash timing checked. Phone pronunciation feedback remains useful.

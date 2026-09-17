@@ -126,6 +126,8 @@ function inlineLiterals(text, markdown) {
   while (text.includes(prefix) || decoded.includes(prefix)) prefix += '\uE000';
   const literals = [];
   const shield = value => { literals.push(value); return `${prefix}${literals.length - 1}\uE001`; };
+  if (markdown) text = text.replace(/(`+)([^`]+)\1/g, (_, fence, code) => shield(code));
+  if (markdown) text = text.replace(/\\~(?=[ \t]*[0-9])/g, '~');
   if (markdown) text = text.replace(/\\([!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~])/g, (_, char) => shield(char));
   text = text.replace(entityPattern, entity => {
     const value = decodeEntity(entity);
@@ -154,6 +156,13 @@ function cleanInline(text, options, decode = true) {
     .replace(/(`+)([^`]+)\1/g, '$2')
     .replace(/(\*\*|__|~~)([\s\S]+?)\1/g, '$2')
     .replace(/(^|\s)[*_]([^\n*_]+)[*_](?=\s|[.,!?;:]|$)/g, '$1$2');
+  if (options.markdown) {
+    // Skip URLs and path-like tokens; the tilde must introduce a prose number.
+    text = text.split(/((?:https?:\/\/|www\.)[^\s]+)/gi).map((part, index) => index % 2 ? part : part.replace(
+      /(^|[\s([{:;,"“‘])~[ \t]*(?=[0-9]+(?:\.[0-9]+)?(?:%?)(?=$|[\s,;:!?)}\]"”’]|\.(?![\w/])))/g,
+      '$1about '
+    )).join('');
+  }
   text = literal.restore(text);
   if (options.emoji) text = text.replace(/(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)/gu, '');
   return text.replace(/[\t \u00a0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();

@@ -1,6 +1,6 @@
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-prose-structure-1';
+import { cleanText, chunkText, defaults } from './text.js?v=20260917-approximation-1';
 import { Player } from './player.js';
-import { AudioPlayer } from './audio-player.js?v=20260917-prose-structure-1';
+import { AudioPlayer } from './audio-player.js?v=20260917-approximation-1';
 const $ = id => document.getElementById(id);
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
