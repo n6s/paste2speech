@@ -1,5 +1,5 @@
 export class LocalKokoro {
- constructor(progress=()=>{}) { this.progress=progress;this.sequence=0;this.worker=null;this.ready=false; }
+ constructor(progress=()=>{}) { this.progress=progress;this.sequence=0;this.worker=null;this.ready=false;this.diagnostics={chunks:0,generationMs:0,audioMs:0}; }
  cancel() {
   this.worker?.terminate();this.worker=null;this.ready=false;
   this.pending?.reject(new DOMException('Cancelled','AbortError'));this.pending=null;
@@ -11,6 +11,15 @@ export class LocalKokoro {
    this.worker=new Worker(new URL('kokoro-worker.js',location.href),{type:'module'});
    this.worker.onmessage=({data})=>{
     const p=this.pending;if(!p||p.id!==data.id)return;
+    if(data.metrics){
+     this.diagnostics.last={...data.metrics,hidden:document.hidden};
+     if(data.metrics.generateMs!==undefined){
+      this.diagnostics.chunks++;this.diagnostics.generationMs+=data.metrics.generateMs;this.diagnostics.audioMs+=data.metrics.audioMs;
+     }
+    }
+    if(data.results)this.diagnostics.comparison=data.results;
+    if(data.status){this.progress(data.status);return;}
+    if(data.backend)this.progress(`Kokoro is ready · ${data.backend}${data.fallback?' · GPU unavailable; using CPU':''}`);
     if(data.progress!==undefined){this.progress(`Downloading voice model · ${data.progress}%`);return;}
     this.pending=null;
     if(data.error)p.reject(Error(data.error));else {this.ready=true;p.resolve(data);}
@@ -18,9 +27,13 @@ export class LocalKokoro {
    this.worker.onerror=()=>{this.pending?.reject(Error('This browser could not start Kokoro. Choose Browser voices or retry.'));this.pending=null;this.worker?.terminate();this.worker=null;this.ready=false;};
   }
   const abort=()=>this.cancel();signal?.addEventListener('abort',abort,{once:true});
-  try{return await new Promise((resolve,reject)=>{const id=++this.sequence;this.pending={id,resolve,reject};this.worker.postMessage({id,type,...payload});});}
-  finally{signal?.removeEventListener('abort',abort);}
+  const started=performance.now(),operation={type,status:'running',elapsedMs:0,hidden:document.hidden};
+  this.operationStarted=started;this.diagnostics.operation=operation;
+  try{const result=await new Promise((resolve,reject)=>{const id=++this.sequence;this.pending={id,resolve,reject};this.worker.postMessage({id,type,useGPU:this.useGPU===true,...payload});});operation.status='ok';return result;}
+  catch(error){operation.status=error.name==='AbortError'?'cancelled':'failed';throw error;}
+  finally{operation.elapsedMs=Math.round(performance.now()-started);signal?.removeEventListener('abort',abort);}
  }
+ processingMetrics(){if(this.diagnostics.operation?.status==='running')this.diagnostics.operation.elapsedMs=Math.round(performance.now()-this.operationStarted);return structuredClone({version:1,requestedGPU:this.useGPU===true,...this.diagnostics});}
  async request(text,settings,signal) {
   const {pcm}=await this.run('synthesize',{text,voice:settings.voice,speed:settings.rate},signal);
   return {format:[1,0,1,0,192,93,0,0,128,187,0,0,2,0,16,0],pcm:new Uint8Array(pcm)};

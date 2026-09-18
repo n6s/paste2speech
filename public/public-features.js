@@ -4,7 +4,7 @@ export function event(name,engine='none',category='none',duration=0){
  if(navigator.doNotTrack==='1'||navigator.globalPrivacyControl)return;
  fetch(API_ORIGIN+'/api/events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({event:name,engine,category,duration:Math.min(300000,Math.max(0,Math.round(duration))),release:RELEASE}),keepalive:true}).catch(()=>{});
 }
-export function setupFeedback(getPlayback=()=>'idle',getCleanup=()=>undefined){
+export function setupFeedback(getPlayback=()=>'idle',getCleanup=()=>undefined,getProcessing=()=>undefined){
  event('page_view');
  const form=document.getElementById('feedback-form'),status=document.getElementById('feedback-status');
  let ticket;
@@ -13,7 +13,7 @@ export function setupFeedback(getPlayback=()=>'idle',getCleanup=()=>undefined){
   try{
    if(!ticket){const r=await fetch(API_ORIGIN+'/api/feedback-ticket');if(!r.ok)throw Error();ticket=await r.json();}
    const data=Object.fromEntries(new FormData(form));
-   const response=await fetch(API_ORIGIN+'/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,ticket,context:feedbackContext({navigator,environment:WORKSTATION?'test':'production',release:RELEASE,engine:document.getElementById('engine').value,voice:document.getElementById('voice').selectedOptions[0]?.textContent,playback:getPlayback(),cleanup:getCleanup()})})});
+   const response=await fetch(API_ORIGIN+'/api/feedback',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({...data,ticket,context:feedbackContext({navigator,environment:WORKSTATION?'test':'production',release:RELEASE,engine:document.getElementById('engine').value,voice:document.getElementById('voice').selectedOptions[0]?.textContent,playback:getPlayback(),cleanup:getCleanup(),processing:getProcessing()})})});
    if(!response.ok)throw Error(response.status===429?'Please wait a few minutes before sending again.':'Could not send feedback. Please retry, or use email below.');
    status.textContent='Thank you! Your feedback has been saved.';form.reset();ticket=null;
   }catch(error){status.textContent=error.message||'Could not send. Please use email below.';ticket=null;}

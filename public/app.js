@@ -95,7 +95,7 @@ async function discoverWorkstation() {
   }
 }
 function settings() { return { paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
-function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
+function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
@@ -340,19 +340,39 @@ preview();
   $('local-download').hidden=!KOKORO_ENABLED;
 {
   let downloadController;
+  $('gpu-experiment').hidden=!WORKSTATION;
+  $('use-gpu').checked=WORKSTATION && saved.useGPU===true;
+  localKokoro.useGPU=$('use-gpu').checked;
+  $('use-gpu').addEventListener('change',()=>{
+    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;
+    localKokoro.useGPU=$('use-gpu').checked;save();preview();
+    $('download-status').textContent='Choose Enable / download Kokoro to apply this setting.';
+  });
+  $('compare-gpu').addEventListener('click',async()=>{
+    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;preview();
+    downloadController=new AbortController();
+    $('compare-gpu').disabled=true;$('download-model').disabled=true;$('use-gpu').disabled=true;$('remove-model').disabled=true;$('cancel-download').hidden=false;
+    $('gpu-results').textContent='Comparing the same short sentence. Downloads and model loading are timed separately.';
+    try {
+      const {results}=await localKokoro.run('benchmark',{},downloadController.signal);
+      $('gpu-results').textContent=results.map(r=>r.status==='ok'?`${r.backend.toUpperCase()} · ${r.dtype}: load ${(r.loadMs/1000).toFixed(1)}s, first ${(r.firstMs/1000).toFixed(1)}s, repeat ${(r.repeatMs/1000).toFixed(1)}s`:`${r.dtype}: unavailable or failed`).join('\n');
+      $('download-status').textContent='Comparison complete. Choose Enable / download Kokoro to start reading.';
+    }catch(error){$('gpu-results').textContent=error.name==='AbortError'?'Comparison cancelled.':error.message;}
+    finally {localKokoro.cancel();$('compare-gpu').disabled=false;$('download-model').disabled=false;$('use-gpu').disabled=false;$('remove-model').disabled=false;$('cancel-download').hidden=true;preview();}
+  });
   $('download-model').addEventListener('click',async()=>{
-    downloadController=new AbortController();$('download-model').disabled=true;$('cancel-download').hidden=false;
+    downloadController=new AbortController();$('remove-model').disabled=true;$('compare-gpu').disabled=true;$('use-gpu').disabled=true;$('download-model').disabled=true;$('cancel-download').hidden=false;
     $('download-status').textContent='Loading voice model…';
     try{
       await localKokoro.run('load',{voice:workstationVoice},downloadController.signal);
-      localEnabled=true;$('download-status').textContent='Kokoro is ready. Downloads are cached when your browser allows it.';
+      localEnabled=true;
       $('engine').value='kokoro';changeEngine();
     }catch(error){$('download-status').textContent=error.name==='AbortError'?'Download cancelled. Browser voices are still available.':error.message;if(error.name!=='AbortError')event('kokoro_failure','kokoro','download');}
-    finally{$('download-model').disabled=false;$('cancel-download').hidden=true;preview();}
+    finally{$('remove-model').disabled=false;$('compare-gpu').disabled=false;$('use-gpu').disabled=false;$('download-model').disabled=false;$('cancel-download').hidden=true;preview();}
   });
   $('cancel-download').addEventListener('click',()=>downloadController?.abort());
   $('remove-model').addEventListener('click',async()=>{localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;$('engine').value='browser';changeEngine();$('download-status').textContent='Downloaded voice data removed.';});
-  setupFeedback(()=>player?.state||'idle',()=>({...options}));
+  setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>localKokoro.processingMetrics());
 }
 if (WORKSTATION) {
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');

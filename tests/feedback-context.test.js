@@ -19,3 +19,11 @@ test('cleanup diagnostics copy only the supported booleans',()=>{
  assert.equal(result.cleanup.joinLines,false);
  assert.ok(!JSON.stringify(result).includes('PRIVATE'));
 });
+
+test('processing diagnostics are snapshots and reject unbounded or private fields',()=>{
+ const processing={version:1,requestedGPU:true,chunks:1,generationMs:250,audioMs:3000};
+ const base={navigator:{},environment:'test',release:'test',engine:'kokoro',voice:'Heart',playback:'ready'};
+ const context=feedbackContext({...base,processing});processing.chunks=2;
+ assert.equal(context.processing.chunks,1);
+ assert.equal(feedbackContext({...base,processing:{...processing,text:'private'}}).processing,undefined);
+});

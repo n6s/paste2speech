@@ -1,3 +1,4 @@
+import { gpuPrecision, validAudio } from './gpu-policy.js';
 import { env, StyleTextToSpeech2Model, AutoTokenizer, Tensor } from '@huggingface/transformers';
 import { phonemize } from '../vendor/phonemize.js';
 import dictionary from '../shared/pronunciations.json';
@@ -7,15 +8,25 @@ env.allowLocalModels=false;
 env.useBrowserCache=true;
 env.backends.onnx.wasm.wasmPaths = new URL('./',self.location.href).href;
 env.backends.onnx.wasm.numThreads=1;
-let model, tokenizer;
+let loadMs=0,probeMs=0;
+let model, tokenizer, backend = 'CPU · q8', gpuFailed = false;
+async function dispose() {
+ const previous=model;model=null;
+ try { await previous?.dispose(); } catch(error) { console.warn('Kokoro cleanup failed',error); }
+}
 const voices=new Map();
-async function init(id) {
+async function init(id, useGPU = false, precision = 'auto') {
  if(model&&tokenizer) return;
  const progress_callback=p=>{ if(p.status==='progress') postMessage({id,progress:Math.round(p.progress||0)}); };
+ const started=performance.now();
+ let dtype='q8', device='wasm';
+ if(useGPU && !gpuFailed) { dtype=await gpuPrecision(self.navigator.gpu,precision); device='webgpu'; }
+ backend=device==='webgpu'?`GPU · ${dtype}`:'CPU · q8';
  [model,tokenizer]=await Promise.all([
-  StyleTextToSpeech2Model.from_pretrained(MODEL,{revision:REVISION,dtype:'q8',device:'wasm',progress_callback}),
+  StyleTextToSpeech2Model.from_pretrained(MODEL,{revision:REVISION,dtype,device,progress_callback}),
   AutoTokenizer.from_pretrained(MODEL,{revision:REVISION}),
  ]);
+ loadMs=Math.round(performance.now()-started);
 }
 async function voiceData(voice) {
  if(voices.has(voice)) return voices.get(voice);
@@ -42,6 +53,7 @@ async function synthesize(text,voice,speed) {
   for(const input_ids of splitPhonemes(ps,tokenizer)) {
    const offset=Math.min(509,Math.max(0,input_ids.dims.at(-1)-2))*256;
    const {waveform}=await model({input_ids,style:new Tensor('float32',data.slice(offset,offset+256),[1,256]),speed:new Tensor('float32',[speed],[1])});
+   if(!waveform.data.length || !waveform.data.every(Number.isFinite))throw Error('Invalid audio output');
    phraseParts.push(new Float32Array(waveform.data));
   }
   let audio=new Float32Array(phraseParts.reduce((s,p)=>s+p.length,0)), pos=0;
@@ -61,10 +73,53 @@ async function synthesize(text,voice,speed) {
  for(const a of arrays)for(const v of a)pcm[offset++]=Math.round(Math.max(-1,Math.min(1,v))*32767);
  return pcm.buffer;
 }
-self.onmessage=async({data:{id,type,text,voice,speed}})=>{
+async function prepare(id, useGPU) {
  try {
-  await init(id);
-  if(type==='load'){await voiceData(voice||'af_heart');postMessage({id,ready:true});return;}
-  const pcm=await synthesize(text,voice,speed);postMessage({id,pcm},[pcm]);
- }catch{postMessage({id,error:'Could not prepare Kokoro audio. Retry or choose Browser voices.'});}
+  await init(id,useGPU);
+  if(useGPU && !gpuFailed) {
+   const started=performance.now();
+   const sample=await synthesize('This is a short voice test.','af_heart',1);
+   probeMs=Math.round(performance.now()-started);
+   if(!validAudio(sample)) throw Error('GPU sample failed');
+  }
+ } catch(error) {
+  if(!useGPU) throw error;
+  gpuFailed=true; await dispose(); await init(id,false);
+ }
+}
+function metrics(status,extra={}) { return {status,backend:backend.startsWith('GPU')?'gpu':'cpu',dtype:backend.split(' · ')[1],fallback:gpuFailed,loadMs,probeMs,...extra}; }
+self.onmessage=async({data:{id,type,text,voice,speed,useGPU}})=>{
+ const started=performance.now();
+ try {
+  if(type==='benchmark') {
+   const results=[];
+   for(const mode of ['q8','fp32','fp16']) {
+    try {
+     await dispose();gpuFailed=false;
+     postMessage({id,status:`Comparing ${mode==='q8'?'CPU':'GPU'} · ${mode}…`});
+     const start=performance.now();
+     await init(id,mode!=='q8',mode);
+     const loaded=performance.now();
+     const first=await synthesize('This is a short voice test.','af_heart',1);
+     const warmed=performance.now();
+     const second=await synthesize('This is a short voice test.','af_heart',1);
+     if(!validAudio(first)||!validAudio(second))throw Error('Audio check failed');
+     results.push({backend:mode==='q8'?'cpu':'gpu',dtype:mode,status:'ok',loadMs:Math.round(loaded-start),firstMs:Math.round(warmed-loaded),repeatMs:Math.round(performance.now()-warmed),audioMs:Math.round(second.byteLength/48)});
+    }catch(error){results.push({backend:mode==='q8'?'cpu':'gpu',dtype:mode,status:'failed'});}
+   }
+   await dispose();gpuFailed=false;
+   postMessage({id,results});return;
+  }
+  if(!model) await prepare(id,useGPU);
+  if(type==='load'){await voiceData(voice||'af_heart');postMessage({id,ready:true,backend,fallback:gpuFailed,metrics:metrics('ok')});return;}
+  const generationStarted=performance.now();
+  let pcm;
+  try { pcm=await synthesize(text,voice,speed); }
+  catch(error) {
+   if(!backend.startsWith('GPU'))throw error;
+   gpuFailed=true;await dispose();await init(id,false);
+   pcm=await synthesize(text,voice,speed);
+  }
+  postMessage({id,pcm,backend,fallback:gpuFailed,metrics:metrics('ok',{generateMs:Math.round(performance.now()-generationStarted),audioMs:Math.round(pcm.byteLength/48),characters:text.length})},[pcm]);
+ }catch(error){console.warn('Kokoro operation failed',error);postMessage({id,metrics:metrics('failed',{elapsedMs:Math.round(performance.now()-started)}),error:'Could not prepare Kokoro audio. Retry or choose Browser voices.'});}
 };

@@ -133,3 +133,46 @@ The exact private hostname `pop-os.tailbd091c.ts.net` enables the additional **W
 A Cloudflare release rebuilds `dist/`, which also updates the private reader. Existing open readings retain their loaded code and audio until reloaded. Legacy private Kokoro preferences migrate to the workstation engine.
 
 Feedback diagnostics (migration `0002_feedback_context.sql`) accompany each new report: environment, coarse browser/device category, selected engine/voice, release, playback state, and the seven cleanup switches at submission. Cleanup settings are optional for older open tabs and strictly validated as booleans. The Worker derives environment from the allowed request origin and validates bounded fields. The reviewer receives these diagnostics; legacy raw Telegram notifications include them too. Older open readers and existing reports remain compatible without diagnostics. No raw user agent, reading content, PDF filename, or audio is included; diagnostics expire with the report under the existing 90-day retention policy.
+
+## Tailscale on-device GPU experiment
+
+The private host exposes **Use GPU when available** under Voice & speed. This is
+an opt-in browser preference, separate from Workstation - Kokoro. Enable/download
+loads FP16 when the browser GPU supports shader-f16, otherwise FP32. A short
+synthesis probe must succeed before the GPU is marked ready. GPU initialization
+or synthesis errors retry with the existing q8 CPU engine. Status shows the
+selected backend and fallback. Changing the preference clears prepared audio.
+
+**Compare CPU / GPU speed** runs the same sentence twice with CPU q8, GPU FP32,
+and supported GPU FP16, sequentially disposing each model. It reports loading
+(including downloads), first synthesis, and repeat synthesis separately. This
+may download all three models (roughly 582 MB total, plus voices/runtime assets).
+Results remain on the page; they are not uploaded. Cancel terminates the worker.
+After comparison, choose Enable / download again to initialize the selected mode.
+
+Validate with `npm test`, `npm run build`, and `node tests/gpu-browser.mjs`.
+The GPU browser check forces unavailable GPU capability and verifies real CPU
+fallback audio, preference persistence, and cancellation. It does not establish
+hardware acceleration. Run the comparison and listen on the actual Pixel before
+claiming mobile GPU compatibility, speed, quality, or thermal behavior. Only the
+private dist build is updated for this experiment; no Cloudflare release is needed.
+
+Feedback now carries bounded, optional `context.processing` diagnostics: the
+latest on-device backend/precision/fallback, load/probe/generation timings in ms,
+audio duration and character count, operation outcome (including cancellation),
+page visibility, page-session chunk/generation/audio totals, and up to three
+comparison results. Timings are wall-clock measurements, not isolated GPU kernel
+times; model-load timings can include downloads. Comparison timings are excluded
+from session synthesis totals. Reload clears metrics; changing engine does not,
+so processing diagnostics may describe earlier on-device use in that page.
+No reading text, audio, GPU identifiers, or raw error messages are attached.
+The existing context column and reviewer envelope already retain these metrics.
+Old reports and readers remain valid; no database migration is required.
+
+Use `node scripts/deploy-feedback-api.mjs` after committing to update feedback
+validation while retaining all currently deployed public assets (`keep_assets`).
+This supports Tailscale experiments without releasing their UI publicly. Verify
+public HTML/JS hashes before and after this API-only deployment, then rebuild
+`dist/` for Tailscale with the committed release ID. Feedback integration tests
+intercept browser submissions and use an in-memory database, avoiding synthetic
+reports or Telegram notifications in the live review queue.

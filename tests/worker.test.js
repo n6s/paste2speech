@@ -106,3 +106,17 @@ test('optional cleanup diagnostics are validated, stored, and summarized without
  const {contextSummary}=await import('../cloudflare/worker.js');
  assert.match(contextSummary(saved),/joinLines=on/);assert.match(contextSummary(saved),/emoji=off/);
 });
+
+test('bounded processing metrics survive feedback storage and summary',async()=>{
+ const {db,env}=setup();env.FEEDBACK_DELIVERY_MODE='review';
+ const ctx={waitUntil:()=>{}};
+ const ticket=await(await worker.fetch(request('/api/feedback-ticket'),env,ctx)).json();
+ const processing={version:1,requestedGPU:true,chunks:2,generationMs:850,audioMs:6000,last:{status:'ok',backend:'gpu',dtype:'fp16',fallback:false,hidden:false,loadMs:100,probeMs:80,generateMs:400,audioMs:3000,characters:40},comparison:[{backend:'cpu',dtype:'q8',status:'ok',loadMs:50,firstMs:400,repeatMs:300,audioMs:3000},{backend:'gpu',dtype:'fp32',status:'failed'}]};
+ const context={environment:'test',browser:'Chrome',device:'mobile',engine:'kokoro',voice:'Heart',release:'test',playback:'paused',processing};
+ const feedback={message:'Processing metric integration report.',email:'',website:'',ticket,context};
+ for(const bad of [{...processing,text:'private'}, {...processing,generationMs:-1}, {...processing,last:{...processing.last,generateMs:NaN}}, {...processing,comparison:Array(4).fill(processing.comparison[0])}])assert.equal(Boolean(validFeedback({...feedback,context:{...context,processing:bad}})),false);
+ assert.equal((await worker.fetch(request('/api/feedback',feedback),env,ctx)).status,202);
+ const saved=db.prepare('SELECT context FROM feedback').get().context;
+ assert.deepEqual(JSON.parse(saved).processing,processing);
+ const {contextSummary}=await import('../cloudflare/worker.js');assert.match(contextSummary(saved),/generationMs.*850/);
+});
