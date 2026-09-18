@@ -6,6 +6,9 @@ optional support links, and a feedback inbox that notifies Roger through the
 dedicated `@paste2speech_bot`. See [release operations](RELEASE.md) for build,
 deployment, privacy, analytics, rollback, and the planned review workflow.
 
+For automated feedback investigations, Telegram summaries, and looking up a report
+by ID, see [feedback reviewer operations](FEEDBACK-REVIEW.md).
+
 The sections below describe the private development/testing deployment.
 
 A small, mobile-friendly reading page for a Pixel, served from a Linux workstation over Tailscale. Plain HTML, CSS and JavaScript with browser speech, plus an optional local Kokoro service for more natural voices. No frontend build step, CDN, speech API key, or analytics.

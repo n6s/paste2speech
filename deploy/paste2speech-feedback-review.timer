@@ -1,0 +1,11 @@
+[Unit]
+Description=Check Paste to Speech feedback every 30 minutes
+
+[Timer]
+OnCalendar=*-*-* *:00,30:00
+Persistent=true
+AccuracySec=30s
+Unit=paste2speech-feedback-review.service
+
+[Install]
+WantedBy=timers.target

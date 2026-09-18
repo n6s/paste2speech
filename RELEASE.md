@@ -62,8 +62,10 @@ files are under `~/.config/paste2speech/`, readable only by the owner. Never put
 these values in source, frontend code, command arguments, or logs. The destination
 chat ID is fixed at Roger's verified private Telegram chat, 579044008.
 
-The new bot is `@paste2speech_bot`. This release only sends feedback notifications;
-it does not receive Telegram replies or run Codex investigations. It does not
+The dedicated bot is `@paste2speech_bot`. With `FEEDBACK_DELIVERY_MODE=review`,
+the local [feedback reviewer](FEEDBACK-REVIEW.md) investigates submissions and sends
+one-way summaries. The Worker saves reports without sending raw notices. It does
+not receive Telegram replies. Unset/direct mode preserves legacy raw delivery. It does not
 change `@rogercodexbot` or its polling configuration.
 
 Reports require a signed one-hour ticket, pass field/size validation and a
@@ -117,10 +119,10 @@ included in the browser bundle. `npm audit` should remain clean.
 - PDF text order is best-effort, especially for columns/tables. No OCR or passwords.
 - Usage counts are approximate activity, not unique visitors. DNT/GPC disable
   events; no persistent tracking IDs, content, filenames or IPs are stored in D1.
-- Next stage: a separate constrained review job pulls feedback every 30 minutes
-  when the workstation is available, prepares tested recommendations, and sends
-  Telegram summaries. Public release stays explicitly approved by Roger. This
-  automated investigation stage is not enabled in this release.
+- A constrained local review job polls feedback every 30 minutes while the
+  workstation is available and sends Telegram summaries. Version 1 performs static
+  source assessment; tests, listening checks, and any proposed changes are discussed
+  interactively in Codex. See [operations and rollback](FEEDBACK-REVIEW.md).
 
 ## Unified reader deployments
 

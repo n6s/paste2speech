@@ -39,6 +39,7 @@ export function validFeedback(data){
  return data&&typeof data.message==='string'&&data.message.trim().length>=10&&data.message.length<=3000&&typeof data.email==='string'&&data.email.length<=254&&(!data.email||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))&&typeof data.website==='string'&&!data.website&&((data.message.match(/https?:\/\//gi)||[]).length<=3)&&validContext(data.context)&&Object.keys(data).every(k=>['message','email','website','ticket','context'].includes(k));
 }
 export async function deliver(env,id){
+ if(env.FEEDBACK_DELIVERY_MODE==='review')return;
  const now=Date.now();
  const claim=await env.DB.prepare("UPDATE feedback SET status='sending',attempts=attempts+1,lease_until=? WHERE id=? AND attempts<5 AND (status='pending' OR (status='sending' AND lease_until<?)) RETURNING id,message,email,context").bind(now+120000,id,now).first();
  if(!claim)return;
@@ -100,6 +101,7 @@ export default {
     env.DB.prepare('DELETE FROM feedback WHERE created_at<?').bind(now-90*86400000),
     env.DB.prepare('DELETE FROM daily_events WHERE day<?').bind(new Date(now-90*86400000).toISOString().slice(0,10)),
    ]);
+   if(env.FEEDBACK_DELIVERY_MODE==='review')return;
    const rows=await env.DB.prepare("SELECT id FROM feedback WHERE attempts<5 AND status IN ('pending','sending') AND lease_until<? LIMIT 10").bind(now).all();
    for(const row of rows.results)await deliver(env,row.id);
   })());

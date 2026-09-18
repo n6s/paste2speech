@@ -70,3 +70,19 @@ test('feedback diagnostics survive storage and Telegram delivery, with server-de
   assert.match(notification,/Site: test/);assert.match(notification,/Chrome · mobile/);assert.match(notification,/Workstation - Kokoro/);assert.match(notification,/Playback: paused/);
  }finally{globalThis.fetch=original;}
 });
+
+test('review mode stores feedback without immediate or scheduled raw delivery; direct rollback works',async()=>{
+ const {db,env}=setup();env.FEEDBACK_DELIVERY_MODE='review';
+ const pending=[];const ctx={waitUntil:p=>pending.push(p)};
+ const ticket=await (await worker.fetch(request('/api/feedback-ticket'),env,ctx)).json();
+ const original=globalThis.fetch;let sends=0;
+ try{
+  globalThis.fetch=async()=>{sends++;return new Response(JSON.stringify({ok:true,result:{message_id:99}}));};
+  assert.equal((await worker.fetch(request('/api/feedback',{message:'Review mode integration feedback.',email:'',website:'',ticket}),env,ctx)).status,202);
+  await Promise.all(pending);await worker.scheduled({},env,ctx);await Promise.all(pending);
+  assert.equal(sends,0);assert.equal(db.prepare('SELECT attempts FROM feedback').get().attempts,0);
+  assert.equal(db.prepare('SELECT status FROM feedback').get().status,'pending');
+  env.FEEDBACK_DELIVERY_MODE='direct';await worker.scheduled({},env,ctx);await Promise.all(pending);
+  assert.equal(sends,1);assert.equal(db.prepare('SELECT telegram_message_id FROM feedback').get().telegram_message_id,99);
+ }finally{globalThis.fetch=original;}
+});

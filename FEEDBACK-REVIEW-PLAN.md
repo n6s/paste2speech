@@ -1,6 +1,8 @@
 # Feedback gatekeeper — version 1
 
-Status: implementation plan, 2026-09-18. Nothing is activated by this document.
+Status: implementation authorized on 2026-09-18. See FEEDBACK-REVIEW.md for the
+implemented version and operational controls. The first version supplies source
+evidence to a tool-disabled Codex run rather than exposing a shell to the agent.
 
 ## Outcome
 
