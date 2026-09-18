@@ -27,11 +27,11 @@ try {
    return await new Promise((resolve,reject)=>{
     worker.onmessage=({data})=>{if(data.error)reject(Error(data.error));else if(data.pcm)resolve({bytes:data.pcm.byteLength,backend:data.backend,fallback:data.fallback,metrics:data.metrics});};
     worker.onerror=reject;
-    worker.postMessage({id:1,type:'synthesize',text:'The GPU fallback is working.',voice:'af_heart',speed:1,useGPU:true});
+    worker.postMessage({id:1,type:'synthesize',text:'Nap from 3:00–5:00 PM. Use a 1:2 ratio.',voice:'af_heart',speed:1,useGPU:true});
    });
   }finally{worker.terminate();}
  });
- assert.ok(audio.bytes>4800);assert.equal(audio.backend,'CPU · q8');assert.equal(audio.fallback,true);assert.ok(audio.metrics.generateMs>0);assert.ok(audio.metrics.audioMs>0);assert.equal(audio.metrics.characters,28);
+ assert.ok(audio.bytes>4800);assert.equal(audio.backend,'CPU · q8');assert.equal(audio.fallback,true);assert.ok(audio.metrics.generateMs>0);assert.ok(audio.metrics.audioMs>0);assert.equal(audio.metrics.characters,'Nap from 3:00–5:00 PM. Use a 1:2 ratio.'.length);
  await page.locator('#compare-gpu').click();
  await page.locator('#cancel-download').click();
  await page.waitForFunction(()=>document.querySelector('#gpu-results').textContent==='Comparison cancelled.');
@@ -45,8 +45,8 @@ try {
  await page.locator('#feedback-form button[type=submit]').click();
  await page.waitForFunction(()=>document.querySelector('#feedback-status').textContent.includes('saved'));
  assert.equal(submitted.context.processing.requestedGPU,true);
- assert.equal(submitted.context.processing.last.backend,'cpu');
- assert.equal(submitted.context.processing.last.fallback,true);
- assert.ok(submitted.context.processing.last.loadMs>0);
+ assert.equal(submitted.context.processing.last,undefined);
+ assert.equal(submitted.context.processing.chunks,0);
+ assert.equal(submitted.context.processing.operation.status,'cancelled');
  console.log('GPU preference persistence, real CPU fallback synthesis, comparison cancellation passed');
 }finally{await browser.close();}
