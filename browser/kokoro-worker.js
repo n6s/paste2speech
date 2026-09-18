@@ -1,4 +1,4 @@
-import { gpuPrecision, validAudio } from './gpu-policy.js';
+import { gpuPrecision, validAudio, prepareGPU } from './gpu-policy.js';
 import { env, StyleTextToSpeech2Model, AutoTokenizer, Tensor } from '@huggingface/transformers';
 import { phonemize } from '../vendor/phonemize.js';
 import dictionary from '../shared/pronunciations.json';
@@ -74,19 +74,22 @@ async function synthesize(text,voice,speed) {
  return pcm.buffer;
 }
 async function prepare(id, useGPU) {
- try {
-  await init(id,useGPU);
-  if(useGPU && !gpuFailed) {
+ if(useGPU && !gpuFailed) {
+  const ready=await prepareGPU(self.navigator.gpu,async precision=>{
+   postMessage({id,status:`Trying GPU · ${precision}…`});
+   probeMs=0;
+   await init(id,true,precision);
    const started=performance.now();
    const sample=await synthesize('This is a short voice test.','af_heart',1);
    probeMs=Math.round(performance.now()-started);
-   if(!validAudio(sample)) throw Error('GPU sample failed');
-  }
- } catch(error) {
-  if(!useGPU) throw error;
-  gpuFailed=true; await dispose(); await init(id,false);
+   if(!validAudio(sample))throw Error('GPU sample failed');
+  },dispose);
+  if(ready)return;
+  gpuFailed=true;
  }
+ await init(id,false);
 }
+
 function metrics(status,extra={}) { return {status,backend:backend.startsWith('GPU')?'gpu':'cpu',dtype:backend.split(' · ')[1],fallback:gpuFailed,loadMs,probeMs,...extra}; }
 self.onmessage=async({data:{id,type,text,voice,speed,useGPU}})=>{
  const started=performance.now();

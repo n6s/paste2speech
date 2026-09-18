@@ -138,9 +138,10 @@ Feedback diagnostics (migration `0002_feedback_context.sql`) accompany each new 
 
 The private host exposes **Use GPU when available** under Voice & speed. This is
 an opt-in browser preference, separate from Workstation - Kokoro. Enable/download
-loads FP16 when the browser GPU supports shader-f16, otherwise FP32. A short
-synthesis probe must succeed before the GPU is marked ready. GPU initialization
-or synthesis errors retry with the existing q8 CPU engine. Status shows the
+tries FP16 when the browser GPU supports shader-f16, then FP32 if FP16 fails.
+Without shader-f16 it tries FP32 directly. A short
+synthesis probe must succeed before the GPU is marked ready. Only after all eligible GPU startup/probe attempts fail does it use q8 CPU.
+Errors during later reading synthesis retry with the existing q8 CPU engine. Status shows the
 selected backend and fallback. Changing the preference clears prepared audio.
 
 **Compare CPU / GPU speed** runs the same sentence twice with CPU q8, GPU FP32,
