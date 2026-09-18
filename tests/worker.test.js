@@ -120,3 +120,12 @@ test('bounded processing metrics survive feedback storage and summary',async()=>
  assert.deepEqual(JSON.parse(saved).processing,processing);
  const {contextSummary}=await import('../cloudflare/worker.js');assert.match(contextSummary(saved),/generationMs.*850/);
 });
+test('new metric attribution cannot contradict engine; legacy reports remain identifiable',async()=>{
+ const {validContext,contextSummary}=await import('../cloudflare/worker.js');
+ const processing={version:2,engine:'kokoro',scope:'current-selection',requestedGPU:true,chunks:1,generationMs:250,audioMs:3000};
+ const context={environment:'test',browser:'Chrome',device:'mobile',engine:'kokoro',voice:'Heart',release:'test',playback:'done',processing};
+ assert.ok(validContext(context));assert.equal(Boolean(validContext({...context,engine:'workstation'})),false);
+ assert.match(contextSummary(JSON.stringify(context)),/latest engine, text, or voice/);
+ const legacy={version:1,requestedGPU:true,chunks:1,generationMs:250,audioMs:3000};
+ assert.match(contextSummary(JSON.stringify({...context,processing:legacy})),/may predate/);
+});

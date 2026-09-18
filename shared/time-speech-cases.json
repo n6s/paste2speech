@@ -1,0 +1,34 @@
+[
+  [
+    "You have 6 hours from 3:00 \u2192 9:00.",
+    "You have 6 hours from three o'clock to nine o'clock."
+  ],
+  [
+    "So nap 3:00\u20135:00 PM, then you've got 4 hours awake from 5:00\u20139:00 PM. Perfect 1:2 ratio.",
+    "So nap three to five P M, then you've got 4 hours awake from five to nine P M. Perfect one to two ratio."
+  ],
+  [
+    "5:00, 5:05, 5:30, 12:59.",
+    "five o'clock, five oh five, five thirty, twelve fifty nine."
+  ],
+  [
+    "At 3:00 PM. Then 9:05 a.m.",
+    "At three P M. Then nine oh five A M."
+  ],
+  [
+    "3:00-5:00 PM; 9:30 AM\u20131:15 PM",
+    "three to five P M; nine thirty A M to one fifteen P M"
+  ],
+  [
+    "1:1 1:2 2:3 (1:2).",
+    "one to one one to two two to three (one to two)."
+  ],
+  [
+    "v3:00 13:00 3:99 3:00:15 1:2:3 1:2.5 https://example.com/3:00 www.example.com/1:2",
+    "v3:00 13:00 3:99 3:00:15 1:2:3 1:2 point five https://example.com/3:00 www.example.com/1:2"
+  ],
+  [
+    "1:10 ratio; ratio of 10:30; ratio 16:9.",
+    "one to ten ratio; ratio of ten to thirty; ratio sixteen to nine."
+  ]
+]

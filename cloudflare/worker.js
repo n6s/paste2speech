@@ -29,7 +29,7 @@ export function validCleanup(cleanup){
 export function validContext(c){
  if(c===undefined)return true; // Older open tabs remain able to submit.
  return c && !Array.isArray(c) && Object.keys(c).every(key=>['environment','browser','device','engine','voice','release','playback','cleanup','processing'].includes(key)) &&
- (c.cleanup===undefined || validCleanup(c.cleanup)) && (c.processing===undefined || validProcessing(c.processing)) &&
+ (c.cleanup===undefined || validCleanup(c.cleanup)) && (c.processing===undefined || (validProcessing(c.processing) && (c.processing.version===1 || c.engine===c.processing.engine))) &&
  ['test','production'].includes(c.environment) && ['Chrome','Edge','Firefox','Safari','Opera','Other'].includes(c.browser) &&
  ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation'].includes(c.engine) &&
  typeof c.voice==='string' && c.voice.length<=120 && !/[\u0000-\u001f\u007f]/.test(c.voice) &&

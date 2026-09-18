@@ -77,6 +77,7 @@ function changeEngine() {
   workstationPlayer.release();
   localPlayer.release();
   if (localKokoro.pending) localKokoro.cancel();
+  localPlayer.invalidate();localKokoro.resetMetrics();
   player = isWorkstation() ? workstationPlayer : isKokoro() ? localPlayer : browserPlayer;
   selectedVoice = isKokoro() ? workstationVoice : browserVoice;
   loadVoices(); save(); preview();
@@ -324,14 +325,14 @@ $('paste-play').addEventListener('click', async () => {
   }
 });
 $('clear').addEventListener('click', () => { pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
-$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); save(); });
+$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) player?.sync(); });
-function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); }
+function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
@@ -371,11 +372,11 @@ preview();
   }
   syncLocalSetup=()=>{setupControls();if(localAllowed && !setupBusy && !localEnabled)void loadLocal();};
   $('use-gpu').addEventListener('change',()=>{
-    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;setupFailed=false;
+    localPlayer.invalidate();localKokoro.cancel();localKokoro.resetMetrics();localEnabled=false;setupFailed=false;
     localKokoro.useGPU=$('use-gpu').checked;save();preview();syncLocalSetup();
   });
   $('compare-gpu').addEventListener('click',async()=>{
-    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;localAllowed=true;setupFailed=false;save();preview();
+    localPlayer.invalidate();localKokoro.cancel();localKokoro.resetMetrics();localEnabled=false;localAllowed=true;setupFailed=false;save();preview();
     setupBusy=true;downloadController=new AbortController();setupControls();
     $('gpu-results').textContent='Comparing the same short sentence. Downloads and model loading are timed separately.';
     let completed=false;
@@ -393,12 +394,12 @@ preview();
   $('download-model').addEventListener('click',()=>{localAllowed=true;save();void loadLocal();});
   $('cancel-download').addEventListener('click',()=>downloadController?.abort());
   $('remove-model').addEventListener('click',async()=>{
-    localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;localAllowed=false;setupFailed=false;
+    localPlayer.invalidate();await localKokoro.removeDownloads();localKokoro.resetMetrics();localEnabled=false;localAllowed=false;setupFailed=false;
     save();setupControls();preview();$('download-status').textContent='Downloads removed. Download Kokoro again to use it on this device.';
   });
   if(localAllowed && saved.engine==='kokoro'){$('engine').value='kokoro';changeEngine();}
   else setupControls();
-  setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>localKokoro.processingMetrics());
+  setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>$('engine').value==='kokoro'?localKokoro.processingMetrics():undefined);
 }
 if (WORKSTATION) {
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');

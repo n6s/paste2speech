@@ -118,10 +118,10 @@ class ColonPauseTests(unittest.TestCase):
             self.assertTrue((pcm[240:6240] == 0).all())
             self.assertGreater(pcm[6240], 0)
 
-    def test_times_urls_and_no_space_colons_stay_intact(self):
+    def test_times_expand_without_adding_colon_pauses(self):
         text = 'At 10:30 see https://example.com and A:B.'
         calls, pcm = self.synthesize(text)
-        self.assertEqual(calls, [text])
+        self.assertEqual(calls, [spoken_text(text)])
         self.assertEqual(len(pcm), 240)
 
     def test_existing_pause_is_topped_up_not_stacked(self):
@@ -229,7 +229,7 @@ class SpokenTextTests(unittest.TestCase):
         self.assertEqual(calls, [expected])
         self.assertEqual(spoken_text('(1:1), 1:1.'), '(one to one), one to one.')
         self.assertNotIn('one to one', spoken_text('0.1:1 1:1.5'))
-        unchanged = '11:1 1:10 10:30 1:1:30 v1:1 1:1pm https://example.com/1:1 www.example.com/1:1'
+        unchanged = '11:1 1:1:30 v1:1 1:1pm https://example.com/1:1 www.example.com/1:1'
         self.assertEqual(spoken_text(unchanged), unchanged)
 
     def test_identifiers_and_urls_are_not_decimal_numbers(self):
@@ -323,3 +323,12 @@ class EmptySpeechTests(unittest.TestCase):
         engine.pipelines = {'a': lambda *args, **kwargs: iter(())}
         with self.assertRaisesRegex(ValueError, 'No speech generated'):
             engine.synthesize(Speech(text='Actual words'))
+
+class ClockSpeechTests(unittest.TestCase):
+    def test_shared_clock_examples(self):
+        import json
+        from pathlib import Path
+        cases = json.loads((Path(__file__).resolve().parents[1] / 'shared/time-speech-cases.json').read_text())
+        for source, expected in cases:
+            with self.subTest(source=source):
+                self.assertEqual(spoken_text(source), expected)

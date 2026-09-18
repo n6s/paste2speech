@@ -28,3 +28,7 @@ test('token-safe splitting never truncates or drops non-whitespace characters',(
  assert.ok(pieces.every(p=>p.dims[1]<=511));
  assert.equal(pieces.map(p=>p.text).join('').replaceAll(' ',''),input.replaceAll(' ',''));
 });
+test('clock times, ranges and ratios follow shared speech-only examples',()=>{
+ const cases=JSON.parse(readFileSync(new URL('../shared/time-speech-cases.json',import.meta.url)));
+ for(const [input,expected]of cases)assert.equal(spokenText(input),expected,input);
+});

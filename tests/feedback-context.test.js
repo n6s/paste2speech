@@ -27,3 +27,10 @@ test('processing diagnostics are snapshots and reject unbounded or private field
  assert.equal(context.processing.chunks,1);
  assert.equal(feedbackContext({...base,processing:{...processing,text:'private'}}).processing,undefined);
 });
+test('on-device metrics cannot accompany another selected engine',()=>{
+ const processing={version:2,engine:'kokoro',scope:'current-selection',requestedGPU:true,chunks:1,generationMs:250,audioMs:3000};
+ for(const engine of ['workstation','browser']){
+  const result=feedbackContext({navigator:{},environment:'test',release:'test',engine,voice:'Heart',playback:'done',processing});
+  assert.equal(result.processing,undefined);
+ }
+});

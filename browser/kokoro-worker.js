@@ -90,7 +90,7 @@ async function prepare(id, useGPU) {
  await init(id,false);
 }
 
-function metrics(status,extra={}) { return {status,backend:backend.startsWith('GPU')?'gpu':'cpu',dtype:backend.split(' · ')[1],fallback:gpuFailed,loadMs,probeMs,...extra}; }
+function metrics(status,extra={}) { return {status,backend:backend.startsWith('GPU')?'gpu':'cpu',dtype:backend.split(' · ')[1],fallback:gpuFailed,...extra}; }
 self.onmessage=async({data:{id,type,text,voice,speed,useGPU}})=>{
  const started=performance.now();
  try {
@@ -114,7 +114,7 @@ self.onmessage=async({data:{id,type,text,voice,speed,useGPU}})=>{
    postMessage({id,results});return;
   }
   if(!model) await prepare(id,useGPU);
-  if(type==='load'){await voiceData(voice||'af_heart');postMessage({id,ready:true,backend,fallback:gpuFailed,metrics:metrics('ok')});return;}
+  if(type==='load'){await voiceData(voice||'af_heart');postMessage({id,ready:true,backend,fallback:gpuFailed,metrics:metrics('ok',{loadMs,probeMs})});return;}
   const generationStarted=performance.now();
   let pcm;
   try { pcm=await synthesize(text,voice,speed); }

@@ -33,7 +33,8 @@ export class LocalKokoro {
   catch(error){operation.status=error.name==='AbortError'?'cancelled':'failed';throw error;}
   finally{operation.elapsedMs=Math.round(performance.now()-started);signal?.removeEventListener('abort',abort);}
  }
- processingMetrics(){if(this.diagnostics.operation?.status==='running')this.diagnostics.operation.elapsedMs=Math.round(performance.now()-this.operationStarted);return structuredClone({version:1,requestedGPU:this.useGPU===true,...this.diagnostics});}
+ resetMetrics(){this.diagnostics={chunks:0,generationMs:0,audioMs:0};}
+ processingMetrics(){if(this.diagnostics.operation?.status==='running')this.diagnostics.operation.elapsedMs=Math.round(performance.now()-this.operationStarted);return structuredClone({version:2,engine:'kokoro',scope:'current-selection',requestedGPU:this.useGPU===true,...this.diagnostics});}
  async request(text,settings,signal) {
   const {pcm}=await this.run('synthesize',{text,voice:settings.voice,speed:settings.rate},signal);
   return {format:[1,0,1,0,192,93,0,0,128,187,0,0,2,0,16,0],pcm:new Uint8Array(pcm)};

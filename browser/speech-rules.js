@@ -1,8 +1,9 @@
+import { timeSpeech } from './time-speech.js';
 import { currencyNumberWords } from '../public/text.js';
 export function spokenText(text) {
  return text.split(/((?:https?:\/\/|www\.)[^\s]+)/gi).map(part => {
   if (/^(?:https?:\/\/|www\.)/i.test(part)) return part;
-  part = part.replace(/(?<![\w:./])1:1(?![\w:/]|\.\w)/g, 'one to one');
+  part = timeSpeech(part);
   part = part.replace(/(?<![\w.])(\d{1,3}(?:,\d{3})+(?:\.\d+)?|\d+(?:\.\d+)?)[ \t]*[-‑–]?[ \t]*(lbs?|sq\.?[ \t]*[-‑–]?[ \t]*ft|ft)\b(\.?)/gi,
    (m,n,u,d,offset,whole) => `${n} ${/^lb/i.test(u) ? (Number(n.replaceAll(',','')) === 1 ? 'pound':'pounds') : /^sq/i.test(u) ? 'square feet':'feet'}${/^\s*[a-z]/.test(whole.slice(offset+m.length)) ? '' : d}`);
   part = part.replace(/(?<![\w.,])\d{1,3}(?:,\d{3})+(?:\.\d+)?(?!\w|,\d|\.\w)/g,m=>currencyNumberWords(m)||m);

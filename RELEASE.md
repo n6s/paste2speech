@@ -193,3 +193,22 @@ engines during setup cancels it without switching the reader back afterward.
 `node tests/kokoro-setup-browser.mjs` exercises the setup state transitions with a
 mocked model; the existing GPU and public browser scripts test real loading,
 fallback synthesis, playback, and cache removal separately.
+
+## Feedback attribution and clock speech
+
+New `context.processing` reports use version 2, explicitly identify on-device
+Kokoro, and cover the current selection. Changing engines, source text, cleanup,
+voice, speed, or GPU settings clears the previous metrics. Other engines omit
+on-device metrics entirely. Model initialization timings appear only on setup
+operations; synthesis timings no longer repeat an earlier model load. Comparison
+entries are standalone benchmarks, not reading timings. The API still accepts
+version 1 for older tabs and labels those metrics as historical page-session data.
+No workstation performance measurements are inferred from on-device activity.
+
+Clock normalization runs only at each Kokoro synthesis boundary, preserving
+pasted and displayed text. Both engines share example fixtures for `3:00`,
+`5:05`, `3:00–5:00 PM`, arrow ranges, AM/PM, and `1:2` ratios. It recognizes
+12-hour clock forms with two minute digits; URLs, identifiers and timestamps
+with seconds are protected. Explicit numeric ratios remain ratios even with
+two digits. `tests/metrics-attribution-browser.mjs` checks report attribution
+using intercepted submissions and mocked audio generation.
