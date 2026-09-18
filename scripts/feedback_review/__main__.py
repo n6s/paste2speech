@@ -67,9 +67,14 @@ def locked(state=STATE):
 
 
 def query(sql):
+    environment = {k: v for k, v in os.environ.items() if k in {'HOME','PATH','LANG','USER'}}
+    token_file = CONFIG / 'cloudflare-api-token'
+    token = token_file.read_text().strip() if token_file.exists() else os.environ.get('CLOUDFLARE_API_TOKEN', '')
+    if token:
+        environment['CLOUDFLARE_API_TOKEN'] = token
     result = subprocess.run([str(ROOT / 'node_modules/.bin/wrangler'), 'd1', 'execute',
         'paste2speech', '--remote', '--json', '--command', sql], cwd=ROOT,
-        capture_output=True, text=True, timeout=60)
+        capture_output=True, text=True, timeout=60, env=environment)
     if result.returncode:
         raise RuntimeError('cloudflare_query_failed')
     data = json.loads(result.stdout)

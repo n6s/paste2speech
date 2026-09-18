@@ -81,8 +81,9 @@ Validate Python tests, Worker tests, service syntax, a live isolated model revie
 and a synthetic Telegram summary before enabling the timer. Install both unit
 files in `~/.config/systemd/user/` and reload systemd. Record the baseline, deploy
 review mode, enable the timer, then verify a labeled post-cutover form submission.
-Owner credentials remain under `~/.config/paste2speech/`; Wrangler uses the normal
-authenticated local installation. The units pin the current Node directory and
+Owner credentials remain under `~/.config/paste2speech/`; Wrangler receives the owner-only `cloudflare-api-token` file only in its
+child environment, so systemd does not depend on terminal environment variables.
+The agent never receives this file or environment variable. The units pin the current Node directory and
 must be updated if that runtime is removed.
 
 ## Recovery and rollback
