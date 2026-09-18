@@ -19,6 +19,7 @@ try{
  await page.locator('#read-mode').click();
  assert.equal(await page.locator('#status').textContent(),'Ready when you are');
  await page.locator('#voice-settings > summary').click();
+ await page.locator('#engine').selectOption('kokoro');
  await page.locator('#download-model').click();
  await page.waitForFunction(()=>document.querySelector('#download-status').textContent.includes('Kokoro is ready'),{},{timeout:300000});
  console.log('Model loaded');
@@ -39,8 +40,9 @@ try{
  assert.ok(british.length>48000);
  await page.locator('#stop').click();
  await page.locator('#remove-model').click();
- await page.waitForFunction(()=>document.querySelector('#download-status').textContent==='Downloaded voice data removed.');
- assert.equal(await page.locator('#engine').inputValue(),'browser');
+ await page.waitForFunction(()=>document.querySelector('#download-status').textContent.startsWith('Downloads removed.'));
+ assert.equal(await page.locator('#engine').inputValue(),'kokoro');
+ assert.equal(await page.locator('#download-model').textContent(),'Download Kokoro');
  assert.equal(await page.evaluate(async()=>{let n=0;for(const key of await caches.keys())for(const r of await (await caches.open(key)).keys())if(r.url.includes('Kokoro-82M'))n++;return n;}),0);
  assert.ok(!readingRequests.some(r=>r.url.includes('/speech')||r.url.includes('/pdf-text')));
  assert.deepEqual(errors,[]);

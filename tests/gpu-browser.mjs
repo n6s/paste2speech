@@ -5,6 +5,7 @@ const page=await browser.newPage();
 try {
  await page.goto(process.env.TEST_URL||'https://pop-os.tailbd091c.ts.net/speak/');
  await page.locator('#voice-settings > summary').click();
+ await page.locator('#engine').selectOption('kokoro');
  assert.equal(await page.locator('#gpu-experiment').isVisible(),true);
  await page.locator('#use-gpu').check();
  assert.equal(await page.evaluate(()=>JSON.parse(localStorage.getItem('paste2speech.settings')).useGPU),true);
@@ -16,8 +17,10 @@ try {
   await route.fulfill({response,body:"Object.defineProperty(self.navigator,'gpu',{value:undefined});\n"+await response.text()});
  });
  await page.locator('#voice-settings > summary').click();
+ await page.locator('#engine').selectOption('kokoro');
  await page.locator('#download-model').click();
  await page.waitForFunction(()=>document.querySelector('#download-status').textContent.includes('GPU unavailable; using CPU'),null,{timeout:300000});
+ assert.equal(await page.locator('#download-model').isVisible(),false);
  const audio=await page.evaluate(async()=>{
   const worker=new Worker(new URL('kokoro-worker.js',location.href),{type:'module'});
   try {
@@ -32,7 +35,8 @@ try {
  await page.locator('#compare-gpu').click();
  await page.locator('#cancel-download').click();
  await page.waitForFunction(()=>document.querySelector('#gpu-results').textContent==='Comparison cancelled.');
- assert.equal(await page.locator('#download-model').isEnabled(),true);
+ assert.equal(await page.locator('#download-model').textContent(),'Retry setup');
+ assert.equal(await page.locator('#download-model').isVisible(),true);
  let submitted;
  await page.route('**/api/feedback-ticket',route=>route.fulfill({json:{id:'test'}}));
  await page.route('**/api/feedback',async route=>{submitted=route.request().postDataJSON();await route.fulfill({status:202,json:{saved:true}});});

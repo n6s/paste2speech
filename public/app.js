@@ -58,6 +58,8 @@ localPlayer.getSettings = settings;
 workstationPlayer.getSettings = settings;
 let player = browserPlayer;
 let localEnabled = false;
+let localAllowed = saved.kokoroEnabled === true || (saved.kokoroEnabled === undefined && saved.engine === 'kokoro' && saved.engineSchema === 2);
+let syncLocalSetup = () => {};
 let workstationVoices = [];
 const names=[['af_heart','Heart · American English'],['af_bella','Bella · American English'],['am_michael','Michael · American English'],['am_fenrir','Fenrir · American English'],['bf_emma','Emma · British English'],['bm_george','George · British English']];
 const localVoices=names.map(([id,name])=>({id,name}));
@@ -79,6 +81,7 @@ function changeEngine() {
   selectedVoice = isKokoro() ? workstationVoice : browserVoice;
   loadVoices(); save(); preview();
   if (player) render(player);
+  syncLocalSetup();
 }
 async function discoverWorkstation() {
   try {
@@ -95,7 +98,7 @@ async function discoverWorkstation() {
   }
 }
 function settings() { return { paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
-function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
+function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
   chunks = [];
@@ -245,7 +248,7 @@ function loadVoices() {
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : 'af_heart';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = !isWorkstation() ? 'Experimental · generated on this device. First download about 93 MB, then about 0.5 MB per additional voice. Preparation may be slow on phones.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -339,39 +342,62 @@ preview();
   $('engine').options[1].disabled=!KOKORO_ENABLED;
   $('local-download').hidden=!KOKORO_ENABLED;
 {
-  let downloadController;
+  let downloadController, setupBusy=false, setupFailed=false;
   $('gpu-experiment').hidden=!WORKSTATION;
   $('use-gpu').checked=WORKSTATION && saved.useGPU===true;
   localKokoro.useGPU=$('use-gpu').checked;
+  function setupControls() {
+    $('local-download').hidden=!KOKORO_ENABLED || $('engine').value!=='kokoro';
+    $('download-model').hidden=setupBusy || (localAllowed && !setupFailed);
+    $('download-model').textContent=setupFailed?'Retry setup':'Download Kokoro';
+    $('cancel-download').hidden=!setupBusy;
+    for(const id of ['compare-gpu','use-gpu','remove-model'])$(id).disabled=setupBusy;
+    $('remove-model').hidden=!localAllowed;
+    $('download-info').hidden=localAllowed;
+    if(!localAllowed && !setupBusy)$('download-status').textContent='Download once to get started. After that, Kokoro loads automatically when selected.';
+  }
+  async function loadLocal() {
+    if(setupBusy || localEnabled || !localAllowed || $('engine').value!=='kokoro')return;
+    setupBusy=true;setupFailed=false;downloadController=new AbortController();setupControls();
+    $('download-status').textContent='Getting Kokoro ready… Saved downloads are reused when available.';
+    try {
+      await localKokoro.run('load',{voice:workstationVoice},downloadController.signal);
+      localEnabled=true;
+    }catch(error){
+      setupFailed=true;localEnabled=false;
+      $('download-status').textContent=error.name==='AbortError'?'Setup cancelled. Retry when you’re ready.':error.message;
+      if(error.name!=='AbortError')event('kokoro_failure','kokoro','download');
+    }finally{setupBusy=false;setupControls();preview();}
+  }
+  syncLocalSetup=()=>{setupControls();if(localAllowed && !setupBusy && !localEnabled)void loadLocal();};
   $('use-gpu').addEventListener('change',()=>{
-    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;
-    localKokoro.useGPU=$('use-gpu').checked;save();preview();
-    $('download-status').textContent='Choose Enable / download Kokoro to apply this setting.';
+    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;setupFailed=false;
+    localKokoro.useGPU=$('use-gpu').checked;save();preview();syncLocalSetup();
   });
   $('compare-gpu').addEventListener('click',async()=>{
-    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;preview();
-    downloadController=new AbortController();
-    $('compare-gpu').disabled=true;$('download-model').disabled=true;$('use-gpu').disabled=true;$('remove-model').disabled=true;$('cancel-download').hidden=false;
+    localPlayer.invalidate();localKokoro.cancel();localEnabled=false;localAllowed=true;setupFailed=false;save();preview();
+    setupBusy=true;downloadController=new AbortController();setupControls();
     $('gpu-results').textContent='Comparing the same short sentence. Downloads and model loading are timed separately.';
+    let completed=false;
     try {
       const {results}=await localKokoro.run('benchmark',{},downloadController.signal);
       $('gpu-results').textContent=results.map(r=>r.status==='ok'?`${r.backend.toUpperCase()} · ${r.dtype}: load ${(r.loadMs/1000).toFixed(1)}s, first ${(r.firstMs/1000).toFixed(1)}s, repeat ${(r.repeatMs/1000).toFixed(1)}s`:`${r.dtype}: unavailable or failed`).join('\n');
-      $('download-status').textContent='Comparison complete. Choose Enable / download Kokoro to start reading.';
-    }catch(error){$('gpu-results').textContent=error.name==='AbortError'?'Comparison cancelled.':error.message;}
-    finally {localKokoro.cancel();$('compare-gpu').disabled=false;$('download-model').disabled=false;$('use-gpu').disabled=false;$('remove-model').disabled=false;$('cancel-download').hidden=true;preview();}
+      completed=true;
+    }catch(error){$('gpu-results').textContent=error.name==='AbortError'?'Comparison cancelled.':error.message;setupFailed=true;}
+    finally {
+      localKokoro.cancel();setupBusy=false;setupControls();preview();
+      if(completed)await loadLocal();
+      else $('download-status').textContent='Comparison stopped. Retry setup when you’re ready to read.';
+    }
   });
-  $('download-model').addEventListener('click',async()=>{
-    downloadController=new AbortController();$('remove-model').disabled=true;$('compare-gpu').disabled=true;$('use-gpu').disabled=true;$('download-model').disabled=true;$('cancel-download').hidden=false;
-    $('download-status').textContent='Loading voice model…';
-    try{
-      await localKokoro.run('load',{voice:workstationVoice},downloadController.signal);
-      localEnabled=true;
-      $('engine').value='kokoro';changeEngine();
-    }catch(error){$('download-status').textContent=error.name==='AbortError'?'Download cancelled. Browser voices are still available.':error.message;if(error.name!=='AbortError')event('kokoro_failure','kokoro','download');}
-    finally{$('remove-model').disabled=false;$('compare-gpu').disabled=false;$('use-gpu').disabled=false;$('download-model').disabled=false;$('cancel-download').hidden=true;preview();}
-  });
+  $('download-model').addEventListener('click',()=>{localAllowed=true;save();void loadLocal();});
   $('cancel-download').addEventListener('click',()=>downloadController?.abort());
-  $('remove-model').addEventListener('click',async()=>{localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;$('engine').value='browser';changeEngine();$('download-status').textContent='Downloaded voice data removed.';});
+  $('remove-model').addEventListener('click',async()=>{
+    localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;localAllowed=false;setupFailed=false;
+    save();setupControls();preview();$('download-status').textContent='Downloads removed. Download Kokoro again to use it on this device.';
+  });
+  if(localAllowed && saved.engine==='kokoro'){$('engine').value='kokoro';changeEngine();}
+  else setupControls();
   setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>localKokoro.processingMetrics());
 }
 if (WORKSTATION) {

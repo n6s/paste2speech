@@ -149,7 +149,7 @@ and supported GPU FP16, sequentially disposing each model. It reports loading
 (including downloads), first synthesis, and repeat synthesis separately. This
 may download all three models (roughly 582 MB total, plus voices/runtime assets).
 Results remain on the page; they are not uploaded. Cancel terminates the worker.
-After comparison, choose Enable / download again to initialize the selected mode.
+After a completed comparison, the selected mode is initialized automatically.
 
 Validate with `npm test`, `npm run build`, and `node tests/gpu-browser.mjs`.
 The GPU browser check forces unavailable GPU capability and verifies real CPU
@@ -177,3 +177,19 @@ public HTML/JS hashes before and after this API-only deployment, then rebuild
 `dist/` for Tailscale with the committed release ID. Feedback integration tests
 intercept browser submissions and use an in-memory database, avoiding synthetic
 reports or Telegram notifications in the live review queue.
+
+## On-device setup flow
+
+Select On-device Kokoro to see its setup controls. The first use offers
+**Download Kokoro**; a successful or previously authorized setup is remembered in
+browser preferences. Subsequent selection and page reload initialize it
+automatically, reusing cached downloads when available (evicted files may need
+downloading again). GPU changes and completed comparisons also initialize the
+selected mode automatically. The download button is hidden during setup and once
+ready; **Retry setup** appears after a failed or cancelled setup. Removing downloads
+clears this preference and presents the first-download action again. Switching
+engines during setup cancels it without switching the reader back afterward.
+
+`node tests/kokoro-setup-browser.mjs` exercises the setup state transitions with a
+mocked model; the existing GPU and public browser scripts test real loading,
+fallback synthesis, playback, and cache removal separately.
