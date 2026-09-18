@@ -150,7 +150,11 @@ class Engine:
             for phrase, pause in speech_phrases(spoken_text(job.text)):
                 generated = [audio.cpu().numpy() for _, _, audio in self.pipelines[job.voice[0]](pronunciation_text(phrase, job.voice), voice=job.voice, speed=job.speed) if audio is not None]
                 if not generated:
-                    raise ValueError('No speech generated')
+                    if any(char.isalnum() for char in phrase):
+                        raise ValueError('No speech generated')
+                    # Formatting-only sections can legitimately have no phonemes.
+                    # Keep a small seekable gap instead of failing the whole reading.
+                    generated = [np.zeros(2400, dtype=np.float32)]
                 pcm = np.concatenate(generated)
                 audible = np.flatnonzero(np.abs(pcm) > 0.0001)
                 leading = int(audible[0]) if len(audible) else len(pcm)

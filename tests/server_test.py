@@ -305,3 +305,21 @@ class AnswerLabelTests(unittest.TestCase):
 
 if __name__ == '__main__':
     unittest.main()
+
+class EmptySpeechTests(unittest.TestCase):
+    def test_formatting_only_sections_return_seekable_silence(self):
+        import io
+        import soundfile as sf
+        engine = Engine.__new__(Engine)
+        engine.pipelines = {'a': lambda *args, **kwargs: iter(())}
+        for text in ('*', '**', '…', '---'):
+            pcm, rate = sf.read(io.BytesIO(engine.synthesize(Speech(text=text))))
+            self.assertEqual(rate, 24000)
+            self.assertGreater(len(pcm), 0)
+            self.assertTrue((pcm == 0).all())
+
+    def test_missing_audio_for_real_words_is_still_an_error(self):
+        engine = Engine.__new__(Engine)
+        engine.pipelines = {'a': lambda *args, **kwargs: iter(())}
+        with self.assertRaisesRegex(ValueError, 'No speech generated'):
+            engine.synthesize(Speech(text='Actual words'))

@@ -121,7 +121,13 @@ export class AudioPlayer {
         });
         continue;
       }
-      if (!response.ok) throw new Error('Workstation speech is unavailable. Tap Play to retry.');
+      if (!response.ok) {
+        const message = response.status === 500 ? 'The workstation could not generate one section. Tap Play to retry; completed audio is retained.'
+          : response.status === 503 ? 'The workstation is busy. Wait a moment, then tap Play to retry.'
+          : response.status === 422 ? 'The workstation rejected this section or voice. Try another voice.'
+          : 'Workstation speech is unavailable. Tap Play to retry.';
+        throw new Error(message);
+      }
       return parseWav(await response.arrayBuffer());
     }
   }
