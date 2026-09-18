@@ -4,7 +4,7 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync} from 'node:fs';
 import worker,{validFeedback,validEvent,deliver} from '../cloudflare/worker.js';
 function setup(){
- const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../migrations/0001.sql',import.meta.url),'utf8'));
+ const db=new DatabaseSync(':memory:');db.exec(readFileSync(new URL('../migrations/0001.sql',import.meta.url),'utf8'));db.exec(readFileSync(new URL('../migrations/0002_feedback_context.sql',import.meta.url),'utf8'));
  const wrapper=sql=>{let params=[];return {bind(...p){params=p;return this;},async first(){return db.prepare(sql).get(...params)||null;},async run(){return db.prepare(sql).run(...params);},async all(){return {results:db.prepare(sql).all(...params)}}};};
  return {db,env:{DB:{prepare:wrapper,async batch(items){return Promise.all(items.map(x=>x.run()));}},PUBLIC_ORIGIN:'https://speak.rogerpbrown.com',FEEDBACK_SECRET:'test-secret',TELEGRAM_BOT_TOKEN:'TEST',TELEGRAM_CHAT_ID:'123',EVENT_LIMIT:{limit:async()=>({success:true})},FEEDBACK_LIMIT:{limit:async()=>({success:true})}}};
 }
@@ -53,4 +53,20 @@ test('private reader can submit feedback through narrowly scoped CORS',async()=>
  assert.equal(ticket.status,200);assert.equal(ticket.headers.get('access-control-allow-origin'),origin);
  const denied=await worker.fetch(request('/api/feedback-ticket',null,{origin:'https://untrusted.test'}),env,{});
  assert.equal(denied.status,403);assert.equal(denied.headers.get('access-control-allow-origin'),null);
+});
+test('feedback diagnostics survive storage and Telegram delivery, with server-derived environment',async()=>{
+ const {db,env}=setup();const pending=[];const ctx={waitUntil:p=>pending.push(p)};
+ const origin='https://pop-os.tailbd091c.ts.net';
+ const ticket=await (await worker.fetch(request('/api/feedback-ticket',null,{origin}),env,ctx)).json();
+ const context={environment:'production',browser:'Chrome',device:'mobile',engine:'workstation',voice:'Heart · American English',release:'abc123',playback:'paused'};
+ const feedback={message:'Diagnostic context integration test.',email:'',website:'',ticket,context};
+ assert.ok(validFeedback(feedback));
+ for(const bad of [{...context,reading:'secret'},{...context,voice:'x'.repeat(121)},{...context,engine:'invalid'}])assert.ok(!validFeedback({...feedback,context:bad}));
+ const original=globalThis.fetch;let notification;
+ try{
+  globalThis.fetch=async(_url,options)=>{notification=JSON.parse(options.body).text;return new Response(JSON.stringify({ok:true,result:{message_id:45}}));};
+  assert.equal((await worker.fetch(request('/api/feedback',feedback,{origin}),env,ctx)).status,202);await Promise.all(pending);
+  assert.deepEqual(JSON.parse(db.prepare('SELECT context FROM feedback').get().context),{...context,environment:'test'});
+  assert.match(notification,/Site: test/);assert.match(notification,/Chrome · mobile/);assert.match(notification,/Workstation - Kokoro/);assert.match(notification,/Playback: paused/);
+ }finally{globalThis.fetch=original;}
 });

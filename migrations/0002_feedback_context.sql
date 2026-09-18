@@ -1,0 +1,1 @@
+ALTER TABLE feedback ADD COLUMN context TEXT NOT NULL DEFAULT '{}';

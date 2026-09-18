@@ -336,7 +336,7 @@ preview();
   });
   $('cancel-download').addEventListener('click',()=>downloadController?.abort());
   $('remove-model').addEventListener('click',async()=>{localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;$('engine').value='browser';changeEngine();$('download-status').textContent='Downloaded voice data removed.';});
-  setupFeedback();
+  setupFeedback(()=>player?.state||'idle');
 }
 if (WORKSTATION) {
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');
