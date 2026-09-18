@@ -1,3 +1,6 @@
+import { PUBLIC, KOKORO_ENABLED } from './config.js';
+import { LocalKokoro } from './local-kokoro.js';
+import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
 import { cleanText, chunkText, defaults } from './text.js?v=20260917-answer-labels-1';
 import { Player } from './player.js';
@@ -48,17 +51,23 @@ let paragraphStarts = [];
 let sentenceElements = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
-const workstationPlayer = new AudioPlayer(render);
+const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
+const workstationPlayer = new AudioPlayer(render, PUBLIC ? {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)} : {});
 workstationPlayer.getSettings = settings;
 let player = browserPlayer;
+let localEnabled = false;
 let workstationVoices = [];
+let previousState = 'idle';
+let preparationStarted = 0;
+let countNextPlayback = false;
 let browserVoice = selectedVoice;
 let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
 function isWorkstation() { return $('engine').value === 'kokoro'; }
-function canPlay() { return isWorkstation() || supported; }
+function canPlay() { return isWorkstation() ? (!PUBLIC || localEnabled) : supported; }
 function changeEngine() {
   player?.stop();
   workstationPlayer.release();
+  if (PUBLIC && localKokoro.pending) localKokoro.cancel();
   player = isWorkstation() ? workstationPlayer : browserPlayer;
   selectedVoice = isWorkstation() ? workstationVoice : browserVoice;
   loadVoices(); save(); preview();
@@ -105,7 +114,7 @@ function preview() {
       button.tabIndex = canPlay() ? 0 : -1;
       button.setAttribute('aria-disabled', String(!canPlay()));
       button.setAttribute('aria-label', `Read from section ${start + 1}: ${chunk}`);
-      const activate = () => { if (canPlay()) player?.start(chunks, settings(), start); };
+      const activate = () => { if (canPlay()) { if (['idle','done'].includes(player?.state)) countNextPlayback=true; player?.start(chunks, settings(), start); } };
       button.addEventListener('click', activate);
       button.addEventListener('keydown', event => {
         if (event.key === 'Enter' || event.key === ' ') {
@@ -138,7 +147,7 @@ function readAndPlay() {
   setMode('read');
   if (!player || !canPlay() || !cleaned || ['playing', 'preparing'].includes(player.state)) return;
   if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings());
-  else player.start(chunks, settings());
+  else { countNextPlayback=true; player.start(chunks, settings()); }
 }
 $('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
 function followParagraph(button) {
@@ -169,11 +178,18 @@ $('reading-size').addEventListener('input', () => {
 });
 function render(p, message) {
   if (p !== player) return;
+  if(PUBLIC && p.state!==previousState){
+    if(p.state==='preparing') preparationStarted=performance.now();
+    if(p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
+    if(p.state==='failed') event('kokoro_failure','kokoro','generation');
+    if(p.state==='playing' && countNextPlayback){event('playback_start',isWorkstation()?'kokoro':'browser');countNextPlayback=false;}
+    previousState=p.state;
+  }
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
   $('play').textContent = ['paused', 'failed'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = ['playing', 'preparing'].includes(p.state) || !cleaned;
+  $('play').disabled = ['playing', 'preparing'].includes(p.state) || !cleaned || !canPlay();
   $('pause').disabled = !['playing', 'preparing'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   const active = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state);
@@ -205,7 +221,7 @@ function loadVoices() {
     for (const voice of workstationVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = workstationVoices.some(v => v.id === selectedVoice) ? selectedVoice : 'af_heart';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = PUBLIC ? 'Experimental · generated on this device. First download about 93 MB, then about 0.5 MB per additional voice. Preparation may be slow on phones.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -295,7 +311,27 @@ else $('status').textContent = 'Speech is unavailable in this browser. Try Chrom
 updateVoiceSummary();
 preview();
 
-discoverWorkstation();
+if(PUBLIC){
+  const names=[['af_heart','Heart · American English'],['af_bella','Bella · American English'],['am_michael','Michael · American English'],['am_fenrir','Fenrir · American English'],['bf_emma','Emma · British English'],['bm_george','George · British English']];
+  workstationVoices=names.map(([id,name])=>({id,name}));
+  $('engine').options[1].textContent=KOKORO_ENABLED?'On-device Kokoro · experimental':'Kokoro · temporarily unavailable';
+  $('engine').options[1].disabled=!KOKORO_ENABLED;
+  $('local-download').hidden=!KOKORO_ENABLED;
+  let downloadController;
+  $('download-model').addEventListener('click',async()=>{
+    downloadController=new AbortController();$('download-model').disabled=true;$('cancel-download').hidden=false;
+    $('download-status').textContent='Loading voice model…';
+    try{
+      await localKokoro.run('load',{voice:workstationVoice},downloadController.signal);
+      localEnabled=true;$('download-status').textContent='Kokoro is ready. Downloads are cached when your browser allows it.';
+      $('engine').value='kokoro';changeEngine();
+    }catch(error){$('download-status').textContent=error.name==='AbortError'?'Download cancelled. Browser voices are still available.':error.message;if(error.name!=='AbortError')event('kokoro_failure','kokoro','download');}
+    finally{$('download-model').disabled=false;$('cancel-download').hidden=true;preview();}
+  });
+  $('cancel-download').addEventListener('click',()=>downloadController?.abort());
+  $('remove-model').addEventListener('click',async()=>{workstationPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;$('engine').value='browser';changeEngine();$('download-status').textContent='Downloaded voice data removed.';});
+  setupFeedback();
+}else discoverWorkstation();
 
 $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
@@ -308,27 +344,40 @@ $('pdf-file').addEventListener('change', async () => {
   player?.stop();
   $('pdf-file').disabled = true;
   $('text').readOnly = true;
+  $('paste-play').disabled = true;
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
+  const pdfController = new AbortController();
+  const pdfTimer = setTimeout(()=>pdfController.abort(),40000);
+  if(PUBLIC){$('cancel-pdf').hidden=false;$('cancel-pdf').onclick=()=>pdfController.abort();}
   try {
+    let data;
+    if(PUBLIC){
+      const {extractPdf}=await import('./pdf.js');
+      data=await extractPdf(file, pdfController.signal);
+    }else{
     const response = await fetch(new URL('api/pdf-text', location.href), {
       method: 'POST', headers: {'Content-Type': 'application/pdf'},
       body: file, signal: AbortSignal.timeout(40000),
     });
     if (response.status === 404 || response.status === 405) throw new Error('PDF import needs the workstation service. Open the Tailscale reader URL.');
-    const data = await response.json();
+    data = await response.json();
     if (!response.ok) throw new Error(typeof data.detail === 'string' ? data.detail : 'Could not read this PDF.');
+    }
     resetReading();
     $('text').value = data.text;
     preview();
     setMode('edit');
     $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the imported text, then choose Read to listen. Columns and tables may read out of order.`;
   } catch (error) {
-    $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not reach the workstation. Check your connection and try again.' : error.message);
+    $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? (PUBLIC ? 'Could not read this PDF on this device. Try another file.' : 'Could not reach the workstation. Check your connection and try again.') : error.message);
   } finally {
+    clearTimeout(pdfTimer);
+    if(PUBLIC)$('cancel-pdf').hidden=true;
     $('pdf-file').disabled = false;
     $('pdf-file').value = '';
     $('text').readOnly = false;
+    $('paste-play').disabled = false;
     $('clear').disabled = false;
   }
 });

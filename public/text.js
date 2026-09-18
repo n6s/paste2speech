@@ -137,7 +137,7 @@ function inlineLiterals(text, markdown) {
 }
 
 // Currency-only cardinal expansion avoids a year-style reading of four digits.
-function currencyNumberWords(value) {
+export function currencyNumberWords(value) {
   const [integer, fraction] = value.replace(/,/g, '').split('.');
   const digits = integer.replace(/^0+(?=\d)/, '');
   if (digits.length > 18) return null;

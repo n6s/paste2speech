@@ -41,3 +41,4 @@
 .text-actions{display:flex;align-items:center;justify-content:flex-end;gap:4px;flex-wrap:wrap}
 .text-actions button{padding:8px 10px}
 @media(max-width:380px){.text-actions{gap:0}.text-actions button{padding:8px 6px;font-size:.78rem}}
+.site-footer{text-align:left;line-height:1.65}.site-footer details{margin:1rem 0}.site-footer h2{font-size:1.1rem}.site-footer a{color:inherit;text-decoration:underline}.site-footer label{display:block;margin:.75rem 0}.site-footer input{width:100%;padding:.7rem;border:1px solid #a8b6ae;border-radius:.5rem;font:inherit}.site-footer textarea{min-height:7rem}.honey{position:absolute!important;left:-10000px!important}.download-actions{display:flex;gap:.5rem;flex-wrap:wrap}

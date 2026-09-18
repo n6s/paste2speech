@@ -4,3 +4,7 @@ work/
 __pycache__/
 *.pyc
 .venv-cuda/
+
+dist/
+.wrangler/
+.dev.vars

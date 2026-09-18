@@ -1,0 +1,18 @@
+{
+ "name":"paste2speech",
+ "main":"cloudflare/worker.js",
+ "account_id":"c71dba5be3cc617a904adc61e767704d",
+ "compatibility_date":"2026-09-18",
+ "workers_dev":false,
+ "preview_urls":false,
+ "routes":[{"pattern":"speak.rogerpbrown.com","custom_domain":true}],
+ "assets":{"directory":"./dist","binding":"ASSETS","run_worker_first":["/api/*"]},
+ "vars":{"PUBLIC_ORIGIN":"https://speak.rogerpbrown.com","TELEGRAM_CHAT_ID":"579044008"},
+ "d1_databases":[{"binding":"DB","database_name":"paste2speech","database_id":"5499d01a-aa14-460d-97b9-100ece1293d3","migrations_dir":"migrations"}],
+ "ratelimits":[
+  {"name":"EVENT_LIMIT","namespace_id":"1001","simple":{"limit":60,"period":60}},
+  {"name":"FEEDBACK_LIMIT","namespace_id":"1002","simple":{"limit":6,"period":60}}
+ ],
+ "triggers":{"crons":["*/5 * * * *"]},
+ "observability":{"enabled":false}
+}

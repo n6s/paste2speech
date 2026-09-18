@@ -30,10 +30,7 @@ class Speech(BaseModel):
     speed: float = Field(default=1.0, ge=0.5, le=2.0, allow_inf_nan=False)
 
 # Kokoro/Misaki phonemes: explicit pronunciations, independent of capitalization.
-PRONUNCIATIONS = {
-    'a': {'demos': 'dˈɛmOz', 'ubtech': 'jˈubˌitɛk', 'waymo': 'wˈAmO', 'robotaxi': 'rˈObOtˌæksi', 'robotaxis': 'rˈObOtˌæksiz'},
-    'b': {'demos': 'dˈɛmQz', 'ubtech': 'jˈuːbˌiːtɛk', 'waymo': 'wˈAmQ', 'robotaxi': 'rˈQbQtˌaksiː', 'robotaxis': 'rˈQbQtˌaksiːz'},
-}
+PRONUNCIATIONS = json.loads((ROOT / "shared" / "pronunciations.json").read_text())
 
 
 def pronunciation_text(text, voice):

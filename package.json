@@ -1,1 +1,25 @@
-{"name":"paste2speech","version":"1.0.0","private":true,"type":"module","scripts":{"test":"node --test tests/*.test.js"}}
+{
+  "name": "paste2speech",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test": "node --test tests/*.test.js",
+    "build": "node scripts/build.mjs",
+    "deploy": "node scripts/release.mjs",
+    "test:worker": "node --test tests/worker.test.js"
+  },
+  "dependencies": {
+    "@huggingface/transformers": "3.8.1",
+    "pdfjs-dist": "6.3.289",
+    "phonemizer": "1.2.1"
+  },
+  "devDependencies": {
+    "esbuild": "0.28.2",
+    "playwright": "1.63.0",
+    "wrangler": "4.135.0"
+  },
+  "overrides": {
+    "sharp": "0.35.4"
+  }
+}

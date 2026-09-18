@@ -48,8 +48,8 @@ function sameSettings(left, right) {
 }
 
 export class AudioPlayer {
-  constructor(onChange = () => {}, { audio = new Audio(), fetcher = globalThis.fetch.bind(globalThis), urls = URL, media = globalThis.navigator?.mediaSession, maxBytes = MAX_PCM_BYTES } = {}) {
-    Object.assign(this, {onChange, audio, fetcher, urls, media, maxBytes, state: 'idle', chunks: [], index: 0, generation: 0, parts: [], starts: [], bytes: 0});
+  constructor(onChange = () => {}, { audio = new Audio(), fetcher = globalThis.fetch.bind(globalThis), urls = URL, media = globalThis.navigator?.mediaSession, maxBytes = MAX_PCM_BYTES, provider = null } = {}) {
+    Object.assign(this, {onChange, audio, fetcher, urls, media, maxBytes, provider, state: 'idle', chunks: [], index: 0, generation: 0, parts: [], starts: [], bytes: 0});
     audio.preload = 'auto';
     audio.addEventListener('timeupdate', () => this.sync());
     audio.addEventListener('play', () => { if (this.url) { this.state = 'playing'; this.emit(); } });
@@ -107,6 +107,7 @@ export class AudioPlayer {
     else this.prepare();
   }
   async request(text, signal) {
+    if (this.provider) return this.provider(text, this.settings, signal);
     for (let attempt = 0; ; attempt++) {
       const response = await this.fetcher(new URL('api/speech', globalThis.location?.href || 'http://localhost/'), {
         method: 'POST', headers: {'Content-Type': 'application/json'}, signal,
@@ -131,7 +132,7 @@ export class AudioPlayer {
       while (this.parts.length < this.chunks.length) {
         this.emit(`Preparing audio · ${this.parts.length} of ${this.chunks.length} parts`);
         const controller = new AbortController(); this.controller = controller;
-        const timer = setTimeout(() => controller.abort(), 60000);
+        const timer = setTimeout(() => controller.abort(), this.provider ? 300000 : 60000);
         let part;
         try { part = await this.request(this.chunks[this.parts.length], controller.signal); }
         finally { clearTimeout(timer); }

@@ -35,6 +35,7 @@ try {
  });
  assert.equal(await page.locator('#text').inputValue(),'## September Edition A\n\n**Q1 ·** A question to read.');
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
  assert.deepEqual(await page.locator('.reading-paragraph').allTextContents(),['September Edition A','Q1 · A question to read.']);
  await page.locator('#stop').click();
@@ -44,6 +45,7 @@ try {
  await page.locator('#text').fill(currency);
  const currencyRequest = page.waitForRequest(request => request.url().endsWith('/api/speech') && request.method()==='POST');
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  assert.equal((await currencyRequest).postDataJSON().text, expandedCurrency);
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
  assert.equal(await page.locator('#preview').textContent(), expandedCurrency);
@@ -63,6 +65,7 @@ try {
  await page.evaluate(() => window.blockPlayback = true);
  await page.locator('#text').fill(newsletter);
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Audio ready · tap Play.');
  assert.equal(await page.locator('.reading-paragraph').count(),2);
  assert.equal(await page.locator('.reading-paragraph').first().textContent(),'Trending AI Tools');
@@ -95,9 +98,11 @@ try {
  await page.route('**/api/speech', async r => { speechRequests++; await speechGate; await r.continue(); });
  const responsePromise=page.waitForResponse(r=>r.url().endsWith('/api/speech') && r.request().method()==='POST');
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(() => document.querySelector('#status').textContent.startsWith('Preparing audio'));
  assert.ok((await page.locator('#status').textContent()).startsWith('Preparing audio'));
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  assert.equal(speechRequests, 1);
  assert.equal(await page.locator('#text').evaluate(el => el === document.activeElement), false);
  releaseSpeech();
@@ -117,6 +122,7 @@ try {
  await page.waitForTimeout(250);
  assert.ok(await page.evaluate(previous => !testAudio.paused && testAudio.currentTime > previous, before));
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  assert.equal(await page.evaluate(() => testAudio.src), preparedSource);
  assert.equal(await page.locator('.sentence[aria-current=true]').count(), 1);
  assert.equal(await page.evaluate(() => navigator.mediaSession.metadata.title), 'Paste to Speech');
@@ -128,6 +134,7 @@ try {
  await page.screenshot({path:'work/kokoro-mobile.png',fullPage:true});
  await page.route('**/api/speech', r => r.abort());
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='All read. Take a breath.',{},{timeout:45000});
  await page.unroute('**/api/speech');
  await page.evaluate(() => window.blockPlayback = true);
@@ -136,11 +143,13 @@ try {
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Audio ready · tap Play.');
  await page.evaluate(() => window.blockPlayback = false);
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');
  await page.locator('#stop').click();
  await page.locator('#edit-mode').click();
  await page.locator('#text').fill('This longer paragraph has several sentences to listen to. '.repeat(7));
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  const sections = await page.locator('.sentence').allTextContents();
  assert.ok(sections.length > 1);
  await page.locator('#follow-reading').check();
@@ -164,10 +173,12 @@ try {
  await page.locator('#text').fill('Try again.');
  await page.route('**/api/speech',r=>r.fulfill({status:500,body:'unavailable'}));
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('unavailable'));
  assert.equal(await page.locator('#play').textContent(),'▶ Resume');
  await page.unroute('**/api/speech');
  await page.locator('#read-mode').click();
+ if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  await page.waitForFunction(() => document.querySelector('#status').textContent === 'Reading aloud');
  await page.locator('#voice-settings > summary').click();
  await page.locator('#engine').selectOption('browser');
