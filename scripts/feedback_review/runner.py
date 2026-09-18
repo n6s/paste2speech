@@ -32,7 +32,7 @@ def source_snapshot():
     for name in names:
         p = Path(name)
         if (p.parts[0] in {'public', 'browser', 'shared', 'server', 'cloudflare'}
-                and p.suffix in {'.js', '.py', '.json', '.html'}
+                and p.suffix in {'.js', '.py', '.json', '.html', '.css'}
                 and not any(x in p.parts for x in ('vendor', '__pycache__'))):
             value = subprocess.check_output(['git', 'show', f'{commit}:{name}'], cwd=ROOT, text=True)
             if len(value) > 80000:

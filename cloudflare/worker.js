@@ -1,3 +1,4 @@
+import { defaults as cleanupDefaults } from '../public/text.js';
 const json=(data,status=200)=>new Response(JSON.stringify(data),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'}});
 const empty=()=>new Response(null,{status:204,headers:{'Cache-Control':'no-store'}});
 const encoder=new TextEncoder();
@@ -20,9 +21,14 @@ export function validEvent(data){
  if(!data||Array.isArray(data)||Object.keys(data).some(k=>!['event','engine','category','release','duration'].includes(k)))return false;
  return ['page_view','playback_start','kokoro_ready','kokoro_failure'].includes(data.event)&&['none','browser','kokoro'].includes(data.engine)&&['none','download','generation'].includes(data.category)&&/^[a-zA-Z0-9._-]{1,40}$/.test(data.release)&&Number.isInteger(data.duration)&&data.duration>=0&&data.duration<=300000;
 }
+export function validCleanup(cleanup){
+ return cleanup && !Array.isArray(cleanup) && Object.keys(cleanup).length===Object.keys(cleanupDefaults).length &&
+ Object.keys(cleanupDefaults).every(key=>typeof cleanup[key]==='boolean');
+}
 export function validContext(c){
  if(c===undefined)return true; // Older open tabs remain able to submit.
- return c && !Array.isArray(c) && Object.keys(c).length===7 &&
+ return c && !Array.isArray(c) && Object.keys(c).every(key=>['environment','browser','device','engine','voice','release','playback','cleanup'].includes(key)) &&
+ (c.cleanup===undefined || validCleanup(c.cleanup)) &&
  ['test','production'].includes(c.environment) && ['Chrome','Edge','Firefox','Safari','Opera','Other'].includes(c.browser) &&
  ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation'].includes(c.engine) &&
  typeof c.voice==='string' && c.voice.length<=120 && !/[\u0000-\u001f\u007f]/.test(c.voice) &&
@@ -33,7 +39,7 @@ export function contextSummary(raw){
  const c=JSON.parse(raw||'{}');
  if(!c.browser)return 'Diagnostics: not supplied (older reader).';
  const engine={browser:'Browser voices',kokoro:'On-device Kokoro',workstation:'Workstation - Kokoro'}[c.engine];
- return `Site: ${c.environment}\nBrowser: ${c.browser} · ${c.device} (approximate)\nEngine: ${engine}\nVoice: ${c.voice}\nRelease: ${c.release}\nPlayback: ${c.playback}`;
+ return `Site: ${c.environment}\nBrowser: ${c.browser} · ${c.device} (approximate)\nEngine: ${engine}\nVoice: ${c.voice}\nRelease: ${c.release}\nPlayback: ${c.playback}${c.cleanup?'\nCleanup: '+Object.entries(c.cleanup).map(([key,value])=>`${key}=${value?'on':'off'}`).join(', '):''}`;
 }
 export function validFeedback(data){
  return data&&typeof data.message==='string'&&data.message.trim().length>=10&&data.message.length<=3000&&typeof data.email==='string'&&data.email.length<=254&&(!data.email||/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(data.email))&&typeof data.website==='string'&&!data.website&&((data.message.match(/https?:\/\//gi)||[]).length<=3)&&validContext(data.context)&&Object.keys(data).every(k=>['message','email','website','ticket','context'].includes(k));

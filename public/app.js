@@ -159,21 +159,37 @@ function readAndPlay() {
 $('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
 function followParagraph(button) {
   const pane = $('preview');
-  if (!$('follow-reading').checked || $('read-view').hidden || !button) return;
-  // Scroll only the preview, so playback controls and the page stay put.
+  if ($('read-view').hidden || !button) return;
+  // Grow to fit the whole active chunk at the reader's chosen font size. Keep
+  // larger/manual heights and avoid shrinking between chunks during playback.
+  const fragments = [...button.getClientRects()];
+  if (!fragments.length) return;
+  const style = getComputedStyle(pane);
+  const padding = parseFloat(style.paddingTop) + parseFloat(style.paddingBottom);
+  const borders = parseFloat(style.borderTopWidth) + parseFloat(style.borderBottomWidth);
+  const needed = Math.ceil(fragments.at(-1).bottom - fragments[0].top + padding + borders + 4);
+  if (needed > pane.getBoundingClientRect().height) pane.style.height = `${needed}px`;
+  if (!$('follow-reading').checked) return;
+  // Scroll inside the pane only; growth never changes the font size.
   const bounds = pane.getBoundingClientRect();
   const rects = [...button.getClientRects()];
   if (!rects.length) return;
   const paragraph = {top: rects[0].top, bottom: rects.at(-1).bottom};
   paragraph.height = paragraph.bottom - paragraph.top;
-  const top = bounds.top + pane.clientTop;
-  const bottom = top + pane.clientHeight;
+  const top = bounds.top + pane.clientTop + parseFloat(style.paddingTop);
+  const bottom = bounds.top + pane.clientTop + pane.clientHeight - parseFloat(style.paddingBottom);
   if (paragraph.height > pane.clientHeight || paragraph.top < top) {
     pane.scrollTop += paragraph.top - top;
   } else if (paragraph.bottom > bottom) {
     pane.scrollTop += paragraph.bottom - bottom;
   }
 }
+let previewResizeFrame;
+new ResizeObserver(() => {
+  cancelAnimationFrame(previewResizeFrame);
+  previewResizeFrame = requestAnimationFrame(() => followParagraph($('preview').querySelector('[aria-current=true]')));
+}).observe($('preview'));
+document.fonts?.ready.then(() => followParagraph($('preview').querySelector('[aria-current=true]')));
 $('follow-reading').addEventListener('change', () => {
   save();
   followParagraph($('preview').querySelector('[aria-current=true]'));
@@ -336,7 +352,7 @@ preview();
   });
   $('cancel-download').addEventListener('click',()=>downloadController?.abort());
   $('remove-model').addEventListener('click',async()=>{localPlayer.invalidate();await localKokoro.removeDownloads();localEnabled=false;$('engine').value='browser';changeEngine();$('download-status').textContent='Downloaded voice data removed.';});
-  setupFeedback(()=>player?.state||'idle');
+  setupFeedback(()=>player?.state||'idle',()=>({...options}));
 }
 if (WORKSTATION) {
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');

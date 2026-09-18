@@ -44,7 +44,7 @@ independently of the old raw-notification delivery status.
 
 Version 1 does **static source review**, not executable reproduction or live-log
 analysis. The controller supplies bounded report diagnostics and an immutable
-snapshot of tracked reader, browser, speech-server, dictionary, and Worker source
+snapshot of tracked reader, browser, speech-server, dictionary, CSS, and Worker source
 from the recorded Git commit. No reading content or audio is available unless the
 visitor voluntarily includes text in their report. The source may differ from the
 visitor's deployed release; the reviewer must state relevant uncertainty.

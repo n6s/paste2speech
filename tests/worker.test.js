@@ -86,3 +86,23 @@ test('review mode stores feedback without immediate or scheduled raw delivery; d
   assert.equal(sends,1);assert.equal(db.prepare('SELECT telegram_message_id FROM feedback').get().telegram_message_id,99);
  }finally{globalThis.fetch=original;}
 });
+
+test('optional cleanup diagnostics are validated, stored, and summarized without breaking older tabs',async()=>{
+ const {db,env}=setup();env.FEEDBACK_DELIVERY_MODE='review';
+ const pending=[];const ctx={waitUntil:p=>pending.push(p)};
+ const ticket=await (await worker.fetch(request('/api/feedback-ticket'),env,ctx)).json();
+ const cleanup={markdown:true,citations:false,urls:true,code:false,tables:true,emoji:false,joinLines:true};
+ const context={environment:'production',browser:'Chrome',device:'mobile',engine:'browser',voice:'Default',release:'test',playback:'paused',cleanup};
+ const feedback={message:'Cleanup diagnostic test report.',email:'',website:'',ticket,context};
+ assert.ok(validFeedback(feedback));
+ for(const bad of [null,{},[],{...cleanup,joinLines:'true'},{...cleanup,reading:'secret'},{...cleanup,markdown:undefined}]){
+  assert.ok(!validFeedback({...feedback,context:{...context,cleanup:bad}}));
+ }
+ assert.ok(validFeedback({...feedback,context:undefined}));
+ const {cleanup:_,...legacy}=context;assert.ok(validFeedback({...feedback,context:legacy}));
+ assert.equal((await worker.fetch(request('/api/feedback',feedback),env,ctx)).status,202);await Promise.all(pending);
+ const saved=db.prepare('SELECT context FROM feedback').get().context;
+ assert.deepEqual(JSON.parse(saved).cleanup,cleanup);
+ const {contextSummary}=await import('../cloudflare/worker.js');
+ assert.match(contextSummary(saved),/joinLines=on/);assert.match(contextSummary(saved),/emoji=off/);
+});

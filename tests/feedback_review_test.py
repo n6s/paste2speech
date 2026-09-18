@@ -95,9 +95,11 @@ class ControllerTests(unittest.TestCase):
         self.assertNotIn(r['email'],message)
 
 
-if __name__=='__main__':unittest.main()
-
 class IsolationTests(unittest.TestCase):
+    def test_source_snapshot_includes_styles(self):
+        _,files=runner.source_snapshot()
+        self.assertIn('public/style.css',files)
+        self.assertIn('#preview',files['public/style.css'])
     def test_namespace_does_not_mount_host_home_or_sockets(self):
         with tempfile.TemporaryDirectory() as temp:
             args=runner.namespace(Path('/fake/codex'),Path(temp))
@@ -116,3 +118,6 @@ class IsolationTests(unittest.TestCase):
             c.run_reviews(db,Path(temp),lambda *_:self.fail('model called'))
             c.deliver_pending(db,Path(temp),lambda *_:self.fail('Telegram called'))
             db.close()
+
+
+if __name__=='__main__':unittest.main()
