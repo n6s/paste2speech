@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 const release=process.env.P2S_RELEASE||execFileSync('git',['rev-parse','--short','HEAD'],{encoding:'utf8'}).trim();
 await rm('dist',{recursive:true,force:true});await mkdir('dist',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',minify:true,logLevel:'warning'};
-await build({...common,entryPoints:['public/app.js'],outfile:'dist/app.js',external:['./pdf.js'],plugins:[{name:'deployment',setup(b){b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const PUBLIC=true;export const RELEASE=${JSON.stringify(release)};export const KOKORO_ENABLED=${process.env.P2S_KOKORO!=='off'};`}))}}]});
+await build({...common,entryPoints:['public/app.js'],outfile:'dist/app.js',external:['./pdf.js'],plugins:[{name:'deployment',setup(b){b.onLoad({filter:/public\/config\.js$/},async()=>({contents:(await readFile('public/config.js','utf8')).replace("'development'",JSON.stringify(release)).replace('KOKORO_ENABLED = true',`KOKORO_ENABLED = ${process.env.P2S_KOKORO!=='off'}`)}))}}]});
 await build({...common,entryPoints:['browser/kokoro-worker.js'],outfile:'dist/kokoro-worker.js'});
 await build({...common,entryPoints:['browser/pdf.js'],outfile:'dist/pdf.js'});
 for(const name of await readdir('node_modules/onnxruntime-web/dist'))if(/ort-wasm-simd-threaded.*\.(wasm|mjs)$/.test(name))await copyFile(`node_modules/onnxruntime-web/dist/${name}`,`dist/${name}`);

@@ -121,3 +121,11 @@ included in the browser bundle. `npm audit` should remain clean.
   when the workstation is available, prepares tested recommendations, and sends
   Telegram summaries. Public release stays explicitly approved by Roger. This
   automated investigation stage is not enabled in this release.
+
+## Unified reader deployments
+
+Both hosts serve the identical `dist/` build. Run `npm run build` before serving locally; the Python static fallback now uses `dist/` as well. Tailscale `/speak/` serves this directory, while `/speak/api` continues to proxy the GPU service. Preserve the Immich root route.
+
+The exact private hostname `pop-os.tailbd091c.ts.net` enables the additional **Workstation - Kokoro** option. All other hosts offer browser speech and on-device Kokoro only. This UI check is not an authentication boundary: Tailscale and the localhost-only speech service still protect GPU access. PDF extraction, model downloads, feedback, and other UI features share the same code. Feedback and aggregate events from the private host use the public API, whose CORS allowlist includes only that exact private origin and the configured public origin.
+
+A Cloudflare release rebuilds `dist/`, which also updates the private reader. Existing open readings retain their loaded code and audio until reloaded. Legacy private Kokoro preferences migrate to the workstation engine.

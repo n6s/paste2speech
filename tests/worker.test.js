@@ -44,3 +44,13 @@ test('retention removes expired reports and totals',async()=>{
  const pending=[];await worker.scheduled({},env,{waitUntil:p=>pending.push(p)});await Promise.all(pending);
  assert.equal(db.prepare('SELECT count(*) AS n FROM feedback').get().n,0);assert.equal(db.prepare('SELECT count(*) AS n FROM daily_events').get().n,0);
 });
+
+test('private reader can submit feedback through narrowly scoped CORS',async()=>{
+ const {env}=setup();const origin='https://pop-os.tailbd091c.ts.net';
+ const preflight=await worker.fetch(new Request('https://speak.rogerpbrown.com/api/feedback',{method:'OPTIONS',headers:{origin,'access-control-request-method':'POST','access-control-request-headers':'content-type'}}),env,{});
+ assert.equal(preflight.status,204);assert.equal(preflight.headers.get('access-control-allow-origin'),origin);
+ const ticket=await worker.fetch(request('/api/feedback-ticket',null,{origin}),env,{});
+ assert.equal(ticket.status,200);assert.equal(ticket.headers.get('access-control-allow-origin'),origin);
+ const denied=await worker.fetch(request('/api/feedback-ticket',null,{origin:'https://untrusted.test'}),env,{});
+ assert.equal(denied.status,403);assert.equal(denied.headers.get('access-control-allow-origin'),null);
+});

@@ -37,10 +37,22 @@ export async function deliver(env,id){
 }
 export default {
  async fetch(request,env,ctx){
+  const origin=request.headers.get('origin');
+  const privateOrigin=origin==='https://pop-os.tailbd091c.ts.net';
+  const api=new URL(request.url).pathname.startsWith('/api/');
+  if(!privateOrigin||!api)return this.handle(request,env,ctx);
+  const headers={'Access-Control-Allow-Origin':origin,'Vary':'Origin'};
+  if(request.method==='OPTIONS')return new Response(null,{status:204,headers:{...headers,'Access-Control-Allow-Methods':'GET, POST','Access-Control-Allow-Headers':'Content-Type','Access-Control-Max-Age':'600'}});
+  const response=await this.handle(request,env,ctx);
+  const result=new Response(response.body,response);
+  for(const [key,value] of Object.entries(headers))result.headers.set(key,value);
+  return result;
+ },
+ async handle(request,env,ctx){
   const url=new URL(request.url);
   if(!url.pathname.startsWith('/api/'))return env.ASSETS.fetch(request);
   const origin=request.headers.get('origin');
-  if(origin!==env.PUBLIC_ORIGIN && !(request.method==='GET'&&request.headers.get('sec-fetch-site')==='same-origin'))return json({error:'Origin not allowed'},403);
+  if(origin!==env.PUBLIC_ORIGIN && origin!=='https://pop-os.tailbd091c.ts.net' && !(request.method==='GET'&&request.headers.get('sec-fetch-site')==='same-origin'))return json({error:'Origin not allowed'},403);
   const route=url.pathname;
   if(!['/api/events','/api/feedback','/api/feedback-ticket'].includes(route))return json({error:'Not found'},404);
   const isEvent=route==='/api/events';

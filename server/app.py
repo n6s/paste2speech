@@ -289,4 +289,4 @@ async def pdf_text(request: Request):
     finally:
         app.state.pdf_busy = False
 
-app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'public')), html=True), name='static')
+app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'dist')), html=True), name='static')
