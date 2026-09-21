@@ -12,8 +12,14 @@
 - 99 Python and 96 JavaScript tests passed across the full run and added targeted
   cases; billing and independent-session browser tests passed. Actual sandbox API
   reads verified all three recorded orders; the restarted service checked them and
-  preserved the six-million-character balance. No refund was issued in Paddle.
-- A real sandbox refund approval remains the end-to-end acceptance check. Public
+  preserved the six-million-character balance.
+- Real sandbox refund test passed on 2026-09-21: requested $10.75 on transaction
+  `txn_01m32j4k6c1gehf69y39nxkzgf` (adjustment
+  `adj_01m32m3tkbqrmdv6k0psdqc2jt`). Pending approval kept all 6 million characters;
+  Paddle approval triggered automatic removal of exactly 3 million, leaving
+  3,000,000 visible in the signed-in browser. The next background check preserved
+  that balance, confirming no duplicate deduction. No manual reconciliation was used.
+- Public
   signed webhooks, hosting and refund policy remain launch work. Details and known
   boundaries: `docs/payment-recovery.md`. No public deployment.
 

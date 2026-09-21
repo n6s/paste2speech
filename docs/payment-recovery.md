@@ -44,5 +44,12 @@ Tests cover closed-browser recovery, restart, repeat/concurrent processing, part
 and full refunds, already-refunded purchases, tax-inclusive pricing, pagination,
 failed reads, canceled purchases, chargeback reversal, and generation reservations.
 Read-only checks against the actual sandbox API also use an isolated ledger copy.
-Those checks do not create or refund a real or sandbox payment. A real sandbox refund
-approval is a separate end-to-end acceptance check; none is claimed by unit fixtures.
+Those read-only checks do not create or refund a payment.
+
+On 2026-09-21 a separate end-to-end sandbox test refunded the full $10.75 on
+transaction `txn_01m32j4k6c1gehf69y39nxkzgf`, adjustment
+`adj_01m32m3tkbqrmdv6k0psdqc2jt`. While pending approval, the allowance stayed at
+6,000,000. After Paddle approved, the background service removed 3,000,000
+without manual reconciliation. The signed-in reader then displayed 3,000,000.
+The next background check preserved that balance, confirming no duplicate
+deduction. No real money moved.
