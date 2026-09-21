@@ -12,15 +12,17 @@ try {
   await route.fulfill({status:200,contentType:'audio/wav',headers:{'X-Generation-Ms':'350'},body:wav});
  });
  await page.goto('http://127.0.0.1:8778/api/audition');
- assert.equal(await page.locator('section').count(),3);
+ assert.equal(await page.locator('section').count(),5);
  assert.equal(calls,0);
- const first=page.locator('section').first();
+ const first=page.locator('section').nth(2);
  await first.getByRole('button').click();
  await first.locator('audio').waitFor({state:'visible'});
- await page.waitForFunction(()=>document.querySelector('audio').duration===1);
+ await page.waitForFunction(()=>document.querySelectorAll('audio')[2].duration===1);
  assert.equal(await first.locator('a').getAttribute('download'),'melo-en.wav');
  await first.locator('audio').evaluate(a=>a.play());
  const downloading=page.waitForEvent('download');await first.locator('a').click();const download=await downloading;assert.equal(download.suggestedFilename(),'melo-en.wav');
+ for(const index of [0,1]){const card=page.locator('section').nth(index);await card.getByRole('button').click();await card.locator('audio').waitFor({state:'visible'});}
+ assert.equal(await page.locator('audio:visible').count(),3);
  fail=true;await page.locator('section').nth(1).getByRole('button').click();
  await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('could not generate'));
  assert.equal(await first.locator('a').isVisible(),true);

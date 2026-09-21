@@ -1,4 +1,4 @@
-"""Private, bounded Cloudflare voice auditions; credentials never reach the client."""
+"""Private, bounded hosted voice auditions; credentials never reach the client."""
 import asyncio
 import base64
 import json
@@ -14,10 +14,13 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 
 router = APIRouter()
 ROOT = Path(__file__).resolve().parent / 'audition'
+DEEPINFRA_TOKEN_FILE = Path.home() / '.config/paste2speech/deepinfra-api-token'
 TOKEN_FILE = Path.home() / '.config/paste2speech/cloudflare-ai-token'
 ACCOUNT = 'c71dba5be3cc617a904adc61e767704d'
 ORIGINS = {'https://pop-os.tailbd091c.ts.net', 'http://127.0.0.1:8766', 'http://localhost:8766'}
 MODELS = {
+    'kokoro': ('hexgrad/Kokoro-82M', ['af_heart', 'bf_emma']),
+    'kokoro-corrected': ('hexgrad/Kokoro-82M', ['af_heart', 'bf_emma']),
     'melo': ('@cf/myshell-ai/melotts', ['en']),
     'aura1': ('@cf/deepgram/aura-1', ['asteria', 'luna', 'orion', 'angus']),
     'aura2': ('@cf/deepgram/aura-2-en', ['luna', 'athena', 'orion', 'asteria']),
@@ -26,7 +29,7 @@ lock = asyncio.Lock()
 
 class Audition(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
-    model: Literal['melo', 'aura1', 'aura2']
+    model: Literal['melo', 'aura1', 'aura2', 'kokoro', 'kokoro-corrected']
     voice: str
     text: str = Field(min_length=1, max_length=2000)
 
@@ -111,6 +114,63 @@ async def speech(request: Request):
         raise HTTPException(422, 'Choose a supported voice and enter text.')
     if lock.locked():
         raise HTTPException(409, 'Another audition is generating. Wait for it to finish.')
+    headers = {}
     async with lock:
-        data, mime, elapsed = await asyncio.to_thread(generate, job)
-    return Response(data, media_type=mime, headers={'X-Generation-Ms': str(elapsed)})
+        if job.model.startswith('kokoro'):
+            data, mime, elapsed, headers = await asyncio.to_thread(generate_deepinfra, job)
+        else:
+            data, mime, elapsed = await asyncio.to_thread(generate, job)
+    return Response(data, media_type=mime, headers={'X-Generation-Ms': str(elapsed), **headers})
+
+
+def generate_deepinfra(job):
+    from server.pronunciations import pronunciation_text
+    import math
+    try:
+        token = DEEPINFRA_TOKEN_FILE.read_text().strip()
+    except OSError:
+        token = ''
+    if not token:
+        raise HTTPException(503, 'DeepInfra credential is not configured on the workstation.')
+    if job.voice not in MODELS[job.model][1] or not job.text.strip():
+        raise HTTPException(422, 'Choose a supported voice and enter text.')
+    text = pronunciation_text(job.text, job.voice) if job.model == 'kokoro-corrected' else job.text
+    if len(text) > 10000:
+        raise HTTPException(422, 'Pronunciation expansion is too long. Shorten the passage.')
+    payload = {'text': text, 'preset_voice': [job.voice], 'output_format': 'mp3',
+               'service_tier': 'default', 'speed': 1, 'stream': False}
+    request = urllib.request.Request('https://api.deepinfra.com/v1/inference/hexgrad/Kokoro-82M',
+        data=json.dumps(payload).encode(), headers={'Authorization': 'Bearer ' + token,
+                                                   'Content-Type': 'application/json'})
+    started = time.monotonic()
+    try:
+        with urllib.request.urlopen(request, timeout=90) as upstream:
+            raw = upstream.read(16 * 1024 * 1024 + 1)
+        if len(raw) > 16 * 1024 * 1024:
+            raise ValueError('oversize')
+        result = json.loads(raw)
+        info = result['inference_status']
+        if info['status'] != 'succeeded':
+            raise ValueError('provider failure')
+        encoded = result['audio']
+        if encoded.startswith('data:'):
+            prefix, encoded = encoded.split(',', 1)
+            if prefix not in ('data:audio/mpeg;base64', 'data:audio/mp3;base64'):
+                raise ValueError('unexpected encoding')
+        data = base64.b64decode(encoded, validate=True)
+        if not (data.startswith(b'ID3') or (len(data) > 2 and data[0] == 255 and data[1] & 224 == 224)):
+            raise ValueError('invalid audio')
+        headers = {'X-Input-Characters': str(len(text))}
+        cost = info.get('cost')
+        if isinstance(cost, (float, int)) and math.isfinite(cost) and cost >= 0:
+            headers['X-Provider-Cost'] = str(cost)
+    except urllib.error.HTTPError as error:
+        messages = {401: (503, 'DeepInfra rejected the credential.'),
+                    403: (503, 'DeepInfra rejected access.'),
+                    402: (402, 'DeepInfra requires prepaid credit. Check your balance.'),
+                    429: (429, 'DeepInfra rate limit reached. Try later.')}
+        code, message = messages.get(error.code, (502, 'DeepInfra could not generate this sample.'))
+        raise HTTPException(code, message) from None
+    except (OSError, ValueError, KeyError, TypeError, AttributeError):
+        raise HTTPException(502, 'DeepInfra returned no usable audio or the request timed out.') from None
+    return data, 'audio/mpeg', round((time.monotonic() - started) * 1000), headers

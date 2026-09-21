@@ -56,3 +56,27 @@ class AuditionTests(unittest.TestCase):
                     audition.generate(audition.Audition(model='melo',voice='en',text='Hello.'))
                 self.assertEqual(raised.exception.status_code,expected)
                 self.assertNotIn('test-secret',raised.exception.detail)
+
+    def test_deepinfra_dictionary_payload_and_provider_cost(self):
+        for model in ['kokoro', 'kokoro-corrected']:
+            result={'audio':'data:audio/mpeg;base64,'+base64.b64encode(b'ID3sample').decode(),
+                    'inference_status':{'status':'succeeded','cost':0.00012}}
+            with patch.object(audition.Path,'read_text',return_value='private-key') as read, patch.object(audition.urllib.request,'urlopen',return_value=Reply(json.dumps(result).encode(),'application/json')) as call:
+                response=client.post('/audition/speech',json={'model':model,'voice':'bf_emma','text':'Houthi https://example.org/Houthis'},headers=origin)
+                self.assertEqual(response.status_code,200)
+                self.assertEqual(response.content,b'ID3sample')
+                self.assertEqual(response.headers['x-provider-cost'],'0.00012')
+                payload=json.loads(call.call_args.args[0].data)
+                self.assertEqual(payload['preset_voice'],['bf_emma'])
+                self.assertEqual(payload['service_tier'],'default')
+                self.assertTrue(payload['text'].endswith('https://example.org/Houthis'))
+                self.assertEqual('[Houthi](/' in payload['text'],model=='kokoro-corrected')
+
+    def test_deepinfra_payment_failure_and_invalid_audio(self):
+        for failure in [urllib.error.HTTPError('url',402,'private-key',{},None),None]:
+            reply=Reply(json.dumps({'audio':'https://untrusted.example/audio','inference_status':{'status':'succeeded'}}).encode(),'application/json')
+            with patch.object(audition.Path,'read_text',return_value='private-key'), patch.object(audition.urllib.request,'urlopen',side_effect=failure,return_value=reply):
+                with self.assertRaises(audition.HTTPException) as raised:
+                    audition.generate_deepinfra(audition.Audition(model='kokoro',voice='af_heart',text='Hello.'))
+                self.assertEqual(raised.exception.status_code,402 if failure else 502)
+                self.assertNotIn('private-key',raised.exception.detail)

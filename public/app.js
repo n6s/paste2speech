@@ -448,7 +448,7 @@ $('pdf-file').addEventListener('change', async () => {
 if (WORKSTATION) {
   const link = document.createElement('a');
   link.href = new URL('api/audition', location.href);
-  link.textContent = 'Audition Cloudflare voices';
+  link.textContent = 'Audition hosted voices';
   const paragraph = document.createElement('p');
   paragraph.append(link);
   document.querySelector('footer').append(paragraph);

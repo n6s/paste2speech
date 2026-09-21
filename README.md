@@ -267,15 +267,22 @@ This validates desktop Chrome with a mobile viewport; actual Pixel audio still n
 - [Browser speech synthesis](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis)
 - [Speech pause and browser compatibility](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis/pause)
 
-## Private Cloudflare voice auditions
+## Private hosted voice auditions
 
-On the Tailscale reader, use **Audition Cloudflare voices** in the footer, or open
+On the Tailscale reader, use **Audition hosted voices** in the footer, or open
 `https://pop-os.tailbd091c.ts.net/speak/api/audition`. Compare MeloTTS English,
-Aura 1, and Aura 2 English with a passage of up to 2,000 characters. Each model
+Aura 1, Aura 2 English, and DeepInfra Kokoro (Heart and British Emma) with a passage of up to 2,000 characters. Each model
 has an explicit Generate sample button, playback, download, request timing, and
 an estimated generation cost. No request runs automatically. Samples are kept
-in page memory, and downloads are explicit. Text is sent to Cloudflare; existing
-Kokoro speech-only pronunciation corrections are not applied.
+in page memory, and downloads are explicit. Text is sent to the selected provider. Two Kokoro cards compare original text
+with the shared pronunciation dictionary; provider support for that markup needs
+listening confirmation. Neither card applies workstation pause planning or time
+expansion. Original reader text and existing reader speech behavior are unchanged.
+
+DeepInfra uses `~/.config/paste2speech/deepinfra-api-token` (mode 600), the native
+Kokoro endpoint, MP3 output, and the default service tier. Its returned cost
+estimate and submitted character count are displayed; dictionary markup adds
+billable characters. HTTP 402 reports insufficient prepaid credit.
 
 The private workstation API reads `~/.config/paste2speech/cloudflare-ai-token`
 (owner-readable only), scoped to this account's Workers AI access. It never sends
@@ -288,3 +295,15 @@ returned Cloudflare HTTP 500 / error 3043 for both a short passage and “Hello
 world.” Its audition remains available for manual retry; successful synthesis and
 its advertised low cost have not yet been confirmed. Cost labels are estimates,
 not measured account billing. Existing full-reader playback is unchanged.
+
+DeepInfra validation on 2026-09-21: a 200-character passage generated original
+and dictionary versions with Heart and Emma. Four valid MP3 clips lasted
+13.1–13.5 seconds each and took 1.2–3.1 seconds per complete request. Their
+combined provider-reported cost estimate was $0.00057660. The initial 54-character
+Heart request cost $0.00003348. These short tests do not establish whole-book
+throughput or reliability. Listening on the Pixel remains the pronunciation
+quality check. Test artifacts are local under ignored `work/auditions/`.
+
+Validation: 84 JavaScript tests, 59 Python tests, and mobile browser audition
+checks (explicit requests, independent samples, playback, download, errors).
+This change is private only; do not publish the pending browser experiments.
