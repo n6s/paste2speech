@@ -18,7 +18,7 @@ def money(value):
     return int(value)
 
 
-def revoked_characters(transaction, adjustments):
+def revoked_characters(transaction, adjustments, characters=PACK_CHARACTERS):
     """Sum current approved principal adjustments, excluding tax and fees.
 
 Paddle marks the original chargeback/credit reversed when it creates a reversal.
@@ -43,7 +43,7 @@ Unknown structures fail closed rather than guessing an entitlement.
             raise ValueError('Unknown adjustment action')
         refunded += money(row['totals']['subtotal'])
     # Ceiling avoids fractional characters; cap a pack so fees never remove extra credit.
-    return min(PACK_CHARACTERS,(refunded*PACK_CHARACTERS+principal-1)//principal)
+    return min(characters,(refunded*characters+principal-1)//principal)
 
 
 async def sync_order(ledger, order):
@@ -59,7 +59,7 @@ async def sync_order(ledger, order):
         if state == 'completed':
             if not billing.valid_purchase(remote,order): raise ValueError('Purchase mismatch')
             rows = await asyncio.to_thread(billing.adjustments,txn)
-            revoked = revoked_characters(remote,rows)
+            revoked = revoked_characters(remote,rows,order['characters'])
         added = ledger.sync_payment(order['id'],txn,state,revoked)
         return {'credited':state=='completed','newCredit':added,'status':state,'revokedCharacters':revoked}
 

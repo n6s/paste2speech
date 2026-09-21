@@ -432,7 +432,7 @@ history. Ordinary workstation and DeepInfra readings are tracked from installati
 onward; standalone audition samples are not currently included.
 
 Open `/speak/api/billing` on the private Tailscale host (also linked from recording
-controls) for monthly totals and the **sandbox-only** $10 / 3,000,000-character pack.
+controls) for monthly totals and the **sandbox-only** $10 / 1,000,000-character pack.
 The page deliberately identifies the approximately 50-hour allowance as an estimate.
 Source allowance counts Unicode code points in the cleaned reading chunks. Shared
 pronunciation/number expansion is absorbed by the service, not deducted from the
@@ -489,7 +489,7 @@ Kokoro-specific pronunciation markup is not sent to Google. Regenerate prepared
 audio to change provider or pronunciation. Google usage participates in the
 private sandbox allowance when enabled. Costs are list-price estimates at
 $4/million submitted characters, before free allowances, not Google invoices.
-The existing sandbox pack price has not been reevaluated for Google.
+New sandbox packs offer $10 for 1 million characters (about 16 hours). Existing credit and original-order terms are preserved.
 
 Validation on 2026-09-21: 24 sections / 1,776 submitted characters produced 105.05
 seconds of audio in 7.67 seconds; first section ready after 1.13 seconds. Browser

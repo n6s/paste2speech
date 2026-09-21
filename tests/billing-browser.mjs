@@ -9,7 +9,7 @@ const server=createServer(async(req,res)=>{
  if(path==='/api/billing'){res.setHeader('Content-Type','text/html');res.end(await readFile('server/billing/index.html'));return;}
  if(path==='/api/billing/app.js'){res.setHeader('Content-Type','text/javascript');res.end(await readFile('server/billing/app.js'));return;}
  if(path==='/api/billing/session'){res.end('{}');return;}
- if(path==='/api/billing/status'){res.end(JSON.stringify({pendingOrder:orders&&!credited?'test-order':null,emailConfigured:true,email:null,configured:true,clientToken:'test_fake',month:'2026-09',account:{balance:credited?3000000:0,reserved:0,enabled},usage:[{provider:'workstation',kind:'personal',seconds:120,providerCost:0}]}));return;}
+ if(path==='/api/billing/status'){res.end(JSON.stringify({pendingOrder:orders&&!credited?'test-order':null,emailConfigured:true,email:null,configured:true,clientToken:'test_fake',month:'2026-09',account:{balance:credited?1000000:0,reserved:0,enabled},usage:[{provider:'workstation',kind:'personal',seconds:120,providerCost:0}]}));return;}
  if(path==='/api/billing/order'){orders++;res.end(JSON.stringify({order:'test-order',transactionId:'txn_fake'}));return;}
  if(path==='/api/billing/reconcile'){credited=++checks>=3;res.end(JSON.stringify({credited,status:credited?'completed':'paid'}));return;}
  if(path==='/api/billing/mode'){let raw='';for await(const part of req)raw+=part;enabled=JSON.parse(raw).enabled;res.end(JSON.stringify({enabled}));return;}
@@ -24,7 +24,7 @@ try{
  await page.getByRole('button',{name:'Test buying a pack'}).click();
  // Paddle emits checkout.completed before its transaction API becomes completed.
  // Credit must appear automatically after pending API responses, with no refresh.
- await page.waitForFunction(()=>document.querySelector('#balance').textContent.startsWith('3,000,000'));
+ await page.waitForFunction(()=>document.querySelector('#balance').textContent.startsWith('1,000,000'));
  await page.getByRole('checkbox').check();
  await page.waitForFunction(()=>document.querySelector('#message').textContent.includes('use the test allowance'));
  assert.equal(checks,3);assert.equal(enabled,true);assert.equal(orders,1);assert.equal(await page.evaluate(()=>window.checkout.transactionId),'txn_fake');

@@ -7,7 +7,7 @@ from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
-PACK_CHARACTERS = 3_000_000
+PACK_CHARACTERS = 1_000_000
 
 class AccountConflict(ValueError):
     pass
@@ -54,6 +54,10 @@ class Ledger:
               scope TEXT NOT NULL, created REAL NOT NULL);
             CREATE INDEX IF NOT EXISTS login_limits_scope ON login_limits(scope,created);
             ''')
+            # Existing orders retain the offer made when they were created.
+            columns = {r['name'] for r in db.execute('PRAGMA table_info(orders)')}
+            if 'characters' not in columns:
+                db.execute('ALTER TABLE orders ADD COLUMN characters INTEGER NOT NULL DEFAULT 3000000')
         self.path.chmod(0o600)
 
     @contextmanager
@@ -106,7 +110,7 @@ class Ledger:
             if existing:
                 return dict(existing)
             key = secrets.token_urlsafe(24)
-            db.execute('INSERT INTO orders(id,account,created) VALUES(?,?,?)', (key,account,self.now()))
+            db.execute('INSERT INTO orders(id,account,created,characters) VALUES(?,?,?,?)', (key,account,self.now(),PACK_CHARACTERS))
             return dict(db.execute('SELECT * FROM orders WHERE id=?',(key,)).fetchone())
 
     def bind_order(self, order, transaction):
@@ -130,9 +134,9 @@ class Ledger:
             if not row:
                 raise ValueError('Unknown purchase')
             inserted = db.execute('INSERT OR IGNORE INTO grants VALUES(?,?,?,?)',
-                (transaction,row['account'],PACK_CHARACTERS,self.now())).rowcount
+                (transaction,row['account'],row['characters'],self.now())).rowcount
             if inserted:
-                self.change_balance(db,row['account'],PACK_CHARACTERS)
+                self.change_balance(db,row['account'],row['characters'])
             db.execute("UPDATE orders SET status='credited' WHERE id=?",(order,))
             return bool(inserted)
 
@@ -284,19 +288,20 @@ class Ledger:
                     'revokedCharacters':sum(r['revoked'] for r in rows)}
 
     def sync_payment(self, key, transaction, state, revoked=0):
-        if type(revoked) is not int or not 0<=revoked<=PACK_CHARACTERS:
+        if type(revoked) is not int or not 0<=revoked<=3_000_000:
             raise ValueError('Invalid revocation')
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT * FROM orders WHERE id=? AND transaction_id=?',(key,transaction)).fetchone()
             if not row: raise ValueError('Unknown purchase')
+            if revoked > row['characters']: raise ValueError('Invalid revocation')
             old = db.execute('SELECT revoked FROM payment_sync WHERE order_id=?',(key,)).fetchone()
             previous = old[0] if old else 0
             added = False
             if state == 'completed':
                 added = bool(db.execute('INSERT OR IGNORE INTO grants VALUES(?,?,?,?)',
-                    (transaction,row['account'],PACK_CHARACTERS,self.now())).rowcount)
-                self.change_balance(db,row['account'],(PACK_CHARACTERS if added else 0)+previous-revoked)
+                    (transaction,row['account'],row['characters'],self.now())).rowcount)
+                self.change_balance(db,row['account'],(row['characters'] if added else 0)+previous-revoked)
                 db.execute("UPDATE orders SET status='credited' WHERE id=?",(key,))
             elif row['status']=='credited':
                 raise ValueError('Completed purchase regressed')

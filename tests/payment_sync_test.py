@@ -48,8 +48,8 @@ class PaymentSyncTests(unittest.TestCase):
         self.assertEqual(self.balance()['balance'],PACK_CHARACTERS)
         rows=[adjustment('250'),adjustment('125',key='b'),adjustment('0',key='c')]
         self.run_sync(rows);self.run_sync(rows)
-        self.assertEqual(self.balance()['balance'],1875000)
-        self.assertEqual(self.ledger.payment_status(self.account)['revokedCharacters'],1125000)
+        self.assertEqual(self.balance()['balance'],625000)
+        self.assertEqual(self.ledger.payment_status(self.account)['revokedCharacters'],375000)
 
     def test_refund_of_spent_credit_and_future_pack(self):
         self.run_sync();self.ledger.reserve('job',self.account,1000000)
@@ -59,7 +59,7 @@ class PaymentSyncTests(unittest.TestCase):
         with self.assertRaises(InsufficientCredit):self.ledger.reserve('next',self.account,1)
         order=self.ledger.new_order(self.account);txn='txn_'+'b'*26;self.ledger.bind_order(order['id'],txn)
         self.ledger.sync_payment(order['id'],txn,'completed')
-        self.assertEqual(self.balance()['balance'],2000000);self.assertEqual(self.balance()['shortfall'],0)
+        self.assertEqual(self.balance()['balance'],0);self.assertEqual(self.balance()['shortfall'],0)
 
     def test_inflight_refund_stops_next_chunk_and_release_cannot_restore_credit(self):
         self.run_sync();self.ledger.reserve('job',self.account,1000000)
@@ -92,7 +92,7 @@ class PaymentSyncTests(unittest.TestCase):
 
     def test_adjustment_validation_and_tax_inclusive_principal(self):
         remote=self.remote.copy();remote['details']={'totals':{'subtotal':'800'}}
-        self.assertEqual(revoked_characters(remote,[adjustment('400')]),1500000)
+        self.assertEqual(revoked_characters(remote,[adjustment('400')]),500000)
         for rows in ([adjustment(),adjustment()], [adjustment()|{'currency_code':'EUR'}],
                      [adjustment()|{'transaction_id':'wrong'}],[adjustment('-1')]):
             with self.assertRaises(ValueError):revoked_characters(self.remote,rows)
@@ -100,8 +100,8 @@ class PaymentSyncTests(unittest.TestCase):
     def test_concurrent_replays_apply_refund_once(self):
         self.run_sync()
         with concurrent.futures.ThreadPoolExecutor(max_workers=4) as pool:
-            list(pool.map(lambda _:self.ledger.sync_payment(self.order['id'],TXN,'completed',1500000),range(8)))
-        self.assertEqual(self.balance()['balance'],1500000)
+            list(pool.map(lambda _:self.ledger.sync_payment(self.order['id'],TXN,'completed',500000),range(8)))
+        self.assertEqual(self.balance()['balance'],500000)
 
     def test_adjustment_pagination_complete_or_no_changes(self):
         pages=[{'data':[adjustment(key='a')],'meta':{'pagination':{'has_more':True}}},
@@ -126,3 +126,20 @@ class PaymentSyncTests(unittest.TestCase):
             self.assertEqual(asyncio.run(sync_once(self.ledger))['failed'],1)
         self.assertEqual(self.balance()['balance'],0)
         self.run_sync();self.assertEqual(self.balance()['balance'],PACK_CHARACTERS)
+
+    def test_legacy_order_survives_migration_and_refund(self):
+        # Recreate the previous schema, then reopen through the real migration.
+        with self.ledger.connect() as db:
+            db.execute('ALTER TABLE orders DROP COLUMN characters')
+        self.ledger = Ledger(self.ledger.path)
+        old = self.ledger.order(self.order['id'], self.account)
+        self.assertEqual(old['characters'], 3000000)
+        self.remote['items'][0]['price']['id'] = billing.LEGACY_PRICE
+        self.run_sync()
+        self.assertEqual(self.balance()['balance'], 3000000)
+        self.run_sync([adjustment('500')])
+        self.assertEqual(self.balance()['balance'], 1500000)
+        new = self.ledger.new_order(self.account)
+        self.assertEqual(new['characters'], 1000000)
+        self.assertEqual(billing.order_price(new), billing.PRICE)
+        self.assertEqual(billing.order_price(old), billing.LEGACY_PRICE)

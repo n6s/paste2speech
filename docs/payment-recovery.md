@@ -146,3 +146,19 @@ would not remove this measured delay; another backend location remains untested.
 Total probe cost: $0.00005208 outside the account allowance. Credentials were
 passed to curl over standard input, never command arguments or diagnostic output.
 No application code or deployment changed for this measurement.
+
+## WaveNet offer revision — 2026-09-21
+
+New private sandbox orders: USD 10 for 1,000,000 characters (about 16 hours,
+variable). Paddle price `pri_01m32vvy2sptegx6arebyvxh37`. The earlier
+`pri_01m32geyt53f5h9nxqfhqbt19x` remains valid only for original orders.
+Each order now stores its character entitlement. Migration assigns existing
+orders their original 3,000,000 characters without changing balances or grants.
+Fulfillment, purchase validation and proportional refunds use that order's terms.
+Pending original orders also retain their original offer.
+
+The live private ledger was backed up before migration; all account balances
+were compared afterward and remained unchanged. Regression coverage includes
+migration, old-price validation, half-refunds of old packs, new-pack sizing,
+repeat reconciliation and concurrent reservations. No live Paddle offer or public
+reader deployment was made.

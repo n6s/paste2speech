@@ -18,7 +18,12 @@ from server.usage import PACK_CHARACTERS
 
 router = APIRouter()
 CONFIG = Path.home() / '.config/paste2speech'
-PRICE = 'pri_01m32geyt53f5h9nxqfhqbt19x'
+PRICE = 'pri_01m32vvy2sptegx6arebyvxh37'
+LEGACY_PRICE = 'pri_01m32geyt53f5h9nxqfhqbt19x'
+
+def order_price(order):
+    return LEGACY_PRICE if order.get('characters', PACK_CHARACTERS) == 3_000_000 else PRICE
+
 PRODUCT = 'pro_01m32gd3hj94whqywcvmyta74b'
 COOKIE = 'p2s_sandbox'
 ASSETS = Path(__file__).parent / 'billing'
@@ -124,7 +129,7 @@ def valid_purchase(data, order):
             and data.get('custom_data', {}).get('p2s_order') == order['id']
             and data['currency_code'] == 'USD' and data.get('subscription_id') is None
             and len(items) == 1 and type(items[0]['quantity']) is int and items[0]['quantity'] == 1
-            and price['id'] == PRICE and price['product_id'] == PRODUCT
+            and price['id'] == order_price(order) and price['product_id'] == PRODUCT
             and price.get('billing_cycle') is None and price['unit_price'] == {'amount':'1000','currency_code':'USD'}
             and data.get('discount_id') is None
             # Tax-inclusive regions have a lower net subtotal; validate the
@@ -203,7 +208,7 @@ async def order(request: Request):
         record = ledger.new_order(account['id'])
         if not record['transaction_id']:
             data = await asyncio.to_thread(paddle,'/transactions',{
-                'items':[{'price_id':PRICE,'quantity':1}], 'currency_code':'USD',
+                'items':[{'price_id':order_price(record),'quantity':1}], 'currency_code':'USD',
                 'collection_mode':'automatic','custom_data':{'p2s_order':record['id']}})
             txn = data.get('id','')
             if not re.fullmatch(r'txn_[a-z0-9]{26}',txn):

@@ -40,11 +40,11 @@ class UsageTests(unittest.TestCase):
     def test_concurrent_reservations_cannot_overspend(self):
         order=self.grant();self.ledger.fulfill(order['id'],'txn_test')
         def reserve(n):
-            try:self.ledger.reserve(str(n),self.account,2_000_000);return True
+            try:self.ledger.reserve(str(n),self.account,800_000);return True
             except InsufficientCredit:return False
         with concurrent.futures.ThreadPoolExecutor(max_workers=2) as pool:
             self.assertEqual(sum(pool.map(reserve,range(2))),1)
-        self.assertEqual(self.ledger.account(self.token)['balance'],1_000_000)
+        self.assertEqual(self.ledger.account(self.token)['balance'],200_000)
 
     def test_partial_success_failure_cancel_and_recovery(self):
         order=self.grant();self.ledger.fulfill(order['id'],'txn_test')
