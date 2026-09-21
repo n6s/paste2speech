@@ -74,6 +74,7 @@ class DeepInfraEngine(Engine):
             pcm,rate=sf.read(io.BytesIO(data),dtype='float32')
             if rate!=24000 or pcm.ndim!=1 or not len(pcm) or not np.isfinite(pcm).all():
                 raise ValueError('audio')
+            self.recording.provider_audio_seconds = getattr(self.recording, 'provider_audio_seconds', 0) + len(pcm)/rate
             return [pcm]
         except urllib.error.HTTPError as error:
             self.recording.cost_incomplete = True

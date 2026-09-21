@@ -261,7 +261,7 @@ To remove just the API route:
 sudo tailscale serve --https=443 --set-path=/speak/api off
 ```
 
-[Kokoro](https://github.com/hexgrad/kokoro) and its [model weights](https://huggingface.co/hexgrad/Kokoro-82M) are Apache-2.0 licensed. No voice cloning or paid service is used.
+[Kokoro](https://github.com/hexgrad/kokoro) and its [model weights](https://huggingface.co/hexgrad/Kokoro-82M) are Apache-2.0 licensed. Local playback uses no paid service or voice cloning; the optional private DeepInfra pilot uses paid hosted inference.
 
 ## Tests
 
@@ -421,3 +421,57 @@ Heart/Emma correction samples together reported $0.00020708. Pixel listening,
 lock-screen behavior with hosted generation, and pronunciation acceptance remain
 with Roger. No hosted public release, checkout, authentication, or billing work
 was performed.
+
+## Private usage ledger and Paddle sandbox
+
+The workstation now retains numeric generation totals in the owner-only SQLite
+file `~/.local/state/paste2speech/usage.sqlite3`. It stores UTC timestamps, provider,
+voice, source/submitted character counts, generated audio seconds, provider cost
+and outcome, never reading text or audio. This is generation usage, not listening
+history. Ordinary workstation and DeepInfra readings are tracked from installation
+onward; standalone audition samples are not currently included.
+
+Open `/speak/api/billing` on the private Tailscale host (also linked from recording
+controls) for monthly totals and the **sandbox-only** $10 / 3,000,000-character pack.
+The page deliberately identifies the approximately 50-hour allowance as an estimate.
+Source allowance counts Unicode code points in the cleaned reading chunks. Shared
+pronunciation/number expansion is absorbed by the service, not deducted from the
+user allowance. A reading reserves its entire input before any paid inference;
+completed sections consume that reservation once, while failed/unstarted sections
+are refunded. Cancellation still counts sections successfully generated in flight.
+Replays, speed changes and existing-file downloads never consume allowance.
+
+Paddle sandbox credentials are loaded only by the private service:
+
+- `~/.config/paste2speech/paddle-sandbox-api-key`: Transactions Read/Write.
+- `~/.config/paste2speech/paddle-sandbox-client-token`: sandbox `test_` client token.
+
+Only the publishable client token reaches the browser. The API host is hardcoded
+to `sandbox-api.paddle.com`. Orders are created by the server and bound to a
+browser session. A browser checkout event triggers a server API lookup; only a
+completed transaction matching the known product, price, USD amount, quantity,
+and order can grant credit. A unique transaction constraint prevents duplicate
+credits. Reloading can reconcile an unfinished order without repeating payment.
+Paddle's sandbox default payment URL is the private `/speak/api/billing` page.
+
+Enable **Use sandbox allowance** on that page to apply its balance to new
+DeepInfra readings in the same browser. The underlying DeepInfra requests still
+spend real project credit. Outside this optional sandbox mode, the private reader
+retains its existing project-funded behavior. This is not a public access control
+or production billing system: Tailscale remains the access boundary. Browser test
+accounts use an HttpOnly SameSite cookie and have no email recovery yet; deleting
+cookies loses access. Public authentication, signed webhook delivery, refunds,
+chargebacks, email recovery and hosting remain launch prerequisites. The private
+pilot uses authenticated API reconciliation because Paddle cannot deliver webhooks
+to a Tailscale-only endpoint. No public Worker or live billing is deployed.
+
+For development servers, set `P2S_USAGE_KIND=development` and point `P2S_USAGE_DB`
+to an isolated file under `work/` so tests do not inflate personal totals. On
+exclusive service startup, outstanding reservations are refunded; successful
+previously recorded chunks remain consumed. Keep this durable state backed up
+before any real billing launch. Do not share one database between running services.
+
+Validation: Python ledger/API tests cover concurrent reservations, transaction
+replays, cross-account purchases, altered packs, failed sections and crash recovery.
+`node tests/billing-browser.mjs` uses a mocked Paddle SDK and checks mobile layout,
+checkout handoff, balance refresh and allowance mode without spending money.

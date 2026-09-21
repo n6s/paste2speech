@@ -183,6 +183,10 @@ class Engine:
 
 @asynccontextmanager
 async def lifespan(app):
+    from server.usage import Ledger
+    app.state.usage = Ledger(os.environ.get('P2S_USAGE_DB', str(Path.home() / '.local/state/paste2speech/usage.sqlite3')))
+    app.state.usage.recover()
+    app.state.usage_kind = os.environ.get('P2S_USAGE_KIND', 'personal')
     app.state.engine = await asyncio.to_thread(Engine)
     app.state.busy = False
     from server.readings import cleanup_loop, jobs
@@ -239,6 +243,14 @@ async def speech(request: Request):
     app.state.busy = True
     try:
         audio = await asyncio.to_thread(app.state.engine.synthesize, job)
+        ledger = getattr(app.state, 'usage', None)
+        if ledger:
+            import secrets
+            from server.readings import parse_pcm
+            await asyncio.to_thread(ledger.record, secrets.token_urlsafe(24), provider='workstation',
+                voice=job.voice, kind=app.state.usage_kind, source_characters=len(job.text),
+                submitted_characters=sum(len(pronunciation_text(p, job.voice)) for p, _ in speech_phrases(spoken_text(job.text))),
+                audio_seconds=len(parse_pcm(audio))/48000)
         return Response(audio, media_type='audio/wav')
     except Exception:
         # Do not include submitted text in exception responses or logs.
@@ -297,5 +309,8 @@ app.include_router(audition_router)
 
 from server.readings import router as readings_router
 app.include_router(readings_router)
+
+from server.billing import router as billing_router
+app.include_router(billing_router)
 
 app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'dist')), html=True), name='static')

@@ -71,6 +71,10 @@ class Recording:
     process: object = None
     task: object = None
     readers: int = 0
+    ledger: object = None
+    usage_kind: str = 'personal'
+    reserved: bool = False
+    provider_audio_seconds: float = 0
 
     @property
     def path(self):
@@ -121,7 +125,25 @@ def synthesize_recording(recording, synthesize, speech_type):
             for index, text in enumerate(recording.chunks):
                 if recording.cancelled.is_set():
                     return
-                pcm = parse_pcm(synthesize(speech_type(text=text, voice=recording.voice, speed=1.0)))
+                submitted_before = recording.submitted_characters
+                cost_before = recording.provider_cost
+                seconds_before = recording.provider_audio_seconds
+                succeeded, pcm = False, b''
+                try:
+                    pcm = parse_pcm(synthesize(speech_type(text=text, voice=recording.voice, speed=1.0)))
+                    succeeded = True
+                finally:
+                    if recording.ledger:
+                        from server.app import pronunciation_text, spoken_text, speech_phrases
+                        submitted = recording.submitted_characters - submitted_before
+                        if recording.provider == 'workstation':
+                            submitted = sum(len(pronunciation_text(p, recording.voice)) for p, _ in speech_phrases(spoken_text(text)))
+                        recording.ledger.record(f'{recording.id}:{index}', provider=recording.provider,
+                            voice=recording.voice, kind=recording.usage_kind, source_characters=len(text),
+                            submitted_characters=submitted,
+                            audio_seconds=len(pcm)/48000 if succeeded else recording.provider_audio_seconds-seconds_before,
+                            provider_cost=recording.provider_cost-cost_before, cost_incomplete=recording.cost_incomplete,
+                            outcome='succeeded' if succeeded else 'failed', job=recording.id if recording.reserved else None)
                 if recording.cancelled.is_set():
                     return
                 gap = max(0, 6000 - trailing - silence(pcm, True)) if index in recording.paragraphs and index else 0
@@ -156,6 +178,8 @@ def synthesize_recording(recording, synthesize, speech_type):
                 recording.process.stdin.close()
         if recording.cancelled.is_set():
             recording.state = 'cancelled'
+        if recording.ledger and recording.reserved:
+            recording.ledger.release(recording.id)
 
 
 def expire_recordings():
@@ -230,6 +254,8 @@ async def create(request: Request):
     if len(jobs) >= MAX_JOBS:
         raise HTTPException(409, 'Three readings are already open. Clear an earlier reading before starting another.')
     recording = Recording(job.chunks, job.voice, set(job.paragraphStarts), provider=job.provider)
+    recording.ledger = getattr(request.app.state, 'usage', None)
+    recording.usage_kind = getattr(request.app.state, 'usage_kind', 'personal')
     synthesize = request.app.state.engine.synthesize
     if job.provider == 'deepinfra':
         from server.deepinfra import DeepInfraEngine, HostedSpeechError
@@ -238,6 +264,18 @@ async def create(request: Request):
         except HostedSpeechError as error:
             recording.dispose()
             raise HTTPException(503, error.public_message) from None
+        if recording.ledger:
+            from server.billing import COOKIE
+            from server.usage import InsufficientCredit
+            account = recording.ledger.account(request.cookies.get(COOKIE))
+            if account and account['enabled']:
+                try:
+                    recording.ledger.reserve(recording.id, account['id'], sum(map(len, job.chunks)))
+                    recording.reserved = True
+                    recording.usage_kind = 'sandbox'
+                except InsufficientCredit as error:
+                    recording.dispose()
+                    raise HTTPException(402, str(error)) from None
     jobs[recording.id] = recording
     request.app.state.busy = True
     async def run():

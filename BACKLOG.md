@@ -10,19 +10,22 @@
 - At the current $0.62/million provider rate, 3 million submitted characters cost
   $1.86. Standard Paddle fees on a $10 pretax sale are approximately $1, leaving
   $7.14 before hosting, support, retries, refunds and other expenses, not net profit.
-  Source-text versus provider-submitted character counting (including pronunciation
-  expansion), tax presentation and public hosting costs must be settled before launch.
-- Next implementation: durable usage accounting, verified purchase fulfillment and
-  balance enforcement, then private sandbox checkout tests. Public deployment remains
-  separate; no live checkout or customer entitlement is implemented by this decision.
+  Allowance counts source text; provider pronunciation expansion adds a small cost
+  absorbed by the service. Tax presentation and public hosting costs still need review.
+- Implemented privately: durable numeric usage accounting, browser-bound sandbox
+  balances, server-created Paddle orders, authenticated API purchase verification,
+  idempotent grants and per-reading reservations with partial-failure refunds.
+  Month totals and checkout are at `/speak/api/billing`. Real sandbox transaction
+  creation passes; completed checkout acceptance still needs Roger's browser test.
+  Public authentication, recovery, webhook/refund handling and deployment remain future work.
 
 ## Hosted Kokoro pilot — private only
 
 DeepInfra is selectable in the private reader, with Heart/Emma, bounded prepaid
 usage, shared speech rules, continuous playback and MP3/VTT export. Validate its
 Pixel behavior separately from the previously confirmed workstation path. Public
-hosted infrastructure, prepaid checkout, purchase recognition, and usage limits
-remain future work; no account/billing integration or public deployment is included.
+hosted infrastructure and production account/billing integration remain future work.
+The private sandbox purchase/allowance pilot above is not a public deployment.
 
 # Current private milestone — 2026-09-21
 

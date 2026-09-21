@@ -421,6 +421,10 @@ preview();
   setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>$('engine').value==='kokoro'?localKokoro.processingMetrics():undefined);
 }
 if (WORKSTATION) {
+  const usageLink=document.createElement('a');usageLink.href=new URL('api/billing',location.href).href;
+  usageLink.textContent='Speech usage & test purchases';usageLink.target='_blank';usageLink.rel='noopener';
+  const usageParagraph=document.createElement('p');usageParagraph.className='hint';usageParagraph.append(usageLink);
+  $('recording-controls').append(usageParagraph);
   const hostedOption=new Option('DeepInfra - Kokoro · private test','deepinfra');hostedOption.disabled=true;$('engine').append(hostedOption);
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');
   option.disabled = true; $('engine').add(option);
