@@ -133,6 +133,9 @@ class Engine:
         return [audio.cpu().numpy() for _, _, audio in self.pipelines[voice[0]](
             text, voice=voice, speed=speed) if audio is not None]
 
+    def pronunciation(self, text, voice):
+        return pronunciation_text(text, voice)
+
     def synthesize(self, job):
         import numpy as np
         import soundfile as sf
@@ -142,7 +145,7 @@ class Engine:
         previous_trailing = 0
         with torch.inference_mode():
             for phrase, pause in speech_phrases(spoken_text(job.text)):
-                generated = self.phrase_audio(pronunciation_text(phrase, job.voice), job.voice, job.speed)
+                generated = self.phrase_audio(self.pronunciation(phrase, job.voice), job.voice, job.speed)
                 if not generated:
                     if any(char.isalnum() for char in phrase):
                         raise ValueError('No speech generated')

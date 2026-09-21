@@ -70,8 +70,9 @@ let preparationStarted = 0;
 let countNextPlayback = false;
 let browserVoice = selectedVoice;
 let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
+function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
-function isWorkstation() { return ['workstation','deepinfra'].includes($('engine').value); }
+function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
 function canPlay() { return isWorkstation() ? workstationVoices.length > 0 : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
@@ -95,13 +96,14 @@ async function discoverWorkstation() {
     workstationVoices = data.voices;
     $('engine').querySelector('[value=workstation]').disabled = false;
     $('engine').querySelector('[value=deepinfra]').disabled = false;
+    $('engine').querySelector('[value=google]').disabled = false;
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro';
-    if ((['workstation','deepinfra'].includes(saved.engine) || (saved.engine === 'kokoro' && !saved.engineSchema)) && (!player || player.state === 'idle')) { $('engine').value = saved.engine==='deepinfra'?'deepinfra':'workstation'; changeEngine(); }
+    if ((['workstation','deepinfra','google'].includes(saved.engine) || (saved.engine === 'kokoro' && !saved.engineSchema)) && (!player || player.state === 'idle')) { $('engine').value = ['deepinfra','google'].includes(saved.engine)?saved.engine:'workstation'; changeEngine(); }
   } catch {
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro · unavailable';
   }
 }
-function settings() { return { provider:isDeepInfra()?'deepinfra':'workstation', paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
@@ -227,6 +229,7 @@ function render(p, message) {
     ? 'Playback starts as audio arrives. Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use; Clear removes this recording.'
     : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.';
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
+  if(isGoogle() && p.id) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   if(isDeepInfra() && p.id) $('recording-progress').textContent += ` · provider-reported estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
     const href = isWorkstation() && p.download?.(kind);
@@ -254,18 +257,18 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
-  const summary = `${isDeepInfra()?'DeepInfra · ':''}${voice} · ${$('rate').value}×`;
+  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice} · ${$('rate').value}×`;
   $('voice-settings-summary').textContent = summary;
   $('voice-settings-summary').title = summary;
 }
 function loadVoices() {
   $('voice').replaceChildren();
   if (isKokoro()) {
-    const availableVoices = isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
+    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'WaveNet F · American English'},{id:'en-GB-Wavenet-F',name:'WaveNet F · British English'}] : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
-    $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : 'af_heart';
+    $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? 'Private test · text is sent to Google Cloud. Up to 20,000 characters per reading. Original pronunciation; shared pause behavior. Costs shown are estimates before the free allowance.' : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -425,6 +428,7 @@ if (WORKSTATION) {
   usageLink.textContent='Speech usage & test purchases';usageLink.target='_blank';usageLink.rel='noopener';
   const usageParagraph=document.createElement('p');usageParagraph.className='hint';usageParagraph.append(usageLink);
   $('recording-controls').append(usageParagraph);
+  const googleOption=new Option('Google - WaveNet · private test','google');googleOption.disabled=true;$('engine').append(googleOption);
   const hostedOption=new Option('DeepInfra - Kokoro · private test','deepinfra');hostedOption.disabled=true;$('engine').append(hostedOption);
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');
   option.disabled = true; $('engine').add(option);

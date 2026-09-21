@@ -4,6 +4,7 @@ import { defaults } from './text.js';
 export function feedbackContext({navigator, environment, release, engine, voice, playback, cleanup, processing}) {
  // Private hosted trials still run through the workstation relay. Keep the
  // deployed feedback schema compatible, identifying the provider in the voice.
+ if(engine==='google'){engine='workstation';voice=`Google WaveNet · ${voice||'Device default'}`;}
  if(engine==='deepinfra'){engine='workstation';voice=`DeepInfra · ${voice||'Device default'}`;}
  if(playback==='buffering')playback='preparing';
  const ua=navigator.userAgent || '';

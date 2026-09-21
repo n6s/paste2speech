@@ -475,3 +475,24 @@ Validation: Python ledger/API tests cover concurrent reservations, transaction
 replays, cross-account purchases, altered packs, failed sections and crash recovery.
 `node tests/billing-browser.mjs` uses a mocked Paddle SDK and checks mobile layout,
 checkout handoff, balance refresh and allowance mode without spending money.
+
+## Private Google WaveNet pilot
+
+On the private reader, choose **Google - WaveNet · private test** under Voice &
+speed. American and British WaveNet F are available, with a 20,000-character
+reading limit. Text goes to Google through the workstation. The owner-only
+credential is `~/.config/paste2speech/google-tts-service-account.json`.
+
+WaveNet uses the existing progressive MP3 pipeline, original-text highlighting,
+playback speed controls, media controls, and VTT export. Shared pause rules remain;
+Kokoro-specific pronunciation markup is not sent to Google. Regenerate prepared
+audio to change provider or pronunciation. Google usage participates in the
+private sandbox allowance when enabled. Costs are list-price estimates at
+$4/million submitted characters, before free allowances, not Google invoices.
+The existing sandbox pack price has not been reevaluated for Google.
+
+Validation on 2026-09-21: 24 sections / 1,776 submitted characters produced 105.05
+seconds of audio in 7.67 seconds; first section ready after 1.13 seconds. Browser
+playback, pause, speed adjustment and MP3/VTT exports checked. This is a small
+private test; sustained Pixel playback and lock-screen behavior remain to be
+confirmed. Nothing deployed to the public reader.

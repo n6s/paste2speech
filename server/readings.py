@@ -50,7 +50,7 @@ class ReadingRequest(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     chunks: list[str] = Field(min_length=1, max_length=10000)
     voice: str
-    provider: Literal['workstation', 'deepinfra'] = 'workstation'
+    provider: Literal['workstation', 'deepinfra', 'google'] = 'workstation'
     paragraphStarts: list[int] = Field(default_factory=list, max_length=10000)
 
 @dataclass
@@ -121,7 +121,7 @@ def prepared_sections(recording, synthesize, speech_type):
     releasing credit, including successful sections completed after Stop.
     """
     fork = getattr(getattr(synthesize, '__self__', None), 'fork', None)
-    width = 3 if recording.provider == 'deepinfra' and fork else 1
+    width = 3 if recording.provider in ('deepinfra', 'google') and fork else 1
     lock = threading.Lock()
     halted = threading.Event()
 
@@ -298,7 +298,9 @@ async def create(request: Request):
         job = ReadingRequest.model_validate(json.loads(body))
     except (ValidationError, ValueError, UnicodeDecodeError):
         raise HTTPException(422, 'Invalid reading') from None
-    if (job.voice not in VOICES or any(not text.strip() or len(text) > 600 for text in job.chunks)
+    from server.google_tts import VOICES as GOOGLE_VOICES
+    valid_voices = GOOGLE_VOICES if job.provider == 'google' else VOICES
+    if (job.voice not in valid_voices or any(not text.strip() or len(text) > 600 for text in job.chunks)
             or sum(map(len, job.chunks)) > 1_000_000
             or any(index < 0 or index >= len(job.chunks) for index in job.paragraphStarts)):
         raise HTTPException(422, 'Choose a voice and reading sections of at most 600 characters.')
@@ -313,6 +315,8 @@ async def create(request: Request):
             raise HTTPException(422, 'Expanded reading exceeds the hosted-test limit. Use a shorter passage.')
         if job.voice not in HOSTED_VOICES or sum(map(len, job.chunks)) > MAX_INPUT:
             raise HTTPException(422, 'Private DeepInfra testing supports Heart and Emma, up to 20,000 characters per reading.')
+    if job.provider == 'google' and sum(map(len, job.chunks)) > 20000:
+        raise HTTPException(422, 'Private Google testing supports up to 20,000 characters per reading.')
     if request.app.state.busy:
         raise HTTPException(503, 'The workstation is busy. Wait a moment and press Play.')
     if not shutil.which('ffmpeg'):
@@ -324,10 +328,11 @@ async def create(request: Request):
     recording.ledger = getattr(request.app.state, 'usage', None)
     recording.usage_kind = getattr(request.app.state, 'usage_kind', 'personal')
     synthesize = request.app.state.engine.synthesize
-    if job.provider == 'deepinfra':
+    if job.provider in ('deepinfra', 'google'):
         from server.deepinfra import DeepInfraEngine, HostedSpeechError
+        from server.google_tts import GoogleTTSEngine
         try:
-            synthesize = DeepInfraEngine(recording).synthesize
+            synthesize = (GoogleTTSEngine if job.provider == 'google' else DeepInfraEngine)(recording).synthesize
         except HostedSpeechError as error:
             recording.dispose()
             raise HTTPException(503, error.public_message) from None
