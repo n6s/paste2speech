@@ -32,7 +32,7 @@ def credential(name):
         return ''
 
 
-def paddle(path, payload=None):
+def paddle_request(path, payload=None):
     key = credential('paddle-sandbox-api-key')
     if not key or 'live' in key[:20]:
         raise HTTPException(503, 'Paddle sandbox API key is not configured.')
@@ -44,12 +44,36 @@ def paddle(path, payload=None):
             raw = response.read(2_000_001)
         if len(raw) > 2_000_000:
             raise ValueError('Oversize')
-        data = json.loads(raw)['data']
-        if not isinstance(data, dict):
+        data = json.loads(raw)
+        if not isinstance(data, dict) or 'data' not in data:
             raise ValueError('Invalid response')
         return data
     except (OSError, ValueError, KeyError, TypeError):
         raise HTTPException(502, 'Paddle sandbox could not complete the request. No credit was added.') from None
+
+
+def paddle(path, payload=None):
+    data = paddle_request(path,payload)['data']
+    if not isinstance(data,dict):
+        raise HTTPException(502,'Invalid Paddle response')
+    return data
+
+
+def adjustments(transaction):
+    # Construct each next-page URL locally, never follow an arbitrary response URL.
+    rows, after = [], ''
+    for _ in range(100):
+        page = paddle_request('/adjustments?transaction_id='+transaction+'&per_page=50&order_by=id[ASC]'+('&after='+after if after else ''))
+        data = page.get('data')
+        if not isinstance(data,list): raise ValueError('Invalid adjustment list')
+        rows.extend(data)
+        pagination = page.get('meta',{}).get('pagination',{})
+        if pagination.get('has_more') is False: return rows
+        if pagination.get('has_more') is not True or not data: raise ValueError('Incomplete adjustment list')
+        next_id = data[-1].get('id','')
+        if not re.fullmatch(r'adj_[a-z0-9]{26}',next_id) or next_id==after: raise ValueError('Invalid page cursor')
+        after = next_id
+    raise ValueError('Too many adjustment pages')
 
 
 def check(request):
@@ -151,8 +175,9 @@ async def status(request: Request, response: Response):
     from server.auth import settings
     return {'emailConfigured':bool(settings()), 'email':account.get('email') if account else None, 'sandbox':True,'configured':configured,'clientToken':client if client.startswith('test_') else '',
             'packCharacters':PACK_CHARACTERS,'priceUSD':10,
-            'account':{k:account[k] for k in ('balance','reserved','enabled')} if account else None,
+            'account':{k:account[k] for k in ('balance','reserved','enabled','shortfall')} if account else None,
             'pendingOrder':ledger.pending_order(account['id']) if account else None,
+            'paymentStatus':ledger.payment_status(account['id']) if account else None,
             'month':month,'usage':ledger.summary(month)}
 
 
@@ -200,12 +225,9 @@ async def reconcile(request: Request):
     record = ledger.order(data['order'],account['id'])
     if not record or not record['transaction_id']:
         raise HTTPException(404,'Unknown sandbox order')
-    if record['status'] == 'credited':
-        return {'credited':True,'newCredit':False}
-    remote = await asyncio.to_thread(paddle,'/transactions/' + record['transaction_id'])
-    if remote.get('status') != 'completed':
-        return {'credited':False,'status':remote.get('status','pending')}
-    if not valid_purchase(remote,record):
-        raise HTTPException(409,'The completed purchase does not match this speech pack. No credit was added.')
-    added = ledger.fulfill(record['id'],record['transaction_id'])
-    return {'credited':True,'newCredit':added}
+    from server.payment_sync import sync_order
+    try:
+        return await sync_order(ledger,record)
+    except (ValueError, KeyError, TypeError, HTTPException):
+        ledger.payment_error(record['id'])
+        raise HTTPException(502,'Payment status could not be verified. Please try again; do not pay again.') from None

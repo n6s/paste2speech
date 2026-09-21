@@ -38,6 +38,11 @@ class Ledger:
               voice TEXT NOT NULL, kind TEXT NOT NULL, source_characters INTEGER NOT NULL,
               submitted_characters INTEGER NOT NULL, audio_seconds REAL NOT NULL,
               provider_cost REAL NOT NULL, cost_incomplete INTEGER NOT NULL, outcome TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS account_debt (
+              account TEXT PRIMARY KEY REFERENCES accounts(id), characters INTEGER NOT NULL CHECK(characters>=0));
+            CREATE TABLE IF NOT EXISTS payment_sync (
+              order_id TEXT PRIMARY KEY REFERENCES orders(id), checked REAL NOT NULL DEFAULT 0,
+              revoked INTEGER NOT NULL DEFAULT 0, state TEXT NOT NULL DEFAULT 'pending');
             CREATE TABLE IF NOT EXISTS identities (
               email TEXT PRIMARY KEY, account TEXT UNIQUE NOT NULL REFERENCES accounts(id));
             CREATE TABLE IF NOT EXISTS sessions (
@@ -86,7 +91,8 @@ class Ledger:
             held = db.execute('SELECT COALESCE(SUM(remaining),0) FROM reservations WHERE account=?',
                               (row['id'],)).fetchone()[0]
             email = db.execute('SELECT email FROM identities WHERE account=?', (row['id'],)).fetchone()
-            return dict(row) | {'reserved': held, 'email': email[0] if email else None}
+            debt = db.execute('SELECT characters FROM account_debt WHERE account=?',(row['id'],)).fetchone()
+            return dict(row) | {'reserved': held, 'email': email[0] if email else None, 'shortfall':debt[0] if debt else 0}
 
     def enable(self, account, enabled):
         with self.connect() as db:
@@ -126,7 +132,7 @@ class Ledger:
             inserted = db.execute('INSERT OR IGNORE INTO grants VALUES(?,?,?,?)',
                 (transaction,row['account'],PACK_CHARACTERS,self.now())).rowcount
             if inserted:
-                db.execute('UPDATE accounts SET balance=balance+? WHERE id=?',(PACK_CHARACTERS,row['account']))
+                self.change_balance(db,row['account'],PACK_CHARACTERS)
             db.execute("UPDATE orders SET status='credited' WHERE id=?",(order,))
             return bool(inserted)
 
@@ -135,7 +141,7 @@ class Ledger:
             raise ValueError('Invalid allowance')
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
-            changed = db.execute('UPDATE accounts SET balance=balance-? WHERE id=? AND balance>=?',
+            changed = db.execute('UPDATE accounts SET balance=balance-? WHERE id=? AND balance>=? AND NOT EXISTS (SELECT 1 FROM account_debt WHERE account=accounts.id AND characters>0)',
                                  (characters,account,characters)).rowcount
             if not changed:
                 raise InsufficientCredit('Not enough sandbox credit for this reading. Add a test pack or use a shorter passage.')
@@ -161,7 +167,7 @@ class Ledger:
             db.execute('BEGIN IMMEDIATE')
             row = db.execute('SELECT * FROM reservations WHERE job=?',(job,)).fetchone()
             if row:
-                db.execute('UPDATE accounts SET balance=balance+? WHERE id=?',(row['remaining'],row['account']))
+                self.change_balance(db,row['account'],row['remaining'])
                 db.execute('DELETE FROM reservations WHERE job=?',(job,))
 
     def recover(self):
@@ -170,7 +176,7 @@ class Ledger:
         with self.connect() as db:
             db.execute('BEGIN IMMEDIATE')
             for row in db.execute('SELECT * FROM reservations').fetchall():
-                db.execute('UPDATE accounts SET balance=balance+? WHERE id=?',(row['remaining'],row['account']))
+                self.change_balance(db,row['account'],row['remaining'])
             db.execute('DELETE FROM reservations')
 
     def summary(self, month):
@@ -250,3 +256,58 @@ class Ledger:
             db.execute('DELETE FROM sessions WHERE token_hash=?', (self.digest(token),))
             db.execute('UPDATE accounts SET token_hash=? WHERE token_hash=?',
                        (self.digest(secrets.token_urlsafe(32)),self.digest(token)))
+
+    @staticmethod
+    def change_balance(db, account, delta):
+        balance = db.execute('SELECT balance FROM accounts WHERE id=?',(account,)).fetchone()[0]
+        debt = db.execute('SELECT characters FROM account_debt WHERE account=?',(account,)).fetchone()
+        net = balance - (debt[0] if debt else 0) + delta
+        db.execute('UPDATE accounts SET balance=? WHERE id=?',(max(0,net),account))
+        db.execute('INSERT INTO account_debt VALUES(?,?) ON CONFLICT(account) DO UPDATE SET characters=excluded.characters',
+                   (account,max(0,-net)))
+
+    def payment_candidates(self, limit=50):
+        with self.connect() as db:
+            return [dict(row) for row in db.execute("""SELECT o.* FROM orders o LEFT JOIN payment_sync s ON s.order_id=o.id
+                WHERE o.transaction_id IS NOT NULL AND o.status!='canceled'
+                ORDER BY COALESCE(s.checked,0),o.created LIMIT ?""",(limit,)).fetchall()]
+
+    def payment_error(self, key):
+        with self.connect() as db:
+            db.execute("INSERT INTO payment_sync(order_id,checked,state) VALUES(?,?,'error') ON CONFLICT(order_id) DO UPDATE SET checked=excluded.checked,state='error'",(key,time.time()))
+
+    def payment_status(self, account):
+        with self.connect() as db:
+            rows = db.execute('SELECT checked,state,revoked FROM payment_sync s JOIN orders o ON o.id=s.order_id WHERE o.account=?',(account,)).fetchall()
+            return {'lastChecked':max((r['checked'] for r in rows),default=None),
+                    'needsAttention':any(r['state']=='error' for r in rows),
+                    'revokedCharacters':sum(r['revoked'] for r in rows)}
+
+    def sync_payment(self, key, transaction, state, revoked=0):
+        if type(revoked) is not int or not 0<=revoked<=PACK_CHARACTERS:
+            raise ValueError('Invalid revocation')
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            row = db.execute('SELECT * FROM orders WHERE id=? AND transaction_id=?',(key,transaction)).fetchone()
+            if not row: raise ValueError('Unknown purchase')
+            old = db.execute('SELECT revoked FROM payment_sync WHERE order_id=?',(key,)).fetchone()
+            previous = old[0] if old else 0
+            added = False
+            if state == 'completed':
+                added = bool(db.execute('INSERT OR IGNORE INTO grants VALUES(?,?,?,?)',
+                    (transaction,row['account'],PACK_CHARACTERS,self.now())).rowcount)
+                self.change_balance(db,row['account'],(PACK_CHARACTERS if added else 0)+previous-revoked)
+                db.execute("UPDATE orders SET status='credited' WHERE id=?",(key,))
+            elif row['status']=='credited':
+                raise ValueError('Completed purchase regressed')
+            elif state == 'canceled':
+                db.execute("UPDATE orders SET status='canceled' WHERE id=?",(key,))
+            db.execute('INSERT INTO payment_sync VALUES(?,?,?,?) ON CONFLICT(order_id) DO UPDATE SET checked=excluded.checked,revoked=excluded.revoked,state=excluded.state',
+                       (key,time.time(),revoked,state))
+            return added
+
+    def check_reservation(self, job):
+        with self.connect() as db:
+            row = db.execute('SELECT d.characters FROM reservations r JOIN account_debt d ON d.account=r.account WHERE r.job=?',(job,)).fetchone()
+            if row and row[0]>0:
+                raise InsufficientCredit('A payment refund changed your allowance. This reading has stopped; check speech usage.')

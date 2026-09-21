@@ -20,6 +20,7 @@ def purchase(order):
 
 class BillingTests(unittest.TestCase):
     def setUp(self):
+        self.adjustments=patch('server.billing.adjustments',return_value=[]);self.adjustments.start();self.addCleanup(self.adjustments.stop)
         self.temp=tempfile.TemporaryDirectory()
         self.app=FastAPI();self.app.include_router(billing.router)
         self.app.state.usage=Ledger(Path(self.temp.name)/'usage.db')
@@ -39,7 +40,7 @@ class BillingTests(unittest.TestCase):
         with patch('server.billing.paddle',return_value=purchase(order['order'])) as api:
             first=self.client.post('/api/billing/reconcile',json={'order':order['order']},headers=ORIGIN)
             repeat=self.client.post('/api/billing/reconcile',json={'order':order['order']},headers=ORIGIN)
-        self.assertTrue(first.json()['newCredit']);self.assertFalse(repeat.json()['newCredit']);self.assertEqual(api.call_count,1)
+        self.assertTrue(first.json()['newCredit']);self.assertFalse(repeat.json()['newCredit']);self.assertEqual(api.call_count,2)
         status=self.client.get('/api/billing/status',headers=ORIGIN).json()
         self.assertEqual(status['account']['balance'],PACK_CHARACTERS)
         self.assertNotIn('id',status['account'])
@@ -47,7 +48,7 @@ class BillingTests(unittest.TestCase):
     def test_unpaid_wrong_pack_amount_quantity_and_owner_rejected(self):
         with patch('server.billing.paddle',return_value={'id':TXN}):
             order=self.client.post('/billing/order',headers=ORIGIN).json()['order']
-        with patch('server.billing.paddle',return_value={'status':'paid'}):
+        with patch('server.billing.paddle',return_value={'id':TXN,'status':'paid'}):
             result=self.client.post('/billing/reconcile',json={'order':order},headers=ORIGIN)
             self.assertFalse(result.json()['credited'])
         base=purchase(order)
@@ -59,7 +60,7 @@ class BillingTests(unittest.TestCase):
         bad=copy.deepcopy(base);bad['items'][0]['price']['unit_price']['amount']='500';variants.append(bad)
         for data in variants:
             with patch('server.billing.paddle',return_value=data):
-                self.assertEqual(self.client.post('/billing/reconcile',json={'order':order},headers=ORIGIN).status_code,409)
+                self.assertEqual(self.client.post('/billing/reconcile',json={'order':order},headers=ORIGIN).status_code,502)
         other=TestClient(self.app);other.post('/billing/session',headers=ORIGIN)
         with patch('server.billing.paddle') as api:
             self.assertEqual(other.post('/billing/reconcile',json={'order':order},headers=ORIGIN).status_code,404)

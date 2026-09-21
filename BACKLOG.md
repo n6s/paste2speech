@@ -1,3 +1,22 @@
+## Payment recovery and refund accounting — private sandbox
+
+- Service checks recorded Paddle transactions at startup and every 60 seconds
+  after each bounded scan, even with all browsers closed. Approved refunds are
+  applied with the grant atomically; repeat checks do not duplicate either.
+- Partial refunds use pretax principal; tax-only adjustments preserve allowance.
+  Already-spent refunded characters become a shortfall. New packs and reservation
+  releases cover it before restoring spendable credit. In-flight generation stops
+  before the next section when a shortfall exists.
+- Canceled orders can be replaced; failed API checks retry with a visible notice.
+  Chargeback reversal, pagination, restart and concurrent replay are covered.
+- 99 Python and 96 JavaScript tests passed across the full run and added targeted
+  cases; billing and independent-session browser tests passed. Actual sandbox API
+  reads verified all three recorded orders; the restarted service checked them and
+  preserved the six-million-character balance. No refund was issued in Paddle.
+- A real sandbox refund approval remains the end-to-end acceptance check. Public
+  signed webhooks, hosting and refund policy remain launch work. Details and known
+  boundaries: `docs/payment-recovery.md`. No public deployment.
+
 ## Email-linked sandbox allowance — private implementation
 
 - Added email sign-in preserving existing credit, independent expiring sessions,

@@ -125,6 +125,8 @@ def synthesize_recording(recording, synthesize, speech_type):
             for index, text in enumerate(recording.chunks):
                 if recording.cancelled.is_set():
                     return
+                if recording.ledger and recording.reserved:
+                    recording.ledger.check_reservation(recording.id)
                 submitted_before = recording.submitted_characters
                 cost_before = recording.provider_cost
                 seconds_before = recording.provider_audio_seconds

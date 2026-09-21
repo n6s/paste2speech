@@ -191,13 +191,16 @@ async def lifespan(app):
     app.state.busy = False
     from server.readings import cleanup_loop, jobs
     cleanup = asyncio.create_task(cleanup_loop())
+    from server.payment_sync import sync_loop
+    payment_sync = asyncio.create_task(sync_loop(app.state.usage))
     try:
         yield
     finally:
         cleanup.cancel()
+        payment_sync.cancel()
         for recording in list(jobs.values()):
             recording.dispose()
-        await asyncio.gather(cleanup, *(r.task for r in jobs.values() if r.task), return_exceptions=True)
+        await asyncio.gather(cleanup, payment_sync, *(r.task for r in jobs.values() if r.task), return_exceptions=True)
         jobs.clear()
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
