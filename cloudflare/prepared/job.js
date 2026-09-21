@@ -22,7 +22,7 @@ export function publicStatus(job){
     speechRules:'google-default',delivery:'complete',mode:job.mode};
 }
 // Persistent markers precede calls. An interrupted paid attempt is never resent.
-export async function prepareJob(job,{save,speech,store,isCancelled,now=Date.now}){
+export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=async()=>{},now=Date.now}){
   if(job.state!=='preparing')return;
   const fail=async message=>{job.state='failed';job.error=message;job.costIncomplete=true;await save(job);};
   if(job.parts.some(p=>p.state==='submitting')){
@@ -32,6 +32,7 @@ export async function prepareJob(job,{save,speech,store,isCancelled,now=Date.now
     for(let base=0;base<job.parts.length;base+=3){
       if(isCancelled())return;
       const indices=job.parts.map((p,i)=>i>=base&&i<base+3&&p.state==='pending'?i:-1).filter(i=>i>=0);
+      await beforeBatch();if(isCancelled())return;
       for(const index of indices){job.parts[index]={state:'submitting'};job.submittedCharacters+=[...job.chunks[index]].length;job.attempts++;}
       await save(job);if(isCancelled())return;
       const results=await Promise.allSettled(indices.map(async index=>{
@@ -40,9 +41,11 @@ export async function prepareJob(job,{save,speech,store,isCancelled,now=Date.now
         await store.put(`${job.id}/part-${index}`,bytes);
         return {index,state:'ready',samples:info.samples,bytes:info.bytes};
       }));
-      if(isCancelled())return;
       let failed=false;
       for(const result of results){if(result.status==='fulfilled'){const {index,...info}=result.value;job.parts[index]=info;}else failed=true;}
+      // Successful in-flight work remains chargeable after Stop. Persist it
+      // before cancellation can release the unused reservation.
+      if(isCancelled()){await save(job);return;}
       if(failed){await fail('Speech preparation failed. No automatic retry; submitted sections may be billable.');return;}
       if(job.parts.reduce((n,p)=>n+(p.bytes||0),0)>MAX_BYTES){await fail('Recording exceeds the private audio limit.');return;}
       await save(job);

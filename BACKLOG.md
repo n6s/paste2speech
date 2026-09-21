@@ -1,3 +1,14 @@
+## Worker account and usage boundary — local proof
+
+- Local D1 now reserves credit before a prepared-reading job; successful sections
+  consume it once, and unused credit returns on completion, failure or Stop.
+- Synthetic account checks passed for concurrent spending, duplicate requests,
+  ownership, failure/cancellation and runtime restart. 118 JavaScript tests pass.
+- Test identities, fake credit and cached audio only; live balances and the private
+  reader are untouched. Details: `docs/wavenet-account-proof.md`.
+- Next: recover reservations interrupted before job creation, then connect the
+  existing verified email sign-in and account/payment semantics.
+
 ## Payment recovery and refund accounting — private sandbox
 
 - Service checks recorded Paddle transactions at startup and every 60 seconds

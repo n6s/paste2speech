@@ -46,6 +46,7 @@ test('failed durable write prevents paid calls; cancellation stops subsequent ba
   const b=setup();const speech=b.options.speech;b.options.speech=async(...args)=>{const data=await speech(...args);b.job.state='cancelled';return data;};
   await prepareJob(b.job,b.options);assert.equal(b.job.state,'cancelled');assert.equal(b.calls.length,3);
   assert.ok(!b.objects.has('test/reading.mp3'));
+  assert.equal(b.saved.at(-1).parts.filter(p=>p.state==='ready').length,3,'persist successful in-flight sections before settlement');
 });
 test('input bounds are UTF-8 aware and do not rewrite the text',()=>{
   assert.deepEqual(validateInput(input).chunks,input.chunks);
@@ -79,4 +80,9 @@ test('Worker OAuth signs a verifiable fixed-endpoint JWT without exposing creden
   };
   assert.equal(await accessToken(account,{fetcher}),'synthetic-token');
   await assert.rejects(accessToken('sensitive invalid secret'),e=>!e.message.includes('sensitive'));
+});
+
+test('revoked reservation stops the next batch without submitting more text',async()=>{
+ const {job,options,calls}=setup();let batches=0;options.beforeBatch=async()=>{if(++batches===2)throw Error('credit unavailable');};
+ await prepareJob(job,options);assert.equal(calls.length,3);assert.equal(job.state,'failed');assert.equal(job.parts.filter(p=>p.state==='ready').length,3);
 });

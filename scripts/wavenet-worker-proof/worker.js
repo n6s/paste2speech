@@ -1,14 +1,21 @@
+import {UsageLedger,CreditError} from '../../cloudflare/prepared/ledger.js';
 import {newJob,prepareJob,publicStatus,canRetryAuthorization} from '../../cloudflare/prepared/job.js';
 import {accessToken,synthesize,readBounded} from '../../cloudflare/prepared/google.js';
 import fixtures from './fixture.json';
-const ORIGIN='http://127.0.0.1:8788';
+const DEFAULT_ORIGIN='http://127.0.0.1:8788';
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 const textDecoder=new TextDecoder();
-const cookieOwner=request=>request.headers.get('cookie')?.match(/(?:^|;\s*)p2s_worker_proof=([a-f0-9-]{36})(?:;|$)/)?.[1];
+const cookieOwner=request=>request.headers.get('cookie')?.match(/(?:^|;\s*)p2s_worker_proof=([a-f0-9-]{36,72})(?:;|$)/)?.[1];
 const inputJSON=async(request,limit=32000)=>JSON.parse(textDecoder.decode(await readBounded(request,limit)));
 
 export class PreparedReading {
   constructor(ctx,env){this.ctx=ctx;this.env=env;ctx.blockConcurrencyWhile(async()=>{this.job=await ctx.storage.get('job');});}
+  async settle(){if(this.env.LEDGER)await new UsageLedger(this.env.LEDGER).settle(this.job);}
+  async finish(){
+    try{await this.settle();if(this.job.state==='cancelled')await this.clean();}
+    catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
+    await this.ctx.storage.setAlarm(this.job.expires);
+  }
   async save(job){await this.ctx.storage.put('job',job);}
   async clean(){
     if(!this.job)return;
@@ -16,26 +23,30 @@ export class PreparedReading {
   }
   async alarm(){
     const job=this.job;if(!job)return;
+    if(job.state==='expired'&&!job.owner)return;
     if(Date.now()>=job.expires){
-      job.state='expired';await this.save(job);await this.clean();
+      job.state='expired';await this.save(job);
+      try{await this.settle();await this.clean();}catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
       // Keep only an attempt tombstone, so the bounded live ID cannot be reused.
       job.chunks=[];job.parts=[];job.owner='';await this.save(job);return;
     }
-    if(job.state!=='preparing')return;
+    if(job.state!=='preparing'){await this.finish();return;}
+    this.running=true;
     try {
       // Do not obtain new credentials if a prior paid call is uncertain.
       let token;
       if(job.mode==='live' && !job.parts.some(p=>p.state==='submitting'))token=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON);
-      await prepareJob(job,{save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{beforeBatch:()=>this.env.LEDGER?new UsageLedger(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live')return synthesize(text,voice,token);
           const fixture=fixtures[voice][index];
           await new Promise(resolve=>setTimeout(resolve,fixture.delayMs));
+          if(job.proofScenario==='fail-middle'&&index===1)throw Error('Synthetic failure');
           const response=await this.env.ASSETS.fetch(new Request(`http://assets/samples/${fixture.file}`));
           if(!response.ok)throw Error('Missing fixture');return new Uint8Array(await response.arrayBuffer());
         }});
     }catch(error){if(job.state!=='cancelled'){job.state='failed';job.error=error.message.startsWith('Google authorization failed')?error.message:'Preparation interrupted. No automatic retry.';job.costIncomplete=true;await this.save(job);}}
-    finally{if(job.state==='cancelled')await this.clean();await this.ctx.storage.setAlarm(job.expires);}
+    finally{this.running=false;await this.finish();}
   }
   async fetch(request){
     const url=new URL(request.url),owner=request.headers.get('X-Proof-Owner');
@@ -46,7 +57,7 @@ export class PreparedReading {
         if(this.job.voice!==input.voice||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks))return json({detail:'Request does not match existing reading'},409);
         // An explicit new create may retry authorization once, but only if the
         // durable audit proves no speech request was ever attempted.
-        if(canRetryAuthorization(this.job)){
+        if(!this.env.LEDGER&&canRetryAuthorization(this.job)){
           this.job.authorizationRestarts=(this.job.authorizationRestarts||0)+1;
           this.job.state='preparing';this.job.error='';this.job.costIncomplete=false;this.job.created=Date.now();
           await this.ctx.storage.transaction(async transaction=>{await transaction.put('job',this.job);await transaction.setAlarm(Date.now()+1);});
@@ -55,15 +66,17 @@ export class PreparedReading {
       }
       // Durable state and the alarm are committed together before acknowledging.
       this.job=newJob(input,owner,input.id);
+      this.job.proofScenario=input.proofScenario||'';
       await this.ctx.storage.transaction(async transaction=>{await transaction.put('job',this.job);await transaction.setAlarm(Date.now()+1);});
       return json({id:this.job.id},201);
     }
     const job=this.job;
     if(!job||job.owner!==owner||Date.now()>=job.expires||['cancelled','expired'].includes(job.state))return json({detail:'Reading not found'},404);
     if(request.method==='DELETE'){
-      job.state='cancelled';await this.save(job);await this.clean();await this.ctx.storage.setAlarm(job.expires);
+      job.state='cancelled';await this.save(job);if(!this.running)await this.finish();else await this.ctx.storage.setAlarm(job.expires);await this.clean();
       return new Response(null,{status:204});
     }
+    if(!this.running&&job.state!=='preparing')await this.settle();
     if(url.pathname==='/status')return json(publicStatus(job));
     if(job.state!=='ready')return json({detail:'The full reading is not ready'},409);
     const kind=url.pathname.endsWith('/vtt')?'vtt':'mp3';
@@ -88,12 +101,26 @@ export class PreparedReading {
 }
 
 export default {async fetch(request,env){
-  const url=new URL(request.url);
+  const url=new URL(request.url),ORIGIN=env.LEDGER?'http://127.0.0.1:8789':DEFAULT_ORIGIN;
   // This pilot is deliberately unusable on public hosts, even if deployed by mistake.
   if(env.LOCAL_PROOF!=='1'||url.origin!==ORIGIN)return json({detail:'Local proof only'},403);
   if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==ORIGIN)return json({detail:'Origin rejected'},403);
-  const owner=cookieOwner(request);
+  const token=cookieOwner(request),ledger=env.LEDGER?new UsageLedger(env.LEDGER):null;
   try {
+    // This separate local pilot never accepts credentials or enables live TTS.
+    if(ledger&&String(env.ENABLE_LIVE_SYNTHESIS)==='1')return json({detail:'Account pilot accepts cached audio only'},403);
+    if(ledger&&url.pathname==='/api/test-login'&&request.method==='POST'){
+      const {account}=await inputJSON(request);
+      if(!['test-reader-a','test-reader-b','test-low-credit'].includes(account))return json({},422);
+      const session=await ledger.issueSession(account);
+      return json({localTestAccount:true},200,{'Set-Cookie':`p2s_worker_proof=${session}; Path=/; HttpOnly; SameSite=Strict; Max-Age=3600`});
+    }
+    const identity=ledger?await ledger.session(token):null,owner=ledger?(identity?.enabled?identity.id:null):token;
+    if(ledger&&url.pathname==='/api/logout'&&request.method==='POST'){await ledger.logout(token);return json({},200,{'Set-Cookie':'p2s_worker_proof=; Path=/; HttpOnly; SameSite=Strict; Max-Age=0'});}
+    if(ledger&&url.pathname==='/api/account')return owner?json(await ledger.account(owner)):json({},401);
+    const receipt=url.pathname.match(/^\/api\/reservations\/([a-f0-9-]{36})$/);
+    if(ledger&&receipt){const result=owner?await ledger.receipt(receipt[1],owner):null;return result?json(result):json({},404);}
+    if(ledger&&url.pathname==='/'&&request.method==='GET')return new Response('Local account API proof. Synthetic identities and fake credit only. Run check-accounts.mjs; browser sign-in is not connected yet.',{headers:{'Content-Type':'text/plain','Cache-Control':'no-store'}});
     if(url.pathname==='/capabilities'){
       let credentialJsonValid=false;try{credentialJsonValid=!!JSON.parse(env.GOOGLE_SERVICE_ACCOUNT_JSON).private_key;}catch{}
       return json({liveEnabled:String(env.ENABLE_LIVE_SYNTHESIS)==='1',hasGoogleCredential:!!env.GOOGLE_SERVICE_ACCOUNT_JSON,credentialJsonValid});
@@ -110,7 +137,12 @@ export default {async fetch(request,env){
       if(mode==='live' && String(env.ENABLE_LIVE_SYNTHESIS)!=='1')return json({detail:'Live generation disabled'},403);
       // One persistent paid run per voice in this local state directory. Reloads
       // return the existing job; failed/cancelled attempts cannot be resubmitted.
-      const id=mode==='live'?`live-${input.voice}-baseline-1`:crypto.randomUUID();
+      const id=ledger?request.headers.get('Idempotency-Key'):(mode==='live'?`live-${input.voice}-baseline-1`:crypto.randomUUID());
+      if(ledger){
+        if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id||''))return json({detail:'A UUID request key is required'},422);
+        if(input.proofScenario&&!['fail-middle'].includes(input.proofScenario))return json({},422);
+        await ledger.reserve(id,owner,{...input,mode});
+      }
       const stub=env.JOBS.get(env.JOBS.idFromName(id));
       return stub.fetch(new Request('http://job/create',{method:'POST',headers:{'X-Proof-Owner':owner},body:JSON.stringify({...input,mode,id})}));
     }
@@ -128,7 +160,7 @@ export default {async fetch(request,env){
     if(request.method!=='GET')return json({},405);
     const response=await env.ASSETS.fetch(request);
     const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');
-    if(!owner&&url.pathname==='/')headers.set('Set-Cookie',`p2s_worker_proof=${crypto.randomUUID()}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
+    if(!ledger&&!owner&&url.pathname==='/')headers.set('Set-Cookie',`p2s_worker_proof=${crypto.randomUUID()}; Path=/; HttpOnly; SameSite=Strict; Max-Age=86400`);
     return new Response(response.body,{status:response.status,headers});
-  }catch{return json({detail:'Private preparation request failed'},500);}
+  }catch(error){return error instanceof CreditError?json({detail:error.message},error.status):json({detail:'Private preparation request failed'},500);}
 }};
