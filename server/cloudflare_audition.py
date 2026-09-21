@@ -79,16 +79,19 @@ def generate(job):
     return data, mime, round((time.monotonic() - started) * 1000)
 
 
+@router.get('/audition')
 @router.get('/api/audition')
 async def page():
     return FileResponse(ROOT / 'index.html')
 
 
+@router.get('/audition.js')
 @router.get('/api/audition.js')
 async def script():
     return FileResponse(ROOT / 'app.js', media_type='text/javascript')
 
 
+@router.post('/audition/speech')
 @router.post('/api/audition/speech')
 async def speech(request: Request):
     if request.headers.get('origin') not in ORIGINS:

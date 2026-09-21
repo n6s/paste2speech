@@ -28,6 +28,11 @@ class AuditionTests(unittest.TestCase):
             self.assertEqual(client.post('/api/audition/speech', content='x'*12001, headers=origin | {'Content-Type':'application/json'}).status_code,413)
             generate.assert_not_called()
 
+    def test_tailscale_prefix_stripping_routes(self):
+        self.assertEqual(client.get('/audition').status_code, 200)
+        self.assertEqual(client.get('/audition.js').status_code, 200)
+        self.assertEqual(client.post('/audition/speech',json={}).status_code, 403)
+
     def test_audio_route_returns_binary_and_timing(self):
         with patch.object(audition, 'generate', return_value=(b'ID3audio', 'audio/mpeg', 125)):
             result=client.post('/api/audition/speech',json={'model':'aura1','voice':'asteria','text':'Hello.'},headers=origin)
