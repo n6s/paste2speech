@@ -15,8 +15,10 @@
 - Implemented privately: durable numeric usage accounting, browser-bound sandbox
   balances, server-created Paddle orders, authenticated API purchase verification,
   idempotent grants and per-reading reservations with partial-failure refunds.
-  Month totals and checkout are at `/speak/api/billing`. Real sandbox transaction
-  creation passes; completed checkout acceptance still needs Roger's browser test.
+  Month totals and checkout are at `/speak/api/billing`. Real sandbox checkout
+  completed with Paddle's test card, granted exactly 3,000,000 characters, and
+  retained that balance across refresh/reload without a duplicate grant. Checkout
+  confirmation now polls briefly for Paddle's delayed completed transaction status.
   Public authentication, recovery, webhook/refund handling and deployment remain future work.
 
 ## Hosted Kokoro pilot — private only
