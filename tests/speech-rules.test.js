@@ -32,3 +32,24 @@ test('clock times, ranges and ratios follow shared speech-only examples',()=>{
  const cases=JSON.parse(readFileSync(new URL('../shared/time-speech-cases.json',import.meta.url)));
  for(const [input,expected]of cases)assert.equal(spokenText(input),expected,input);
 });
+
+test('weekend pronunciation reports use requested sounds without changing surrounding text',()=>{
+ const passage='The bad counterpoint is that the Houthis are still escalating. Saudi Arabia says it intercepted a ballistic missile aimed toward Riyadh this weekend, and Houthi attacks continue to threaten Saudi infrastructure.';
+ for(const dialect of ['a','b']) {
+  const u=dialect==='a'?'u':'uː';
+  const expected={houthi:`hˈ${u}ti`,houthis:`hˈ${u}tiz`,astaxanthin:'æstəˈzænθɪn'};
+  for(const [word,phones] of Object.entries(expected)) {
+   for(const spelling of [word,word.toUpperCase(),word[0].toUpperCase()+word.slice(1)])
+    assert.deepEqual(pronunciationSegments(spelling,dialect,dictionary),[{phonemes:phones}]);
+   for(const apostrophe of ["'",'’'])
+    assert.deepEqual(pronunciationSegments(word+apostrophe+'s',dialect,dictionary),[{phonemes:phones+(word==='houthis'?'ɪz':'z')}]);
+  }
+  const segments=pronunciationSegments(passage,dialect,dictionary);
+  assert.deepEqual(segments.filter(s=>s.phonemes).map(s=>s.phonemes),[expected.houthis,expected.houthi]);
+  assert.equal(segments.map(s=>s.text??(s.phonemes===expected.houthis?'Houthis':'Houthi')).join(''),passage);
+  const protectedText='https://example.com/Houthi/astaxanthin www.houthis.test houthiness houthism astaxanthins';
+  assert.equal(pronunciationSegments(protectedText,dialect,dictionary).map(s=>s.text).join(''),protectedText);
+  const phrases=speechPhrases('Houthi: “Astaxanthin.” Houthis—next.');
+  assert.deepEqual(phrases,[['Houthi:',6000],['“Astaxanthin.”',1200],['Houthis',3600],['next.',0]]);
+ }
+});

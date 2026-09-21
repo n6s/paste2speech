@@ -14,7 +14,7 @@ page.on('console',m=>{if(m.type()==='error')console.log('CONSOLE',m.text().slice
 page.on('request',r=>{if(r.method()==='POST')readingRequests.push({url:r.url(),data:r.postData()});});
 try{
  await page.goto(process.env.TEST_URL||'http://127.0.0.1:8777/');
- await page.locator('#text').fill('Waymo demos UBTECH robotaxi and robotaxis.');
+ await page.locator('#text').fill('Houthi. Houthis. Astaxanthin. The Houthis are still escalating, and Houthi attacks continue. Waymo demos UBTECH robotaxi and robotaxis.');
  await page.locator('#text').dispatchEvent('input');
  await page.locator('#read-mode').click();
  assert.equal(await page.locator('#status').textContent(),'Ready when you are');

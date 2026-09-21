@@ -259,6 +259,22 @@ class PronunciationTests(unittest.TestCase):
                 self.assertEqual(pronunciation_text(word, voice), f'[{word}](/{phones}/)')
         self.assertEqual(pronunciation_text("Waymo's robotaxis", 'af_heart'), "[Waymo](/wˈAmO/)'s [robotaxis](/rˈObOtˌæksiz/)")
 
+    def test_weekend_pronunciations_and_original_passage(self):
+        passage = 'The bad counterpoint is that the Houthis are still escalating. Saudi Arabia says it intercepted a ballistic missile aimed toward Riyadh this weekend, and Houthi attacks continue to threaten Saudi infrastructure.'
+        for voice, vowel in [('af_heart', 'u'), ('bf_emma', 'uː')]:
+            expected = {'houthi': f'hˈ{vowel}ti', 'houthis': f'hˈ{vowel}tiz', 'astaxanthin': 'æstəˈzænθɪn'}
+            for word, phones in expected.items():
+                for spelling in [word, word.upper(), word.title()]:
+                    self.assertEqual(pronunciation_text(spelling, voice), f'[{spelling}](/{phones}/)')
+                for apostrophe in ["'", '’']:
+                    self.assertEqual(pronunciation_text(word + apostrophe + 's', voice), f'[{word}](/{phones}/)' + apostrophe + 's')
+            corrected = passage.replace('Houthis', f"[Houthis](/{expected['houthis']}/)").replace('Houthi attacks', f"[Houthi](/{expected['houthi']}/) attacks")
+            self.assertEqual(pronunciation_text(passage, voice), corrected)
+            protected = 'https://example.com/Houthi/astaxanthin www.houthis.test houthiness houthism astaxanthins'
+            self.assertEqual(pronunciation_text(protected, voice), protected)
+        calls, _ = ColonPauseTests.synthesize(self, 'Houthi: “Astaxanthin.” Houthis—next.')
+        self.assertEqual(calls, ['[Houthi](/hˈuti/):', '“[Astaxanthin](/æstəˈzænθɪn/).”', '[Houthis](/hˈutiz/)', 'next.'])
+
     def test_urls_and_longer_words_stay_unchanged(self):
         text = 'https://waymo.com/robotaxis www.waymo.com waymology robotaxism https://ubtech.com/UBTECH ubtechnology'
         self.assertEqual(pronunciation_text(text, 'af_heart'), text)

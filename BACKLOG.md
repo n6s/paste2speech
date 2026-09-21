@@ -8,6 +8,10 @@ GPU request batching is deferred: first measure Pixel preparation with CUDA; the
 
 These convenience features are deferred from the consolidated-panel update.
 
+## Completed — 2026-09-20
+
+- Weekend pronunciation reports: shared American/British Kokoro overrides for Houthi (HOO-ti), Houthis (HOO-teez), and astaxanthin (as-tuh-ZAN-thin). Both workstation and on-device synthesis use the dictionary; original text, URLs, longer words, and pause planning are preserved. Regression tests cover the supplied passage, capitalization, and possessives. Real workstation Heart/Emma and browser Heart/George audio samples are generated for listening; final Pixel pronunciation acceptance remains with Roger. Reload and regenerate prepared audio to hear the changes. Private reader release only.
+
 ## Completed — 2026-09-17
 
 - Multiple-choice labels: separate uppercase A)–Z) answer lines into paragraphs and add 150 ms Kokoro pauses after the labels, including Correct Answer labels. Normal parentheses remain unchanged. 94 automated tests, browser checks, live paragraph/playback checks, and real answer-label pause measurements passed.
