@@ -1,3 +1,11 @@
+## Hosted Kokoro pilot — private only
+
+DeepInfra is selectable in the private reader, with Heart/Emma, bounded prepaid
+usage, shared speech rules, continuous playback and MP3/VTT export. Validate its
+Pixel behavior separately from the previously confirmed workstation path. Public
+hosted infrastructure, prepaid checkout, purchase recognition, and usage limits
+remain future work; no account/billing integration or public deployment is included.
+
 # Current private milestone — 2026-09-21
 
 Progressive workstation Kokoro, media playback speed, section controls, MP3 export,

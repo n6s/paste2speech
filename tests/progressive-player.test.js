@@ -79,3 +79,29 @@ test('a superseded play promise cannot pause a newer seek',async()=>{
  void p.play();audio.play=native;p.move(1);await tick();reject(Error('interrupted'));await tick();
  assert.equal(p.state,'playing');assert.equal(p.wantPlay,true);await p.invalidate();
 });
+
+test('switching provider creates a new reading while changing speed reuses it',async()=>{
+ const {p,calls}=setup();await p.start(['one'],settings);await tick();
+ await p.start(['one'],{...settings,provider:'deepinfra'});await tick();
+ const posts=calls.filter(([,o])=>o.method==='POST');assert.equal(posts.length,2);
+ assert.equal(JSON.parse(posts[1][1].body).provider,'deepinfra');
+ p.setRate(1.5);assert.equal(calls.filter(([,o])=>o.method==='POST').length,2);await p.invalidate();
+});
+test('a new reading waits for an earlier stop to release the service',async()=>{
+ const {p,calls}=setup();await p.start(['one'],settings);await tick();
+ const fetcher=p.fetcher;let finish;
+ p.fetcher=(url,options={})=>options.method==='DELETE'?new Promise(r=>finish=r):fetcher(url,options);
+ p.stop();const next=p.start(['two'],settings);await tick();
+ assert.equal(calls.filter(([,o])=>o.method==='POST').length,1);
+ finish({ok:true});await next;await tick();
+ assert.equal(calls.filter(([,o])=>o.method==='POST').length,2);
+ p.fetcher=fetcher;await p.invalidate();
+});
+
+test('a generated live section can seek beyond Chrome prefetch without waiting for completion',async()=>{
+ const {p,audio,setSnapshot}=setup();await p.start(['one','two','three'],settings);await tick();
+ audio.buffered={length:1,start:()=>0,end:()=>1};audio.readyState=1;p.move(1);
+ setSnapshot({state:'generating',starts:[.046,2.046],duration:4.046});await p.refresh();await tick();
+ assert.equal(audio.currentTime,2.046);assert.equal(p.state,'playing');assert.equal(p.index,1);
+ assert.equal(p.complete,false);assert.equal(p.seekableFile,false);await p.invalidate();
+});

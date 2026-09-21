@@ -34,3 +34,10 @@ test('on-device metrics cannot accompany another selected engine',()=>{
   assert.equal(result.processing,undefined);
  }
 });
+
+test('private hosted and buffering diagnostics remain compatible with deployed feedback',async()=>{
+ const {validContext}=await import('../cloudflare/worker.js');
+ const context=feedbackContext({navigator:{},environment:'test',release:'test',engine:'deepinfra',voice:'Heart',playback:'buffering'});
+ assert.equal(context.engine,'workstation');assert.equal(context.voice,'DeepInfra · Heart');
+ assert.equal(context.playback,'preparing');assert.equal(validContext(context),true);
+});

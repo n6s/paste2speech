@@ -70,7 +70,8 @@ let preparationStarted = 0;
 let countNextPlayback = false;
 let browserVoice = selectedVoice;
 let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
-function isWorkstation() { return $('engine').value === 'workstation'; }
+function isDeepInfra() { return $('engine').value === 'deepinfra'; }
+function isWorkstation() { return ['workstation','deepinfra'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
 function canPlay() { return isWorkstation() ? workstationVoices.length > 0 : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
@@ -93,13 +94,14 @@ async function discoverWorkstation() {
     if (!Array.isArray(data.voices) || !data.voices.length) throw new Error('no voices');
     workstationVoices = data.voices;
     $('engine').querySelector('[value=workstation]').disabled = false;
+    $('engine').querySelector('[value=deepinfra]').disabled = false;
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro';
-    if ((saved.engine === 'workstation' || (saved.engine === 'kokoro' && !saved.engineSchema)) && (!player || player.state === 'idle')) { $('engine').value = 'workstation'; changeEngine(); }
+    if ((['workstation','deepinfra'].includes(saved.engine) || (saved.engine === 'kokoro' && !saved.engineSchema)) && (!player || player.state === 'idle')) { $('engine').value = saved.engine==='deepinfra'?'deepinfra':'workstation'; changeEngine(); }
   } catch {
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro · unavailable';
   }
 }
-function settings() { return { paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { provider:isDeepInfra()?'deepinfra':'workstation', paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
@@ -225,6 +227,7 @@ function render(p, message) {
     ? 'Playback starts as audio arrives. Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use; Clear removes this recording.'
     : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.';
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
+  if(isDeepInfra() && p.id) $('recording-progress').textContent += ` · provider-reported estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
     const href = isWorkstation() && p.download?.(kind);
     $(id).hidden = !href || (kind==='vtt' && !$('include-captions').checked);
@@ -251,18 +254,18 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
-  const summary = `${voice} · ${$('rate').value}×`;
+  const summary = `${isDeepInfra()?'DeepInfra · ':''}${voice} · ${$('rate').value}×`;
   $('voice-settings-summary').textContent = summary;
   $('voice-settings-summary').title = summary;
 }
 function loadVoices() {
   $('voice').replaceChildren();
   if (isKokoro()) {
-    const availableVoices = isWorkstation() ? workstationVoices : localVoices;
+    const availableVoices = isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : 'af_heart';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -418,6 +421,7 @@ preview();
   setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>$('engine').value==='kokoro'?localKokoro.processingMetrics():undefined);
 }
 if (WORKSTATION) {
+  const hostedOption=new Option('DeepInfra - Kokoro · private test','deepinfra');hostedOption.disabled=true;$('engine').append(hostedOption);
   const option = new Option('Workstation - Kokoro · checking…', 'workstation');
   option.disabled = true; $('engine').add(option);
   discoverWorkstation();

@@ -142,10 +142,12 @@ Autoplay rejection leaves a Play button. Media Session registers play, pause,
 stop, previous/next section, and seek controls; which controls appear depends on
 the browser/device. Returning to the page refreshes highlighting from audio time.
 
-A seek within received audio is immediate. If the browser has stopped buffering
-and the requested section is not available, navigation waits for preparation,
-then opens the same MP3 with range support. The highlighted requested section
-stays fixed while waiting. Speed changes do not alter any caption timestamps.
+A seek within received audio is immediate. Once a section has been generated,
+the player can seek through the arriving MP3 even if Chrome stopped prefetching
+while paused. Navigation to an ungenerated section waits until that section is
+ready. Completed recordings can reopen the same MP3 with range support. The
+highlighted requested section stays fixed while waiting. Speed changes do not
+alter any caption timestamps.
 
 Expand **Download recording** after preparation finishes to save a single mono
 24 kHz, 64 kbps MP3 at original speed. **Include timed text** reveals a separate
@@ -362,3 +364,60 @@ quality check. Test artifacts are local under ignored `work/auditions/`.
 Validation: 84 JavaScript tests, 59 Python tests, and mobile browser audition
 checks (explicit requests, independent samples, playback, download, errors).
 This change is private only; do not publish the pending browser experiments.
+
+## Private DeepInfra reader pilot
+
+Choose **DeepInfra - Kokoro · private test** under Voice & speed on the private
+reader. Heart and British Emma are available. This sends text to DeepInfra and
+uses the project's prepaid balance; browser users never receive the API token.
+The public interface has no hosted option or recording endpoint.
+
+The pilot uses the same progressive recording pipeline, pronunciation dictionary,
+clock-time expansion, pause planning, highlighting, playback-rate controls, MP3,
+and WebVTT exports as workstation Kokoro. DeepInfra supplies mono 24 kHz WAV
+phrases; the workstation applies the shared pause rules and encodes the continuous
+MP3. Speech inference is remote; the workstation still relays, stores, and serves
+the recording. This is not a deployed Cloudflare generation backend.
+
+Inputs are capped at 20,000 original characters per reading and 30,000 attempted
+characters after expansion. Requests use DeepInfra's default service tier and
+have no automatic paid retry. Provider-reported cost estimates appear beside
+preparation progress; unknown/missing costs are marked incomplete. Failed reads
+are not offered as complete exports. Retrying a failed reading starts again and
+can incur new charges. Stop prevents further phrases; an already-running provider
+request may finish and be charged. Existing workstation-only readings keep their
+larger limits and do not call DeepInfra.
+
+The provider adapter shares the existing speech-boundary code instead of creating
+a second pronunciation/pause implementation. Feedback remains compatible with the
+currently deployed schema: the physical engine is the workstation relay, and the
+voice label identifies DeepInfra. No feedback-service deployment is needed.
+
+A controlled phoneme probe on 2026-09-21 substituted dog phonemes for the displayed
+word cat. The hosted result had the same sample length as the ordinary dog reading,
+with normalized peak waveform correlation 0.9946 versus 0.1964 for ordinary cat.
+This supports dictionary-markup compatibility. Heart and Emma pronunciation/clock
+samples are under ignored `work/deepinfra-validation/`; Roger's listening test is
+still the final check for the reported words.
+
+Use `P2S_TEST_ENGINE=deepinfra node tests/progressive-browser.mjs` against the
+isolated local test service to run the paid chapter comparison. Do not run it as
+an ordinary unit test: it consumes prepaid credit. The default browser check
+continues to use local workstation synthesis.
+
+Hosted chapter result (2026-09-21, Heart, one successful run): 2,448 words / 168
+sections, 13,863 submitted characters, 802.584 seconds of audio, 6,420,672 MP3
+bytes. First playback: 1.247 seconds. Full preparation: 210.072 seconds. Provider
+reported cost: $0.00859506 (generation only). Speed changes, section highlighting,
+live-stream navigation, middle/final seeks, natural completion/replay, and all
+168 VTT cues passed. The chapter decodes as a complete MP3. This is a measurement,
+not a latency guarantee or whole-book reliability result. A prior attempt exposed
+the paused live-stream seek wait and was cancelled at the harness timeout; the
+native-stream seek fix above resolved it before this successful comparison.
+
+Validation: 96 JavaScript tests and 68 Python tests. Local artifacts and provider
+cost/timing records are under `work/deepinfra-validation/`. The two ~9-second
+Heart/Emma correction samples together reported $0.00020708. Pixel listening,
+lock-screen behavior with hosted generation, and pronunciation acceptance remain
+with Roger. No hosted public release, checkout, authentication, or billing work
+was performed.

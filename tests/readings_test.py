@@ -101,3 +101,28 @@ class ReadingsTests(unittest.TestCase):
             self.assertEqual(client.delete('/readings/'+key,headers=origin).status_code,204)
             self.assertFalse(app.state.busy)
             self.assertEqual(client.get('/readings/'+key).status_code,404)
+
+    def test_hosted_input_limits_and_provider_selection(self):
+        from types import SimpleNamespace
+        import time
+        from unittest.mock import Mock
+        app=FastAPI();app.include_router(readings.router);app.state.busy=False
+        local=Mock(side_effect=AssertionError('Must not use local GPU'))
+        app.state.engine=SimpleNamespace(synthesize=local)
+        origin={'Origin':'https://pop-os.tailbd091c.ts.net'}
+        with TestClient(app) as client:
+            for data in [{'provider':'unknown','voice':'af_heart','chunks':['Hello']},
+                         {'provider':'deepinfra','voice':'am_fenrir','chunks':['Hello']},
+                         {'provider':'deepinfra','voice':'af_heart','chunks':['x'*500]*41}]:
+                self.assertEqual(client.post('/readings',json=data,headers=origin).status_code,422)
+            hosted=SimpleNamespace(synthesize=lambda job:wav([1000]*2400))
+            with patch('server.deepinfra.DeepInfraEngine',return_value=hosted):
+                response=client.post('/readings',json={'provider':'deepinfra','voice':'bf_emma','chunks':['Hello.']},headers=origin)
+                self.assertEqual(response.status_code,200);key=response.json()['id']
+                for _ in range(100):
+                    result=client.get('/readings/'+key).json()
+                    if result['state']!='generating':break
+                    time.sleep(.01)
+                self.assertEqual(result['state'],'ready');self.assertEqual(result['provider'],'deepinfra')
+                local.assert_not_called()
+                client.delete('/readings/'+key,headers=origin)

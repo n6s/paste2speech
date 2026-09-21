@@ -2,6 +2,10 @@ import { validProcessing } from '../shared/processing-metrics.js';
 import { defaults } from './text.js';
 // Coarse diagnostics only: never include the raw user agent or reading content.
 export function feedbackContext({navigator, environment, release, engine, voice, playback, cleanup, processing}) {
+ // Private hosted trials still run through the workstation relay. Keep the
+ // deployed feedback schema compatible, identifying the provider in the voice.
+ if(engine==='deepinfra'){engine='workstation';voice=`DeepInfra · ${voice||'Device default'}`;}
+ if(playback==='buffering')playback='preparing';
  const ua=navigator.userAgent || '';
  const browser=/Edg(?:e|A|iOS)?\//.test(ua)?'Edge':/OPR\/|Opera/.test(ua)?'Opera':/Firefox\/|FxiOS\//.test(ua)?'Firefox':/Chrome\/|CriOS\//.test(ua)?'Chrome':/Safari\//.test(ua)?'Safari':'Other';
  const mobile=navigator.userAgentData?.mobile ?? (/Android|iPhone|iPad|iPod|Mobile/.test(ua)||(navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1));

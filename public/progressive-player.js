@@ -48,7 +48,7 @@ export class ProgressivePlayer {
     this.emit();
   }
   matches(chunks,settings) {
-    return this.id && !this.serverFailed && settings.voice===this.settings?.voice &&
+    return this.id && !this.serverFailed && (settings.provider||'workstation')===(this.settings?.provider||'workstation') && settings.voice===this.settings?.voice &&
       JSON.stringify(settings.paragraphStarts||[])===JSON.stringify(this.settings?.paragraphStarts||[]) &&
       chunks.length===this.chunks.length && chunks.every((text,i)=>text===this.chunks[i]);
   }
@@ -68,7 +68,7 @@ export class ProgressivePlayer {
       await deleted;
       if(generation!==this.generation)return;
       const response=await this.fetcher(this.endpoint(),{method:'POST',headers:{'Content-Type':'application/json'},signal:this.createController.signal,
-        body:JSON.stringify({chunks:this.chunks,voice:settings.voice,paragraphStarts:settings.paragraphStarts||[]})});
+        body:JSON.stringify({chunks:this.chunks,voice:settings.voice,provider:settings.provider||'workstation',paragraphStarts:settings.paragraphStarts||[]})});
       const data=await response.json();
       if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Could not prepare this reading.');
       if(generation!==this.generation){void this.deleteJob(data.id);return;}
@@ -87,7 +87,7 @@ export class ProgressivePlayer {
       const data=await response.json();
       if(generation!==this.generation)return;
       if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Could not check recording progress.');
-      this.starts=data.starts;this.duration=data.duration;this.complete=data.state==='ready';
+      this.starts=data.starts;this.duration=data.duration;this.providerCost=data.providerCost;this.costIncomplete=data.costIncomplete;this.complete=data.state==='ready';
       if(['failed','cancelled'].includes(data.state)){
         this.serverFailed=true;this.wantPlay=false;this.audio.pause();this.state='failed';this.emit(data.error || 'Preparation stopped. Press Play to retry.');return;
       }
@@ -103,17 +103,20 @@ export class ProgressivePlayer {
   applyPending() {
     if(this.pendingIndex===null || this.pendingIndex===undefined || this.starts[this.pendingIndex]===undefined)return;
     const target=this.pendingTime ?? this.starts[this.pendingIndex];
-    // Waiting for buffered audio avoids restarting a live non-range response.
+    // Buffered seeks are immediate; generated but unbuffered seeks use the native stream.
     const ranges=this.audio.buffered;
     let available=false;
     for(let i=0;i<(ranges?.length||0);i++)if(ranges.start(i)<=target && ranges.end(i)>target)available=true;
-    if(!available){
-      if(!this.complete)return;
+    if(!available && this.complete){
       // A live response has no length for range seeking. Once complete, reopen
       // the identical bytes with Content-Length/Range support before this seek.
       if(!this.seekableFile){this.seekableFile=true;this.audio.src=this.url+'?complete=1';this.audio.load();}
       if(this.audio.readyState<1)return;
     }
+    // Chrome can seek forward through an arriving MP3 even when its reported
+    // buffered ranges stop growing while paused. Let native seeking consume
+    // the stream once this section exists, rather than waiting for all sections.
+    if(!available && this.audio.readyState<1)return;
     this.audio.currentTime=target;this.index=this.pendingIndex;this.pendingIndex=null;this.pendingTime=null;
     if(this.wantPlay)void this.play();else{this.state='paused';this.emit();}
   }
@@ -160,8 +163,8 @@ export class ProgressivePlayer {
   async deleteJob(id) {if(id)try{await this.fetcher(this.endpoint(`/${id}`),{method:'DELETE',keepalive:true});}catch{}}
   invalidate() {
     this.generation++;clearTimeout(this.timer);this.createController?.abort();this.wantPlay=false;
-    this.audio.pause();const deleted=this.deleteJob(this.id);this.id=null;this.url=null;this.audio.removeAttribute('src');this.audio.load();
-    this.pendingIndex=null;this.starts=[];this.chunks=[];this.duration=0;this.index=0;this.complete=false;this.seekableFile=false;this.serverFailed=false;this.state='idle';
+    this.audio.pause();const deleted=this.id?this.deleteJob(this.id):(this.deleting||Promise.resolve());this.deleting=deleted;this.id=null;this.url=null;this.audio.removeAttribute('src');this.audio.load();
+    this.pendingIndex=null;this.starts=[];this.chunks=[];this.duration=0;this.index=0;this.providerCost=0;this.costIncomplete=false;this.complete=false;this.seekableFile=false;this.serverFailed=false;this.state='idle';
     this.release();this.emit();return deleted;
   }
   download(kind) {return this.complete && this.id?this.endpoint(`/${this.id}/download/${kind}`).href:null;}

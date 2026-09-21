@@ -13,6 +13,7 @@ import time
 import wave
 from dataclasses import dataclass, field
 from pathlib import Path
+from typing import Literal
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from fastapi.responses import FileResponse, StreamingResponse
@@ -47,6 +48,7 @@ class ReadingRequest(BaseModel):
     model_config = ConfigDict(extra='forbid', strict=True)
     chunks: list[str] = Field(min_length=1, max_length=10000)
     voice: str
+    provider: Literal['workstation', 'deepinfra'] = 'workstation'
     paragraphStarts: list[int] = Field(default_factory=list, max_length=10000)
 
 @dataclass
@@ -54,6 +56,10 @@ class Recording:
     chunks: list
     voice: str
     paragraphs: set
+    provider: str = 'workstation'
+    provider_cost: float = 0
+    submitted_characters: int = 0
+    cost_incomplete: bool = False
     id: str = field(default_factory=lambda: secrets.token_urlsafe(24))
     directory: str = field(default_factory=new_directory)
     starts: list = field(default_factory=list)
@@ -72,7 +78,9 @@ class Recording:
 
     def snapshot(self):
         return {'state': self.state, 'starts': list(self.starts), 'duration': self.duration,
-                'completed': len(self.starts), 'total': len(self.chunks), 'error': self.error}
+                'completed': len(self.starts), 'total': len(self.chunks), 'error': self.error,
+                'provider': self.provider, 'providerCost': self.provider_cost,
+                'submittedCharacters': self.submitted_characters, 'costIncomplete': self.cost_incomplete}
 
     def dispose(self):
         self.cancelled.set()
@@ -135,9 +143,9 @@ def synthesize_recording(recording, synthesize, speech_type):
                                           '-of', 'default=nw=1:nk=1', str(recording.path)], timeout=15)
         recording.duration = float(result)
         recording.state = 'ready'
-    except Exception:
+    except Exception as error:
         if not recording.cancelled.is_set():
-            recording.error = 'Recording stopped before completion. Press Play to retry the reading.'
+            recording.error = getattr(error, 'public_message', None) or 'Recording stopped before completion. Press Play to retry the reading.'
             recording.state = 'failed'
     finally:
         if recording.process:
@@ -210,6 +218,10 @@ async def create(request: Request):
             or sum(map(len, job.chunks)) > 1_000_000
             or any(index < 0 or index >= len(job.chunks) for index in job.paragraphStarts)):
         raise HTTPException(422, 'Choose a voice and reading sections of at most 600 characters.')
+    if job.provider == 'deepinfra':
+        from server.deepinfra import VOICES as HOSTED_VOICES, MAX_INPUT
+        if job.voice not in HOSTED_VOICES or sum(map(len, job.chunks)) > MAX_INPUT:
+            raise HTTPException(422, 'Private DeepInfra testing supports Heart and Emma, up to 20,000 characters per reading.')
     if request.app.state.busy:
         raise HTTPException(503, 'The workstation is busy. Wait a moment and press Play.')
     if not shutil.which('ffmpeg'):
@@ -217,12 +229,20 @@ async def create(request: Request):
     expire_recordings()
     if len(jobs) >= MAX_JOBS:
         raise HTTPException(409, 'Three readings are already open. Clear an earlier reading before starting another.')
-    recording = Recording(job.chunks, job.voice, set(job.paragraphStarts))
+    recording = Recording(job.chunks, job.voice, set(job.paragraphStarts), provider=job.provider)
+    synthesize = request.app.state.engine.synthesize
+    if job.provider == 'deepinfra':
+        from server.deepinfra import DeepInfraEngine, HostedSpeechError
+        try:
+            synthesize = DeepInfraEngine(recording).synthesize
+        except HostedSpeechError as error:
+            recording.dispose()
+            raise HTTPException(503, error.public_message) from None
     jobs[recording.id] = recording
     request.app.state.busy = True
     async def run():
         try:
-            await asyncio.to_thread(synthesize_recording, recording, request.app.state.engine.synthesize, Speech)
+            await asyncio.to_thread(synthesize_recording, recording, synthesize, Speech)
         finally:
             request.app.state.busy = False
     recording.task = asyncio.create_task(run())

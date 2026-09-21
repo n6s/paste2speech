@@ -11,7 +11,7 @@ try {
   });
   await page.goto(privateHost?'https://pop-os.tailbd091c.ts.net/speak/':'http://127.0.0.1:8777/');
   await page.locator('#voice-settings > summary').click();
-  assert.equal(await page.locator('#engine option').count(),privateHost?3:2);
+  assert.equal(await page.locator('#engine option').count(),privateHost?4:2);
   assert.equal(await page.locator('#feedback-form textarea').count(),1);
   assert.equal(await page.locator('#download-model').count(),1);
   assert.ok((await page.locator('#pdf-status').textContent()).includes('not uploaded'));
