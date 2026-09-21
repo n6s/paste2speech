@@ -38,3 +38,27 @@ class GoogleTests(unittest.TestCase):
         self.engine.session.post.assert_not_called()
     def test_provider_schema(self):
         self.assertEqual(ReadingRequest(chunks=['Hello'],voice='en-US-Wavenet-F',provider='google').provider,'google')
+
+    def test_divider_only_section_is_silent_and_never_calls_google(self):
+        from server.app import Speech
+        from server.readings import parse_pcm
+        for text in ['—', '——', ' — — ']:
+            pcm = parse_pcm(self.engine.synthesize(Speech(text=text, voice='en-US-Wavenet-F')))
+            self.assertEqual(pcm, bytes(4800))
+        self.engine.session.post.assert_not_called()
+        self.assertEqual(self.engine.recording.submitted_characters, 0)
+
+    def test_recording_continues_after_divider(self):
+        from server.app import Speech
+        from server.readings import Recording, synthesize_recording, captions
+        recording = Recording(['Before.', '—', 'After.'], 'en-US-Wavenet-F', set(), provider='google')
+        self.engine.recording = recording
+        self.engine.fork = None
+        try:
+            synthesize_recording(recording, self.engine.synthesize, Speech)
+            self.assertEqual(recording.state, 'ready')
+            self.assertEqual(len(recording.starts), 3)
+            self.assertEqual(self.engine.session.post.call_count, 2)
+            self.assertIn('—', captions(recording))
+        finally:
+            recording.dispose()

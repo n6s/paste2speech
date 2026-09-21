@@ -179,7 +179,11 @@ class Engine:
         if missing and arrays:
             arrays.append(np.zeros(missing, dtype=arrays[-1].dtype))
         if not arrays:
-            raise ValueError('No speech generated')
+            if any(c.isalnum() for c in job.text):
+                raise ValueError('No speech generated')
+            # A divider such as an em dash is removed by the pause planner.
+            # Retain a seekable section without calling any speech provider.
+            arrays.append(np.zeros(2400, dtype=np.float32))
         output = io.BytesIO()
         sf.write(output, np.concatenate(arrays), 24000, format='WAV', subtype='PCM_16')
         return output.getvalue()
