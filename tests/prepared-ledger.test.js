@@ -1,3 +1,4 @@
+import {admitJob} from '../cloudflare/prepared/admission.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -42,4 +43,36 @@ test('disabled account stops future batches while its reservation can settle',as
  const {sql,ledger}=setup();await ledger.reserve('job','test-reader-a',input);
  sql.exec("UPDATE accounts SET enabled=0 WHERE id='test-reader-a'");await assert.rejects(ledger.assertOpen('job','test-reader-a'));
  await ledger.settle({id:'job',owner:'test-reader-a',state:'cancelled',parts:[{state:'pending'},{state:'pending'}]});assert.equal((await ledger.account('test-reader-a')).balance,5000);sql.close();
+});
+
+function intent(){return {...input,id:'recover',owner:'test-reader-a',admission:'pending',state:'preparing',parts:input.chunks.map(()=>({state:'pending'}))};}
+test('lost reservation response recovers against persisted intent without another debit',async()=>{
+ const {sql,ledger}=setup();let stored=intent();const save=async j=>{stored=structuredClone(j);};
+ await assert.rejects(admitJob(structuredClone(stored),{ledger,save,afterReserve:async()=>{throw Error('connection lost');}}));
+ assert.equal(stored.admission,'pending');assert.equal((await ledger.account('test-reader-a')).balance,4997);
+ const recovered=structuredClone(stored);await admitJob(recovered,{ledger,save});assert.equal(stored.admission,'accepted');
+ assert.equal((await ledger.account('test-reader-a')).balance,4997);
+ recovered.state='failed';await ledger.settle(recovered);assert.equal((await ledger.account('test-reader-a')).balance,5000);sql.close();
+});
+test('failure persisting accepted admission can retry from the prior durable intent',async()=>{
+ const {sql,ledger}=setup(),stored=intent();
+ await assert.rejects(admitJob(structuredClone(stored),{ledger,save:async()=>{throw Error('storage interrupted');}}));
+ const recovered=structuredClone(stored);await admitJob(recovered,{ledger,save:async()=>{}});
+ assert.equal(recovered.admission,'accepted');assert.equal((await ledger.account('test-reader-a')).reserved,3);sql.close();
+});
+test('insufficient credit durably rejects admission without a reservation',async()=>{
+ const {sql,ledger}=setup();sql.exec("UPDATE accounts SET balance=0 WHERE id='test-reader-a'");
+ const job=intent();let stored;await admitJob(job,{ledger,save:async j=>{stored=structuredClone(j);}});
+ assert.equal(stored.admission,'rejected');assert.equal(stored.state,'failed');assert.equal(await ledger.receipt(job.id,job.owner),null);sql.close();
+});
+test('cancelled or expired intents cannot reserve credit on replay',async()=>{
+ const {sql,ledger}=setup();for(const state of ['cancelled','expired']){
+ const job={...intent(),state};await admitJob(job,{ledger,save:async()=>{throw Error('must not save');}});
+ assert.equal(await ledger.receipt(job.id,job.owner),null);
+ }assert.equal((await ledger.account('test-reader-a')).balance,5000);sql.close();
+});
+test('already closed reservation cannot restart preparation through admission recovery',async()=>{
+ const {sql,ledger}=setup(),job=intent();await ledger.reserve(job.id,job.owner,job);
+ await ledger.settle({...job,state:'cancelled'});await admitJob(job,{ledger,save:async()=>{}});
+ assert.equal(job.state,'failed');assert.equal((await ledger.account('test-reader-a')).balance,5000);sql.close();
 });

@@ -1,3 +1,4 @@
+import {admitJob} from '../../cloudflare/prepared/admission.js';
 import {UsageLedger,CreditError} from '../../cloudflare/prepared/ledger.js';
 import {newJob,prepareJob,publicStatus,canRetryAuthorization} from '../../cloudflare/prepared/job.js';
 import {accessToken,synthesize,readBounded} from '../../cloudflare/prepared/google.js';
@@ -10,7 +11,23 @@ const inputJSON=async(request,limit=32000)=>JSON.parse(textDecoder.decode(await 
 
 export class PreparedReading {
   constructor(ctx,env){this.ctx=ctx;this.env=env;ctx.blockConcurrencyWhile(async()=>{this.job=await ctx.storage.get('job');});}
-  async settle(){if(this.env.LEDGER)await new UsageLedger(this.env.LEDGER).settle(this.job);}
+  async settle(){
+    if(!this.env.LEDGER||this.job.admission==='rejected')return;
+    const ledger=new UsageLedger(this.env.LEDGER);
+    // Pending admission may expire/cancel before a debit, or after a committed
+    // debit whose response was lost. Serialized admission prevents a late debit.
+    if(this.job.admission==='pending'&&!await ledger.receipt(this.job.id,this.job.owner))return;
+    await ledger.settle(this.job);
+  }
+  async admit(){
+    if(!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
+    await admitJob(this.job,{ledger:new UsageLedger(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
+      if(this.job.proofAdmissionFault==='after-reserve'){
+        this.job.proofAdmissionFault='';await this.save(this.job);
+        throw Error('Synthetic lost reservation response');
+      }
+    }});
+  }
   async finish(){
     try{await this.settle();if(this.job.state==='cancelled')await this.clean();}
     catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
@@ -22,7 +39,15 @@ export class PreparedReading {
     await this.env.AUDIO.delete([...this.job.parts.map((_,i)=>`${this.job.id}/part-${i}`),`${this.job.id}/reading.mp3`,`${this.job.id}/reading.vtt`]);
   }
   async alarm(){
+    // No admission await may race cancellation/expiry or another create.
+    await this.ctx.blockConcurrencyWhile(async()=>{
+      if(this.job?.state==='preparing'&&Date.now()<this.job.expires){
+        try{await this.admit();}
+        catch{this.job=await this.ctx.storage.get('job');await this.ctx.storage.setAlarm(Date.now()+5000);return;}
+      }
+    });
     const job=this.job;if(!job)return;
+    if(job.state==='preparing'&&job.admission==='pending'&&Date.now()<job.expires)return;
     if(job.state==='expired'&&!job.owner)return;
     if(Date.now()>=job.expires){
       job.state='expired';await this.save(job);
@@ -50,11 +75,14 @@ export class PreparedReading {
   }
   async fetch(request){
     const url=new URL(request.url),owner=request.headers.get('X-Proof-Owner');
-    if(url.pathname==='/create'){
+    if(url.pathname==='/create')return this.ctx.blockConcurrencyWhile(async()=>{
       const input=await request.json();
       if(this.job){
         if(this.job.owner!==owner)return json({detail:'Reading not found'},404);
-        if(this.job.voice!==input.voice||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks))return json({detail:'Request does not match existing reading'},409);
+        if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks))return json({detail:'Request does not match existing reading'},409);
+        if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
+        try{await this.admit();}catch{this.job=await this.ctx.storage.get('job');return json({detail:'Admission will recover automatically'},503);}
+        if(this.job.admission==='rejected')return json({detail:this.job.error},402);
         // An explicit new create may retry authorization once, but only if the
         // durable audit proves no speech request was ever attempted.
         if(!this.env.LEDGER&&canRetryAuthorization(this.job)){
@@ -67,9 +95,16 @@ export class PreparedReading {
       // Durable state and the alarm are committed together before acknowledging.
       this.job=newJob(input,owner,input.id);
       this.job.proofScenario=input.proofScenario||'';
-      await this.ctx.storage.transaction(async transaction=>{await transaction.put('job',this.job);await transaction.setAlarm(Date.now()+1);});
+      if(this.env.LEDGER){this.job.admission='pending';this.job.proofAdmissionFault=input.proofAdmissionFault||'';}
+      await this.ctx.storage.transaction(async transaction=>{await transaction.put('job',this.job);await transaction.setAlarm(Date.now()+(input.proofAdmissionFault?5000:1));});
+      if(this.job.proofAdmissionFault==='after-intent'){
+        this.job.proofAdmissionFault='';await this.save(this.job);
+        return json({detail:'Synthetic interrupted admission'},503);
+      }
+      try{await this.admit();}catch{this.job=await this.ctx.storage.get('job');return json({detail:'Admission will recover automatically'},503);}
+      if(this.job.admission==='rejected')return json({detail:this.job.error},402);
       return json({id:this.job.id},201);
-    }
+    });
     const job=this.job;
     if(!job||job.owner!==owner||Date.now()>=job.expires||['cancelled','expired'].includes(job.state))return json({detail:'Reading not found'},404);
     if(request.method==='DELETE'){
@@ -141,7 +176,10 @@ export default {async fetch(request,env){
       if(ledger){
         if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id||''))return json({detail:'A UUID request key is required'},422);
         if(input.proofScenario&&!['fail-middle'].includes(input.proofScenario))return json({},422);
-        await ledger.reserve(id,owner,{...input,mode});
+        const fault=request.headers.get('X-Proof-Admission-Fault');
+        if(fault&&!['after-intent','after-reserve'].includes(fault))return json({},422);
+        // Only the cached, loopback account harness accepts fault injection.
+        input.proofAdmissionFault=fault||'';
       }
       const stub=env.JOBS.get(env.JOBS.idFromName(id));
       return stub.fetch(new Request('http://job/create',{method:'POST',headers:{'X-Proof-Owner':owner},body:JSON.stringify({...input,mode,id})}));

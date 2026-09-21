@@ -3,11 +3,14 @@
 - Local D1 now reserves credit before a prepared-reading job; successful sections
   consume it once, and unused credit returns on completion, failure or Stop.
 - Synthetic account checks passed for concurrent spending, duplicate requests,
-  ownership, failure/cancellation and runtime restart. 118 JavaScript tests pass.
+  ownership, failure/cancellation and runtime restart. 123 JavaScript tests pass.
 - Test identities, fake credit and cached audio only; live balances and the private
   reader are untouched. Details: `docs/wavenet-account-proof.md`.
-- Next: recover reservations interrupted before job creation, then connect the
-  existing verified email sign-in and account/payment semantics.
+- Interrupted admission now recovers automatically: persist the job and alarm
+  before reserving; retry the same reservation after a lost response. Local fault
+  injection, pending cancellation and a full restart passed without double charges.
+- Next: connect the existing verified email sign-in and account/payment semantics
+  with local mocks and synthetic accounts.
 
 ## Payment recovery and refund accounting — private sandbox
 
