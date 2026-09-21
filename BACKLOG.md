@@ -12,7 +12,8 @@
   link signed Chrome into the verified Paddle test email with all 6,000,000
   characters preserved. Resend now enforces TLS; tracking remains unconfigured.
 - Python tests: 86 passed; JavaScript tests: 96 passed; both billing and email
-  browser checks passed; private reader built. Pixel sign-in check is pending.
+  browser checks passed; private reader built. Roger confirmed the emailed link works on Pixel and
+  recovers the same 6,000,000-character balance.
 
 ## Purchase recognition — sandbox verified
 

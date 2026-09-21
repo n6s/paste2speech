@@ -75,5 +75,6 @@ sign-in. Public code is not deployed by this setup.
 
 Live check on 2026-09-21: the actual Resend email reached Gmail with SPF and DKIM
 passing, but landed in Spam. Following it in Chrome linked the existing 6-million
-character balance successfully. Pixel confirmation and consistent inbox placement
-remain separate acceptance checks.
+character balance successfully. Roger then confirmed that the emailed link works
+on Pixel and recovers the same 6-million-character balance. Consistent inbox
+placement remains an open acceptance check.
