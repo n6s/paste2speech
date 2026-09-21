@@ -1,0 +1,7 @@
+{
+  "name": "private-wavenet-mp3-proof",
+  "main": "worker.mjs",
+  "compatibility_date": "2026-09-21",
+  "workers_dev": false,
+  "preview_urls": false
+}

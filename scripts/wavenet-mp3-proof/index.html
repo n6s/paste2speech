@@ -1,0 +1,13 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Private WaveNet MP3 proof</title>
+<style>body{font:18px system-ui;max-width:850px;margin:35px auto;padding:20px;background:#f6f5ef;color:#213328}button,select{font:inherit;padding:10px;margin:4px}li{padding:8px;cursor:pointer}li[aria-current=true]{background:#fff2a6}pre{white-space:pre-wrap;font-size:14px}audio{width:100%}</style>
+<h1>Private WaveNet MP3 proof</h1>
+<p>Synthetic text only. Original Google audio frames, with section highlighting and MP3 + VTT exports. Cached replay uses recorded preparation timing; live runs are explicitly labeled.</p>
+<label>Voice <select id="voice"><option>en-US-Wavenet-F</option><option>en-GB-Wavenet-F</option></select></label>
+<label>Preparation <select id="mode"><option value="progressive">Cached progressive replay</option><option value="full">Cached full-preparation replay</option><option value="live-progressive">Live synthetic progressive (paid, once)</option><option value="live-full">Live synthetic full preparation (paid, once)</option></select></label>
+<p><button id="start">Start proof</button><button id="pause">Pause</button><button id="resume">Resume</button><button id="checks">Run playback checks</button></p>
+<label>Speed <select id="rate"><option value="1">1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+<p id="status">Ready</p><audio id="audio" controls></audio>
+<p><a id="mp3" hidden>Download MP3</a> · <a id="vtt" hidden>Download VTT</a></p>
+<ol id="sections"></ol><h2>Measurements</h2><pre id="metrics">No run yet.</pre>
+<script type="module" src="/proof.js"></script></html>
