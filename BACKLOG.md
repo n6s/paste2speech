@@ -1,3 +1,11 @@
+## Purchase recognition — sandbox verified
+
+- Receipt product name: `speak.rogerpbrown.com — Speech pack`.
+- Saved statement descriptor: `SPEAKRPB` (the generic `SPEECH` was unavailable).
+- Checkout explains the expected `PADDLE.NET* SPEAKRPB` statement entry.
+- Keep the legal seller name Roger Brown. Carry this branding to live configuration
+  before launch; existing receipts are historical and are not rewritten.
+
 ## Approved starter pack — 2026-09-21
 
 - One-time USD $10 pack for 3,000,000 characters of hosted DeepInfra Kokoro
