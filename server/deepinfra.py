@@ -1,4 +1,5 @@
 """Bounded private pilot: hosted inference, shared normalization and pause rules."""
+import copy
 import base64
 import io
 import json
@@ -31,6 +32,11 @@ class DeepInfraEngine(Engine):
             self.token = ''
         if not self.token:
             raise HostedSpeechError('DeepInfra is not configured on the workstation.')
+
+    def fork(self, recording):
+        engine = copy.copy(self)
+        engine.recording = recording
+        return engine.synthesize
 
     def phrase_audio(self, text, voice, speed):
         import numpy as np

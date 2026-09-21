@@ -1,4 +1,6 @@
 """Private progressive recordings. Temporary MP3s expire; source text is never logged."""
+import copy
+from concurrent.futures import ThreadPoolExecutor
 import asyncio
 import html
 import io
@@ -112,8 +114,86 @@ def silence(pcm, leading):
     return quiet
 
 
+def prepared_sections(recording, synthesize, speech_type):
+    """At most three hosted sections outstanding; yield PCM in source order.
+
+    Each worker owns its provider counters. Settle all started work before
+    releasing credit, including successful sections completed after Stop.
+    """
+    fork = getattr(getattr(synthesize, '__self__', None), 'fork', None)
+    width = 3 if recording.provider == 'deepinfra' and fork else 1
+    lock = threading.Lock()
+    halted = threading.Event()
+
+    def prepare(index):
+        text = recording.chunks[index]
+        if halted.is_set() or recording.cancelled.is_set():
+            return None
+        if recording.ledger and recording.reserved:
+            recording.ledger.check_reservation(recording.id)
+        local = copy.copy(recording) if fork else recording
+        if fork:
+            local.submitted_characters = 0
+            local.provider_cost = 0
+            local.provider_audio_seconds = 0
+            local.cost_incomplete = False
+        submitted_before = local.submitted_characters
+        cost_before = local.provider_cost
+        seconds_before = local.provider_audio_seconds
+        succeeded, pcm = False, b''
+        try:
+            generate = fork(local) if fork else synthesize
+            pcm = parse_pcm(generate(speech_type(text=text, voice=recording.voice, speed=1.0)))
+            succeeded = True
+            return pcm
+        except Exception:
+            halted.set()
+            raise
+        finally:
+            with lock:
+                if fork:
+                    recording.submitted_characters += local.submitted_characters
+                    recording.provider_cost += local.provider_cost
+                    recording.provider_audio_seconds += local.provider_audio_seconds
+                    recording.cost_incomplete |= local.cost_incomplete
+                if recording.ledger:
+                    from server.app import pronunciation_text, spoken_text, speech_phrases
+                    submitted = local.submitted_characters - submitted_before
+                    if recording.provider == 'workstation':
+                        submitted = sum(len(pronunciation_text(p, recording.voice)) for p, _ in speech_phrases(spoken_text(text)))
+                    recording.ledger.record(f'{recording.id}:{index}', provider=recording.provider,
+                        voice=recording.voice, kind=recording.usage_kind, source_characters=len(text),
+                        submitted_characters=submitted,
+                        audio_seconds=len(pcm)/48000 if succeeded else local.provider_audio_seconds-seconds_before,
+                        provider_cost=local.provider_cost-cost_before, cost_incomplete=local.cost_incomplete,
+                        outcome='succeeded' if succeeded else 'failed', job=recording.id if recording.reserved else None)
+
+    with ThreadPoolExecutor(max_workers=width) as pool:
+        pending = {}
+        next_index = 0
+        try:
+            for index in range(len(recording.chunks)):
+                while next_index < min(len(recording.chunks), index + width) and not halted.is_set() and not recording.cancelled.is_set():
+                    pending[next_index] = pool.submit(prepare, next_index)
+                    next_index += 1
+                if recording.cancelled.is_set():
+                    return
+                if index not in pending:
+                    raise ValueError('Preparation stopped')
+                pcm = pending.pop(index).result()
+                if pcm is None:
+                    raise ValueError('Preparation stopped')
+                yield index, pcm
+        finally:
+            halted.set()
+            for future in pending.values():
+                future.cancel()
+            # Executor waits for started requests before the caller releases credit.
+
+
 def synthesize_recording(recording, synthesize, speech_type):
     """One encoder across all chunks preserves one sample clock and all pauses."""
+    sections = prepared_sections(recording, synthesize, speech_type)
     try:
         with recording.path.open('wb') as output:
             recording.process = subprocess.Popen([
@@ -122,30 +202,7 @@ def synthesize_recording(recording, synthesize, speech_type):
                 '-id3v2_version', '0', '-flush_packets', '1', '-f', 'mp3', 'pipe:1',
             ], stdin=subprocess.PIPE, stdout=output, stderr=subprocess.DEVNULL)
             samples, trailing = 0, 0
-            for index, text in enumerate(recording.chunks):
-                if recording.cancelled.is_set():
-                    return
-                if recording.ledger and recording.reserved:
-                    recording.ledger.check_reservation(recording.id)
-                submitted_before = recording.submitted_characters
-                cost_before = recording.provider_cost
-                seconds_before = recording.provider_audio_seconds
-                succeeded, pcm = False, b''
-                try:
-                    pcm = parse_pcm(synthesize(speech_type(text=text, voice=recording.voice, speed=1.0)))
-                    succeeded = True
-                finally:
-                    if recording.ledger:
-                        from server.app import pronunciation_text, spoken_text, speech_phrases
-                        submitted = recording.submitted_characters - submitted_before
-                        if recording.provider == 'workstation':
-                            submitted = sum(len(pronunciation_text(p, recording.voice)) for p, _ in speech_phrases(spoken_text(text)))
-                        recording.ledger.record(f'{recording.id}:{index}', provider=recording.provider,
-                            voice=recording.voice, kind=recording.usage_kind, source_characters=len(text),
-                            submitted_characters=submitted,
-                            audio_seconds=len(pcm)/48000 if succeeded else recording.provider_audio_seconds-seconds_before,
-                            provider_cost=recording.provider_cost-cost_before, cost_incomplete=recording.cost_incomplete,
-                            outcome='succeeded' if succeeded else 'failed', job=recording.id if recording.reserved else None)
+            for index, pcm in sections:
                 if recording.cancelled.is_set():
                     return
                 gap = max(0, 6000 - trailing - silence(pcm, True)) if index in recording.paragraphs and index else 0
@@ -172,6 +229,7 @@ def synthesize_recording(recording, synthesize, speech_type):
             recording.error = getattr(error, 'public_message', None) or 'Recording stopped before completion. Press Play to retry the reading.'
             recording.state = 'failed'
     finally:
+        sections.close()
         if recording.process:
             if recording.process.poll() is None:
                 recording.process.kill()
@@ -246,6 +304,13 @@ async def create(request: Request):
         raise HTTPException(422, 'Choose a voice and reading sections of at most 600 characters.')
     if job.provider == 'deepinfra':
         from server.deepinfra import VOICES as HOSTED_VOICES, MAX_INPUT
+        from server.deepinfra import MAX_SUBMITTED
+        from server.app import pronunciation_text, spoken_text, speech_phrases
+        submitted = sum(len(pronunciation_text(phrase, job.voice))
+                        for text in job.chunks for phrase, _ in speech_phrases(spoken_text(text))
+                        if any(char.isalnum() for char in phrase))
+        if submitted > MAX_SUBMITTED:
+            raise HTTPException(422, 'Expanded reading exceeds the hosted-test limit. Use a shorter passage.')
         if job.voice not in HOSTED_VOICES or sum(map(len, job.chunks)) > MAX_INPUT:
             raise HTTPException(422, 'Private DeepInfra testing supports Heart and Emma, up to 20,000 characters per reading.')
     if request.app.state.busy:

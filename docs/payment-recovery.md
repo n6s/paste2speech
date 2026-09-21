@@ -95,3 +95,32 @@ not a playback performance fix. Before recommending paid playback, benchmark
 bounded parallel preparation with per-section accounting, cancellation, ordered
 assembly, and unchanged highlighting. Do not merge sentence requests without
 resolving accurate cue timing.
+
+### Bounded parallel preparation (2026-09-21)
+
+Hosted Kokoro now prepares at most three sections concurrently, with a bounded
+three-section window. Each request retains independent provider counters; the
+encoder consumes results strictly in source order. Existing pronunciation,
+pauses, sentence starts, captions, and the shared audio clock are retained.
+Workstation synthesis stays sequential. Expanded text is checked against the
+whole-reading provider limit before starting paid requests.
+
+Stop or failure prevents further scheduling. Started requests are settled before
+unused reservations are released; up to three started sections may finish and
+be charged after Stop. Successful out-of-order sections are charged even if an
+earlier failure prevents playback of them, as generation has occurred. No paid
+request is automatically retried.
+
+Real matched six-section tests produced 13.8 seconds of audio: sequential
+preparation took 57.113 seconds, parallel preparation 28.580 seconds. This is
+about a twofold improvement, but still slower than playback under the observed
+remote latency. Provider conditions can vary between runs; this is not a
+guaranteed speedup. The change does not yet establish uninterrupted progressive
+playback. Numeric timing logs remain available for diagnosis.
+
+Validation covers out-of-order completion with exact cue boundaries, cancellation
+with three requests in flight, failure with other successful requests, exact
+credit settlement, and preflight expanded-text limits. 104 Python tests and 96
+JavaScript tests passed (the final added preflight case was run with the focused
+parallel suite). Reader build passed. Benchmark calls used project credit, not
+the user's allowance. No public deployment. Pixel validation remains pending.

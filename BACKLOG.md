@@ -170,3 +170,10 @@ and speed changes, MP3/VTT endpoint verification, and cancellation reservation
 release passed. Final balance 2,999,309; provider estimate $0.00043710. See
 `docs/payment-recovery.md` for evidence and browser-download limitation. Final
 Pixel balance/playback/highlighting check remains pending. No public deployment.
+
+
+DeepInfra parallel preparation (2026-09-21): implemented a three-section bounded
+window with ordered encoding/cues and settled cancellation accounting. Real
+comparison improved 57.1s to 28.6s for 13.8s audio, still too slow for uninterrupted
+playback in these conditions. Do not mark progressive paid playback validated.
+See docs/payment-recovery.md.
