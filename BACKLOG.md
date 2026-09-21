@@ -88,9 +88,12 @@ Google WaveNet hosting decision: full preparation first (Roger, September 21).
 The private worktree now selects complete delivery for Google: show preparation
 progress, then open the finished recording with original-text highlighting,
 seeking, playback speed, and MP3/VTT exports. See `docs/wavenet-mp3-proof.md`.
-No deployment accompanies this change. Worker-side synthesis/authentication,
-speech-rule parity and target-device checks remain before hosted integration;
-the current Python backend still uses LINEAR16 and continuous MP3 encoding.
+No deployment accompanies this change. The isolated local Worker pilot now
+performs Google authorization, native MP3 synthesis, durable full preparation,
+and R2 playback/export, using WaveNet defaults without text or pause overrides.
+See `docs/wavenet-worker-proof.md`. Hosted account/usage integration, access and
+secret delivery, longer readings and target-device checks remain; the running
+Python backend still uses its existing LINEAR16/continuous-encoding path.
 
 Progressive workstation Kokoro, media playback speed, section controls, MP3 export,
 and optional WebVTT are implemented privately. Real chapter playback and export

@@ -14,7 +14,12 @@ class ProofPlayer extends ProgressivePlayer {
     super.seekTo(time);
   }
 }
-const player=new ProofPlayer(p=>{
+const player=new ProofPlayer((p,message)=>{
+  if(message && p.state==='failed'){metrics.failureMessage=message;render();}
+  if(p.state==='failed' && p.id && !metrics.preparation){
+    metrics.preparation={loading:true};
+    void fetch(p.endpoint(`/${p.id}`)).then(r=>r.json()).then(data=>{metrics.preparation=data;render();});
+  }
   $('status').textContent=`${p.state} · section ${Math.min(p.index+1,8)} / 8 · ${audio.currentTime.toFixed(3)} / ${p.duration.toFixed(3)} seconds`;
   rows.forEach((row,i)=>row.setAttribute('aria-current',String(i===p.index)));
   if(p.complete && !metrics.completeMs){metrics.completeMs=performance.now()-started;metrics.duration=p.duration;render();}

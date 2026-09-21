@@ -6,6 +6,12 @@ original-section highlighting, seeking, speed control, and matching MP3/VTT
 exports. Standard JavaScript assembly also passed in the local Workers runtime.
 This proves the audio path, not a production hosted service.
 
+Latest follow-up: `docs/wavenet-worker-proof.md` records the subsequent local
+Worker → Google → durable storage → player test. After discussing default speech
+behavior, that new path uses WaveNet defaults without our text/pause overrides;
+the original proof's speech-rule-parity item below is historical, not a mandate
+to port those overrides blindly.
+
 **Decision:** Roger selected full preparation on September 21, 2026 for the first
 private hosted integration, preserving highlighting. Keep progressive delivery experimental until the
 stream-to-file transition and final timeline are validated on the target devices.

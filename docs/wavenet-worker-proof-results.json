@@ -1,0 +1,112 @@
+{
+  "date": "2026-09-21",
+  "runtime": "local workerd; Google calls live; storage local",
+  "live": {
+    "voice": "en-US-Wavenet-F",
+    "characters": 521,
+    "speechAttempts": 8,
+    "estimatedListPriceUSD": 0.002084,
+    "preparationMs": 2068,
+    "browserCompletionMs": 2153.5,
+    "firstPlayingMs": 2183.3,
+    "firstObservedClockMs": 2312.7,
+    "duration": 38.712,
+    "decodedSamples": 929088,
+    "sampleRate": 24000,
+    "result": "PASS",
+    "initialAuthorizationFailure": "No speech attempted; one explicit authorization-only restart after adapter fix",
+    "source": "browser Measurements panel; full report retained under the owner session in local R2 /metrics"
+  },
+  "apiInitial": {
+    "restart": false,
+    "checks": [
+      "Partial audio is unavailable",
+      "Arbitrary text cannot trigger this pilot",
+      "Another owner cannot read job status",
+      "Stored recording is ready",
+      "Exactly eight section attempts",
+      "Google default speech policy",
+      "Stored flat MP3 matches original section bytes",
+      "VTT contains eight cues",
+      "bytes=192-383 uses partial response",
+      "bytes=-192 uses partial response",
+      "Anonymous audio access denied",
+      "Out-of-range seek rejected",
+      "Active preparation can be cancelled",
+      "Cancelled recording stays unavailable after in-flight sections finish",
+      "Another owner cannot delete the reading"
+    ],
+    "createdMs": 53.61782099999999,
+    "status": {
+      "id": "54f173ee-17a6-4549-8502-41393746a734",
+      "state": "ready",
+      "starts": [
+        0,
+        4.896,
+        11.376,
+        16.392,
+        18.24,
+        23.472,
+        28.92,
+        33.96
+      ],
+      "duration": 38.712,
+      "completed": 8,
+      "total": 8,
+      "providerCost": 0,
+      "submittedCharacters": 521,
+      "attempts": 8,
+      "costIncomplete": false,
+      "error": "",
+      "readyMs": 2899,
+      "speechRules": "google-default",
+      "delivery": "complete",
+      "mode": "fixture"
+    },
+    "result": "PASS"
+  },
+  "apiAfterRestart": {
+    "restart": true,
+    "checks": [
+      "Stored recording is ready",
+      "Exactly eight section attempts",
+      "Google default speech policy",
+      "Stored flat MP3 matches original section bytes",
+      "VTT contains eight cues",
+      "bytes=192-383 uses partial response",
+      "bytes=-192 uses partial response",
+      "Anonymous audio access denied",
+      "Out-of-range seek rejected"
+    ],
+    "status": {
+      "id": "54f173ee-17a6-4549-8502-41393746a734",
+      "state": "ready",
+      "starts": [
+        0,
+        4.896,
+        11.376,
+        16.392,
+        18.24,
+        23.472,
+        28.92,
+        33.96
+      ],
+      "duration": 38.712,
+      "completed": 8,
+      "total": 8,
+      "providerCost": 0,
+      "submittedCharacters": 521,
+      "attempts": 8,
+      "costIncomplete": false,
+      "error": "",
+      "readyMs": 2899,
+      "speechRules": "google-default",
+      "delivery": "complete",
+      "mode": "fixture"
+    },
+    "result": "PASS"
+  },
+  "unitTestsPassed": 112,
+  "temporaryCredentialRemoved": true,
+  "deployment": false
+}
