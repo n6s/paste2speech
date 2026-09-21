@@ -74,3 +74,24 @@ reservation left behind. The ledger and refreshed billing page both showed
 No code defect was found in these checks. Sandbox allowance remains enabled.
 Roger's final Pixel balance/playback/highlighting confirmation is still pending;
 any new generation after this baseline will spend additional characters.
+
+### Pixel preparation slowdown (2026-09-21)
+
+The next Pixel test exposed a performance failure despite correct allowance
+accounting. After the first section, ten more section completions spanned about
+147 seconds while generating about 33 seconds of audio. Stop may finish one
+in-flight section, explaining eleven ledger entries after the reported ten.
+
+Three synthetic diagnostic requests reproduced remote delays: 11.554 seconds
+for 1.425 seconds of audio, 8.823 for 8.800, and 5.891 for 1.725. Local decode
+took 0.000-0.005 seconds. Remote measurements include connection, provider wait,
+and response transfer; they do not isolate provider queue time. Probe cost was
+$0.00011098, paid from project credit outside the user's allowance ledger.
+
+Added numeric-only request timing logs (outcome, character count, remote/decode
+durations, audio duration), without text, credentials, or response bodies.
+100 Python and 96 JavaScript tests passed. This is diagnostic instrumentation,
+not a playback performance fix. Before recommending paid playback, benchmark
+bounded parallel preparation with per-section accounting, cancellation, ordered
+assembly, and unchanged highlighting. Do not merge sentence requests without
+resolving accurate cue timing.

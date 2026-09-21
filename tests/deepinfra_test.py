@@ -56,3 +56,16 @@ class DeepInfraTests(unittest.TestCase):
             call.assert_not_called()
             recording.submitted_characters=0;call.return_value=self.response(rate=22050)
             with self.assertRaises(HostedSpeechError):engine.phrase_audio('Hello','af_heart',1)
+
+    def test_timing_diagnostics_exclude_text_and_credentials(self):
+        with patch('pathlib.Path.read_text',return_value='private-token'), \
+             patch('urllib.request.urlopen',return_value=self.response()), \
+             patch('server.deepinfra.time.monotonic',side_effect=[10,12,12.25]), \
+             self.assertLogs('uvicorn.error',level='INFO') as logs:
+            DeepInfraEngine(self.recording()).phrase_audio('Private reading','af_heart',1)
+        message=' '.join(logs.output)
+        self.assertIn('remote_seconds=2.000',message)
+        self.assertIn('decode_seconds=0.250',message)
+        self.assertIn('audio_seconds=0.100',message)
+        self.assertNotIn('Private reading',message)
+        self.assertNotIn('private-token',message)
