@@ -1,3 +1,21 @@
+## Approved starter pack — 2026-09-21
+
+- One-time USD $10 pack for 3,000,000 characters of hosted DeepInfra Kokoro
+  generation. Describe it as approximately 50 hours of speech, not guaranteed hours.
+- Replay, playback-speed changes and downloading an existing recording consume no
+  additional allowance; generating a new version consumes allowance.
+- Paddle sandbox account and product are created. Product:
+  `pro_01m32gd3hj94whqywcvmyta74b`; price: `pri_01m32geyt53f5h9nxqfhqbt19x`.
+  These are sandbox identifiers only. The catalog does not enforce usage balances.
+- At the current $0.62/million provider rate, 3 million submitted characters cost
+  $1.86. Standard Paddle fees on a $10 pretax sale are approximately $1, leaving
+  $7.14 before hosting, support, retries, refunds and other expenses, not net profit.
+  Source-text versus provider-submitted character counting (including pronunciation
+  expansion), tax presentation and public hosting costs must be settled before launch.
+- Next implementation: durable usage accounting, verified purchase fulfillment and
+  balance enforcement, then private sandbox checkout tests. Public deployment remains
+  separate; no live checkout or customer entitlement is implemented by this decision.
+
 ## Hosted Kokoro pilot — private only
 
 DeepInfra is selectable in the private reader, with Heart/Emma, bounded prepaid
