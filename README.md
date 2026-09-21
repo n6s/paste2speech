@@ -266,3 +266,25 @@ This validates desktop Chrome with a mobile viewport; actual Pixel audio still n
 - [Tailscale Serve command](https://tailscale.com/docs/reference/tailscale-cli/serve)
 - [Browser speech synthesis](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis)
 - [Speech pause and browser compatibility](https://developer.mozilla.org/en-US/docs/Web/API/SpeechSynthesis/pause)
+
+## Private Cloudflare voice auditions
+
+On the Tailscale reader, use **Audition Cloudflare voices** in the footer, or open
+`https://pop-os.tailbd091c.ts.net/speak/api/audition`. Compare MeloTTS English,
+Aura 1, and Aura 2 English with a passage of up to 2,000 characters. Each model
+has an explicit Generate sample button, playback, download, request timing, and
+an estimated generation cost. No request runs automatically. Samples are kept
+in page memory, and downloads are explicit. Text is sent to Cloudflare; existing
+Kokoro speech-only pronunciation corrections are not applied.
+
+The private workstation API reads `~/.config/paste2speech/cloudflare-ai-token`
+(owner-readable only), scoped to this account's Workers AI access. It never sends
+the token to the browser, logs submitted text, or saves generated samples. The
+public Worker has no audition endpoint. No public release is required. API calls
+are serialized and bounded to short samples, with no automatic paid retries.
+
+Validation on 2026-09-21: Aura 1 and Aura 2 returned real MP3 samples. MeloTTS
+returned Cloudflare HTTP 500 / error 3043 for both a short passage and “Hello
+world.” Its audition remains available for manual retry; successful synthesis and
+its advertised low cost have not yet been confirmed. Cost labels are estimates,
+not measured account billing. Existing full-reader playback is unchanged.

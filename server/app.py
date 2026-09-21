@@ -290,4 +290,7 @@ async def pdf_text(request: Request):
     finally:
         app.state.pdf_busy = False
 
+from server.cloudflare_audition import router as audition_router
+app.include_router(audition_router)
+
 app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'dist')), html=True), name='static')
