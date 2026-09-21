@@ -124,3 +124,25 @@ credit settlement, and preflight expanded-text limits. 104 Python tests and 96
 JavaScript tests passed (the final added preflight case was run with the focused
 parallel suite). Reader build passed. Benchmark calls used project credit, not
 the user's allowance. No public deployment. Pixel validation remains pending.
+
+### Remote latency breakdown (2026-09-21)
+
+Three direct curl requests used the same small synthetic sentence, Heart, WAV,
+24 kHz, non-streaming, and default service tier as the reader. Each returned
+2.0 seconds of audio with HTTP 200. No Tailscale exit node or HTTP proxy
+environment was configured for the probe.
+
+| Trial | DNS/TCP/TLS ready | Wait to first byte after setup | Response download | Provider runtime_ms |
+| --- | ---: | ---: | ---: | ---: |
+| 1 | 0.083 s | 4.648 s | 0.031 s | 56 |
+| 2 | 0.085 s | 6.336 s | 0.030 s | 58 |
+| 3 | 0.061 s | 3.353 s | 0.031 s | 56 |
+
+The wait includes request upload and remote processing, not a directly measured
+queue duration. Together with low setup/transfer times and provider-reported
+runtime, this strongly suggests remote queueing or other service overhead, but
+does not prove which internal stage is responsible. Public deployment alone
+would not remove this measured delay; another backend location remains untested.
+Total probe cost: $0.00005208 outside the account allowance. Credentials were
+passed to curl over standard input, never command arguments or diagnostic output.
+No application code or deployment changed for this measurement.
