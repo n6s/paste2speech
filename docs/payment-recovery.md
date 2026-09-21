@@ -53,3 +53,24 @@ transaction `txn_01m32j4k6c1gehf69y39nxkzgf`, adjustment
 without manual reconciliation. The signed-in reader then displayed 3,000,000.
 The next background check preserved that balance, confirming no duplicate
 deduction. No real money moved.
+
+### Real allowance generation check (2026-09-21)
+
+A private Chrome test used DeepInfra Heart with sandbox allowance enabled. Starting
+at 3,000,000 characters, a three-section reading charged exactly 159 source
+characters (173 provider-submitted characters after pronunciation processing).
+Replay and playback speed changes did not change the balance. MP3/VTT download
+requests also left it unchanged. Direct download verification found a valid
+9.744-second MP3 and three matching, ordered VTT cues. Browser download-event
+confirmation timed out, so this run does not independently confirm browser file
+saving.
+
+A 30-section cancellation test reserved 4,011 characters. Stop ended unfinished
+preparation after four successful 133-character sections, including any in-flight
+section. Exactly 532 characters remained charged; 3,479 were released, with no
+reservation left behind. The ledger and refreshed billing page both showed
+2,999,309 characters. Combined provider-reported cost was $0.00043710.
+
+No code defect was found in these checks. Sandbox allowance remains enabled.
+Roger's final Pixel balance/playback/highlighting confirmation is still pending;
+any new generation after this baseline will spend additional characters.

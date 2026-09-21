@@ -163,3 +163,10 @@ Remaining checks on Roger's Pixel:
 - Verify seeking if the device exposes seek controls; none were shown in this test.
 
 Do not mark background playback device-verified until these checks pass.
+
+
+Private allowance validation (2026-09-21): real DeepInfra generation, free replay
+and speed changes, MP3/VTT endpoint verification, and cancellation reservation
+release passed. Final balance 2,999,309; provider estimate $0.00043710. See
+`docs/payment-recovery.md` for evidence and browser-download limitation. Final
+Pixel balance/playback/highlighting check remains pending. No public deployment.
