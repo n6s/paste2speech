@@ -84,6 +84,14 @@ The private sandbox purchase/allowance pilot above is not a public deployment.
 
 # Current private milestone — 2026-09-21
 
+Google WaveNet hosting decision: full preparation first (Roger, September 21).
+The private worktree now selects complete delivery for Google: show preparation
+progress, then open the finished recording with original-text highlighting,
+seeking, playback speed, and MP3/VTT exports. See `docs/wavenet-mp3-proof.md`.
+No deployment accompanies this change. Worker-side synthesis/authentication,
+speech-rule parity and target-device checks remain before hosted integration;
+the current Python backend still uses LINEAR16 and continuous MP3 encoding.
+
 Progressive workstation Kokoro, media playback speed, section controls, MP3 export,
 and optional WebVTT are implemented privately. Real chapter playback and export
 passed desktop/mobile-layout checks. Final Pixel lock-screen, background buffering,

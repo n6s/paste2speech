@@ -6,10 +6,32 @@ original-section highlighting, seeking, speed control, and matching MP3/VTT
 exports. Standard JavaScript assembly also passed in the local Workers runtime.
 This proves the audio path, not a production hosted service.
 
-**Recommendation:** use full preparation for the first private hosted integration,
-preserving highlighting. Keep progressive delivery experimental until the
+**Decision:** Roger selected full preparation on September 21, 2026 for the first
+private hosted integration, preserving highlighting. Keep progressive delivery experimental until the
 stream-to-file transition and final timeline are validated on the target devices.
 Do not trade away highlighting or silently accept the raw-stream discrepancy.
+
+### Follow-up implementation
+
+The worktree's Google reader settings now select `delivery: 'complete'`. The
+shared player polls preparation progress but does not attach an audio source until
+the job is ready; it then opens the completed, range-capable recording directly.
+Pause and section selection survive preparation; Stop cancels, and failed jobs
+expose neither partial playback nor exports. The proof defaults to this path and
+returns a job immediately, so full preparation does not require holding the
+creation request open. Cached checks need no new Google calls.
+
+Follow-up validation: all 103 JavaScript tests and the browser build passed.
+The cached full-preparation browser run confirmed that the first audio load
+occurred only after completion, then passed seeking, highlighting, speed,
+byte-preserving MP3 export, VTT and exact complete-file duration checks.
+Evidence is in `docs/wavenet-full-preparation-results.json`; its timings are
+cached replay measurements, not another live synthesis benchmark.
+
+These are private source changes, not a deployment. The existing Python Google
+backend still uses LINEAR16 and continuous encoding; replacing it with the
+Worker-native MP3 preparation pipeline remains a separate integration step.
+The measurements below describe the initial proof, before this follow-up.
 
 ## Measurements
 
@@ -69,7 +91,8 @@ stream bytes were not sufficient for reliable completed-file seeking.
 
 The proof now reopens the identical complete bytes, with Content-Length and
 Range support, on the first completed-file seek. This is a private subclass of
-the existing player; no running-service or production-player change was made.
+the existing player; that initial proof changed neither the running service nor
+the application player. The full-delivery follow-up is described above.
 After this adjustment, cached progressive replays passed for both voices:
 
 - Pause holds the clock; changing to 1.5× does not regenerate audio.

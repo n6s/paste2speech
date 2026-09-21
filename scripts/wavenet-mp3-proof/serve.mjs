@@ -79,7 +79,8 @@ const server = http.createServer(async (req,res)=>{
       const id=String(++counter),job={id,parts:[],done:false,started:performance.now(),mode:actualMode,paid};
       jobs.set(id,job);
       job.preparation=prepare(job,voice,actualMode,paid).catch(()=>{job.error='Preparation failed. No automatic retry.';});
-      if(actualMode==='full')await job.preparation;
+      // Return the job immediately: complete delivery polls progress, and only
+      // requests the finished file when ready. No long-held creation request.
       return json(res,200,{id});
     }
     if(req.method==='POST' && url.pathname==='/metrics') {

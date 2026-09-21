@@ -20,8 +20,8 @@ const player=new ProofPlayer(p=>{
   if(p.complete && !metrics.completeMs){metrics.completeMs=performance.now()-started;metrics.duration=p.duration;render();}
   for(const kind of ['mp3','vtt']){const link=$(kind);link.hidden=!p.complete;if(p.complete)link.href=player.download(kind);}
 },{audio,pollMs:100});
-for(const event of ['playing','waiting','ended','error','seeked'])audio.addEventListener(event,()=>{
-  metrics.events??=[];metrics.events.push({event,elapsedMs:performance.now()-started,time:audio.currentTime,duration:Number.isFinite(audio.duration)?audio.duration:null});
+for(const event of ['loadstart','playing','waiting','ended','error','seeked'])audio.addEventListener(event,()=>{
+  metrics.events??=[];metrics.events.push({event,elapsedMs:performance.now()-started,time:audio.currentTime,duration:Number.isFinite(audio.duration)?audio.duration:null,complete:player.complete,source:audio.getAttribute('src')});
   if(event==='playing' && !metrics.firstPlayingMs)metrics.firstPlayingMs=performance.now()-started;
   render();
 });
@@ -38,7 +38,7 @@ showText();$('voice').onchange=showText;
 $('start').onclick=async()=>{
   const manifest=showText();
   metrics={mode:$('mode').value,voice:$('voice').value,userAgent:navigator.userAgent};started=performance.now();
-  settings={provider:$('mode').value,voice:$('voice').value,rate:Number($('rate').value)};
+  settings={provider:$('mode').value,delivery:$('mode').value.endsWith('full')?'complete':'progressive',voice:$('voice').value,rate:Number($('rate').value)};
   await player.start(manifest.sections.map(s=>s.text),settings);render();
 };
 $('pause').onclick=()=>player.pause();$('resume').onclick=()=>player.resume(settings);
@@ -49,7 +49,8 @@ function check(condition,message){if(!condition)throw Error(message);metrics.che
 $('checks').onclick=async()=>{
   metrics.checks=[];
   try {
-    await until(()=>player.complete);
+    await until(()=>player.complete && !audio.paused && audio.currentTime>.05);
+    if(settings.delivery==='complete')check(metrics.events.filter(e=>e.source).every(e=>e.complete && e.source.endsWith('?complete=1')),'Full preparation opens only the completed recording');
     player.pause();const paused=audio.currentTime;await sleep(300);
     check(audio.currentTime===paused,'Pause holds audio clock');
     check(rows.every((r,i)=>r.textContent===player.chunks[i]),'Highlight text matches original sections exactly');

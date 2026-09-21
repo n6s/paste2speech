@@ -21,9 +21,10 @@ mode, click Start proof, then Run playback checks. The browser saves its own
 measurements in `work/wavenet-mp3-proof/browser-*.json`. Cached startup numbers
 replay recorded provider readiness; they are not new live synthesis measurements.
 
-The harness uses the real `public/progressive-player.js` with one private adapter:
-reopen the completed, range-capable file on the first completed-file seek.
-Production player code is unchanged. Completed MP3/VTT exports are available in
+The harness defaults to the real `public/progressive-player.js` complete-delivery
+path: poll progress, then open only the finished file. Progressive comparisons
+use one private adapter to reopen the completed, range-capable file on the first
+completed-file seek. Completed MP3/VTT exports are available in
 the page; the standalone initial exports are `<voice>.mp3` and `<voice>.vtt`.
 
 ## Deliberate paid synthetic runs

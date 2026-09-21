@@ -1,5 +1,6 @@
-// The workstation encodes one continuous MP3. Playback and highlighting share
-// its original-speed clock; changing playbackRate never regenerates speech.
+// Playback and highlighting share the recording's original-speed clock.
+// Complete delivery waits for the finished, seekable MP3 before loading audio;
+// progressive delivery remains available for the workstation path.
 export class ProgressivePlayer {
   constructor(onChange = () => {}, {audio = new Audio(), fetcher = globalThis.fetch.bind(globalThis), media = globalThis.navigator?.mediaSession, pollMs = 1000} = {}) {
     Object.assign(this, {onChange, audio, fetcher, media, pollMs, state:'idle', chunks:[], starts:[], index:0, generation:0, duration:0, complete:false, playSequence:0});
@@ -17,6 +18,7 @@ export class ProgressivePlayer {
     for(const name of ['loadedmetadata','progress','canplay','seeked'])audio.addEventListener(name,()=>this.applyPending());
   }
   endpoint(suffix='') {return new URL(`api/readings${suffix}`,globalThis.location?.href || 'http://localhost/');}
+  get completeDelivery() {return this.settings?.delivery==='complete';}
   emit(message='') {
     this.onChange(this,message);
     if(!this.claimed || !this.media)return;
@@ -61,7 +63,7 @@ export class ProgressivePlayer {
     this.pendingTime=null;this.pendingIndex=Math.max(0,Math.min(chunks.length-1,Math.trunc(startIndex)||0));this.index=this.pendingIndex;
     this.wantPlay=true;this.claim();this.setRate(settings.rate);
     if(reuse){this.applyPending();if(this.pendingIndex!==null){this.state='preparing';this.emit();}return;}
-    this.state='preparing';this.emit('Preparing the first section…');
+    this.state='preparing';this.emit(this.completeDelivery?'Preparing the full reading…':'Preparing the first section…');
     const generation=this.generation;
     this.createController=new AbortController();
     try {
@@ -73,7 +75,8 @@ export class ProgressivePlayer {
       if(!response.ok)throw Error(typeof data.detail==='string'?data.detail:'Could not prepare this reading.');
       if(generation!==this.generation){void this.deleteJob(data.id);return;}
       this.id=data.id;this.url=this.endpoint(`/${this.id}/audio`).href;
-      this.audio.src=this.url;this.audio.load();this.setRate(settings.rate);
+      if(!this.completeDelivery){this.audio.src=this.url;this.audio.load();}
+      this.setRate(settings.rate);
       void this.refresh();
     }catch(error){if(generation===this.generation){this.wantPlay=false;this.state='failed';this.emit(error.name==='AbortError'?'Preparation cancelled.':error.message);}}
   }
@@ -91,16 +94,21 @@ export class ProgressivePlayer {
       if(['failed','cancelled'].includes(data.state)){
         this.serverFailed=true;this.wantPlay=false;this.audio.pause();this.state='failed';this.emit(data.error || 'Preparation stopped. Press Play to retry.');return;
       }
+      if(this.completeDelivery && this.complete && !this.seekableFile){
+        this.seekableFile=true;this.audio.src=this.url+'?complete=1';this.audio.load();this.setRate(this.settings.rate);
+      }
       this.applyPending();
       if(this.audio.ended && this.complete && this.pendingIndex===null){this.state='done';this.index=this.chunks.length;this.wantPlay=false;}
       this.sync();
-    }catch(error){if(generation===this.generation)this.emit(error.message+' Playback can continue with audio already received.');}
+      if(this.completeDelivery && !this.complete && this.wantPlay)this.emit(`Preparing the full reading · ${this.starts.length} of ${this.chunks.length} sections`);
+    }catch(error){if(generation===this.generation)this.emit(error.message+(this.completeDelivery && !this.complete?' Checking preparation again shortly.':' Playback can continue with audio already received.'));}
     finally {
       this.polling=false;
       if(this.id && !this.complete && !this.serverFailed)this.timer=setTimeout(()=>void this.refresh(),this.pollMs);
     }
   }
   applyPending() {
+    if(this.completeDelivery && (!this.complete || this.audio.readyState<1))return;
     if(this.pendingIndex===null || this.pendingIndex===undefined || this.starts[this.pendingIndex]===undefined)return;
     const target=this.pendingTime ?? this.starts[this.pendingIndex];
     // Buffered seeks are immediate; generated but unbuffered seeks use the native stream.
@@ -126,6 +134,7 @@ export class ProgressivePlayer {
     this.emit();
   }
   async play() {
+    if(this.completeDelivery && !this.complete){this.wantPlay=true;this.state='preparing';this.emit('Preparing the full reading…');return;}
     const generation=this.generation, sequence=++this.playSequence;
     this.wantPlay=true;
     try{await this.audio.play();}
@@ -136,7 +145,7 @@ export class ProgressivePlayer {
     if(!this.matches(this.chunks,settings))return this.start(this.chunks,settings,Math.min(this.index,this.chunks.length-1));
     this.claim();this.setRate(settings.rate);this.wantPlay=true;
     if(this.state==='done')return this.start(this.chunks,settings,0);
-    if(this.audio.error){this.pendingIndex=Math.min(this.index,this.chunks.length-1);this.audio.src=this.url;this.audio.load();}
+    if(this.audio.error){this.pendingIndex=Math.min(this.index,this.chunks.length-1);this.audio.src=this.url+(this.seekableFile?'?complete=1':'');this.audio.load();}
     if(this.pendingIndex!==null){this.state='preparing';this.applyPending();this.emit();void this.refresh();}
     else void this.play();
   }
