@@ -2,10 +2,10 @@
 
 Public URL: https://speak.rogerpbrown.com
 
-The private Tailscale site continues to serve `public/` directly, with the existing
-workstation API. `public/config.js` defaults to private. `npm run build` bundles a
-separate public configuration into `dist/`; changes are not published until an
-explicit release. No Tunnel or workstation service is required by production.
+The private Tailscale site serves the local `dist/` directory with the workstation
+API. `public/config.js` enables workstation features only on the private hostname.
+`npm run build` updates that private directory; it does not publish Cloudflare.
+The public deployment keeps its earlier build until an explicit release. No Tunnel or workstation service is required by production.
 
 ## Build and release
 
@@ -212,3 +212,14 @@ pasted and displayed text. Both engines share example fixtures for `3:00`,
 with seconds are protected. Explicit numeric ratios remain ratios even with
 two digits. `tests/metrics-attribution-browser.mjs` checks report attribution
 using intercepted submissions and mocked audio generation.
+
+## Private streaming milestone (2026-09-21)
+
+Do not deploy this milestone publicly: the current branch also includes pending
+browser experiments. Commit, run `npm run build`, and restart the user workstation
+speech service to load the recording endpoints. Restart removes its temporary
+recordings; regenerate after reloading. Verify the private `/speak/api/readings`
+route through Tailscale. See README for storage, limits, and Pixel acceptance.
+
+For pronunciation fixes, isolate the dictionary change and its regression tests
+from the last public release instead of deploying the full experimental branch.

@@ -1,3 +1,15 @@
+# Current private milestone — 2026-09-21
+
+Progressive workstation Kokoro, media playback speed, section controls, MP3 export,
+and optional WebVTT are implemented privately. Real chapter playback and export
+passed desktop/mobile-layout checks. Final Pixel lock-screen, background buffering,
+and listening acceptance remain open. Do not publish the pending browser experiments.
+
+Pronunciation contributions should take a small, reviewed regression-tested path
+to production, independent of these experiments. Preparing that isolated public
+release is separate work; this milestone does not change the feedback automation
+or authorize automatic fixes/deployments. Regenerate old recordings after a fix.
+
 # Queued improvements
 
 - Investigate occasional unnatural Kokoro pauses reported during mobile soak testing (2026-09-17). No exact passage captured yet. Check preserved line breaks, long-sentence splits, ambiguous abbreviation boundaries, and silence generated within each audio section; the player concatenates prepared audio without adding gaps. Capture the affected wording and voice when a case is available.

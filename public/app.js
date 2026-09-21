@@ -4,6 +4,7 @@ import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
 import { cleanText, chunkText, defaults } from './text.js?v=20260917-answer-labels-1';
 import { Player } from './player.js';
+import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 const $ = id => document.getElementById(id);
 let saved = {};
@@ -52,7 +53,7 @@ let sentenceElements = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
-const workstationPlayer = new AudioPlayer(render);
+const workstationPlayer = new ProgressivePlayer(render);
 const localPlayer = new AudioPlayer(render, {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)});
 localPlayer.getSettings = settings;
 workstationPlayer.getSettings = settings;
@@ -156,7 +157,7 @@ $('edit-mode').addEventListener('click', () => setMode('edit'));
 function readAndPlay() {
   $('text').blur();
   setMode('read');
-  if (!player || !canPlay() || !cleaned || ['playing', 'preparing'].includes(player.state)) return;
+  if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
   if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings());
   else { countNextPlayback=true; player.start(chunks, settings()); }
 }
@@ -212,14 +213,26 @@ function render(p, message) {
     if(p.state==='playing' && countNextPlayback){event('playback_start',isKokoro()?'kokoro':'browser');countNextPlayback=false;}
     previousState=p.state;
   }
-  $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
   $('play').textContent = ['paused', 'failed'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = ['playing', 'preparing'].includes(p.state) || !cleaned || !canPlay();
-  $('pause').disabled = !['playing', 'preparing'].includes(p.state);
+  $('play').disabled = ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
+  $('pause').disabled = !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
-  const active = ['playing', 'paused', 'preparing', 'ready', 'failed'].includes(p.state);
+  $('recording-controls').hidden = !isWorkstation();
+  $('playback-note').textContent = isWorkstation()
+    ? 'Playback starts as audio arrives. Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use; Clear removes this recording.'
+    : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.';
+  $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
+  for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
+    const href = isWorkstation() && p.download?.(kind);
+    $(id).hidden = !href || (kind==='vtt' && !$('include-captions').checked);
+    if(href)$(id).href=href;else $(id).removeAttribute('href');
+  }
+  $('previous-section').disabled = !p.chunks.length || p.index===0;
+  $('next-section').disabled = !p.chunks.length || p.index>=p.chunks.length-1;
+  const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed'].includes(p.state);
   for (const [index, button] of sentenceElements.entries()) {
     const current = active && p.index === index;
     if (current) {
@@ -325,13 +338,16 @@ $('paste-play').addEventListener('click', async () => {
   }
 });
 $('clear').addEventListener('click', () => { pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
-$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
+$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
+$('previous-section').addEventListener('click',()=>workstationPlayer.move(-1));
+$('next-section').addEventListener('click',()=>workstationPlayer.move(1));
+$('include-captions').addEventListener('change',()=>render(player));
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
-document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) player?.sync(); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }

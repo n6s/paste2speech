@@ -1,4 +1,4 @@
-"""Local Kokoro speech service. No submitted text or generated audio is persisted."""
+"""Local Kokoro service. Text is held in memory; private MP3 recordings expire."""
 from server.time_speech import time_speech
 import asyncio
 import io
@@ -181,7 +181,16 @@ class Engine:
 async def lifespan(app):
     app.state.engine = await asyncio.to_thread(Engine)
     app.state.busy = False
-    yield
+    from server.readings import cleanup_loop, jobs
+    cleanup = asyncio.create_task(cleanup_loop())
+    try:
+        yield
+    finally:
+        cleanup.cancel()
+        for recording in list(jobs.values()):
+            recording.dispose()
+        await asyncio.gather(cleanup, *(r.task for r in jobs.values() if r.task), return_exceptions=True)
+        jobs.clear()
 
 app = FastAPI(lifespan=lifespan, docs_url=None, redoc_url=None, openapi_url=None)
 
@@ -281,5 +290,8 @@ async def pdf_text(request: Request):
 
 from server.cloudflare_audition import router as audition_router
 app.include_router(audition_router)
+
+from server.readings import router as readings_router
+app.include_router(readings_router)
 
 app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'dist')), html=True), name='static')

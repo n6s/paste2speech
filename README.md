@@ -24,7 +24,7 @@ Open **http://127.0.0.1:8765** in a browser. Keep that terminal running; Ctrl+C 
 
 Use **Clear, Paste & Play** beside **Clear** to replace the text with your clipboard and start reading with your saved settings. Your browser may ask for clipboard permission. Empty or inaccessible clipboards leave the existing text intact. Formatted clipboard text keeps the same cleanup as normal paste.
 
-Or paste text, choose **Read** to review the cleaned text without starting or resuming playback, choose **Browser voices** or **Workstation · Kokoro**, expand **Voice & speed** to pick a voice and speed, and tap **Play**. This row starts collapsed on each visit and shows your current voice and speed. **Read with** and **Clean up before reading** are inside it; your preferences are still remembered. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice or speed pauses it so Resume uses the new settings.
+Or paste text, choose **Read** to review the cleaned text without starting or resuming playback, choose **Browser voices** or **Workstation · Kokoro**, expand **Voice & speed** to pick a voice and speed, and tap **Play**. This row starts collapsed on each visit and shows your current voice and speed. **Read with** and **Clean up before reading** are inside it; your preferences are still remembered. Kokoro is available on the deployed Tailscale URL; the simple static development server only provides browser voices. Use **Pause** to save your place and **Play / Resume** to continue. **Stop** returns to the beginning. Editing text or cleanup options stops playback; changing voice pauses it so Resume uses the new voice. Workstation playback speed changes immediately without regenerating audio.
 
 ## Use it from your Pixel over Tailscale
 
@@ -119,18 +119,71 @@ Kokoro also gives paired curly quotes (double or single) and straight double quo
 - A stalled or failed voice leaves the current position available for retry. It never automatically skips an unread chunk. A timeout can also occur with an unusually slow voice.
 - Browser voices need the tab visible and phone awake. Kokoro prepares a single audio track for background listening, with lock-screen/headphone controls where supported. Actual Pixel screen-lock acceptance testing remains pending; see BACKLOG.md.
 - Default cleanup removes Markdown formatting, ChatGPT citation tokens, URLs, fenced/indented code blocks and Markdown tables. Emoji removal is optional. Inline code stays readable. Cleanup is a best-effort text filter, not a full Markdown parser; inspect the preview for unusual formatting. Unchecked Code blocks and Tables keep their content. Markdown cleanup separates headings (including underlined headings) and list items, preserves ordered-list numbers, and reads task checkboxes as Checked or Unchecked. Retained tables read headers once and each row separately, using semicolons between cells; empty cells keep their positions, escaped pipes remain literal, and ambiguous tables remain unchanged. Retained code loses its fences and language label, but its contents, indentation and line breaks are protected from all prose cleanup. Turn off Markdown formatting too to retain fences. Join wrapped lines applies only to prose and continuations within a list item; sentence-ending punctuation and blank paragraphs still prevent joining. Structure detection is conservative, not a full Markdown renderer; deeply nested or unusual syntax may need manual editing.
-- Only preferences are saved in browser local storage. Browser voices do not send pasted text to the workstation. Kokoro sends all reading chunks sequentially over Tailscale to the local service; submitted text and audio stay in memory and are not saved by the application. The browser/OS speech provider may process text online for some browser voices. Choose a voice labeled “on-device” when desired; available voices vary by device.
+- Only preferences are saved in browser local storage. Browser voices do not send pasted text to the workstation. Workstation Kokoro sends the reading over Tailscale. Source text stays in service memory; the continuous MP3 is temporarily stored in an owner-only cache directory until cleared, expired, or the service stops. On-device Kokoro keeps its prepared WAV in browser memory. The browser/OS speech provider may process text online for some browser voices. Choose a voice labeled “on-device” when desired; available voices vary by device.
 - Loading the page requires the workstation and Tailscale connection. There is no offline cache or service worker in this initial version.
 
 ## Workstation voices (Kokoro)
 
 Choose **Read with → Workstation · Kokoro**. The default voice is **Heart**; Bella, Michael, Fenrir, Emma and George are also available. These are English voices. Browser voices remain available if the workstation speech service is unavailable. Refresh the page after restarting a failed service to rediscover voices.
 
-Kokoro runs on the workstation NVIDIA RTX 4060 Ti with CUDA. The CPU environment remains available for rollback. Initial playback waits for the complete reading to be generated, with preparation progress and a working Stop button. One in-memory WAV track plays through a persistent HTML audio element, with precise pause/resume and paragraph seeking. If automatic playback is blocked, tap Play when audio is ready. Changing voice or speed prepares a new track and resumes from the current chunk’s beginning. Failed generation retains completed chunks in memory for retry. Stop resets the position and retains completed audio for replay. Lock-screen/headphone controls support pause, resume, stop, and 15-second seeking where available.
+Kokoro runs on the workstation NVIDIA RTX 4060 Ti with CUDA. Playback now begins
+as the first MP3 audio arrives, while the workstation generates later sections.
+A single encoder spans the whole reading; the same sample clock drives text
+highlighting, section navigation, and exported WebVTT captions. Existing clock,
+pronunciation, and pause rules still run at the synthesis boundary.
 
-Keep the page open, but you can switch apps or lock the screen while the prepared track plays. Once preparation finishes, playback no longer requires Tailscale or the workstation connection. Text, audio, and position are temporary: Clear removes them, and reloading or closing the page discards them. Prepared PCM audio is limited to 256 MiB (about 93 minutes); split longer readings into smaller sections. No audio is stored on disk by the application. Pixel background-playback verification is still pending; desktop tests cannot establish Android behavior.
+Speed changes immediately on the media element, preserving pitch, without a new
+synthesis request. The browser remembers the chosen speed. Pause saves the exact
+position and lets preparation continue. Stop cancels unfinished preparation; for
+a completed recording it returns to the beginning and retains replay/downloads.
+Changing text, cleanup, or voice requires a new recording. If preparation fails,
+Play retries the reading; an incomplete recording is never offered for download.
+Autoplay rejection leaves a Play button. Media Session registers play, pause,
+stop, previous/next section, and seek controls; which controls appear depends on
+the browser/device. Returning to the page refreshes highlighting from audio time.
 
-The service binds only to `127.0.0.1:8766`; Tailscale exposes it at `/speak/api`. `/speak/` still serves static files, and Immich remains at `/`. Requests accept a fixed voice list, bounded text and body sizes, and approved browser origins. Model inference is serialized; briefly busy requests are retried by the player. Request bodies and generated audio are not logged or stored. After setup, the service loads cached models in offline mode.
+A seek within received audio is immediate. If the browser has stopped buffering
+and the requested section is not available, navigation waits for preparation,
+then opens the same MP3 with range support. The highlighted requested section
+stays fixed while waiting. Speed changes do not alter any caption timestamps.
+
+Expand **Download recording** after preparation finishes to save a single mono
+24 kHz, 64 kbps MP3 at original speed. **Include timed text** reveals a separate
+`reading.vtt` download using the same filename stem. Caption display in other
+players varies. Both exports reuse the generated audio; there is no extra speech
+synthesis or provider charge.
+
+Keep the page open and Tailscale connected while audio arrives. Unlike the old
+fully downloaded WAV, a fully generated MP3 is not necessarily fully buffered
+on the phone. Download it for reliable offline use. The page does not restore
+text or playback after reload. Clear deletes the current temporary recording.
+Files are under `~/.cache/paste2speech/readings/recording-*/reading.mp3`, in
+owner-only directories, with no separate source-text files. They expire after
+24 hours without server access; normal service shutdown removes them. The
+cleanup loop also removes expired files left after a crash. Up to three readings
+can be retained at once; clear earlier readings before opening more. Input is
+bounded to 1 million characters / 10,000 sections, and encoded audio to about
+512 MiB. Browser storage/buffering and device limits still apply.
+
+The service binds only to `127.0.0.1:8766`; Tailscale exposes it at `/speak/api`.
+`/speak/` serves the local `dist/` build, and Immich remains at `/`. Creation and
+deletion require an approved browser origin. Unguessable reading IDs protect
+status, stream, and download URLs; cross-site browser access is rejected.
+Inference is serialized, and submitted text is never logged. FFmpeg and FFprobe
+are required. The old short-speech API and on-device WAV player remain available.
+
+Validation on 2026-09-21: a real 2,448-word chapter (168 sections) produced an
+850.584-second / 6,804,672-byte MP3. Desktop Chrome began playback in 1.2 seconds,
+with the complete recording ready in 12.2 seconds. Real-browser checks covered
+speed without regeneration, pause/resume, early and completed-file navigation,
+correct highlighting at middle/final sections, 168 VTT cues, mobile layout, and
+Clear removing the server recording. Full MP3 decoding and a measured encoder
+latency test passed. This does not verify Pixel screen-off behavior.
+
+Pixel acceptance for this new path: start a chapter, lock the phone while it is
+still preparing, test play/pause and any previous/next controls offered, return
+and check highlighting, change speed, then download and play the MP3 elsewhere.
+The earlier prepared-WAV Pixel results do not establish this streaming path.
 
 ### Service management
 
@@ -256,7 +309,9 @@ This validates desktop Chrome with a mobile viewport; actual Pixel audio still n
 - `public/paste.js`: inert clipboard HTML-to-Markdown conversion.
 - `public/player.js`: cancellable playback state machine.
 - `public/app.js`: page controls, voice discovery and preferences.
-- `public/audio-player.js`: prepared WAV audio, media controls, and pause/resume.
+- `public/audio-player.js`: on-device prepared WAV playback.
+- `public/progressive-player.js`: private workstation stream, speed, highlighting, and media controls.
+- `server/readings.py`: bounded temporary MP3 recordings, sample-clock metadata, downloads, and expiry.
 - `server/`: local Kokoro API and pinned Python dependencies.
 - `deploy/`: automatic-start service definition.
 - `tests/`: text, state-machine and browser tests.
