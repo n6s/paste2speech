@@ -311,6 +311,7 @@ from server.readings import router as readings_router
 app.include_router(readings_router)
 
 from server.billing import router as billing_router
+from server import auth  # Register private email sign-in routes before mounting.
 app.include_router(billing_router)
 
 app.mount('/', StaticFiles(directory=os.environ.get('P2S_PUBLIC', str(ROOT / 'dist')), html=True), name='static')

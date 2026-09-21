@@ -1,7 +1,7 @@
 """Private Paddle sandbox pilot. Server verification, never browser success, grants credit.
 
 This router is served only by the private workstation. It is not public auth or
-production billing. Browser-bound test accounts have no email recovery yet.
+production billing. Verified email accounts can recover sandbox credit across browsers.
 """
 import asyncio
 import json
@@ -140,14 +140,16 @@ async def session(request: Request):
 
 @router.get('/billing/status')
 @router.get('/api/billing/status')
-async def status(request: Request):
+async def status(request: Request, response: Response):
+    response.headers['Cache-Control'] = 'no-store'
     check(request)
     ledger = ledger_for(request)
     account = ledger.account(request.cookies.get(COOKIE))
     month = datetime.now(timezone.utc).strftime('%Y-%m')
     client = credential('paddle-sandbox-client-token')
     configured = bool(credential('paddle-sandbox-api-key') and client.startswith('test_'))
-    return {'sandbox':True,'configured':configured,'clientToken':client if client.startswith('test_') else '',
+    from server.auth import settings
+    return {'emailConfigured':bool(settings()), 'email':account.get('email') if account else None, 'sandbox':True,'configured':configured,'clientToken':client if client.startswith('test_') else '',
             'packCharacters':PACK_CHARACTERS,'priceUSD':10,
             'account':{k:account[k] for k in ('balance','reserved','enabled')} if account else None,
             'pendingOrder':ledger.pending_order(account['id']) if account else None,

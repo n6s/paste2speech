@@ -1,12 +1,16 @@
-"""Private durable usage and sandbox credits. No source text, audio or email stored."""
+"""Private durable usage and sandbox credits. No source text or audio stored; verified account emails are private."""
 import hashlib
 import secrets
 import sqlite3
+import time
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 
 PACK_CHARACTERS = 3_000_000
+
+class AccountConflict(ValueError):
+    pass
 
 class InsufficientCredit(Exception):
     pass
@@ -34,6 +38,16 @@ class Ledger:
               voice TEXT NOT NULL, kind TEXT NOT NULL, source_characters INTEGER NOT NULL,
               submitted_characters INTEGER NOT NULL, audio_seconds REAL NOT NULL,
               provider_cost REAL NOT NULL, cost_incomplete INTEGER NOT NULL, outcome TEXT NOT NULL);
+            CREATE TABLE IF NOT EXISTS identities (
+              email TEXT PRIMARY KEY, account TEXT UNIQUE NOT NULL REFERENCES accounts(id));
+            CREATE TABLE IF NOT EXISTS sessions (
+              token_hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id), expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS login_links (
+              token_hash TEXT PRIMARY KEY, email TEXT NOT NULL, flow_hash TEXT NOT NULL,
+              source_account TEXT, expires REAL NOT NULL);
+            CREATE TABLE IF NOT EXISTS login_limits (
+              scope TEXT NOT NULL, created REAL NOT NULL);
+            CREATE INDEX IF NOT EXISTS login_limits_scope ON login_limits(scope,created);
             ''')
         self.path.chmod(0o600)
 
@@ -66,10 +80,13 @@ class Ledger:
             row = db.execute('SELECT id,balance,enabled FROM accounts WHERE token_hash=?',
                              (hashlib.sha256(token.encode()).hexdigest(),)).fetchone()
             if not row:
+                row = db.execute('SELECT a.id,a.balance,a.enabled FROM sessions s JOIN accounts a ON a.id=s.account WHERE s.token_hash=? AND s.expires>?', (self.digest(token), time.time())).fetchone()
+            if not row:
                 return None
             held = db.execute('SELECT COALESCE(SUM(remaining),0) FROM reservations WHERE account=?',
                               (row['id'],)).fetchone()[0]
-            return dict(row) | {'reserved': held}
+            email = db.execute('SELECT email FROM identities WHERE account=?', (row['id'],)).fetchone()
+            return dict(row) | {'reserved': held, 'email': email[0] if email else None}
 
     def enable(self, account, enabled):
         with self.connect() as db:
@@ -165,3 +182,71 @@ class Ledger:
                 SUM(CASE WHEN outcome='succeeded' THEN source_characters ELSE 0 END) AS completedCharacters
                 FROM usage WHERE substr(created,1,7)=? GROUP BY provider,kind''',(month,)).fetchall()
             return [dict(row) for row in rows]
+
+    @staticmethod
+    def digest(value):
+        return hashlib.sha256(value.encode()).hexdigest()
+
+    def login_request(self, email, flow, source_account, ip):
+        now = time.time()
+        token = secrets.token_urlsafe(32)
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('DELETE FROM login_links WHERE expires<=?', (now,))
+            db.execute('DELETE FROM sessions WHERE expires<=?', (now,))
+            db.execute('DELETE FROM login_limits WHERE created<?', (now-86400,))
+            for scope, limit, window in [('email:'+self.digest(email), 5, 3600),
+                                         ('ip:'+self.digest(ip), 20, 3600), ('global', 90, 86400)]:
+                count = db.execute('SELECT COUNT(*) FROM login_limits WHERE scope=? AND created>?',
+                                   (scope, now-window)).fetchone()[0]
+                if count >= limit:
+                    raise ValueError('Rate limited')
+            for scope in ('email:'+self.digest(email), 'ip:'+self.digest(ip), 'global'):
+                db.execute('INSERT INTO login_limits VALUES(?,?)', (scope,now))
+            db.execute('INSERT INTO login_links VALUES(?,?,?,?,?)',
+                       (self.digest(token),email,self.digest(flow),source_account,now+900))
+        return token
+
+    def cancel_login(self, token):
+        with self.connect() as db:
+            db.execute('DELETE FROM login_links WHERE token_hash=?', (self.digest(token),))
+
+    def login_confirm(self, token, flow):
+        now = time.time()
+        session = secrets.token_urlsafe(32)
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            link = db.execute('SELECT * FROM login_links WHERE token_hash=? AND expires>? AND flow_hash=?',
+                              (self.digest(token),now,self.digest(flow))).fetchone()
+            if not flow or not link:
+                raise ValueError('Invalid link')
+            existing = db.execute('SELECT account FROM identities WHERE email=?', (link['email'],)).fetchone()
+            if existing:
+                account = existing[0]
+                # Do not silently abandon paid anonymous credit or merge accounts.
+                source = link['source_account']
+                if source and source != account:
+                    value = db.execute("SELECT balance + COALESCE((SELECT SUM(remaining) FROM reservations WHERE account=?),0) FROM accounts WHERE id=?", (source,source)).fetchone()
+                    pending = db.execute("SELECT 1 FROM orders WHERE account=? AND status='pending'", (source,)).fetchone()
+                    if value and (value[0] or pending):
+                        raise AccountConflict('This browser has separate credit or a pending purchase. Link it to a different email, or sign in to your existing account in a separate browser profile.')
+            else:
+                account = link['source_account']
+                # An already verified account cannot be renamed through sign-in.
+                if not account or db.execute('SELECT 1 FROM identities WHERE account=?', (account,)).fetchone():
+                    account = secrets.token_urlsafe(24)
+                    db.execute('INSERT INTO accounts(id,token_hash) VALUES(?,?)',
+                               (account,self.digest(secrets.token_urlsafe(32))))
+                db.execute('INSERT INTO identities VALUES(?,?)', (link['email'],account))
+                # Replace the original unlimited browser credential on first verification.
+                db.execute('UPDATE accounts SET token_hash=? WHERE id=?', (self.digest(secrets.token_urlsafe(32)),account))
+            db.execute('DELETE FROM login_links WHERE token_hash=?', (self.digest(token),))
+            db.execute('INSERT INTO sessions VALUES(?,?,?)', (self.digest(session),account,now+30*86400))
+        return session
+
+    def logout(self, token):
+        with self.connect() as db:
+            db.execute('BEGIN IMMEDIATE')
+            db.execute('DELETE FROM sessions WHERE token_hash=?', (self.digest(token),))
+            db.execute('UPDATE accounts SET token_hash=? WHERE token_hash=?',
+                       (self.digest(secrets.token_urlsafe(32)),self.digest(token)))

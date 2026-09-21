@@ -9,7 +9,7 @@ const server=createServer(async(req,res)=>{
  if(path==='/api/billing'){res.setHeader('Content-Type','text/html');res.end(await readFile('server/billing/index.html'));return;}
  if(path==='/api/billing/app.js'){res.setHeader('Content-Type','text/javascript');res.end(await readFile('server/billing/app.js'));return;}
  if(path==='/api/billing/session'){res.end('{}');return;}
- if(path==='/api/billing/status'){res.end(JSON.stringify({configured:true,clientToken:'test_fake',month:'2026-09',account:{balance:credited?3000000:0,reserved:0,enabled},usage:[{provider:'workstation',kind:'personal',seconds:120,providerCost:0}]}));return;}
+ if(path==='/api/billing/status'){res.end(JSON.stringify({pendingOrder:orders&&!credited?'test-order':null,emailConfigured:true,email:null,configured:true,clientToken:'test_fake',month:'2026-09',account:{balance:credited?3000000:0,reserved:0,enabled},usage:[{provider:'workstation',kind:'personal',seconds:120,providerCost:0}]}));return;}
  if(path==='/api/billing/order'){orders++;res.end(JSON.stringify({order:'test-order',transactionId:'txn_fake'}));return;}
  if(path==='/api/billing/reconcile'){credited=++checks>=3;res.end(JSON.stringify({credited,status:credited?'completed':'paid'}));return;}
  if(path==='/api/billing/mode'){let raw='';for await(const part of req)raw+=part;enabled=JSON.parse(raw).enabled;res.end(JSON.stringify({enabled}));return;}

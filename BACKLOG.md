@@ -1,6 +1,25 @@
+## Email-linked sandbox allowance — private implementation
+
+- Added email sign-in preserving existing credit, independent expiring sessions,
+  one-time browser-bound links, sign-out and durable request limits.
+- Two isolated browser contexts recover the same 6-million-character fixture
+  balance without duplicating credit. Expiry, reuse, concurrency and conflicting
+  balances are covered. See `docs/email-signin.md` for setup and boundaries.
+- Resend sending key remains owner-only; Cloudflare's one-time DNS authorization
+  adds only the three Resend sending records. No public reader deployment.
+- Resend domain verified; actual email arrived with SPF/DKIM passing. Gmail put
+  the first message in Spam, so inbox placement is not yet validated. The real
+  link signed Chrome into the verified Paddle test email with all 6,000,000
+  characters preserved. Resend now enforces TLS; tracking remains unconfigured.
+- Python tests: 86 passed; JavaScript tests: 96 passed; both billing and email
+  browser checks passed; private reader built. Pixel sign-in check is pending.
+
 ## Purchase recognition — sandbox verified
 
 - Receipt product name: `speak.rogerpbrown.com — Speech pack`.
+- Second actual sandbox purchase automatically increased credit from 3 million to
+  6 million without a manual refresh; the new receipt confirmed the website name
+  and statement descriptor.
 - Saved statement descriptor: `SPEAKRPB` (the generic `SPEECH` was unavailable).
 - Checkout explains the expected `PADDLE.NET* SPEAKRPB` statement entry.
 - Keep the legal seller name Roger Brown. Carry this branding to live configuration
@@ -27,7 +46,7 @@
   completed with Paddle's test card, granted exactly 3,000,000 characters, and
   retained that balance across refresh/reload without a duplicate grant. Checkout
   confirmation now polls briefly for Paddle's delayed completed transaction status.
-  Public authentication, recovery, webhook/refund handling and deployment remain future work.
+  Private email recovery is now implemented; public authentication, webhook/refund handling and deployment remain future work.
 
 ## Hosted Kokoro pilot — private only
 
