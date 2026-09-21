@@ -126,3 +126,21 @@ class ReadingsTests(unittest.TestCase):
                 self.assertEqual(result['state'],'ready');self.assertEqual(result['provider'],'deepinfra')
                 local.assert_not_called()
                 client.delete('/readings/'+key,headers=origin)
+
+    def test_finished_recordings_do_not_block_replacement_and_retention_is_bounded(self):
+        from types import SimpleNamespace
+        import time
+        app=FastAPI();app.include_router(readings.router);app.state.busy=False
+        app.state.engine=SimpleNamespace(synthesize=lambda job:wav([1000]*2400))
+        old=[]
+        for i in range(3):
+            r=readings.Recording(['old'],'af_heart',set());r.state='ready';r.touched=time.monotonic()-10+i
+            readings.jobs[r.id]=r;old.append(r)
+        old[0].readers=1
+        with TestClient(app) as client, patch.object(readings,'MAX_RETAINED',3):
+            response=client.post('/readings',json={'chunks':['new'],'voice':'af_heart'},headers={'Origin':'https://pop-os.tailbd091c.ts.net'})
+            self.assertEqual(response.status_code,200)
+            self.assertIn(old[0].id,readings.jobs) # active playback preserved
+            self.assertNotIn(old[1].id,readings.jobs) # oldest idle download retired
+            self.assertIn(old[2].id,readings.jobs)
+            self.assertEqual(len(readings.jobs),3)

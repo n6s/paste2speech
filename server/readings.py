@@ -28,6 +28,7 @@ MP3_DELAY = 1105 / SAMPLE_RATE
 MAX_AUDIO_BYTES = 512 * 1024 * 1024
 TTL = 24 * 60 * 60
 MAX_JOBS = 3
+MAX_RETAINED = 30
 jobs = {}
 RECORDING_ROOT = Path.home() / '.cache/paste2speech/readings'
 
@@ -322,8 +323,19 @@ async def create(request: Request):
     if not shutil.which('ffmpeg'):
         raise HTTPException(503, 'Audio encoding is unavailable on the workstation.')
     expire_recordings()
-    if len(jobs) >= MAX_JOBS:
-        raise HTTPException(409, 'Three readings are already open. Clear an earlier reading before starting another.')
+    if sum(r.state == 'generating' for r in jobs.values()) >= MAX_JOBS:
+        raise HTTPException(409, 'Other readings are still preparing. Try again when preparation finishes.')
+    # Finished downloads must not occupy preparation slots forever after a tab
+    # reload or close. Bound retained files independently; never evict streams
+    # with an active reader or unfinished provider/accounting work.
+    while len(jobs) >= MAX_RETAINED:
+        idle = [r for r in jobs.values() if r.state != 'generating' and not r.readers
+                and (r.task is None or r.task.done())]
+        if not idle:
+            raise HTTPException(409, 'Recordings are currently in use. Try again shortly.')
+        oldest = min(idle, key=lambda r: r.touched)
+        jobs.pop(oldest.id, None)
+        oldest.dispose()
     recording = Recording(job.chunks, job.voice, set(job.paragraphStarts), provider=job.provider)
     recording.ledger = getattr(request.app.state, 'usage', None)
     recording.usage_kind = getattr(request.app.state, 'usage_kind', 'personal')
