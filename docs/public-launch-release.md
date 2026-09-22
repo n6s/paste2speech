@@ -204,3 +204,10 @@ Inactive pending public-mode endpoint deployment and secret installation.
 The browser export capability was unavailable; owner file handoff is needed for
 the client token and webhook secret. Neither value has been installed yet.
 No public-mode application deployment, payment or synthesis was performed.
+
+Credential handoff completed: client-token format and dashboard suffix checked;
+webhook-secret format checked. Both were moved to owner-only local credential
+files and temporary copies removed. `PADDLE_CLIENT_TOKEN` and
+`PADDLE_WEBHOOK_SECRET` were installed successfully; remote secret-list confirms
+all three Paddle bindings. Live catalog verification passes. Exact webhook
+signature/delivery validation remains gated on endpoint deployment.
