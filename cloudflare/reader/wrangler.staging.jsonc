@@ -10,9 +10,9 @@
     "ENABLE_LIVE_SYNTHESIS": "0",
     "ENABLE_PAYMENTS": "0",
     "ENABLE_EMAIL": "0",
-    "READER_ORIGIN": "https://unconfigured.invalid",
-    "ACCESS_ISSUER": "",
-    "ACCESS_AUD": "",
+    "READER_ORIGIN": "https://speak-staging.rogerpbrown.com",
+    "ACCESS_ISSUER": "https://broad-king-0668.cloudflareaccess.com",
+    "ACCESS_AUD": "cc8a795d34c6e3dd7a61e1d12a86f171de6c0764ca83088160ee2baf9d4ba971",
     "MAX_LIFETIME_CHARACTERS": "0"
   },
   "assets": {
@@ -44,7 +44,7 @@
   "r2_buckets": [
     {
       "binding": "AUDIO",
-      "bucket_name": "private-reader-staging-unconfigured"
+      "bucket_name": "private-wavenet-reader-staging"
     }
   ],
   "d1_databases": [
@@ -60,5 +60,11 @@
       "* * * * *"
     ]
   },
-  "account_id": "c71dba5be3cc617a904adc61e767704d"
+  "account_id": "c71dba5be3cc617a904adc61e767704d",
+  "routes": [
+    {
+      "pattern": "speak-staging.rogerpbrown.com",
+      "custom_domain": true
+    }
+  ]
 }

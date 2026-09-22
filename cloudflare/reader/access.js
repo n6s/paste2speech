@@ -11,7 +11,7 @@ export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={})
   const [h,p,s,...extra]=token.split('.');if(extra.length||!s)return false;
   const header=decode(h),claims=decode(p),seconds=Math.floor(now()/1000);
   if(header.alg!=='RS256'||claims.iss!==env.ACCESS_ISSUER||!Array.isArray(claims.aud)||!claims.aud.includes(env.ACCESS_AUD)||!Number.isFinite(claims.exp)||claims.exp<=seconds||!Number.isFinite(claims.iat)||claims.iat>seconds+30||(claims.nbf!=null&&claims.nbf>seconds))return false;
-  const response=await fetcher(env.ACCESS_ISSUER+'/cdn-cgi/access/certs',{redirect:'error',signal:AbortSignal.timeout(10000)});
+  const response=await fetcher(env.ACCESS_ISSUER+'/cdn-cgi/access/certs',{redirect:'manual',signal:AbortSignal.timeout(10000)});
   if(!response.ok)return false;const jwks=JSON.parse(new TextDecoder().decode(await readBounded(response,64000)));
   const jwk=jwks.keys.find(k=>k.kid===header.kid&&k.kty==='RSA'&&k.alg==='RS256');if(!jwk)return false;
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);

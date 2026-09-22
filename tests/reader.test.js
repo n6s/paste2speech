@@ -59,8 +59,10 @@ test('Access validates signature, issuer, audience, expiry and key algorithm',as
  const base={iss:env.ACCESS_ISSUER,aud:['aud'],iat:100,exp:200};
  const b64=b=>Buffer.from(b).toString('base64url');
  async function signed(claims){const input=b64(JSON.stringify({alg:'RS256',kid:'key'}))+'.'+b64(JSON.stringify(claims));return input+'.'+b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',keys.privateKey,new TextEncoder().encode(input)));}
- const options={now:()=>150000,fetcher:async url=>{assert.equal(url,env.ACCESS_ISSUER+'/cdn-cgi/access/certs');return Response.json({keys:[jwk]});}};
+ const options={now:()=>150000,fetcher:async (url,init)=>{assert.equal(init.redirect,'manual');assert.equal(url,env.ACCESS_ISSUER+'/cdn-cgi/access/certs');return Response.json({keys:[jwk]});}};
  for(const [claims,expected] of [[base,true],[{...base,aud:['wrong']},false],[{...base,exp:149},false],[{...base,iss:'https://wrong'},false],[{...base,nbf:160},false]])assert.equal(await privateAccess(new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':await signed(claims)}}),env,options),expected);
+ const redirectRequest=new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':await signed(base)}});
+ assert.equal(await privateAccess(redirectRequest,env,{...options,fetcher:async()=>Response.redirect('https://attacker.invalid',302)}),false);
  const token=await signed(base);assert.equal(await privateAccess(new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':token.slice(0,-20)+'aaaaaaaaaaaaaaaaaaaa'}}),env,options),false);
 });
 test('local environment cannot activate paid speech-adjacent services with credentials',async()=>{
@@ -72,7 +74,7 @@ test('local environment cannot activate paid speech-adjacent services with crede
 test('Paddle transport stays sandbox-only and ignores remote pagination URLs',async()=>{
  const seen=[],id='txn_'+'a'.repeat(26),cursor='adj_'+'b'.repeat(26);
  const provider=paddleProvider({ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},async(url,options)=>{
-  seen.push(url);assert.equal(new URL(url).origin,'https://sandbox-api.paddle.com');assert.equal(options.redirect,'error');
+  seen.push(url);assert.equal(new URL(url).origin,'https://sandbox-api.paddle.com');assert.equal(options.redirect,'manual');
   if(seen.length===1)return Response.json({data:[{id:cursor}],meta:{pagination:{has_more:true,next:'https://attacker.invalid/key'}}});
   return Response.json({data:[],meta:{pagination:{has_more:false}}});
  });
@@ -83,7 +85,7 @@ test('email includes permanent account URL and temporary fragment, never tokens 
  let called=0;
  await sendLink({ENABLE_EMAIL:'1',RESEND_API_KEY:'synthetic',EMAIL_FROM:'reader@example.invalid',READER_ORIGIN:'https://private.example.invalid'},
  {email:'recipient@example.invalid',token:'synthetic-link-token'},async(url,options)=>{
-  called++;assert.equal(url,'https://api.resend.com/emails');assert.equal(options.redirect,'error');
+  called++;assert.equal(url,'https://api.resend.com/emails');assert.equal(options.redirect,'manual');
   const message=JSON.parse(options.body);assert.match(message.text,/permanent account page is https:\/\/private.example.invalid\/api\/billing\./);
   assert.match(message.text,/signin#synthetic-link-token/);assert.equal(options.headers['Idempotency-Key'].length,64);return Response.json({id:'synthetic'});
  });assert.equal(called,1);
@@ -139,4 +141,11 @@ test('reader reservation lost acknowledgement remains recoverable without anothe
  await assert.rejects(ledger.reserve('recover',account,input),error=>!error.status&&/lost committed/.test(error.message));
  assert.equal((await ledger.account(account)).balance,95);
  const recovered=await ledger.reserve('recover',account,input);assert.equal(recovered.state,'open');assert.equal((await ledger.account(account)).balance,95);sql.close();
+});
+
+test('provider redirects fail without following or accepting a result',async()=>{
+ const redirect=async(_url,init)=>{assert.equal(init.redirect,'manual');return Response.redirect('https://attacker.invalid',302);};
+ const env={ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic',ENABLE_EMAIL:'1',RESEND_API_KEY:'synthetic',EMAIL_FROM:'reader@example.invalid',READER_ORIGIN:'https://private.example.invalid'};
+ await assert.rejects(paddleProvider(env,redirect).transaction('txn_'+'a'.repeat(26)),/Provider request failed/);
+ await assert.rejects(sendLink(env,{email:'recipient@example.invalid',token:'synthetic'},redirect),/Provider request failed/);
 });

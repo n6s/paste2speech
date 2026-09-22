@@ -1,10 +1,35 @@
 # Staging status — September 22, 2026
 
-The user approved private staging deployment and credential setup, then paused
-setup to discuss costs and personal requirements. No further provisioning or
-subscription activation should proceed until that discussion is resolved.
+The user approved staging deployment and credential setup, paused for a cost
+review, then explicitly resumed and activated R2 and Zero Trust Free.
 
-Completed before the pause:
+Current staging: https://speak-staging.rogerpbrown.com/ . Production remains
+https://speak.rogerpbrown.com/ and still routes to the original Worker.
+
+September 22 activation and deployment:
+
+- Dedicated private R2 bucket `private-wavenet-reader-staging`, WNAM Standard.
+  Public r2.dev access is disabled. A 24-hour lifecycle deletes audio and aborts
+  incomplete multipart uploads (cleanup scheduling is asynchronous).
+- Access application `9c39a68a-5733-4663-87a3-8cabc94e7cc5` allows only
+  rogerpbrown@gmail.com through the existing Cloudflare identity provider.
+  Issuer: https://broad-king-0668.cloudflareaccess.com .
+- Deployed Worker, D1/R2 bindings, Durable Objects and separate custom hostname.
+  Anonymous requests redirect to Access. workers.dev and previews stay disabled.
+- Installed existing local Google, Resend and Paddle sandbox credentials directly
+  through stdin into staging secrets; values were not printed or committed.
+  All provider enable flags remain zero, and speech budget remains zero.
+- User reached the reader's denial response after Access sign-in. Isolated runtime
+  reproduction showed Workers rejects fetch redirect:error. Changed Access and
+  provider calls to redirect:manual; non-2xx responses still fail closed.
+  Sixteen reader tests pass, including redirect rejection for all three adapters.
+- User subsequently reported Chrome ERR_BLOCKED_BY_CLIENT; the browser tool also
+  encountered that block. Authenticated success remains unverified after the fix.
+- Next: resolve browser access, verify real sign-in/email and sandbox payments,
+  obtain an explicit speech allowance before any synthesis, then device listening.
+  No real account data imported, no real purchase or speech request submitted.
+
+Historical preparation before activation:
 
 - Created dedicated D1 `private-wavenet-reader-staging`, ID
   `74f0d55c-b7ab-4d6b-aa26-cf06bfa9036f` in the existing Cloudflare account.
@@ -18,19 +43,8 @@ Completed before the pause:
   Read-back: zero accounts, grants and orders; five applied migrations.
 - No production database, balance, route, Worker, or running checkout changed.
 
-Blocked prerequisites discovered:
-
-- R2 API reports `10042: Please enable R2 through the Cloudflare Dashboard`.
-- Access API reports `9999: access.api.error.not_enabled`.
-- R2 requires subscription checkout and enables usage billing. Zero Trust requires
-  onboarding and payment details even when selecting its Free plan. Neither has
-  been activated by this task.
-- Account subscription lookup returned an authentication error. The current
-  Workers billing plan has not been verified.
-
-No staging Worker, R2 bucket, Access organization/application, or public hostname
-has been created. No provider credential was copied or installed. Speech, email,
-and payment flags remain disabled and the speech budget remains zero.
+The original activation blockers are resolved. Account subscription lookup still
+lacks permission, so the Workers plan remains unverified. No paid upgrade made.
 
 References checked live:
 
