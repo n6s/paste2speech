@@ -168,3 +168,28 @@ uses the unchanged 100,000 lifetime cap and disabled checkout.
 
 Feedback read-back confirmed the cutover report resides in the original production
 DB with `pending` review status and zero delivery attempts.
+
+
+### Live speech checkpoint
+
+Production release `f77cbf1` deployed as Worker
+`9b061359-e766-45e9-ba3a-4caaf59de2d4`. US and UK smoke readings completed and
+played to completion in desktop Chrome. They consumed 71 and 74 characters:
+**145 / 100,000 lifetime admissions; 99,855 remaining credit; one grant; zero
+open reservations**. Replacing the US reading correctly deleted its recording
+and marked its audit outcome canceled without refunding already consumed speech.
+UK audio returned HTTP 206, `audio/mpeg`, `bytes 0-37055/37056`. The live seek
+control returned to the beginning without regeneration. MP3 and VTT download
+links were present and invoked, but browser security policy prevents inspecting
+download history; successful saved-file verification remains a manual check.
+
+Phone playback/seek/screen-off acceptance is pending the owner's hands-on test.
+The production reader is open in Chrome. The original Worker and owner-only
+feedback snapshot remain available for rollback. The main checkout is untouched.
+
+Heartbeat `production-reader-cutover-watch` is active for read-only first-hour and
+24-hour checks, ending September 23 at 19:05 UTC (13:05 America/Denver). It stays
+quiet unless there is a problem and reports the final check, then pauses itself.
+The computer and desktop app need to remain running for local scheduled work.
+No automated synthesis, email, feedback submission, grants, deployment or rollback
+is authorized by that monitor.
