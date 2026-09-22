@@ -143,3 +143,28 @@ A route-less bootstrap deployment created the new Worker and Durable Objects;
 version `eb0f4bd3-9d3e-4e2e-ac6f-87e192f9a93f`. Four production secret bindings were
 installed directly through stdin; no values were printed or committed. Production
 email is now configured for the hostname cutover; speech and checkout remain off.
+
+
+Production hostname cutover completed with speech disabled: release commit
+`00ab570`, Worker version `95c64f69-4187-46c2-b3c2-c924a4b00ab1`. Cloudflare read-back
+confirms the public hostname belongs to `paste2speech-reader-production`; staging
+still belongs to its original Worker. The old production Worker remains available.
+
+Live checks passed: public page, isolated empty account status, email enabled,
+checkout disabled, cross-origin session rejection, anonymous/unapproved speech
+rejection, unknown audio denial and unavailable test-mail route. Feedback check
+`d51b0c06-e7a9-4bcd-9ed3-4d9ed1026275` was submitted to the original production DB.
+The initial immediate HTTP check saw propagation delay; subsequent checks passed.
+
+The production account UI successfully requested the owner's sign-in email.
+Awaiting owner confirmation before the trial grant and speech activation.
+
+
+The owner confirmed successful production email sign-in. Remote identity verification
+showed zero prior credit/grants. The approved grant command then issued exactly one
+`production-owner-trial-v1` grant of 100,000 characters. Google service-account
+OAuth authentication also succeeded without a speech request. Speech activation
+uses the unchanged 100,000 lifetime cap and disabled checkout.
+
+Feedback read-back confirmed the cutover report resides in the original production
+DB with `pending` review status and zero delivery attempts.
