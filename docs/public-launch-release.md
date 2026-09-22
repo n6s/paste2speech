@@ -186,7 +186,8 @@ synthesis and public launch still disabled. No deployment or transaction occurre
 Merchant review and domain approval for `speak.rogerpbrown.com` remain pending.
 The default payment link `/api/billing` did not persist after saving; it remains
 unconfigured and must be resolved before activation.
-The existing live API key is revoked; no client-side token exists. Payout setup
+At this checkpoint the old live API key was revoked and no client token existed;
+the credential setup below supersedes that status. Payout setup
 is incomplete and requires the owner's private details and payment destination.
 
 ## Live credential setup — 2026-09-22
@@ -201,8 +202,8 @@ and destination `ntfset_01m35ct3p29vxze92gt4tmwfdd` for
 `https://speak.rogerpbrown.com/api/billing/webhook`, API version 1, Platform usage,
 all ten transaction events and both adjustment events. Destination read-back is
 Inactive pending public-mode endpoint deployment and secret installation.
-The browser export capability was unavailable; owner file handoff is needed for
-the client token and webhook secret. Neither value has been installed yet.
+The browser export capability was unavailable; owner file handoff was initially
+needed. The completed installation is recorded below.
 No public-mode application deployment, payment or synthesis was performed.
 
 Credential handoff completed: client-token format and dashboard suffix checked;
