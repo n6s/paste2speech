@@ -1,4 +1,4 @@
-import {privateAccess} from './access.js';
+import {privateAccess,allowedRequestSource} from './access.js';
 import {ReaderLedger} from './ledger.js';
 import {EmailIdentity} from '../prepared/identity.js';
 import {CreditError,digest,sourceCounts} from '../prepared/ledger.js';
@@ -25,8 +25,7 @@ export default {
   if(!await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(!['GET','HEAD','POST','DELETE'].includes(request.method))return json({},405);
-  if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return json({detail:'Origin rejected.'},403);
-  if(request.headers.get('Sec-Fetch-Site')==='cross-site')return json({detail:'Open the private reader directly.'},403);
+  if(!allowedRequestSource(request))return json({detail:'Open the private reader directly.'},403);
   try{
    const ledger=new ReaderLedger(env.LEDGER),token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox'),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;

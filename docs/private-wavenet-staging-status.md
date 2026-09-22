@@ -70,3 +70,11 @@ Remote staging D1 read-back confirmed maximum=100000, characters=228, and
 speech_admissions sum=228 (99,772 remaining at that check). No budget reset or
 real-balance mutation was performed. Human listening quality, device playback,
 email recovery and sandbox payments remain separate validation items.
+
+Mobile navigation correction: the user reported `Open the private reader directly`
+after opening staging on a mobile device. The source check rejected all cross-site
+requests, including legitimate top-level navigation after Access authentication.
+Permit GET/HEAD with navigate/document metadata while retaining the Access JWT
+gate, mutation Origin checks, and rejection of cross-site API/iframe requests.
+All 17 reader tests pass, including the navigation and mutation regression matrix.
+Deployed only to staging; real-device confirmation remains pending.

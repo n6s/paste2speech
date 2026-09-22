@@ -18,3 +18,14 @@ export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={})
   return crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,bytes(s),new TextEncoder().encode(h+'.'+p));
  }catch{return false;}
 }
+
+// Authentication redirects and links from other apps may retain cross-site
+// metadata. Permit only safe top-level navigation, never cross-site API calls.
+export function allowedRequestSource(request){
+ const url=new URL(request.url);
+ if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return false;
+ if(request.headers.get('Sec-Fetch-Site')!=='cross-site')return true;
+ return ['GET','HEAD'].includes(request.method)&&
+  request.headers.get('Sec-Fetch-Mode')==='navigate'&&
+  request.headers.get('Sec-Fetch-Dest')==='document';
+}

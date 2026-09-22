@@ -5,7 +5,7 @@ import {readFileSync,readdirSync} from 'node:fs';
 import {ReaderLedger} from '../cloudflare/reader/ledger.js';
 import {EmailIdentity} from '../cloudflare/prepared/identity.js';
 import {sections} from '../cloudflare/reader/site/chunks.js';
-import {privateAccess} from '../cloudflare/reader/access.js';
+import {privateAccess,allowedRequestSource} from '../cloudflare/reader/access.js';
 import {paddleProvider,sendLink} from '../cloudflare/reader/providers.js';
 function setup(){
  const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
@@ -148,4 +148,18 @@ test('provider redirects fail without following or accepting a result',async()=>
  const env={ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic',ENABLE_EMAIL:'1',RESEND_API_KEY:'synthetic',EMAIL_FROM:'reader@example.invalid',READER_ORIGIN:'https://private.example.invalid'};
  await assert.rejects(paddleProvider(env,redirect).transaction('txn_'+'a'.repeat(26)),/Provider request failed/);
  await assert.rejects(sendLink(env,{email:'recipient@example.invalid',token:'synthetic'},redirect),/Provider request failed/);
+});
+
+test('external sign-in navigation is allowed while cross-site API and mutations stay blocked',()=>{
+ const url='https://private.example.invalid/';
+ const navigation={'Sec-Fetch-Site':'cross-site','Sec-Fetch-Mode':'navigate','Sec-Fetch-Dest':'document'};
+ assert.equal(allowedRequestSource(new Request(url,{headers:navigation})),true);
+ assert.equal(allowedRequestSource(new Request(url,{headers:{...navigation,'Sec-Fetch-Dest':'iframe'}})),false);
+ assert.equal(allowedRequestSource(new Request(url,{headers:{...navigation,'Sec-Fetch-Mode':'cors'}})),false);
+ for(const method of ['POST','DELETE']){
+  assert.equal(allowedRequestSource(new Request(url,{method,headers:navigation})),false);
+  assert.equal(allowedRequestSource(new Request(url,{method,headers:{...navigation,Origin:'https://private.example.invalid'}})),false);
+  assert.equal(allowedRequestSource(new Request(url,{method,headers:{Origin:'https://private.example.invalid','Sec-Fetch-Site':'same-origin'}})),true);
+  assert.equal(allowedRequestSource(new Request(url,{method,headers:{Origin:'https://other.invalid'}})),false);
+ }
 });
