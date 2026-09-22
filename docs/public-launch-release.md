@@ -171,3 +171,20 @@ immediate HTTP check returned 403; subsequent curl verification succeeded.
 These URLs are now available for Paddle website verification. Live merchant
 approval, catalog/secrets, fresh staging acceptance, approved real checkout/refund,
 and public activation remain outstanding.
+
+## Live Paddle setup checkpoint — 2026-09-22
+
+Created and read back in the live dashboard:
+- Product `pro_01m35bhyw23tf3f8yfafsezark`: speak.rogerpbrown.com — Speech pack;
+  account-bound Google WaveNet speech usage, Standard digital goods tax category.
+- Price `pri_01m35bk8byw8drpd8t2rhayene`: USD 10, one-time, 1,000,000 characters,
+  quantity minimum/maximum 1, automatic tax based on location, no trial.
+- Checkout discount field disabled; statement descriptor saved as `SPEAKRPB`.
+
+The public candidate configuration now references these live IDs, with payments,
+synthesis and public launch still disabled. No deployment or transaction occurred.
+Merchant review and domain approval for `speak.rogerpbrown.com` remain pending.
+The default payment link `/api/billing` did not persist after saving; it remains
+unconfigured and must be resolved before activation.
+The existing live API key is revoked; no client-side token exists. Payout setup
+is incomplete and requires the owner's private details and payment destination.

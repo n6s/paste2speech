@@ -16,8 +16,8 @@
     "FEEDBACK_DELIVERY_MODE": "review",
     "TELEGRAM_CHAT_ID": "579044008",
     "PADDLE_ENVIRONMENT": "live",
-    "PADDLE_PRICE_ID": "",
-    "PADDLE_PRODUCT_ID": "",
+    "PADDLE_PRICE_ID": "pri_01m35bk8byw8drpd8t2rhayene",
+    "PADDLE_PRODUCT_ID": "pro_01m35bhyw23tf3f8yfafsezark",
     "PUBLIC_LAUNCH_OPEN": "0",
     "LAUNCH_TEST_EMAIL": "rogerpbrown@gmail.com"
   },
