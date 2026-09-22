@@ -10,7 +10,7 @@ export async function admitJob(job,{ledger,save,afterReserve=async()=>{}}){
   try{reservation=await ledger.reserve(job.id,job.owner,job);}
   catch(error){
     if(!(error instanceof CreditError))throw error;
-    job.admission='rejected';job.state='failed';job.error=error.message;
+    job.admission='rejected';job.state='failed';job.error=error.message;job.errorStatus=error.status;
     await save(job);return;
   }
   await afterReserve();

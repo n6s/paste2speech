@@ -46,5 +46,5 @@ const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.j
 if(!production)for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
 console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');
 
-if(production)await copyFile('cloudflare/reader/terms.html',root+'/terms');
-if(production)await copyFile('cloudflare/reader/pricing.html',root+'/pricing');
+await copyFile('cloudflare/reader/terms.html',root+'/terms');
+await copyFile('cloudflare/reader/pricing.html',root+'/pricing');

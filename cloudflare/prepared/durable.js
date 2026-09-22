@@ -99,7 +99,7 @@ export class PreparedReading {
         if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks))return json({detail:'Request does not match existing reading'},409);
         if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
         try{await this.admit();}catch{this.job=await loadJob(this.ctx.storage);return json({detail:'Admission will recover automatically'},503);}
-        if(this.job.admission==='rejected')return json({detail:this.job.error},402);
+        if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
         // An explicit new create may retry authorization once, but only if the
         // durable audit proves no speech request was ever attempted.
         if(!this.env.LEDGER&&canRetryAuthorization(this.job)){
@@ -119,7 +119,7 @@ export class PreparedReading {
         return json({detail:'Synthetic interrupted admission'},503);
       }
       try{await this.admit();}catch{this.job=await loadJob(this.ctx.storage);return json({detail:'Admission will recover automatically'},503);}
-      if(this.job.admission==='rejected')return json({detail:this.job.error},402);
+      if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
       return json({id:this.job.id},201);
     });
     const job=this.job;
