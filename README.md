@@ -1,10 +1,14 @@
 # Paste to Speech
 
-Public early preview: **https://speak.rogerpbrown.com**. Cloudflare serves a separate
-build with browser voices, experimental on-device Kokoro, local PDF extraction,
-optional support links, and a feedback inbox that notifies Roger through the
-dedicated `@paste2speech_bot`. See [release operations](RELEASE.md) for build,
-deployment, privacy, analytics, rollback, and the planned review workflow.
+Public reader: **https://speak.rogerpbrown.com**. The current deployment offers
+free browser voices and an owner-only WaveNet trial. Public paid WaveNet is prepared
+but remains gated pending Paddle live-account setup and final activation checks.
+See [public launch release](docs/public-launch-release.md) for implementation,
+validation, customer terms, spending limits and the remaining launch gates.
+
+Use `npm run release:reader:public` for local public-release preparation or
+`npm run release:reader:production` for the owner-only trial. The legacy
+`npm run deploy` path targets the retired public Worker and is explicitly gated.
 
 For automated feedback investigations, Telegram summaries, and looking up a report
 by ID, see [feedback reviewer operations](FEEDBACK-REVIEW.md).

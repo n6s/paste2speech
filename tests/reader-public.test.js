@@ -116,3 +116,11 @@ test('a delayed budget write crossing midnight cannot authorize speech in the ol
  await assert.rejects(dispatchBudget(s.db,'boundary',0,'hello',clock),/period changed/);
  assert.equal(s.sql.prepare("SELECT characters FROM provider_periods WHERE period='2026-09-30'").get().characters,5);s.sql.close();
 });
+test('failed webhook processing backs off without starving another completed purchase',async t=>{
+ const s=setup(),a=await s.verified();let order=await s.ledger.newOrder(a.account.id,paymentConfig(s.env));await s.ledger.bindOrder(order.id,txn);order=await s.ledger.order(order.id,a.account.id);
+ const bad='txn_'+'z'.repeat(26);let failures=0;
+ for(const [id,transaction] of [['bad',bad],['good',txn]])s.sql.prepare('INSERT INTO webhook_events(id,transaction_id,received) VALUES(?,?,?)').run(id,transaction,Date.now());
+ t.mock.method(globalThis,'fetch',async url=>{if(url.endsWith(bad)){failures++;return new Response('',{status:503});}return Response.json(url.includes('/adjustments?')?{data:[],meta:{pagination:{has_more:false}}}:{data:remote(order)});});
+ const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>null,setAlarm:async()=>{}}},s.env);await coordinator.alarm();await coordinator.alarm();
+ assert.equal(failures,1);assert.equal((await s.ledger.account(a.account.id)).balance,1000000);assert.ok(s.sql.prepare("SELECT next_attempt FROM webhook_events WHERE id='bad'").get().next_attempt>Date.now());s.sql.close();
+});

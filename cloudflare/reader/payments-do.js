@@ -15,7 +15,7 @@ export class PaymentCoordinator {
   await this.ctx.storage.setAlarm(Date.now()+60000);
   await this.serial(async()=>{
    const ledger=new UsageLedger(this.env.LEDGER),provider=paddleProvider(this.env);
-   const events=await ledger.query('SELECT * FROM webhook_events WHERE processed IS NULL ORDER BY received LIMIT 10').all();
+   const events=await ledger.query('SELECT * FROM webhook_events WHERE processed IS NULL AND next_attempt<=? ORDER BY received LIMIT 10',Date.now()).all();
    for(const event of events.results){
     try{
      let order=await ledger.query('SELECT * FROM orders WHERE transaction_id=?',event.transaction_id).first();
@@ -27,7 +27,7 @@ export class PaymentCoordinator {
      }
      if(order)await this.sync(ledger,order,provider);
      await ledger.query('UPDATE webhook_events SET processed=? WHERE id=?',Date.now(),event.id).run();
-    }catch{await ledger.query('UPDATE webhook_events SET attempts=attempts+1 WHERE id=?',event.id).run();}
+    }catch{await ledger.query('UPDATE webhook_events SET attempts=attempts+1,next_attempt=? WHERE id=?',Date.now()+Math.min(3600000,60000*2**Math.min(event.attempts,6)),event.id).run();}
    }
    const rows=await ledger.query("SELECT o.* FROM orders o LEFT JOIN payment_sync s ON s.order_id=o.id WHERE o.transaction_id IS NOT NULL AND o.status<>'canceled' ORDER BY COALESCE(s.checked,0),o.created LIMIT 10").all();
    for(const row of rows.results)await this.sync(ledger,row,provider).catch(()=>{});

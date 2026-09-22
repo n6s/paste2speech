@@ -40,7 +40,7 @@ to use the original production feedback database and review mode.
 
 ## Verified evidence
 
-- 174 Node tests, including public/trial durable execution with cached Google audio,
+- 175 Node tests, including public/trial durable execution with cached Google audio,
   ownership, Range, restart, dispatch budgets/rollover, concurrency, webhook
   signatures/deduplication, lost creation response, refund debt and chargebacks.
 - Three synthetic offline migration tests; converter updated for additive columns.
@@ -63,7 +63,7 @@ to use the original production feedback database and review mode.
 ## Remaining release gates and exact procedure
 
 1. Finish Paddle onboarding after approved publication of the pricing/account and
-   policy pages. Pricing URL: `/api/billing`; terms, privacy and refunds: `/terms`.
+   policy pages. Pricing URL: `/pricing`; terms, privacy and refunds: `/terms`.
    Verify approved `speak.rogerpbrown.com` and its default payment link. Do not claim
    approval merely from a submitted onboarding form.
 2. Create/verify the live one-time $10 USD catalog; record the actual product/price
@@ -80,7 +80,7 @@ to use the original production feedback database and review mode.
    is separate. Check Google pricing again before activation. Keep 100,000-character
    staging lifetime allowance unchanged; no test balance is imported to production.
 5. Refresh production backup, quiesce new owner speech briefly, finish existing
-   reservations, apply only migration 0010 to `LEDGER`, and verify balances,
+   reservations, apply migrations 0010–0011 to `LEDGER`, and verify balances,
    identities and original trial counters unchanged. Do not migrate `DB` (feedback).
 6. Run `npm run release:reader:public`. Review the clean commit, configuration,
    migrations and recursive asset hashes in `public-release-manifest.json`.
@@ -130,3 +130,12 @@ is implied by a local commit.
 References: https://developer.paddle.com/build/go-live-checklist/
 https://developer.paddle.com/webhooks/signature-verification
 https://cloud.google.com/text-to-speech/pricing
+
+## Staging deployment checkpoint
+
+Commit `34e00dd` deployed to isolated staging as Worker version
+`06bc301a-2111-4dc8-ae5c-af1fd31aa392`. Migration 0010 applied to staging only.
+Budget before and after: 23,978 / 100,000, unchanged. No synthesis, purchase,
+refund, email or production change was submitted by this deployment. Browser
+connection interruption prevented a fresh authenticated staging acceptance check;
+previous live sandbox evidence does not substitute for retesting this release.

@@ -31,7 +31,7 @@ html=html.replace('<footer>Made for a quieter kind of reading.</footer>',footer)
 if(production){
  if(!publicLaunch){html=html.replace('Staging uses test purchases only.','').replace('WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>.','WaveNet is available only to the verified trial owner. <a href="/api/billing">Sign in to your account</a>.');
  html=html.replace('WaveNet uses prepaid speech credit.','WaveNet is currently an owner-only trial.');}
- html=html.replace('Staging uses test purchases only.','').replace('</footer>','<p><a href="/terms">Terms, refunds &amp; privacy</a></p></footer>');
+ html=html.replace('Staging uses test purchases only.','').replace('</footer>','<p><a href="/pricing">Pricing</a> · <a href="/terms">Terms, refunds &amp; privacy</a></p></footer>');
  html=html.replace('This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications.','This site stores feedback and aggregate statistics for review.');
  html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
 }
@@ -47,3 +47,4 @@ if(!production)for(const list of Object.values(fixtures))for(const section of li
 console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');
 
 if(production)await copyFile('cloudflare/reader/terms.html',root+'/terms');
+if(production)await copyFile('cloudflare/reader/pricing.html',root+'/pricing');
