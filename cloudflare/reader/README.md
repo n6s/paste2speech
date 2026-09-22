@@ -12,5 +12,8 @@ See [implementation, verification and approval boundaries](../../docs/private-wa
 - `wrangler.local.jsonc`: cached, credential-free local validation
 - `wrangler.staging.jsonc`: approved isolated private staging configuration
 
+Production trial preparation and approval details: [release review](../../docs/production-reader-release.md).
+`npm run release:reader:production` performs local tests/build/dry run only.
+
 Do not use the repository's ordinary deploy command for this reader. Deployment
 uses the approved isolated staging configuration only. Production requires separate approval.

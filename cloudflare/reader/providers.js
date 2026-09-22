@@ -5,7 +5,7 @@ async function responseJSON(response){
  return JSON.parse(new TextDecoder().decode(await readBounded(response,2000000)));
 }
 export function paddleProvider(env,fetcher=fetch){
- if(env.ENABLE_PAYMENTS!=='1'||env.LOCAL_READER==='1'||!env.PADDLE_API_KEY?.startsWith('pdl_sdbx_apikey_'))throw Error('Sandbox payments are disabled');
+ if(env.READER_MODE==='production-trial'||env.ENABLE_PAYMENTS!=='1'||env.LOCAL_READER==='1'||!env.PADDLE_API_KEY?.startsWith('pdl_sdbx_apikey_'))throw Error('Sandbox payments are disabled');
  async function call(path,body){const result=await responseJSON(await fetcher('https://sandbox-api.paddle.com'+path,{method:body?'POST':'GET',redirect:'manual',signal:AbortSignal.timeout(30000),headers:{Authorization:'Bearer '+env.PADDLE_API_KEY,'Content-Type':'application/json','Paddle-Version':'1'},...(body?{body:JSON.stringify(body)}:{})}));return result;}
  return {
  async create(order){return (await call('/transactions',{items:[{price_id:orderPrice(order),quantity:1}],currency_code:'USD',collection_mode:'automatic',custom_data:{p2s_order:order.id}})).data;},
@@ -24,5 +24,5 @@ export function paddleProvider(env,fetcher=fetch){
 export async function sendLink(env,link,fetcher=fetch){
  if(env.ENABLE_EMAIL!=='1'||env.LOCAL_READER==='1'||!env.RESEND_API_KEY||!env.EMAIL_FROM)throw Error('Email delivery is disabled');
  const permanent=env.READER_ORIGIN+'/api/billing';
- await responseJSON(await fetcher('https://api.resend.com/emails',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':await (await import('../prepared/ledger.js')).digest(link.token)},body:JSON.stringify({from:env.EMAIL_FROM,to:[link.email],subject:'Sign in to your private reader',text:'Open this link in the browser where you requested it, then confirm sign-in. It expires in 15 minutes and works once.\n\n'+permanent+'/signin#'+link.token+'\n\nYour permanent account page is '+permanent+'. If this link expires, request a fresh one there. Your balance remains in your account.\n\nIf you did not request this, ignore this email.'})}));
+ await responseJSON(await fetcher('https://api.resend.com/emails',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(20000),headers:{Authorization:'Bearer '+env.RESEND_API_KEY,'Content-Type':'application/json','Idempotency-Key':await (await import('../prepared/ledger.js')).digest(link.token)},body:JSON.stringify({from:env.EMAIL_FROM,to:[link.email],subject:env.READER_MODE==='production-trial'?'Sign in to Paste to Speech':'Sign in to your private reader',text:'Open this link in the browser where you requested it, then confirm sign-in. It expires in 15 minutes and works once.\n\n'+permanent+'/signin#'+link.token+'\n\nYour permanent account page is '+permanent+'. If this link expires, request a fresh one there. Your balance remains in your account.\n\nIf you did not request this, ignore this email.'})}));
 }

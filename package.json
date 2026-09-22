@@ -7,7 +7,9 @@
     "test": "node --test tests/*.test.js",
     "build": "node scripts/build.mjs",
     "deploy": "node scripts/release.mjs",
-    "test:worker": "node --test tests/worker.test.js"
+    "test:worker": "node --test tests/worker.test.js",
+    "build:reader:production": "node cloudflare/reader/build.mjs --production",
+    "release:reader:production": "node scripts/release-reader-production.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",

@@ -9,7 +9,7 @@ export class PaymentCoordinator {
  serial(fn){const result=this.tail.then(fn);this.tail=result.catch(()=>{});return result;}
  async sync(ledger,order,provider){try{return await syncOrder(ledger,order,provider);}catch{await ledger.paymentError(order.id);throw Error('Payment status could not be verified. Please try again; do not pay again.');}}
  async alarm(){
-  if(this.env.ENABLE_PAYMENTS!=='1'||this.env.LOCAL_READER==='1')return;
+  if(this.env.READER_MODE==='production-trial'||this.env.ENABLE_PAYMENTS!=='1'||this.env.LOCAL_READER==='1')return;
   await this.ctx.storage.setAlarm(Date.now()+60000);
   await this.serial(async()=>{
    const ledger=new UsageLedger(this.env.LEDGER),provider=paddleProvider(this.env);

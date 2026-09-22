@@ -1,0 +1,112 @@
+{
+  "name": "paste2speech-reader-production",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "READER_MODE": "production-trial",
+    "PRIVATE_READER": "0",
+    "LOCAL_READER": "0",
+    "ENABLE_LIVE_SYNTHESIS": "0",
+    "ENABLE_PAYMENTS": "0",
+    "ENABLE_EMAIL": "0",
+    "READER_ORIGIN": "https://speak.rogerpbrown.com",
+    "PUBLIC_ORIGIN": "https://speak.rogerpbrown.com",
+    "TRIAL_EMAIL": "rogerpbrown@gmail.com",
+    "MAX_LIFETIME_CHARACTERS": "100000",
+    "FEEDBACK_DELIVERY_MODE": "review",
+    "TELEGRAM_CHAT_ID": "579044008"
+  },
+  "assets": {
+    "directory": "../../work/production-reader/site",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "JOBS",
+        "class_name": "PreparedReading"
+      },
+      {
+        "name": "PAYMENTS",
+        "class_name": "PaymentCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "PreparedReading",
+        "PaymentCoordinator"
+      ]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AUDIO",
+      "bucket_name": "paste2speech-reader-production"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "LEDGER",
+      "database_name": "paste2speech-reader-production",
+      "database_id": "00000000-0000-0000-0000-000000000000",
+      "migrations_dir": "migrations"
+    },
+    {
+      "binding": "DB",
+      "database_name": "paste2speech",
+      "database_id": "5499d01a-aa14-460d-97b9-100ece1293d3"
+    }
+  ],
+  "triggers": {
+    "crons": [
+      "*/5 * * * *"
+    ]
+  },
+  "account_id": "c71dba5be3cc617a904adc61e767704d",
+  "routes": [
+    {
+      "pattern": "speak.rogerpbrown.com",
+      "custom_domain": true
+    }
+  ],
+  "ratelimits": [
+    {
+      "name": "EVENT_LIMIT",
+      "namespace_id": "1001",
+      "simple": {
+        "limit": 60,
+        "period": 60
+      }
+    },
+    {
+      "name": "FEEDBACK_LIMIT",
+      "namespace_id": "1002",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    },
+    {
+      "name": "ACCOUNT_LIMIT",
+      "namespace_id": "1003",
+      "simple": {
+        "limit": 6,
+        "period": 60
+      }
+    },
+    {
+      "name": "EMAIL_LIMIT",
+      "namespace_id": "1004",
+      "simple": {
+        "limit": 3,
+        "period": 60
+      }
+    }
+  ]
+}

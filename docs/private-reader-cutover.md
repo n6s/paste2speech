@@ -1,5 +1,9 @@
 # Production cutover proposal — approval required
 
+The selected first release is now the [fresh-account owner-only production trial](production-reader-release.md).
+Its runbook supersedes the migration and live-billing steps below for this release.
+The following remains a reference for a future paid launch or private-pilot migration.
+
 Do not execute this checklist as part of private staging work.
 
 ## Preconditions

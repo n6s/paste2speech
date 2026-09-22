@@ -1,9 +1,10 @@
 import {build} from 'esbuild';
 import {mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
-const root='work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
+const production=process.argv.includes('--production');
+const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:"export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,API_ORIGIN='',RELEASE='private-reader';"}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,API_ORIGIN='',RELEASE='${production?'production-trial':'private-reader'}';`}));
  // Excluded engines have no implementation or model dependency in this build.
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
 }}]});
@@ -26,13 +27,19 @@ footer=footer.replace('Voice generation uses Kokoro and Transformers.js; PDF ext
 footer=footer.replace(/<details><summary>Privacy<\/summary>[\s\S]*?<\/details>/,`<details><summary>Privacy</summary><p>PDFs are read locally. Browser voices use your device speech service, which may connect to the internet. WaveNet sends cleaned reading text to Google Cloud. Prepared text and audio are stored privately for up to 24 hours for playback and downloads; Clear removes the recording. Account and payment records retain balances and usage without reading text. Preferences are saved in this browser.</p><p>This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications. Do Not Track and Global Privacy Control disable statistics.</p></details>`);
 footer=footer.replace(/<p class="hint">Your message, optional email,[\s\S]*?<\/p>/,'<p id="feedback-privacy" class="hint">Feedback stays in this private staging database. No notifications are sent. Do not include private reading text. Reports and aggregate statistics expire after 90 days.</p>');
 html=html.replace('<footer>Made for a quieter kind of reading.</footer>',footer);
+if(production){
+ html=html.replace('Staging uses test purchases only.','').replace('WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>.','WaveNet is available only to the verified trial owner. <a href="/api/billing">Sign in to your account</a>.');
+ html=html.replace('WaveNet uses prepaid speech credit.','WaveNet is currently an owner-only trial.');
+ html=html.replace('This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications.','This site stores feedback and aggregate statistics for review.');
+ html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
+}
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
-let billing=await readFile('server/billing/index.html','utf8');
+let billing=await readFile(production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
 billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').replace(/<p><label><input id="mode"[\s\S]*?<\/label><\/p>/,'').replace('Pronunciation expansions cost no extra allowance.','WaveNet uses its default pronunciation.');
 await writeFile(root+'/billing.html',billing);
-let billingJS=await readFile('server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
+let billingJS=await readFile(production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
 await writeFile(root+'/billing.js',billingJS);
 const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
-for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
-console.log('Built shared reader for private Cloudflare staging.');
+if(!production)for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
+console.log(production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');

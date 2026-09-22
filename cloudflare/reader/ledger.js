@@ -14,9 +14,9 @@ export class ReaderLedger extends UsageLedger {
   await super.settle(job);
   await this.query('INSERT INTO reading_audit VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(job) DO UPDATE SET submitted=excluded.submitted,seconds=excluded.seconds,incomplete=excluded.incomplete,outcome=excluded.outcome',job.id,job.owner,job.created,job.voice,job.mode,job.submittedCharacters||0,job.parts.reduce((n,p)=>n+(p.samples||0)/24000,0),job.costIncomplete?1:0,job.state).run();
  }
- async summary(month){
-  const rows=await this.query("SELECT 'google' AS provider,CASE WHEN mode='live' THEN 'reading' ELSE 'development' END AS kind,SUM(seconds) AS seconds,SUM(CASE WHEN mode='live' THEN submitted*0.000004 ELSE 0 END) AS providerCost,SUM(incomplete) AS incompleteCosts FROM reading_audit WHERE strftime('%Y-%m',created/1000,'unixepoch')=? GROUP BY mode",month).all();
-  const legacy=await this.query("SELECT provider,kind,SUM(audio_seconds) AS seconds,SUM(provider_cost) AS providerCost,SUM(cost_incomplete) AS incompleteCosts FROM legacy_usage WHERE substr(created,1,7)=? GROUP BY provider,kind",month).all();
+ async summary(month,account=null){
+  const rows=await this.query("SELECT 'google' AS provider,CASE WHEN mode='live' THEN 'reading' ELSE 'development' END AS kind,SUM(seconds) AS seconds,SUM(CASE WHEN mode='live' THEN submitted*0.000004 ELSE 0 END) AS providerCost,SUM(incomplete) AS incompleteCosts FROM reading_audit WHERE strftime('%Y-%m',created/1000,'unixepoch')=? AND (? IS NULL OR account=?) GROUP BY mode",month,account,account).all();
+  const legacy=account?{results:[]}:await this.query("SELECT provider,kind,SUM(audio_seconds) AS seconds,SUM(provider_cost) AS providerCost,SUM(cost_incomplete) AS incompleteCosts FROM legacy_usage WHERE substr(created,1,7)=? GROUP BY provider,kind",month).all();
   return [...rows.results,...legacy.results];
  }
  async reserve(job,account,input){

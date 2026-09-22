@@ -9,6 +9,13 @@ import {sendLink} from './providers.js';
 import fixtures from '../../scripts/wavenet-worker-proof/fixture.json';
 export {PreparedReading} from '../prepared/durable.js';
 export {PaymentCoordinator} from './payments-do.js';
+const production=env=>env.READER_MODE==='production-trial';
+const approved=(env,account)=>!!account && account.email===env.TRIAL_EMAIL && account.enabled===1 && !account.legacyPilot;
+const feedbackEnv=env=>production(env)?env:{...env,DB:env.LEDGER,FEEDBACK_DELIVERY_MODE:'review'};
+async function rateLimit(env,name,request){
+ const binding=env[name];
+ if(!binding || !(await binding.limit({key:request.headers.get('CF-Connecting-IP')||'unknown'})).success)throw new CreditError('Too many requests. Please try again later.',429);
+}
 const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
 const cookie=(request,name)=>request.headers.get('cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
 const body=async(request,limit=120000)=>{try{return JSON.parse(new TextDecoder().decode(await readBounded(request,limit)));}catch{throw new CreditError('Invalid or oversized request.',422);}};
@@ -17,29 +24,32 @@ async function asset(request,env,path){
  const url=new URL(request.url);url.pathname=path;const response=await env.ASSETS.fetch(new Request(url,{method:request.method}));
  const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Referrer-Policy','no-referrer');headers.set('X-Content-Type-Options','nosniff');
  headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.paddle.com; frame-src https://*.paddle.com; worker-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+ if(production(env))headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  if(path.startsWith('/signin'))headers.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){if(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0)await publicWorker.scheduled(_event,{...env,DB:env.LEDGER,FEEDBACK_DELIVERY_MODE:'review'},ctx);if(env.ENABLE_PAYMENTS==='1'&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(!production(env)&&env.ENABLE_PAYMENTS==='1'&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
-  if(!await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
+  if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(!['GET','HEAD','POST','DELETE'].includes(request.method))return json({},405);
-  if(!allowedRequestSource(request))return json({detail:'Open the private reader directly.'},403);
+  if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
-   if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...env,DB:env.LEDGER,PUBLIC_ORIGIN:url.origin,FEEDBACK_DELIVERY_MODE:'review'},ctx);
+   if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const ledger=new ReaderLedger(env.LEDGER),token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox'),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
+    if(production(env)&&!owner)await rateLimit(env,'ACCOUNT_LIMIT',request);
     const response=json({ready:true});if(!owner)setCookie(response,env,'p2s_private_reader',await ledger.newAccount(),2592000);return response;
    }
    if(path==='/api/billing/status'&&request.method==='GET'){
-    const configured=!local&&env.ENABLE_PAYMENTS==='1'&&!!env.PADDLE_API_KEY&&env.PADDLE_CLIENT_TOKEN?.startsWith('test_');
+    const configured=!production(env)&&!local&&env.ENABLE_PAYMENTS==='1'&&!!env.PADDLE_API_KEY&&env.PADDLE_CLIENT_TOKEN?.startsWith('test_');
     const rows=await ledger.query("SELECT COALESCE(SUM(u.characters),0) AS characters FROM usage u JOIN reservations r ON r.job=u.job WHERE r.account=?",owner||'').first();
-    return json({emailConfigured:local||env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:true,configured,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',packCharacters:1000000,priceUSD:10,account,pendingOrder:owner?await ledger.pendingOrder(owner):null,paymentStatus:owner?await ledger.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:await ledger.summary(new Date().toISOString().slice(0,7)),successfulCharacters:rows.characters,local});
+    return json({emailConfigured:local||env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:!production(env),trial:production(env),configured,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',packCharacters:1000000,priceUSD:10,account,pendingOrder:owner?await ledger.pendingOrder(owner):null,paymentStatus:owner?await ledger.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],successfulCharacters:rows.characters,local});
    }
    if(path==='/api/billing/login/request'&&request.method==='POST'){
+    if(production(env))await rateLimit(env,'EMAIL_LIMIT',request);
     const input=await body(request,2048),auth=new EmailIdentity(env.LEDGER);
     if(local&&!input.email?.endsWith('@example.invalid'))throw new CreditError('Use an example.invalid address for local testing.',422);
     if(!local&&env.ENABLE_EMAIL!=='1')throw new CreditError('Email delivery is disabled. Your credit is safe.',503);
@@ -64,19 +74,21 @@ export default {
    }
    if(path==='/api/billing/mode')return json({detail:'Speech credit is required for WaveNet.'},403);
    if(['/api/billing/order','/api/billing/reconcile'].includes(path)&&request.method==='POST'){
+    if(production(env))return json({detail:'Checkout is unavailable during the trial.'},503);
     if(!owner)return json({},401);if(local||env.ENABLE_PAYMENTS!=='1')throw new CreditError('Sandbox checkout is disabled.',503);
     const input=await body(request,2048);return env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:['en-US-Wavenet-F','en-GB-Wavenet-F'],account:account?{balance:account.balance,reserved:account.reserved}:null,eligible:!!account&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
+   if(path==='/api/reader'&&request.method==='GET')return json({local,liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:['en-US-Wavenet-F','en-GB-Wavenet-F'],account:account?{balance:account.balance,reserved:account.reserved}:null,eligible:!!account&&(!production(env)||approved(env,account))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
+    if(production(env)&&!approved(env,account))return json({detail:'WaveNet is available only to the verified trial owner. Browser voices remain free.'},403);
     let input=await body(request);try{input=validateInput(input);}catch(error){throw new CreditError(error.message,422);}
     const id=request.headers.get('Idempotency-Key');if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id||''))throw new CreditError('A UUID request key is required.',422);
     if(local){/* Local harness maps each sentence to cached synthetic audio. */}
     else {
      const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
      const receipt=await ledger.receipt(id,owner);
-     if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError('WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
+     if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError(production(env)?'Not enough trial allowance. Browser voices remain free.':'WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
      if(env.ENABLE_LIVE_SYNTHESIS!=='1')throw new CreditError('Speech generation is disabled.',503);
      // Lifetime budget is deliberately never replenished automatically. Failed
      // or cancelled admissions consume budget too, bounding uncertain charges.
@@ -94,6 +106,6 @@ export default {
    const assets={'/':'/index.html','/api/billing':'/billing.html','/api/billing/app.js':'/billing.js','/api/billing/signin':'/signin.html','/api/billing/signin.js':'/signin.js','/api/billing/signin.css':'/signin.css'};
    if(['GET','HEAD'].includes(request.method)&&(!path.startsWith('/api/')||assets[path]))return asset(request,env,assets[path]||path);
    return json({},404);
-  }catch(error){return error instanceof CreditError?json({detail:error.message},error.status):json({detail:'Private reader request failed. No automatic retry.'},500);}
+  }catch(error){return error instanceof CreditError?json({detail:error.message},error.status):json({detail:'Reader request failed. No automatic retry.'},500);}
  }
 };
