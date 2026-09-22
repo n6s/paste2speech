@@ -54,3 +54,19 @@ References checked live:
 - https://developers.cloudflare.com/workers/platform/pricing/
 - https://cloud.google.com/text-to-speech/pricing
 - https://resend.com/pricing
+
+## Approved live speech trial
+
+The user confirmed successful authenticated reader access, then explicitly
+approved a total staging allowance of 100,000 characters (approximately $0.40
+at the discussed list rate before free allowance; not a total cloud bill cap).
+Enabled live synthesis only on the private staging Worker and set
+MAX_LIFETIME_CHARACTERS=100000. Email and payments remain disabled.
+Deployment: 13fb225d-0a57-440e-835e-4a4263792ff4.
+
+All 16 reader tests passed before deployment. A real browser submission prepared
+and finished a 15.7-second US WaveNet reading, exposing MP3 and caption downloads.
+Remote staging D1 read-back confirmed maximum=100000, characters=228, and
+speech_admissions sum=228 (99,772 remaining at that check). No budget reset or
+real-balance mutation was performed. Human listening quality, device playback,
+email recovery and sandbox payments remain separate validation items.
