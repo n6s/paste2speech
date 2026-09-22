@@ -85,12 +85,14 @@ The established reader now runs on Cloudflare with browser voices and credit-gat
 WaveNet. The separate WaveNet-only harness was retired. Email and sandbox
 payments are enabled in private staging; the existing lifetime speech limit
 remains 100,000 with 7,501 consumed after the targeted US/UK sentence tests.
-All seven migrations are applied. New accounts require verified credit; imported
+All eight migrations are applied. New accounts require verified credit; imported
 legacy private-pilot entitlements remain explicit server-controlled data.
 
 The user confirmed real email sign-in. A real sandbox checkout granted exactly
-one pack. Partial-refund verification and the focused restored-interface mobile
-acceptance pass are in progress. Feedback and aggregate statistics use the
+one pack. Partial-refund verification passed; the user reports good restored mobile
+behavior and notes the full-preparation wait. A separate full refund was approved
+by Paddle and automatically removed exactly one million characters. Final
+background-ledger and speech-budget figures are recorded in the matrix. Feedback and aggregate statistics use the
 isolated staging D1; the synthetic report has zero notification attempts.
 
 See `reader-feature-parity.md` for current verification and

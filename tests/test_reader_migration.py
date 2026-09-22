@@ -40,6 +40,35 @@ class MigrationTest(unittest.TestCase):
             with self.assertRaises(ValueError):
                 module.migrate(source, target)
 
+    def test_refund_debt_pilot_and_exact_payment_history(self):
+        with tempfile.TemporaryDirectory() as directory:
+            source, target = Path(directory)/'source.sqlite', Path(directory)/'private.sqlite'
+            ledger = Ledger(source)
+            pilot = ledger.account(ledger.new_account())['id']
+            customer = ledger.account(ledger.new_account())['id']
+            order = ledger.new_order(customer)
+            ledger.bind_order(order['id'], 'txn_legacy')
+            with ledger.connect() as db:
+                db.execute('UPDATE accounts SET enabled=1 WHERE id=?', (customer,))
+                db.execute('UPDATE orders SET characters=3000000 WHERE id=?', (order['id'],))
+            ledger.sync_payment(order['id'], 'txn_legacy', 'completed')
+            with ledger.connect() as db:
+                db.execute('UPDATE accounts SET balance=100 WHERE id=?', (customer,))
+                db.execute('INSERT INTO reservations VALUES(?,?,0)', ('settled', customer))
+            ledger.sync_payment(order['id'], 'txn_legacy', 'completed', 1500000)
+            before=source.read_bytes()
+            result=module.migrate(source,target)
+            self.assertTrue(result['historyVerified'])
+            self.assertEqual(source.read_bytes(),before)
+            with sqlite3.connect(source) as old, sqlite3.connect(target) as new:
+                self.assertEqual(new.execute('SELECT balance,enabled FROM accounts WHERE id=?',(customer,)).fetchone(),(0,1))
+                self.assertEqual(new.execute('SELECT characters FROM account_debt WHERE account=?',(customer,)).fetchone(),(1499900,))
+                self.assertEqual(new.execute('SELECT account FROM legacy_pilots').fetchall(),[(pilot,)])
+                self.assertEqual(new.execute('SELECT enabled FROM accounts WHERE id=?',(pilot,)).fetchone(),(0,))
+                self.assertEqual(old.execute('SELECT transaction_id,account,characters,created FROM grants').fetchall(),new.execute('SELECT g.id,g.account,g.characters,h.created FROM grants g JOIN legacy_grants h ON h.transaction_id=g.id').fetchall())
+                self.assertEqual(new.execute('SELECT revoked,state FROM payment_sync').fetchone(),(1500000,'completed'))
+                self.assertEqual(new.execute('SELECT * FROM legacy_reservations').fetchall(),[('settled',customer,0)])
+
     def test_active_reservations_refuse_without_output(self):
         with tempfile.TemporaryDirectory() as directory:
             source, target = Path(directory)/'source.sqlite', Path(directory)/'private.sqlite'

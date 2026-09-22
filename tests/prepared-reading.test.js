@@ -76,9 +76,12 @@ test('Worker OAuth signs a verifiable fixed-endpoint JWT without exposing creden
     const payload=JSON.parse(new TextDecoder().decode(decode(b)));
     assert.equal(payload.aud,url);assert.equal(payload.exp-payload.iat,3600);
     assert.ok(await crypto.subtle.verify('RSASSA-PKCS1-v1_5',pair.publicKey,decode(c),new TextEncoder().encode(`${a}.${b}`)));
-    return Response.json({access_token:'synthetic-token',token_type:'Bearer'});
+    return Response.json({access_token:'synthetic-token',token_type:'Bearer',expires_in:3600});
   };
   assert.equal(await accessToken(account,{fetcher}),'synthetic-token');
+  assert.deepEqual(await accessToken(account,{fetcher,now:()=>1000,includeExpiry:true}),{token:'synthetic-token',expires:3541000});
+  const noExpiry=await accessToken(account,{fetcher:async()=>Response.json({access_token:'short',token_type:'Bearer'}),now:()=>1000,includeExpiry:true});
+  assert.equal(noExpiry.expires,1000);
   await assert.rejects(accessToken('sensitive invalid secret'),e=>!e.message.includes('sensitive'));
 });
 
@@ -102,4 +105,14 @@ test('sentence jobs resume in bounded batches beyond 32 sections without duplica
  assert.equal(job.state,'ready');assert.equal(calls.length,205);assert.equal(new Set(calls).size,205);
  assert.equal(job.assembledBlocks,3);assert.equal(publicStatus(job).starts.length,205);
  assert.equal(objects.get('long/reading.mp3').length,205*192);
+});
+
+test('parallel stored-audio reads stay bounded and preserve sentence byte order',async()=>{
+ const job=newJob({voice:'en-US-Wavenet-F',chunks:Array(20).fill('A sentence.'),mode:'fixture'},'owner','parallel');
+ const objects=new Map();let active=0,maximum=0;
+ await prepareJob(job,{save:async()=>{},isCancelled:()=>false,speech:async(_t,_v,i)=>{const bytes=frame();bytes[191]=i;return bytes;},store:{
+  put:async(k,v)=>objects.set(k,v),get:async k=>{active++;maximum=Math.max(maximum,active);await new Promise(r=>setTimeout(r,k.endsWith('0')?5:1));active--;return new Response(objects.get(k));}
+ }});
+ assert.equal(job.state,'ready');assert.equal(maximum,6);
+ const audio=objects.get('parallel/reading.mp3');assert.deepEqual(Array.from({length:20},(_,i)=>audio[i*192+191]),Array.from({length:20},(_,i)=>i));
 });

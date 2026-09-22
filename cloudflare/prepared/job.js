@@ -63,9 +63,14 @@ export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=
       if(assembled++>=maxBatches)return;
       const start=block*blockSize,end=Math.min(start+blockSize,job.parts.length);
       const bytes=new Uint8Array(job.parts.slice(start,end).reduce((n,p)=>n+p.bytes,0));let offset=0;
-      for(let i=start;i<end;i++){
-        const part=await store.get(`${job.id}/part-${i}`);if(!part)throw Error('Missing stored section');
-        const data=new Uint8Array(await part.arrayBuffer());bytes.set(data,offset);offset+=data.length;
+      // Bounded parallel reads avoid serial storage round trips after synthesis.
+      // Promise.all preserves sentence order; this never makes speech requests.
+      for(let i=start;i<end;i+=6){
+        const batch=await Promise.all(Array.from({length:Math.min(6,end-i)},async(_,n)=>{
+          const part=await store.get(`${job.id}/part-${i+n}`);if(!part)throw Error('Missing stored section');
+          return new Uint8Array(await part.arrayBuffer());
+        }));
+        for(const data of batch){bytes.set(data,offset);offset+=data.length;}
       }
       await store.put(`${job.id}/block-${block}`,bytes);
       job.assembledBlocks=++block;await save(job);if(isCancelled())return;

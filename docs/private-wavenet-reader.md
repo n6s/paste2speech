@@ -5,7 +5,8 @@ email identity, accounts, WaveNet preparation, stored audio, and sandbox payment
 reconciliation in Workers, Durable Objects, D1, and R2. No Python speech server,
 encoder, ffmpeg process, or workstation tunnel is part of its runtime.
 
-This is implemented and locally verified, **not deployed or live-verified**.
+This is deployed privately at https://speak-staging.rogerpbrown.com/.
+See `reader-feature-parity.md` for current verification and pending acceptance.
 The running checkout, its site, credentials, customer data and balances were not
 modified. The isolated branch is `codex/wavenet-mp3-proof`.
 
@@ -17,7 +18,7 @@ modified. The isolated branch is `codex/wavenet-mp3-proof`.
   rewrites, inserted silence, or synthesis-rate override. The assembler retains
   validated MPEG-2 24 kHz mono 64 kbps frames without re-encoding or trimming.
 - US and British WaveNet F voices are available. Input is bounded to 20,000 UTF-16
-  units, 32 sections, and 5,000 UTF-8 bytes per section. Prepared files are bounded
+  units, 10,000 sentence sections, and 5,000 UTF-8 bytes per section. Prepared files are bounded
   to 32 MiB and expire after 24 hours. Unsupported MP3 formats fail closed.
 - Email links are single-use, browser-bound, and valid for 15 minutes. Sessions
   last 30 days. A stable account page lets customers request fresh links; account
@@ -30,8 +31,14 @@ modified. The isolated branch is `codex/wavenet-mp3-proof`.
   return allowance. Approved principal refunds/chargebacks reduce entitlement;
   reversals restore it. Credit already used becomes debt. Returned reservations
   and later purchases first pay that debt down.
-- The existing optional allowance switch remains: an unmetered private reading
-  does not debit account credit, but still consumes the independent speech budget.
+- Browser voices are free without an account. Ordinary WaveNet customers need
+  server-verified credit. There is no public unmetered switch. Existing private
+  pilot entitlements may only be preserved through explicit offline migration.
+- The established Edit/Read interface, rich paste, Clear/Paste & Play, local PDF,
+  cleanup, remembered preferences, feedback and support are shared with the
+  original application. Excluded engines and GPU/model controls are not bundled.
+- At most three synthesis requests run together. Batches and paged state are
+  checkpointed between alarms; completed legacy recordings remain readable.
 - Background alarms reconcile payments with all browser windows closed. A single
   coordinator serializes provider snapshots and checkout creation. A lost create
   response is not retried blindly: it requires verification before another order.
@@ -40,10 +47,11 @@ modified. The isolated branch is `codex/wavenet-mp3-proof`.
 
 The local config listens on `127.0.0.1:8790` only. It uses the previously cached
 synthetic samples, simulated mail to `example.invalid`, and no checkout. It never
-loads credentials and rejects arbitrary text for local synthesis.
+loads credentials. Arbitrary sentence text maps to cached synthetic audio.
 
-The staging template has no route, no workers.dev URL, no preview URLs, an invalid
-unconfigured database ID, and speech/email/payment flags off. Hosted requests
+The approved staging configuration has its own D1/R2 resources and private
+hostname, with workers.dev and preview URLs disabled. Speech, email and sandbox
+payments are enabled within the existing lifetime allowance. Hosted requests
 must match the configured HTTPS origin and pass cryptographic Cloudflare Access
 JWT verification (issuer, audience, algorithm, signature, expiry and not-before).
 The local bypass cannot authorize a hosted origin. All mutations check Origin.
@@ -70,10 +78,10 @@ python -m unittest tests/test_reader_migration.py
 node cloudflare/reader/build.mjs
 npx wrangler d1 migrations apply LEDGER --local \
   --config cloudflare/reader/wrangler.local.jsonc \
-  --persist-to work/private-reader/state
+  --persist-to work/private-reader/restoration-state
 npx wrangler dev --local --ip 127.0.0.1 --port 8790 \
   --config cloudflare/reader/wrangler.local.jsonc \
-  --persist-to work/private-reader/state
+  --persist-to work/private-reader/restoration-state
 ```
 
 In another terminal:
@@ -90,8 +98,8 @@ After restarting the local Worker with the same persistence directory:
 node cloudflare/reader/check-api.mjs --resume
 ```
 
-The build uses cached audio under ignored `work/wavenet-mp3-proof`; a fresh clone
-needs those existing synthetic fixture files copied in, not newly paid synthesis.
+The build uses checked-in synthetic audio under `tests/fixtures/wavenet`; a fresh
+checkout does not require provider credentials or paid synthesis.
 The implementation itself has no dependency on those files in hosted live mode;
 fixtures are used only by the local harness.
 
@@ -101,7 +109,8 @@ fixtures are used only by the local harness.
 writes a new owner-only SQLite file. It never discovers the running ledger or
 contacts Cloudflare. It refuses active reservations and existing output files.
 It preserves exact balances, debt, identity mappings, session expiries, historical
-orders/grants, payment synchronization state, usage history, and pending link
+orders/grants including creation dates, payment synchronization state, settled
+reservation history, usage history, and pending link
 hashes. Historical grants are not credited again. Legacy cookie hashes are kept
 for a future same-origin cutover; a new staging hostname instead needs fresh
 email sign-in. Ambiguous unbound old orders remain blocked for verification.
@@ -111,19 +120,18 @@ Production cutover will need a quiesced, verified snapshot and an approved impor
 into an empty isolated database, followed by exact per-account reconciliation.
 The offline converter is not an automatic production migration/deployment tool.
 
-## Approval boundary and remaining live validation
+## Approval boundary and remaining validation
 
-An isolated Cloudflare staging deployment needs approval to create dedicated
-D1/R2/DO resources, select a private hostname and Access policy, and install
-separate secrets through owner-controlled secret delivery. No resource IDs,
-routes, domains, credentials or budgets have been guessed or reused from the
-running service.
+Private staging resources, deployment, email delivery, sandbox checkout and a
+100,000-character lifetime speech allowance have been approved. No budget reset
+has occurred. Real Access sign-in, email sign-in, a verified sandbox purchase and
+partial refund, and US/UK sentence preparation have passed. The user reports
+good restored mobile behavior, with the full-preparation wait noted. The full
+sandbox refund also reconciled automatically; final figures are in the matrix. Cached tests do not establish audible sentence-join quality.
 
-After that approval, validate real Access protection, Resend delivery/recovery,
-Paddle sandbox purchase/refund/reversal and background alarms, a small explicitly
-budgeted WaveNet run, and real-device audio/seek/highlight behavior. Local cached
-browser tests do not prove those live integrations or human listening quality.
-Production cutover and any real-data migration remain separate approvals.
+Production remains untouched. `private-reader-cutover.md` records the separate
+production credential, payment configuration, migration and deployment approval
+boundary. No live customer snapshot has been accessed.
 
 Protocol references checked during implementation:
 
@@ -133,11 +141,12 @@ Protocol references checked during implementation:
 
 ## Recorded result
 
-On September 22, 2026: 148 JavaScript tests and two offline migration tests passed.
-All five migrations applied to a fresh local D1 database. Desktop Chrome and API
-checks passed against cached US/GB audio; a Worker restart preserved the account,
-balance and complete recording. Wrangler's dry-run bundle passed without upload.
-The final review additionally covered cancellation after a delayed create reply,
-non-postponing payment alarms, and recovery after a committed reservation's lost
-acknowledgement. See `private-wavenet-verification.json` for the exact evidence
-and live-validation exclusions.
+On September 22, 2026: 154 JavaScript tests and three synthetic migration tests
+passed. All eight migrations are applied locally and in private staging. Existing
+browser regression suites and a 40-sentence integrated cached reading passed,
+including original-text retention, empty-balance rejection, navigation without
+new speech charges, MP3/VTT, email-link confirmation and late cancellation.
+A Worker restart preserved account, balance and recording. New US/UK live samples
+consumed 268 characters combined; the preserved lifetime total was 7,501 at that
+checkpoint. Current and final evidence belongs in `reader-feature-parity.md`;
+`private-wavenet-verification.json` records the earlier local prototype phase.

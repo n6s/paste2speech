@@ -4,10 +4,10 @@ Do not execute this checklist as part of private staging work.
 
 ## Preconditions
 
-- Complete the feature matrix and focused mobile acceptance, including sentence
-  joins, rich clipboard paste, Clear/Paste & Play and Edit/Read switching.
-- Resolve live email delivery and exercise sandbox purchase/reconciliation,
-  partial/full refunds, debt recovery and fresh-browser identity recovery.
+- Private implementation evidence is in `reader-feature-parity.md`: restored UI,
+  mobile acceptance with preparation-delay feedback, real email recovery, sandbox
+  purchases/refunds, and synthetic debt/migration tests. Keep full preparation
+  unless the owner explicitly chooses a separate progressive-playback change.
 - Confirm the production provider account, Paddle live product/price/client key,
   approved origin/checkout settings, verified email sender and Cloudflare plan.
   Current payment adapter deliberately accepts sandbox credentials/endpoints only.
@@ -46,7 +46,8 @@ Staging feedback and test payments are never promoted into production.
 
 ## Synthetic rehearsal evidence
 
-`python -m unittest tests/test_reader_migration.py` passes both conversion and
+`python -m unittest tests/test_reader_migration.py` passes conversion, exact financial history, and
 rejection cases against synthetic snapshots. Source hashes remain unchanged;
-exact balance and legacy identity/session checks are enforced by the converter.
+exact balances, debt, orders, grant timestamps, payment state, settled reservation
+history and legacy entitlement are verified. Identity/session mappings are retained.
 No customer snapshot has been read or imported during this work.

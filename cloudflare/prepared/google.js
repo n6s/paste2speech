@@ -12,7 +12,7 @@ export async function readBounded(response, maximum){
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   return bytes;
 }
-export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fetch(...args),now=Date.now}={}){
+export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fetch(...args),now=Date.now,includeExpiry=false}={}){
   let stage='credential parsing',httpStatus;
   try {
     const account=JSON.parse(accountJson);
@@ -35,7 +35,9 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
     stage='token response';
     const result=JSON.parse(new TextDecoder().decode(await readBounded(response,16384)));
     if(typeof result.access_token!=='string' || !result.access_token || result.token_type!=='Bearer')throw Error();
-    return result.access_token;
+    // Cache only in Worker memory and only for a declared, bounded lifetime.
+    const ttl=Number.isFinite(result.expires_in)?Math.max(0,Math.min(result.expires_in,3600)-60):0;
+    return includeExpiry?{token:result.access_token,expires:now()+ttl*1000}:result.access_token;
   }catch(error){throw Error(`Google authorization failed during ${stage}${httpStatus?` (HTTP ${httpStatus})`:` (${['TypeError','DataError','OperationError'].includes(error.name)?error.name:'request error'})`}. No speech request was retried.`);}
 }
 export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis.fetch(...args)}={}){

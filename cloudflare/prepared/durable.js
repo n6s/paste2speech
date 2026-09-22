@@ -64,7 +64,11 @@ export class PreparedReading {
       // Do not obtain new credentials if a prior paid call is uncertain.
       let token;
       if(job.mode==='live' && this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Live synthesis disabled');
-      if(job.mode==='live' && !job.parts.some(p=>p.state==='submitting'))token=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON);
+      if(job.mode==='live' && !job.parts.some(p=>p.state==='submitting')){
+        if(!this.googleAuthorization||this.googleAuthorization.expires<=Date.now())
+          this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
+        token=this.googleAuthorization.token;
+      }
       await prepareJob(job,{maxBatches:1,beforeBatch:()=>this.env.LEDGER?new (this.env.PRIVATE_READER==='1'?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live')return synthesize(text,voice,token);

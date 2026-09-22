@@ -34,5 +34,5 @@ await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile('server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
 await writeFile(root+'/billing.js',billingJS);
 const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
-for(const list of Object.values(fixtures))for(const section of list)await copyFile('work/wavenet-mp3-proof/'+section.file,root+'/samples/'+section.file);
+for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
 console.log('Built shared reader for private Cloudflare staging.');

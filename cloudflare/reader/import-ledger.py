@@ -43,6 +43,9 @@ def migrate(source, output):
                 dst.execute('INSERT INTO orders VALUES(?,?,?,?,?,?,?)', (row['id'], row['account'], row['transaction_id'], row['created'], row['status'], row['characters'], 'bound' if row['transaction_id'] else 'submitting'))
             for row in src.execute('SELECT * FROM grants'):
                 dst.execute('INSERT INTO grants VALUES(?,?,?)', (row['transaction_id'], row['account'], row['characters']))
+                dst.execute('INSERT INTO legacy_grants VALUES(?,?)', (row['transaction_id'], row['created']))
+            for row in src.execute('SELECT * FROM reservations'):
+                dst.execute('INSERT INTO legacy_reservations VALUES(?,?,?)', tuple(row))
             # Grants are historical evidence, not additional credits. Restore the
             # exact snapshot balances only after all grant triggers have run.
             for row in accounts:
@@ -70,7 +73,24 @@ def migrate(source, output):
                 actual = dst.execute('SELECT balance,enabled FROM accounts WHERE id=?', (row['id'],)).fetchone()
                 if actual != (row['balance'], row['enabled']):
                     raise ValueError('Balance verification failed')
-        return {'accounts': len(accounts), 'balancesVerified': True, 'sourceModified': False}
+            # Independently compare retained financial history, not only balances.
+            comparisons = [
+                ('SELECT * FROM account_debt ORDER BY account', 'SELECT * FROM account_debt WHERE characters>0 ORDER BY account', True),
+                ('SELECT id,account,transaction_id,created,status,characters FROM orders ORDER BY id', 'SELECT id,account,transaction_id,created,status,characters FROM orders ORDER BY id', False),
+                ('SELECT transaction_id,account,characters,created FROM grants ORDER BY transaction_id', 'SELECT g.id,g.account,g.characters,h.created FROM grants g JOIN legacy_grants h ON h.transaction_id=g.id ORDER BY g.id', False),
+                ('SELECT * FROM reservations ORDER BY job', 'SELECT * FROM legacy_reservations ORDER BY job', False),
+                ('SELECT * FROM usage ORDER BY id', 'SELECT * FROM legacy_usage ORDER BY id', False),
+            ]
+            for source_query, target_query, positive_debt in comparisons:
+                expected = [tuple(r) for r in src.execute(source_query)]
+                if positive_debt:
+                    expected = [r for r in expected if r[1]>0]
+                if expected != dst.execute(target_query).fetchall():
+                    raise ValueError('Financial history verification failed')
+            expected_sync=[(r['order_id'],round(r['checked']*1000),r['revoked'],r['state']) for r in src.execute('SELECT * FROM payment_sync ORDER BY order_id')]
+            if expected_sync != dst.execute('SELECT * FROM payment_sync ORDER BY order_id').fetchall():
+                raise ValueError('Payment history verification failed')
+        return {'accounts': len(accounts), 'balancesVerified': True, 'historyVerified': True, 'sourceModified': False}
     except Exception:
         dst.close()
         output.unlink()
