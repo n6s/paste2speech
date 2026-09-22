@@ -188,3 +188,19 @@ The default payment link `/api/billing` did not persist after saving; it remains
 unconfigured and must be resolved before activation.
 The existing live API key is revoked; no client-side token exists. Payout setup
 is incomplete and requires the owner's private details and payment destination.
+
+## Live credential setup — 2026-09-22
+
+Owner approved creating the checkout token/webhook credentials and installing
+credentials in Cloudflare with public purchasing disabled. The new limited live
+API key was successfully installed as `PADDLE_API_KEY` on the existing production
+Worker; Wrangler secret-list read-back confirms the binding.
+
+Created client token `ctkn_01m35crq0pcsmgrvd0h2ymbfr5` (paste2speech-production)
+and destination `ntfset_01m35ct3p29vxze92gt4tmwfdd` for
+`https://speak.rogerpbrown.com/api/billing/webhook`, API version 1, Platform usage,
+all ten transaction events and both adjustment events. Destination read-back is
+Inactive pending public-mode endpoint deployment and secret installation.
+The browser export capability was unavailable; owner file handoff is needed for
+the client token and webhook secret. Neither value has been installed yet.
+No public-mode application deployment, payment or synthesis was performed.
