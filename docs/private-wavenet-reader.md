@@ -130,3 +130,14 @@ Protocol references checked during implementation:
 - [Cloudflare Access JWT validation](https://developers.cloudflare.com/cloudflare-one/access-controls/applications/http-apps/authorization-cookie/validating-json/)
 - [Paddle authentication and sandbox key format](https://developer.paddle.com/api-reference/about/authentication/)
 - [Resend idempotency keys](https://resend.com/changelog/idempotency-keys)
+
+## Recorded result
+
+On September 22, 2026: 148 JavaScript tests and two offline migration tests passed.
+All five migrations applied to a fresh local D1 database. Desktop Chrome and API
+checks passed against cached US/GB audio; a Worker restart preserved the account,
+balance and complete recording. Wrangler's dry-run bundle passed without upload.
+The final review additionally covered cancellation after a delayed create reply,
+non-postponing payment alarms, and recovery after a committed reservation's lost
+acknowledgement. See `private-wavenet-verification.json` for the exact evidence
+and live-validation exclusions.

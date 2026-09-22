@@ -12,7 +12,10 @@ const player=new ProgressivePlayer((p,message)=>{
  [...$('reading').children].forEach((element,index)=>element.classList.toggle('current',index===p.index));
 },{fetcher:async(url,options={})=>{
  if(options.method==='POST'&&new URL(url).pathname==='/api/readings'){
-  const id=crypto.randomUUID();options.headers={...options.headers,'Idempotency-Key':id};
+  const id=crypto.randomUUID();
+  // Keep the create acknowledgement alive after Stop so the shared player can
+  // delete a late-created job instead of losing its cancellation target.
+  options={...options,signal:AbortSignal.timeout(15000)};options.headers={...options.headers,'Idempotency-Key':id};
   // A lost acknowledgement must not cause a second charge. Check only the
   // known job; never resend a synthesis request automatically.
   try{const response=await fetch(url,options);if(response.status!==503)return response;}catch(error){if(error.name==='AbortError')throw error;}

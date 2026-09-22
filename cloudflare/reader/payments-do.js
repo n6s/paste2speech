@@ -20,7 +20,9 @@ export class PaymentCoordinator {
  async fetch(request){return this.serial(async()=>{
   try{
    const {action,account,id}=await request.json(),ledger=new UsageLedger(this.env.LEDGER),provider=paddleProvider(this.env);
-   await this.ctx.storage.setAlarm(Date.now()+60000);
+   // A cron wake or frequent browser request must never postpone an already
+   // scheduled reconciliation alarm.
+   if(await this.ctx.storage.getAlarm()===null)await this.ctx.storage.setAlarm(Date.now()+(action==='wake'?1:60000));
    if(action==='wake')return json({scheduled:true});
    if(action==='reconcile'){
     const order=await ledger.order(id,account);if(!order?.transaction_id)return json({detail:'Unknown order'},404);

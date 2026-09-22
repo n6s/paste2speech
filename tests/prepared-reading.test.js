@@ -86,3 +86,10 @@ test('revoked reservation stops the next batch without submitting more text',asy
  const {job,options,calls}=setup();let batches=0;options.beforeBatch=async()=>{if(++batches===2)throw Error('credit unavailable');};
  await prepareJob(job,options);assert.equal(calls.length,3);assert.equal(job.state,'failed');assert.equal(job.parts.filter(p=>p.state==='ready').length,3);
 });
+test('long files can exceed proof size while the final assembly remains bounded',async()=>{
+ const audio=new Uint8Array(3*1024*1024);for(let offset=0;offset<audio.length;offset+=192)audio.set(frame(),offset);
+ const a=setup();a.options.speech=async()=>audio;await prepareJob(a.job,a.options);
+ assert.equal(a.job.state,'ready');assert.equal(a.objects.get('test/reading.mp3').length,12*1024*1024);
+ const b=setup();b.job.chunks=Array(12).fill('Section');b.job.parts=b.job.chunks.map(()=>({state:'pending'}));b.options.speech=async()=>audio;
+ await prepareJob(b.job,b.options);assert.equal(b.job.state,'failed');assert.ok(!b.objects.has('test/reading.mp3'));assert.match(b.job.error,/audio limit/);
+});

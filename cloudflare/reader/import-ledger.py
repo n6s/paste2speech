@@ -54,8 +54,13 @@ def migrate(source, output):
                 dst.execute('INSERT INTO login_limits VALUES(?,?)', (row['scope'], round(row['created'] * 1000)))
             # Do not re-send mail or extend old links. Retain existing hashes and
             # expiry; future requests create their own fresh browser-bound link.
+            triggers = dst.execute("SELECT sql FROM sqlite_master WHERE type='trigger' AND name IN ('login_limit_check','login_limit_record')").fetchall()
+            dst.execute('DROP TRIGGER login_limit_check')
+            dst.execute('DROP TRIGGER login_limit_record')
             for row in src.execute('SELECT * FROM login_links'):
                 dst.execute('INSERT INTO login_links VALUES(?,?,?,?,?,?,?,?)', (row['token_hash'], row['email'], row['flow_hash'], row['source_account'], round(row['expires'] * 1000), 0, 'imported-email', 'imported-ip'))
+            for (trigger,) in triggers:
+                dst.execute(trigger)
             if dst.execute('PRAGMA foreign_key_check').fetchall():
                 raise ValueError('Imported ledger has broken references')
             for row in accounts:

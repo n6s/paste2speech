@@ -1,6 +1,6 @@
 -- Private isolated reader ledger. No customer data or synthetic grants.
 PRAGMA foreign_keys=ON;
-CREATE TABLE accounts(id TEXT PRIMARY KEY, label TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 1, balance INTEGER NOT NULL DEFAULT 0 CHECK(balance>=0));
+CREATE TABLE accounts(id TEXT PRIMARY KEY, label TEXT NOT NULL, enabled INTEGER NOT NULL DEFAULT 0, balance INTEGER NOT NULL DEFAULT 0 CHECK(balance>=0));
 CREATE TABLE sessions(token_hash TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id), expires INTEGER NOT NULL);
 CREATE TABLE grants(id TEXT PRIMARY KEY, account TEXT NOT NULL REFERENCES accounts(id), characters INTEGER NOT NULL CHECK(characters>0));
 CREATE TRIGGER grant_credit AFTER INSERT ON grants BEGIN

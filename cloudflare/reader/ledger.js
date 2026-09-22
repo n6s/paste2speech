@@ -25,7 +25,12 @@ export class ReaderLedger extends UsageLedger {
    await this.query(`INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,created,metered)
     SELECT ?,?,?,?,?,?,?,enabled FROM accounts WHERE id=? AND (enabled=0 OR balance>=?)
     AND NOT EXISTS(SELECT 1 FROM reservations WHERE job=?)`,job,account,fingerprint,JSON.stringify(counts),total,total,Date.now(),account,total,job).run();
-  }catch{throw new CreditError('Your allowance is unavailable. Check your account.',402);}
+  }catch(error){
+   if(error.message?.includes('insufficient credit'))throw new CreditError('Your allowance is unavailable. Check your account.',402);
+   // A committed debit can have a lost acknowledgement. Keep admission pending
+   // so the durable recovery alarm can find that same reservation and settle it.
+   throw error;
+  }
   const row=await this.query('SELECT * FROM reservations WHERE job=?',job).first();
   if(!row)throw new CreditError('Not enough credit for this reading.',402);
   if(row.account!==account)throw new CreditError('Reading not found.',404);

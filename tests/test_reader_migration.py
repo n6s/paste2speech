@@ -23,6 +23,8 @@ class MigrationTest(unittest.TestCase):
                 db.execute('UPDATE accounts SET balance=12345,enabled=1')
                 db.execute('INSERT INTO sessions VALUES(?,?,?)', ('a'*64, account, 2000000000))
                 db.execute('INSERT INTO identities VALUES(?,?)', ('reader@example.invalid', account))
+                db.execute('INSERT INTO login_links VALUES(?,?,?,?,?)', ('linkhash', 'reader@example.invalid', 'flowhash', account, 2000000000))
+                db.executemany('INSERT INTO login_limits VALUES(?,?)', [('global', 1999999900)] * 90)
             before = source.read_bytes()
             result = module.migrate(source, target)
             self.assertTrue(result['balancesVerified'])
@@ -32,6 +34,8 @@ class MigrationTest(unittest.TestCase):
                 self.assertEqual(db.execute('SELECT balance FROM accounts').fetchone()[0], 12345)
                 self.assertEqual(db.execute('SELECT expires FROM sessions').fetchone()[0], 2000000000000)
                 self.assertEqual(db.execute('SELECT characters FROM grants').fetchone()[0], 1000000)
+                self.assertEqual(db.execute('SELECT COUNT(*) FROM login_limits').fetchone()[0], 90)
+                self.assertEqual(db.execute('SELECT expires FROM login_links').fetchone()[0], 2000000000000)
                 self.assertEqual(db.execute('SELECT token_hash FROM legacy_accounts').fetchone()[0], Ledger.digest(token))
             with self.assertRaises(ValueError):
                 module.migrate(source, target)

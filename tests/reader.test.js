@@ -101,7 +101,7 @@ test('background payment reconciliation works without browsers and serializes du
   return Response.json({data:{id:remoteId,status:'completed',custom_data:{p2s_order:orderId},currency_code:'USD',items:[{quantity:1,price:{id:'pri_01m32vvy2sptegx6arebyvxh37',product_id:'pro_01m32gd3hj94whqywcvmyta74b',unit_price:{amount:'1000',currency_code:'USD'}}}],details:{totals:{discount:'0',subtotal:'1000'}}}});
  };
  try{
-  const coordinator=new PaymentCoordinator({storage:{setAlarm:async()=>{alarms++;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
+  const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>null,setAlarm:async()=>{alarms++;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
   const request=()=>new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'order',account})});
   const responses=await Promise.all([coordinator.fetch(request()),coordinator.fetch(request())]);assert.deepEqual(responses.map(r=>r.status),[200,200]);assert.equal(creates,1);
   await coordinator.alarm();assert.equal((await ledger.account(account)).balance,1000000);
@@ -114,9 +114,29 @@ test('lost checkout response is never automatically resubmitted after restart',a
  const account=(await ledger.session(await ledger.newAccount())).id,original=globalThis.fetch;let calls=0;
  globalThis.fetch=async()=>{calls++;throw Error('response lost');};
  try{
-  const env={LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},ctx={storage:{setAlarm:async()=>{}}};
+  const env={LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},ctx={storage:{getAlarm:async()=>null,setAlarm:async()=>{}}};
   const request=()=>new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'order',account})});
   assert.equal((await new PaymentCoordinator(ctx,env).fetch(request())).status,503);
   assert.equal((await new PaymentCoordinator(ctx,env).fetch(request())).status,409);assert.equal(calls,1);
  }finally{globalThis.fetch=original;sql.close();}
+});
+test('email-first accounts retain the original unmetered default',async()=>{
+ const {sql,db,ledger}=setup(),identity=new EmailIdentity(db);const link=await identity.request('fresh@example.invalid',null,'local');
+ const account=await ledger.session(await identity.confirm(link.token,link.flow));assert.equal(account.enabled,0);sql.close();
+});
+test('cron wake does not postpone an existing background reconciliation deadline',async()=>{
+ const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');const {sql,db}=setup();let changed=false;
+ const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>123,setAlarm:async()=>{changed=true;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
+ const response=await coordinator.fetch(new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'wake'})}));
+ assert.equal(response.status,200);assert.equal(changed,false);sql.close();
+});
+test('reader reservation lost acknowledgement remains recoverable without another debit',async()=>{
+ const {sql,db,ledger}=setup(),account=(await ledger.session(await ledger.newAccount())).id;await ledger.enable(account,true);
+ sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('synthetic',account,100);
+ const original=db.prepare.bind(db);let fail=true;
+ db.prepare=text=>{const statement=original(text);return {bind(...values){const bound=statement.bind(...values);if(!text.startsWith('INSERT INTO reservations'))return bound;return {...bound,run:async()=>{const result=await bound.run();if(fail){fail=false;throw Error('lost committed acknowledgement');}return result;}};}};};
+ const input={voice:'en-US-Wavenet-F',chunks:['12345'],mode:'fixture'};
+ await assert.rejects(ledger.reserve('recover',account,input),error=>!error.status&&/lost committed/.test(error.message));
+ assert.equal((await ledger.account(account)).balance,95);
+ const recovered=await ledger.reserve('recover',account,input);assert.equal(recovered.state,'open');assert.equal((await ledger.account(account)).balance,95);sql.close();
 });

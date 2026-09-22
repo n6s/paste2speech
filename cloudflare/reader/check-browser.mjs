@@ -15,4 +15,8 @@ await page.click('a[href="/api/billing"]');await page.waitForFunction(()=>docume
 await page.fill('#email','reader-'+Date.now()+'@example.invalid');await page.click('#send-link');await page.waitForFunction(()=>document.querySelector('#auth-message').textContent.includes('Check your email'));
 const link=await page.evaluate(async()=>(await(await fetch('/api/test-mail')).json()).url);
 await page.goto(link);await page.click('#confirm');await page.waitForURL('**/api/billing');await page.waitForFunction(()=>document.querySelector('#identity').textContent.includes('Signed in as'));
-assert.deepEqual(failures,[]);console.log(JSON.stringify({result:'PASS',...result,checks:['full preparation','pause and section highlighting','complete MP3/VTT downloads','email confirmation and account recovery'],pageErrors:failures}));await browser.close();
+await page.goto('http://127.0.0.1:8790/');await page.waitForFunction(()=>document.querySelector('#text').value.length>0);
+await page.route('http://127.0.0.1:8790/api/readings',async route=>{const response=await route.fetch();await new Promise(r=>setTimeout(r,700));await route.fulfill({response});});
+const cancelled=page.waitForResponse(response=>response.request().method()==='DELETE'&&response.url().includes('/api/readings/'));
+await page.click('#play');await page.click('#stop');assert.equal((await cancelled).status(),204);
+assert.deepEqual(failures,[]);console.log(JSON.stringify({result:'PASS',...result,checks:['full preparation','pause and section highlighting','complete MP3/VTT downloads','email confirmation and account recovery','Stop cancels a late create acknowledgement'],pageErrors:failures}));await browser.close();

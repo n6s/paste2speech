@@ -131,4 +131,3 @@ export class PreparedReading {
     return new Response(request.method==='HEAD'?null:object.body,{status:parsed?206:200,headers});
   }
 }
-
