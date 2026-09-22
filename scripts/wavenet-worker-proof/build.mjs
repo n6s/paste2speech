@@ -12,3 +12,5 @@ await copyFile('work/wavenet-mp3-proof/manifest.json',`${root}/manifest.json`);
 const manifest=JSON.parse(await readFile(`${root}/manifest.json`));
 for(const voice of manifest)for(const s of voice.sections)await copyFile(`work/wavenet-mp3-proof/${s.file}`,`${root}/samples/${s.file}`);
 console.log('Built local Worker proof with cached synthetic audio.');
+for(const name of ['signin.html','signin.js','signin.css'])await copyFile(`server/billing/${name}`,`${root}/${name}`);
+for(const name of ['account.html','account.js'])await copyFile(`scripts/wavenet-worker-proof/${name}`,`${root}/${name}`);

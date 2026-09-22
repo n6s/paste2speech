@@ -47,7 +47,7 @@ export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis
       body:JSON.stringify({input:{text},voice:{languageCode:voice.slice(0,5),name:voice},
         audioConfig:{audioEncoding:'MP3',sampleRateHertz:24000}})});
     if(!response.ok)throw Error();
-    const result=JSON.parse(new TextDecoder().decode(await readBounded(response,2*1024*1024)));
+    const result=JSON.parse(new TextDecoder().decode(await readBounded(response,8*1024*1024)));
     if(typeof result.audioContent!=='string')throw Error();
     return Uint8Array.from(atob(result.audioContent),c=>c.charCodeAt(0));
   }catch{throw Error('Google speech failed. No automatic retry; the attempt may be billable.');}

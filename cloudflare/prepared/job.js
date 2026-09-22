@@ -1,5 +1,5 @@
 import {inspectMp3, captions} from './mp3.js';
-export const MAX_BYTES=4*1024*1024;
+export const MAX_BYTES=32*1024*1024;
 export const VOICES=['en-US-Wavenet-F','en-GB-Wavenet-F'];
 export function canRetryAuthorization(job){return job.mode==='live'&&job.state==='failed'&&job.attempts===0&&!(job.authorizationRestarts>=1);}
 export function validateInput(input){
@@ -53,7 +53,7 @@ export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=
     if(isCancelled())return;
     const total=job.parts.reduce((n,p)=>n+p.bytes,0);
     const flat=new Uint8Array(total);let offset=0;
-    // This bounded pilot buffers at most 4 MiB. No audio decoding or encoding.
+    // This bounded pilot buffers at most 32 MiB. No audio decoding or encoding.
     for(let i=0;i<job.parts.length;i++){
       const part=await store.get(`${job.id}/part-${i}`);if(!part)throw Error('Missing stored section');
       const bytes=new Uint8Array(await part.arrayBuffer());flat.set(bytes,offset);offset+=bytes.length;

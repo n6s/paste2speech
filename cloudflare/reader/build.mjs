@@ -1,0 +1,10 @@
+import {mkdir,copyFile,readFile,writeFile} from 'node:fs/promises';
+const root='work/private-reader/site';await mkdir(root+'/samples',{recursive:true});
+for(const name of ['index.html','reader.js','reader.css','chunks.js'])await copyFile('cloudflare/reader/site/'+name,root+'/'+name);
+await copyFile('public/progressive-player.js',root+'/progressive-player.js');
+for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
+let billing=await readFile('server/billing/index.html','utf8');billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"');
+await writeFile(root+'/billing.html',billing);await copyFile('server/billing/app.js',root+'/billing.js');
+const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
+for(const list of Object.values(fixtures))for(const section of list)await copyFile('work/wavenet-mp3-proof/'+section.file,root+'/samples/'+section.file);
+console.log('Private reader built. No network calls or deployment.');
