@@ -115,4 +115,31 @@ and feedback routing. Do not restore a stale credit snapshot, delete the new led
 reset the speech budget or copy staging balances. Preserve new audio/accounting for
 reconciliation. Reconcile any in-flight jobs before resuming a later trial release.
 
-No live resource, routing, data, secret or speech change has been made by this release preparation.
+At the end of release preparation, no live resource, routing, data, secret or speech change had been made. The execution record below supersedes that checkpoint.
+
+
+## Approved execution — September 22, 2026
+
+The owner explicitly approved the production cutover and 100,000-character trial,
+and agreed to perform phone checks afterward. No further cutover approval is needed.
+
+Readiness resolved: the Cloudflare dashboard identifies **Free** as the current
+Workers plan. No upgrade was performed. Resend's detailed response identifies the
+existing API key as **send-only** (`restricted_api_key`); domain-listing HTTP 401
+was a permissions limitation, not evidence of an invalid sending key. Actual
+production email delivery is still to be verified through sign-in.
+
+Provisioned D1 `d3c03af9-3833-4242-b032-f10620d65fe7` and R2
+`paste2speech-reader-production`, both WNAM. All nine migrations applied only to
+the new ledger. Verified zero accounts, grants and reservations, and a persisted
+speech budget of **0 / 100,000**. Verified R2 public access disabled and 86,400-second
+object-deletion and multipart-abort lifecycle rules.
+
+The original feedback D1 was exported to owner-only local rollback storage;
+SHA256 `0a751791eb8ee3712c65dbccafb73c38e59f4691afd8f44aa31f69881c8147c8`.
+The existing production hostname/version were rechecked unchanged.
+
+A route-less bootstrap deployment created the new Worker and Durable Objects;
+version `eb0f4bd3-9d3e-4e2e-ac6f-87e192f9a93f`. Four production secret bindings were
+installed directly through stdin; no values were printed or committed. Production
+email is now configured for the hostname cutover; speech and checkout remain off.
