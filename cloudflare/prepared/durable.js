@@ -1,3 +1,5 @@
+import {production,publicMode,customerAllowed} from '../reader/modes.js';
+import {dispatchBudget} from '../reader/budget.js';
 import {loadJob,saveJob} from './storage.js';
 import {ReaderLedger} from '../reader/ledger.js';
 import {admitJob} from './admission.js';
@@ -10,7 +12,7 @@ export class PreparedReading {
   constructor(ctx,env){this.ctx=ctx;this.env=env;ctx.blockConcurrencyWhile(async()=>{this.job=await loadJob(ctx.storage);});}
   async settle(){
     if(!this.env.LEDGER||this.job.admission==='rejected')return;
-    const ledger=new (this.env.PRIVATE_READER==='1'||this.env.READER_MODE==='production-trial'?ReaderLedger:UsageLedger)(this.env.LEDGER);
+    const ledger=new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER);
     // Pending admission may expire/cancel before a debit, or after a committed
     // debit whose response was lost. Serialized admission prevents a late debit.
     if(this.job.admission==='pending'&&!await ledger.receipt(this.job.id,this.job.owner))return;
@@ -18,7 +20,7 @@ export class PreparedReading {
   }
   async admit(){
     if(!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
-    await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||this.env.READER_MODE==='production-trial'?ReaderLedger:UsageLedger)(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
+    await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
       if(this.job.proofAdmissionFault==='after-reserve'){
         this.job.proofAdmissionFault='';await this.save(this.job);
         throw Error('Synthetic lost reservation response');
@@ -69,9 +71,16 @@ export class PreparedReading {
           this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
         token=this.googleAuthorization.token;
       }
-      await prepareJob(job,{maxBatches:1,beforeBatch:()=>this.env.LEDGER?new (this.env.PRIVATE_READER==='1'||this.env.READER_MODE==='production-trial'?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{maxBatches:1,beforeBatch:()=>this.env.LEDGER?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
-          if(job.mode==='live')return synthesize(text,voice,token);
+          if(job.mode==='live'){
+            if(this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Synthesis paused');
+            if(publicMode(this.env)){
+              if(!customerAllowed(this.env,await new ReaderLedger(this.env.LEDGER).account(job.owner)))throw Error('Account disabled');
+              await dispatchBudget(this.env.LEDGER,job.id,index,text);
+            }
+            return synthesize(text,voice,token);
+          }
           const fixture=fixtures[voice][index % fixtures[voice].length];
           await new Promise(resolve=>setTimeout(resolve,fixture.delayMs));
           if(job.proofScenario==='fail-middle'&&index===1)throw Error('Synthetic failure');

@@ -26,8 +26,9 @@ export class UsageLedger {
     const token=await this.issueSession(id);await this.query("UPDATE sessions SET expires=?,kind='anonymous' WHERE token_hash=?",Date.now()+2592000000,await digest(token)).run();return token;
   }
   async enable(id,enabled){await this.query('UPDATE accounts SET enabled=? WHERE id=?',enabled?1:0,id).run();}
-  async newOrder(account){
+  async newOrder(account,offer=null){
     await this.query("INSERT INTO orders(id,account,created) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM orders WHERE account=? AND status='pending')",crypto.randomUUID(),account,new Date().toISOString(),account).run();
+    if(offer)await this.query("UPDATE orders SET environment=?,price_id=?,product_id=?,amount=?,currency=?,characters=? WHERE account=? AND status='pending' AND creation_state='new' AND price_id IS NULL",offer.environment,offer.price,offer.product,offer.amount,offer.currency,offer.characters,account).run();
     return this.query("SELECT * FROM orders WHERE account=? AND status='pending'",account).first();
   }
   async order(id,account){return this.query('SELECT * FROM orders WHERE id=? AND account=?',id,account).first();}

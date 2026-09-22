@@ -21,7 +21,7 @@ export class ReaderLedger extends UsageLedger {
  }
  async reserve(job,account,input){
   const identity=await this.account(account);
-  if(!identity?.legacyPilot)await this.query('UPDATE accounts SET enabled=1 WHERE id=?',account).run();
+  if(!identity?.legacyPilot && !await this.query('SELECT job FROM public_jobs WHERE job=?',job).first())await this.query('UPDATE accounts SET enabled=1 WHERE id=?',account).run();
   const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
   const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:''}));
   try{
@@ -29,6 +29,8 @@ export class ReaderLedger extends UsageLedger {
     SELECT ?,?,?,?,?,?,?,enabled FROM accounts WHERE id=? AND (enabled=0 OR balance>=?)
     AND NOT EXISTS(SELECT 1 FROM reservations WHERE job=?)`,job,account,fingerprint,JSON.stringify(counts),total,total,Date.now(),account,total,job).run();
   }catch(error){
+   if(error.message?.includes('active_preparation'))throw new CreditError('Finish or stop your current preparation before starting another.',409);
+   if(error.message?.includes('public_account_disabled'))throw new CreditError('A verified enabled account is required.',403);
    if(error.message?.includes('insufficient credit'))throw new CreditError('Your allowance is unavailable. Check your account.',402);
    // A committed debit can have a lost acknowledgement. Keep admission pending
    // so the durable recovery alarm can find that same reservation and settle it.
@@ -41,7 +43,7 @@ export class ReaderLedger extends UsageLedger {
   return row;
  }
  async assertOpen(job,account){
-  const row=await this.query("SELECT job FROM reservations WHERE job=? AND account=? AND state='open' AND NOT EXISTS(SELECT 1 FROM account_debt WHERE account=? AND characters>0)",job,account,account).first();
+  const row=await this.query("SELECT job FROM reservations WHERE job=? AND account=? AND state='open' AND (NOT EXISTS(SELECT 1 FROM public_jobs WHERE job=reservations.job) OR EXISTS(SELECT 1 FROM accounts WHERE id=reservations.account AND enabled=1)) AND NOT EXISTS(SELECT 1 FROM account_debt WHERE account=? AND characters>0)",job,account,account).first();
   if(!row)throw new CreditError('The speech reservation is no longer available.');
  }
 }

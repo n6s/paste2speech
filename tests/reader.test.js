@@ -69,14 +69,14 @@ test('Access validates signature, issuer, audience, expiry and key algorithm',as
  const token=await signed(base);assert.equal(await privateAccess(new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':token.slice(0,-20)+'aaaaaaaaaaaaaaaaaaaa'}}),env,options),false);
 });
 test('local environment cannot activate paid speech-adjacent services with credentials',async()=>{
- const env={LOCAL_READER:'1',ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_fake',ENABLE_EMAIL:'1',RESEND_API_KEY:'fake',EMAIL_FROM:'test@example.invalid'};
+ const env={LOCAL_READER:'1',ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_fake',ENABLE_EMAIL:'1',RESEND_API_KEY:'fake',EMAIL_FROM:'test@example.invalid'};
  assert.throws(()=>paddleProvider(env));await assert.rejects(sendLink(env,{},()=>{throw Error('must not call');}));
- assert.throws(()=>paddleProvider({...env,LOCAL_READER:'0',PADDLE_API_KEY:'pdl_live_apikey_fake'}));
+ assert.throws(()=>paddleProvider({...env,LOCAL_READER:'0',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_live_apikey_fake'}));
 });
 
 test('Paddle transport stays sandbox-only and ignores remote pagination URLs',async()=>{
  const seen=[],id='txn_'+'a'.repeat(26),cursor='adj_'+'b'.repeat(26);
- const provider=paddleProvider({ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},async(url,options)=>{
+ const provider=paddleProvider({ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},async(url,options)=>{
   seen.push(url);assert.equal(new URL(url).origin,'https://sandbox-api.paddle.com');assert.equal(options.redirect,'manual');
   if(seen.length===1)return Response.json({data:[{id:cursor}],meta:{pagination:{has_more:true,next:'https://attacker.invalid/key'}}});
   return Response.json({data:[],meta:{pagination:{has_more:false}}});
@@ -106,7 +106,7 @@ test('background payment reconciliation works without browsers and serializes du
   return Response.json({data:{id:remoteId,status:'completed',custom_data:{p2s_order:orderId},currency_code:'USD',items:[{quantity:1,price:{id:'pri_01m32vvy2sptegx6arebyvxh37',product_id:'pro_01m32gd3hj94whqywcvmyta74b',unit_price:{amount:'1000',currency_code:'USD'}}}],details:{totals:{discount:'0',subtotal:'1000'}}}});
  };
  try{
-  const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>null,setAlarm:async()=>{alarms++;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
+  const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>null,setAlarm:async()=>{alarms++;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
   const request=()=>new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'order',account})});
   const responses=await Promise.all([coordinator.fetch(request()),coordinator.fetch(request())]);assert.deepEqual(responses.map(r=>r.status),[200,200]);assert.equal(creates,1);
   await coordinator.alarm();assert.equal((await ledger.account(account)).balance,1000000);
@@ -119,7 +119,7 @@ test('lost checkout response is never automatically resubmitted after restart',a
  const account=(await ledger.session(await ledger.newAccount())).id,original=globalThis.fetch;let calls=0;
  globalThis.fetch=async()=>{calls++;throw Error('response lost');};
  try{
-  const env={LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},ctx={storage:{getAlarm:async()=>null,setAlarm:async()=>{}}};
+  const env={LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'},ctx={storage:{getAlarm:async()=>null,setAlarm:async()=>{}}};
   const request=()=>new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'order',account})});
   assert.equal((await new PaymentCoordinator(ctx,env).fetch(request())).status,503);
   assert.equal((await new PaymentCoordinator(ctx,env).fetch(request())).status,409);assert.equal(calls,1);
@@ -131,7 +131,7 @@ test('email-first accounts require speech credit',async()=>{
 });
 test('cron wake does not postpone an existing background reconciliation deadline',async()=>{
  const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');const {sql,db}=setup();let changed=false;
- const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>123,setAlarm:async()=>{changed=true;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
+ const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>123,setAlarm:async()=>{changed=true;}}},{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
  const response=await coordinator.fetch(new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'wake'})}));
  assert.equal(response.status,200);assert.equal(changed,false);sql.close();
 });
@@ -148,7 +148,7 @@ test('reader reservation lost acknowledgement remains recoverable without anothe
 
 test('provider redirects fail without following or accepting a result',async()=>{
  const redirect=async(_url,init)=>{assert.equal(init.redirect,'manual');return Response.redirect('https://attacker.invalid',302);};
- const env={ENABLE_PAYMENTS:'1',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic',ENABLE_EMAIL:'1',RESEND_API_KEY:'synthetic',EMAIL_FROM:'reader@example.invalid',READER_ORIGIN:'https://private.example.invalid'};
+ const env={ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic',ENABLE_EMAIL:'1',RESEND_API_KEY:'synthetic',EMAIL_FROM:'reader@example.invalid',READER_ORIGIN:'https://private.example.invalid'};
  await assert.rejects(paddleProvider(env,redirect).transaction('txn_'+'a'.repeat(26)),/Provider request failed/);
  await assert.rejects(sendLink(env,{email:'recipient@example.invalid',token:'synthetic'},redirect),/Provider request failed/);
 });

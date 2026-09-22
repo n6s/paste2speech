@@ -17,3 +17,6 @@ Production trial preparation and approval details: [release review](../../docs/p
 
 Do not use the repository's ordinary deploy command for this reader. Deployment
 uses the approved isolated staging configuration only. Production requires separate approval.
+
+Public billing candidate and launch gates: [public launch release](../../docs/public-launch-release.md).
+`npm run release:reader:public` prepares the public candidate locally; live activation is gated separately.

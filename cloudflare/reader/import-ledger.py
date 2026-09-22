@@ -40,7 +40,7 @@ def migrate(source, output):
             for row in src.execute('SELECT * FROM sessions'):
                 dst.execute('INSERT INTO sessions VALUES(?,?,?,?)', (row['token_hash'], row['account'], round(row['expires'] * 1000), 'verified'))
             for row in src.execute('SELECT * FROM orders'):
-                dst.execute('INSERT INTO orders VALUES(?,?,?,?,?,?,?)', (row['id'], row['account'], row['transaction_id'], row['created'], row['status'], row['characters'], 'bound' if row['transaction_id'] else 'submitting'))
+                dst.execute('INSERT INTO orders(id,account,transaction_id,created,status,characters,creation_state) VALUES(?,?,?,?,?,?,?)', (row['id'], row['account'], row['transaction_id'], row['created'], row['status'], row['characters'], 'bound' if row['transaction_id'] else 'submitting'))
             for row in src.execute('SELECT * FROM grants'):
                 dst.execute('INSERT INTO grants VALUES(?,?,?)', (row['transaction_id'], row['account'], row['characters']))
                 dst.execute('INSERT INTO legacy_grants VALUES(?,?)', (row['transaction_id'], row['created']))
