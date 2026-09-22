@@ -62,8 +62,13 @@ to use the original production feedback database and review mode.
 
 ## Remaining release gates and exact procedure
 
-1. Finish Paddle onboarding after approved publication of the pricing/account and
-   policy pages. Pricing URL: `/pricing`; terms, privacy and refunds: `/terms`.
+1. Publish the pricing/policy pages in an approved trial-mode maintenance release
+   before completing Paddle onboarding. After a fresh backup and drained owner
+   reservations, apply additive migrations 0010–0011 and deploy the tested
+   `release:reader:production` build: it includes `/pricing` and `/terms` while
+   retaining owner-only WaveNet, its existing lifetime cap and disabled checkout.
+   This resolves the onboarding dependency without opening paid public access.
+   Finish Paddle onboarding after that approved publication. Pricing URL: `/pricing`; terms, privacy and refunds: `/terms`.
    Verify approved `speak.rogerpbrown.com` and its default payment link. Do not claim
    approval merely from a submitted onboarding form.
 2. Create/verify the live one-time $10 USD catalog; record the actual product/price
@@ -139,3 +144,10 @@ Budget before and after: 23,978 / 100,000, unchanged. No synthesis, purchase,
 refund, email or production change was submitted by this deployment. Browser
 connection interruption prevented a fresh authenticated staging acceptance check;
 previous live sandbox evidence does not substitute for retesting this release.
+
+Final staging update: source `7682b7a`, Worker version
+`2b4d94c7-90ef-4a15-8435-dc2a94be2c7e`. Eleven migrations applied; read-back shows
+23,978 / 100,000 speech characters, zero payment errors and zero open reservations.
+No new real-device, email or sandbox transaction acceptance is claimed. Public
+pricing/account copy was subsequently refined locally; it does not change staging's
+sandbox account flow. Production remains owner-only with checkout disabled.
