@@ -162,3 +162,12 @@ and migrations 0010–0011. Production accounting read-back remained exactly:
 was made. The deployed mode remains `production-trial`; public purchasing is off.
 Public launch approval remains outstanding. This publication implements the
 requested public information pages and does not activate customer billing.
+
+Final production policy Worker: `7f8edd54-1f11-4536-b3c1-236de0e6e18e`, source
+`698e668`. Public HTTP verification confirms `/pricing` and `/terms` return HTML
+with the expected content; the reader retains trial wording and billing status
+reports `trial=true`, `configured=false`, `emailConfigured=true`. An initial
+immediate HTTP check returned 403; subsequent curl verification succeeded.
+These URLs are now available for Paddle website verification. Live merchant
+approval, catalog/secrets, fresh staging acceptance, approved real checkout/refund,
+and public activation remain outstanding.
