@@ -19,9 +19,9 @@ END;
 CREATE TABLE payment_sync(order_id TEXT PRIMARY KEY REFERENCES orders(id),checked INTEGER NOT NULL,revoked INTEGER NOT NULL DEFAULT 0,state TEXT NOT NULL);
 CREATE TABLE payment_commands(id TEXT PRIMARY KEY,order_id TEXT NOT NULL,transaction_id TEXT NOT NULL,state TEXT NOT NULL,revoked INTEGER NOT NULL,checked INTEGER NOT NULL);
 CREATE TRIGGER payment_apply BEFORE INSERT ON payment_commands BEGIN
- SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM orders WHERE id=NEW.order_id AND transaction_id=NEW.transaction_id AND NEW.revoked BETWEEN 0 AND characters)
+ SELECT RAISE(ABORT,'invalid_payment') WHERE NOT EXISTS(SELECT 1 FROM orders WHERE id=NEW.order_id AND transaction_id=NEW.transaction_id AND NEW.revoked BETWEEN 0 AND characters)
  OR NEW.state NOT IN ('draft','ready','billed','paid','completed','canceled','past_due')
- OR (NEW.state<>'completed' AND EXISTS(SELECT 1 FROM orders WHERE id=NEW.order_id AND status='credited')) THEN RAISE(ABORT,'invalid_payment') END;
+ OR (NEW.state<>'completed' AND EXISTS(SELECT 1 FROM orders WHERE id=NEW.order_id AND status='credited'));
  INSERT INTO grants(id,account,characters) SELECT NEW.transaction_id,account,characters FROM orders WHERE id=NEW.order_id AND NEW.state='completed' AND NOT EXISTS(SELECT 1 FROM grants WHERE id=NEW.transaction_id);
  INSERT INTO balance_changes(account,delta) SELECT account,COALESCE((SELECT revoked FROM payment_sync WHERE order_id=NEW.order_id),0)-NEW.revoked FROM orders WHERE id=NEW.order_id AND NEW.state='completed';
  UPDATE orders SET status='credited' WHERE id=NEW.order_id AND NEW.state='completed';

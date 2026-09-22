@@ -13,8 +13,7 @@ CREATE TABLE reservations(
   outcome TEXT, created INTEGER NOT NULL, consumed INTEGER NOT NULL DEFAULT 0, released INTEGER NOT NULL DEFAULT 0
 );
 CREATE TRIGGER reservation_check BEFORE INSERT ON reservations BEGIN
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM accounts WHERE id=NEW.account AND enabled=1 AND balance>=NEW.total)
-    THEN RAISE(ABORT,'insufficient credit') END;
+  SELECT RAISE(ABORT,'insufficient credit') WHERE NOT EXISTS(SELECT 1 FROM accounts WHERE id=NEW.account AND enabled=1 AND balance>=NEW.total);
 END;
 CREATE TRIGGER reservation_debit AFTER INSERT ON reservations BEGIN
   UPDATE accounts SET balance=balance-NEW.total WHERE id=NEW.account;
@@ -24,8 +23,7 @@ CREATE TABLE usage(
   PRIMARY KEY(job,section)
 );
 CREATE TRIGGER usage_check BEFORE INSERT ON usage BEGIN
-  SELECT CASE WHEN NOT EXISTS(SELECT 1 FROM reservations WHERE job=NEW.job AND state='open' AND remaining>=NEW.characters)
-    THEN RAISE(ABORT,'invalid reservation') END;
+  SELECT RAISE(ABORT,'invalid reservation') WHERE NOT EXISTS(SELECT 1 FROM reservations WHERE job=NEW.job AND state='open' AND remaining>=NEW.characters);
 END;
 CREATE TRIGGER usage_consume AFTER INSERT ON usage BEGIN
   UPDATE reservations SET remaining=remaining-NEW.characters,consumed=consumed+NEW.characters WHERE job=NEW.job;
