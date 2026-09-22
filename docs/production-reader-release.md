@@ -183,7 +183,10 @@ control returned to the beginning without regeneration. MP3 and VTT download
 links were present and invoked, but browser security policy prevents inspecting
 download history; successful saved-file verification remains a manual check.
 
-Phone playback/seek/screen-off acceptance is pending the owner's hands-on test.
+The owner subsequently confirmed on September 22, 2026: "mobile device checks have passed".
+Mobile acceptance is complete based on that hands-on report, following the requested
+playback, seeking and screen-off checks. This is owner-reported device evidence;
+it does not imply independent inspection of downloaded files.
 The production reader is open in Chrome. The original Worker and owner-only
 feedback snapshot remain available for rollback. The main checkout is untouched.
 
