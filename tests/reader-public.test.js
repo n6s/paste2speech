@@ -34,7 +34,7 @@ test('live configuration rejects sandbox credentials and missing catalog; paused
  for(const patch of [{PADDLE_ENVIRONMENT:'sandbox'},{PADDLE_API_KEY:'pdl_sdbx_apikey_fake'},{PADDLE_CLIENT_TOKEN:'test_fake'},{PADDLE_PRICE_ID:''}])assert.throws(()=>paymentConfig({...s.env,...patch}));s.sql.close();
 });
 test('public anonymous reader stays free; only verified enabled customers can buy or generate',async()=>{
- const s=setup();assert.equal((await s.request('/')).status,200);assert.equal((await (await s.request('/api/billing/status')).json()).configured,false);
+ const s=setup();assert.equal((await s.request('/')).status,200);for(const path of ['/terms','/pricing'])assert.match((await s.request(path)).headers.get('Content-Type'),/text\/html/);assert.equal((await (await s.request('/api/billing/status')).json()).configured,false);
  const a=await s.verified();s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant',a.account.id,100);
  const status=await (await s.request('/api/billing/status',{token:a.token})).json();assert.equal(status.configured,true);assert.equal(status.trial,false);
  const data={voice:'en-US-Wavenet-F',chunks:['Hello.']},headers={'Idempotency-Key':crypto.randomUUID()};

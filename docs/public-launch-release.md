@@ -151,3 +151,14 @@ Final staging update: source `7682b7a`, Worker version
 No new real-device, email or sandbox transaction acceptance is claimed. Public
 pricing/account copy was subsequently refined locally; it does not change staging's
 sandbox account flow. Production remains owner-only with checkout disabled.
+
+## Production policy publication
+
+The requested pricing and policy pages were published in trial mode from `a134249`,
+Worker `8ea0d73f-47bf-474d-a090-e5e7000a7ec7`, after a fresh restore-tested backup
+and migrations 0010–0011. Production accounting read-back remained exactly:
+2 accounts, 95,827 available characters, 1 grant, 0 orders, 0 open reservations,
+4,173 / 100,000 trial admissions. No email, synthesis, checkout or refund request
+was made. The deployed mode remains `production-trial`; public purchasing is off.
+Public launch approval remains outstanding. This publication implements the
+requested public information pages and does not activate customer billing.
