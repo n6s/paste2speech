@@ -20,7 +20,7 @@ async function body(request,limit){
 }
 export function validEvent(data){
  if(!data||Array.isArray(data)||Object.keys(data).some(k=>!['event','engine','category','release','duration'].includes(k)))return false;
- return ['page_view','playback_start','kokoro_ready','kokoro_failure'].includes(data.event)&&['none','browser','kokoro'].includes(data.engine)&&['none','download','generation'].includes(data.category)&&/^[a-zA-Z0-9._-]{1,40}$/.test(data.release)&&Number.isInteger(data.duration)&&data.duration>=0&&data.duration<=300000;
+ return ['page_view','playback_start','kokoro_ready','kokoro_failure'].includes(data.event)&&['none','browser','kokoro','google'].includes(data.engine)&&['none','download','generation'].includes(data.category)&&/^[a-zA-Z0-9._-]{1,40}$/.test(data.release)&&Number.isInteger(data.duration)&&data.duration>=0&&data.duration<=300000;
 }
 export function validCleanup(cleanup){
  return cleanup && !Array.isArray(cleanup) && Object.keys(cleanup).length===Object.keys(cleanupDefaults).length &&
@@ -96,7 +96,7 @@ export default {
    }
    if(!validFeedback(data)||!await validTicket(data.ticket,env.FEEDBACK_SECRET))return json({error:'Invalid feedback'},400);
    const digest=await hash(new Date().toISOString().slice(0,10)+'\n'+data.message.trim().toLowerCase());
-   await env.DB.prepare('INSERT OR IGNORE INTO feedback(id,created_at,message,email,digest,context) VALUES(?,?,?,?,?,?)').bind(data.ticket.id,Date.now(),data.message.trim(),data.email.trim(),digest,JSON.stringify(data.context?{...data.context,environment:origin==='https://pop-os.tailbd091c.ts.net'?'test':'production'}:{})).run();
+   await env.DB.prepare('INSERT OR IGNORE INTO feedback(id,created_at,message,email,digest,context) VALUES(?,?,?,?,?,?)').bind(data.ticket.id,Date.now(),data.message.trim(),data.email.trim(),digest,JSON.stringify(data.context?{...data.context,environment:env.PRIVATE_READER==='1'||origin==='https://pop-os.tailbd091c.ts.net'?'test':'production'}:{})).run();
    ctx.waitUntil(deliver(env,data.ticket.id));
    return json({saved:true},202);
   }catch{return json({error:'Temporarily unavailable. Please retry or use email.'},503);}

@@ -32,6 +32,9 @@ def migrate(source, output):
             for a in accounts:
                 dst.execute('INSERT INTO accounts VALUES(?,?,?,?)', (a['id'], 'Reader', a['enabled'], 0))
                 dst.execute('INSERT INTO legacy_accounts VALUES(?,?)', (a['token_hash'], a['id']))
+                if not a['enabled']:
+                    dst.execute('INSERT INTO legacy_pilots VALUES(?)', (a['id'],))
+                    dst.execute('UPDATE accounts SET enabled=0 WHERE id=?', (a['id'],))
             for row in src.execute('SELECT * FROM identities'):
                 dst.execute('INSERT INTO identities VALUES(?,?)', tuple(row))
             for row in src.execute('SELECT * FROM sessions'):

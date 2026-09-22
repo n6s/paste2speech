@@ -50,7 +50,7 @@ test('failed durable write prevents paid calls; cancellation stops subsequent ba
 });
 test('input bounds are UTF-8 aware and do not rewrite the text',()=>{
   assert.deepEqual(validateInput(input).chunks,input.chunks);
-  for(const chunks of [[],[''],['字'.repeat(1667)],Array(33).fill('a')])assert.throws(()=>validateInput({...input,chunks}));
+  for(const chunks of [[],[''],['字'.repeat(1667)],Array(10001).fill('a')])assert.throws(()=>validateInput({...input,chunks}));
 });
 test('Google payload is plain original text without explicit pronunciation, pauses or speed',async()=>{
   const calls=[];
@@ -92,4 +92,14 @@ test('long files can exceed proof size while the final assembly remains bounded'
  assert.equal(a.job.state,'ready');assert.equal(a.objects.get('test/reading.mp3').length,12*1024*1024);
  const b=setup();b.job.chunks=Array(12).fill('Section');b.job.parts=b.job.chunks.map(()=>({state:'pending'}));b.options.speech=async()=>audio;
  await prepareJob(b.job,b.options);assert.equal(b.job.state,'failed');assert.ok(!b.objects.has('test/reading.mp3'));assert.match(b.job.error,/audio limit/);
+});
+
+test('sentence jobs resume in bounded batches beyond 32 sections without duplicate speech',async()=>{
+ const {options,calls,objects}=setup();const job=newJob({...input,chunks:Array.from({length:205},(_,i)=>`Sentence ${i}.`)},'owner','long',0);
+ options.isCancelled=()=>false;options.save=async()=>{};
+ options.speech=async(text,voice,index)=>{calls.push(index);return frame();};
+ let turns=0;while(job.state==='preparing'&&turns++<100)await prepareJob(job,{...options,maxBatches:1});
+ assert.equal(job.state,'ready');assert.equal(calls.length,205);assert.equal(new Set(calls).size,205);
+ assert.equal(job.assembledBlocks,3);assert.equal(publicStatus(job).starts.length,205);
+ assert.equal(objects.get('long/reading.mp3').length,205*192);
 });

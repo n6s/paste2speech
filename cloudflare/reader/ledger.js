@@ -2,7 +2,8 @@ import {UsageLedger,CreditError,digest,sourceCounts} from '../prepared/ledger.js
 export class ReaderLedger extends UsageLedger {
  async account(id){
   const account=await super.account(id);if(!account)return null;
-  const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open' AND metered=1",id).first();return {...account,reserved:held.reserved};
+  const pilot=await this.query('SELECT account FROM legacy_pilots WHERE account=?',id).first();
+  const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open' AND metered=1",id).first();return {...account,legacyPilot:!!pilot,reserved:held.reserved};
  }
  async session(token,now=Date.now()){
   const current=await super.session(token,now);if(current||!token||token.length>100)return current;
@@ -19,6 +20,8 @@ export class ReaderLedger extends UsageLedger {
   return [...rows.results,...legacy.results];
  }
  async reserve(job,account,input){
+  const identity=await this.account(account);
+  if(!identity?.legacyPilot)await this.query('UPDATE accounts SET enabled=1 WHERE id=?',account).run();
   const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
   const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:''}));
   try{

@@ -1,3 +1,4 @@
+import publicWorker from '../worker.js';
 import {privateAccess,allowedRequestSource} from './access.js';
 import {ReaderLedger} from './ledger.js';
 import {EmailIdentity} from '../prepared/identity.js';
@@ -15,18 +16,19 @@ function setCookie(response,env,name,value,age){response.headers.append('Set-Coo
 async function asset(request,env,path){
  const url=new URL(request.url);url.pathname=path;const response=await env.ASSETS.fetch(new Request(url,{method:request.method}));
  const headers=new Headers(response.headers);headers.set('Cache-Control','no-store');headers.set('Referrer-Policy','no-referrer');headers.set('X-Content-Type-Options','nosniff');
- headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.paddle.com; frame-src https://*.paddle.com; media-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+ headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.paddle.com; frame-src https://*.paddle.com; worker-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  if(path.startsWith('/signin'))headers.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env){if(env.ENABLE_PAYMENTS==='1'&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
- async fetch(request,env){
+ async scheduled(_event,env,ctx){if(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0)await publicWorker.scheduled(_event,{...env,DB:env.LEDGER,FEEDBACK_DELIVERY_MODE:'review'},ctx);if(env.ENABLE_PAYMENTS==='1'&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async fetch(request,env,ctx){
   if(!await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(!['GET','HEAD','POST','DELETE'].includes(request.method))return json({},405);
   if(!allowedRequestSource(request))return json({detail:'Open the private reader directly.'},403);
   try{
+   if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...env,DB:env.LEDGER,PUBLIC_ORIGIN:url.origin,FEEDBACK_DELIVERY_MODE:'review'},ctx);
    const ledger=new ReaderLedger(env.LEDGER),token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox'),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
@@ -60,21 +62,21 @@ export default {
    if(path==='/api/billing/logout'&&request.method==='POST'){
     await ledger.logout(token);const response=json({signedOut:true});setCookie(response,env,'p2s_private_reader','',0);setCookie(response,env,'p2s_sandbox','',0);setCookie(response,env,'p2s_login_flow','',0);return response;
    }
-   if(path==='/api/billing/mode'&&request.method==='POST'){
-    if(!owner)return json({},401);const input=await body(request,2048);if(Object.keys(input).length!==1||typeof input.enabled!=='boolean')return json({},422);
-    await ledger.enable(owner,input.enabled);return json({enabled:input.enabled});
-   }
+   if(path==='/api/billing/mode')return json({detail:'Speech credit is required for WaveNet.'},403);
    if(['/api/billing/order','/api/billing/reconcile'].includes(path)&&request.method==='POST'){
     if(!owner)return json({},401);if(local||env.ENABLE_PAYMENTS!=='1')throw new CreditError('Sandbox checkout is disabled.',503);
     const input=await body(request,2048);return env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',fixtures:local?fixtures:undefined});
+   if(path==='/api/reader'&&request.method==='GET')return json({local,liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:['en-US-Wavenet-F','en-GB-Wavenet-F'],account:account?{balance:account.balance,reserved:account.reserved}:null,eligible:!!account&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
     let input=await body(request);try{input=validateInput(input);}catch(error){throw new CreditError(error.message,422);}
     const id=request.headers.get('Idempotency-Key');if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id||''))throw new CreditError('A UUID request key is required.',422);
-    if(local){if(JSON.stringify(input.chunks)!==JSON.stringify(fixtures[input.voice].map(s=>s.text)))throw new CreditError('Local mode uses the cached sample only.',422);}
+    if(local){/* Local harness maps each sentence to cached synthetic audio. */}
     else {
+     const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
+     const receipt=await ledger.receipt(id,owner);
+     if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError('WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
      if(env.ENABLE_LIVE_SYNTHESIS!=='1')throw new CreditError('Speech generation is disabled.',503);
      // Lifetime budget is deliberately never replenished automatically. Failed
      // or cancelled admissions consume budget too, bounding uncertain charges.

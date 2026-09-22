@@ -1,4 +1,5 @@
-import { WORKSTATION, KOKORO_ENABLED } from './config.js';
+import {cloudFetch, setupCloudReader} from './cloud-reader.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER } from './config.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
@@ -53,7 +54,7 @@ let sentenceElements = [];
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
-const workstationPlayer = new ProgressivePlayer(render);
+const workstationPlayer = new ProgressivePlayer(render, CLOUD_READER ? {fetcher:cloudFetch} : {});
 const localPlayer = new AudioPlayer(render, {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)});
 localPlayer.getSettings = settings;
 workstationPlayer.getSettings = settings;
@@ -69,12 +70,12 @@ let previousState = 'idle';
 let preparationStarted = 0;
 let countNextPlayback = false;
 let browserVoice = selectedVoice;
-let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
+let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : CLOUD_READER ? 'en-US-Wavenet-F' : 'af_heart';
 function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { return isWorkstation() ? workstationVoices.length > 0 : isKokoro() ? localEnabled : supported; }
+function canPlay() { return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   player?.stop();
   workstationPlayer.release();
@@ -212,9 +213,9 @@ function render(p, message) {
   if (p !== player) return;
   if(p.state!==previousState){
     if(p.state==='preparing') preparationStarted=performance.now();
-    if(p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
-    if(p.state==='failed') event('kokoro_failure','kokoro','generation');
-    if(p.state==='playing' && countNextPlayback){event('playback_start',isKokoro()?'kokoro':'browser');countNextPlayback=false;}
+    if(!CLOUD_READER && p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
+    if(!CLOUD_READER && p.state==='failed') event('kokoro_failure','kokoro','generation');
+    if(p.state==='playing' && countNextPlayback){event('playback_start',isGoogle()?'google':isKokoro()?'kokoro':'browser');countNextPlayback=false;}
     previousState=p.state;
   }
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
@@ -227,14 +228,19 @@ function render(p, message) {
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
     ? `${isGoogle()?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use, or sooner when storage fills; Clear removes this recording.`
-    : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.';
+    : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
-  if(isGoogle() && p.id) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
+  if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   if(isDeepInfra() && p.id) $('recording-progress').textContent += ` · provider-reported estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
     const href = isWorkstation() && p.download?.(kind);
     $(id).hidden = !href || (kind==='vtt' && !$('include-captions').checked);
     if(href)$(id).href=href;else $(id).removeAttribute('href');
+  }
+  if(CLOUD_READER){
+    $('seek').disabled=!isGoogle()||!p.complete;
+    $('seek').max=p.duration||1;$('seek').value=p.audio?.currentTime||0;
+    $('seek-time').textContent=`${Math.floor(p.audio?.currentTime||0)} / ${Math.floor(p.duration||0)} seconds`;
   }
   $('previous-section').disabled = !p.chunks.length || p.index===0;
   $('next-section').disabled = !p.chunks.length || p.index>=p.chunks.length-1;
@@ -268,7 +274,7 @@ function loadVoices() {
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = isGoogle() ? 'Private test · text is sent to Google Cloud. Up to 20,000 characters per reading. Original pronunciation; shared pause behavior. Costs shown are estimates before the free allowance.' : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? 'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses; full preparation before playback.' : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -361,6 +367,7 @@ else $('status').textContent = 'Speech is unavailable in this browser. Try Chrom
 updateVoiceSummary();
 preview();
 
+if (!CLOUD_READER) {
   $('engine').options[1].textContent=KOKORO_ENABLED?'On-device Kokoro · experimental':'Kokoro · temporarily unavailable';
   $('engine').options[1].disabled=!KOKORO_ENABLED;
   $('local-download').hidden=!KOKORO_ENABLED;
@@ -422,6 +429,12 @@ preview();
   if(localAllowed && saved.engine==='kokoro'){$('engine').value='kokoro';changeEngine();}
   else setupControls();
   setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>$('engine').value==='kokoro'?localKokoro.processingMetrics():undefined);
+}
+}
+if (CLOUD_READER) {
+  setupCloudReader({player:workstationPlayer, getEngine:()=> $('engine').value});
+  if(saved.engine==='google'){$('engine').value='google';changeEngine();}
+  setupFeedback(()=>player?.state||'idle',()=>({...options}));
 }
 if (WORKSTATION) {
   const usageLink=document.createElement('a');usageLink.href=new URL('api/billing',location.href).href;

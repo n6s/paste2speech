@@ -69,10 +69,10 @@ export class UsageLedger {
     if(row.state==='closed')return;
     const plan=JSON.parse(row.plan),statements=[];
     if(job.parts.length!==plan.length)throw new CreditError('Reservation plan mismatch.');
-    for(let index=0;index<plan.length;index++)if(job.parts[index].state==='ready'){
-      statements.push(this.query(`INSERT INTO usage(job,section,characters) SELECT ?,?,?
-        WHERE NOT EXISTS(SELECT 1 FROM usage WHERE job=? AND section=?)`,job.id,index,plan[index],job.id,index));
-    }
+    const ready=job.parts.flatMap((part,index)=>part.state==='ready'?[index]:[]);
+    statements.push(this.query(`INSERT INTO usage(job,section,characters)
+      SELECT ?,CAST(j.value AS INTEGER),CAST(json_extract(?, '$['||j.value||']') AS INTEGER)
+      FROM json_each(?) j WHERE NOT EXISTS(SELECT 1 FROM usage WHERE job=? AND section=CAST(j.value AS INTEGER))`,job.id,row.plan,JSON.stringify(ready),job.id));
     statements.push(this.query("UPDATE reservations SET released=remaining,remaining=0,state='closed',outcome=? WHERE job=? AND account=? AND state='open'",job.state,job.id,job.owner));
     // D1 batch is transactional: no partial success-charge/refund commit.
     await this.db.batch(statements);

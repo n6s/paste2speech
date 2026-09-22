@@ -4,7 +4,8 @@ import {DatabaseSync} from 'node:sqlite';
 import {readFileSync,readdirSync} from 'node:fs';
 import {ReaderLedger} from '../cloudflare/reader/ledger.js';
 import {EmailIdentity} from '../cloudflare/prepared/identity.js';
-import {sections} from '../cloudflare/reader/site/chunks.js';
+import {chunkText} from '../public/text.js';
+import {validateInput} from '../cloudflare/prepared/job.js';
 import {privateAccess,allowedRequestSource} from '../cloudflare/reader/access.js';
 import {paddleProvider,sendLink} from '../cloudflare/reader/providers.js';
 function setup(){
@@ -14,12 +15,13 @@ function setup(){
 }
 test('private schema has no accounts or free grants; unmetered pilot retains balance',async()=>{
  const {sql,ledger}=setup();assert.equal(sql.prepare('SELECT COUNT(*) n FROM accounts').get().n,0);
- const token=await ledger.newAccount(),account=await ledger.session(token);assert.equal(account.enabled,0);
+ const token=await ledger.newAccount(),account=await ledger.session(token);assert.equal(account.enabled,1);
+ sql.prepare('INSERT INTO legacy_pilots VALUES(?)').run(account.id);sql.prepare('UPDATE accounts SET enabled=0 WHERE id=?').run(account.id);
  const input={chunks:['literal text'],voice:'en-US-Wavenet-F',mode:'fixture'};
  await ledger.reserve('job',account.id,input);await ledger.assertOpen('job',account.id);
  await ledger.settle({id:'job',owner:account.id,state:'ready',parts:[{state:'ready',samples:24000}],created:Date.now(),voice:input.voice,mode:'fixture',submittedCharacters:12});
  assert.equal((await ledger.account(account.id)).balance,0);assert.equal((await ledger.summary(new Date().toISOString().slice(0,7)))[0].seconds,1);
- await ledger.enable(account.id,true);await assert.rejects(ledger.reserve('paid',account.id,input),e=>e.status===402);sql.close();
+ sql.prepare('DELETE FROM legacy_pilots WHERE account=?').run(account.id);await ledger.enable(account.id,true);await assert.rejects(ledger.reserve('paid',account.id,input),e=>e.status===402);sql.close();
 });
 test('metered reservation refunds once and failed grants never erase prior debt',async()=>{
  const {sql,ledger}=setup();const account=await ledger.session(await ledger.newAccount());await ledger.enable(account.id,true);
@@ -42,10 +44,11 @@ test('verified login atomically revokes legacy browser access and preserves bala
  const auth=new EmailIdentity(db),link=await auth.request('reader@example.invalid',account.id,'local');
  await auth.confirm(link.token,link.flow);assert.equal(sql.prepare('SELECT COUNT(*) n FROM legacy_accounts').get().n,0);sql.close();
 });
-test('section boundaries preserve exact Unicode source without pronunciation rewrites',()=>{
- const text=('At 12:30, Dr. Brown read STRC. 😀\n\n').repeat(250);const chunks=sections(text);
- assert.equal(chunks.join(''),text);assert.ok(chunks.every(s=>new TextEncoder().encode(s).length<=5000));
- assert.throws(()=>sections('x'.repeat(20001)));assert.throws(()=>sections(' '));
+test('sentence sections retain punctuation and Unicode without pronunciation rewrites',()=>{
+ const text='Dr. Brown read STRC at 12:30. Then he smiled. 😀';const chunks=chunkText(text);
+ assert.equal(chunks.join(' '),text);assert.ok(chunks.length>=2);
+ assert.equal(validateInput({voice:'en-US-Wavenet-F',chunks:Array(100).fill('A sentence.')}).chunks.length,100);
+ assert.throws(()=>validateInput({voice:'en-US-Wavenet-F',chunks:['x'.repeat(20001)]}));
 });
 test('hosted access fails closed and local bypass is exact loopback only',async()=>{
  assert.equal(await privateAccess(new Request('https://example.com/'),{LOCAL_READER:'1'}),false);
@@ -122,9 +125,9 @@ test('lost checkout response is never automatically resubmitted after restart',a
   assert.equal((await new PaymentCoordinator(ctx,env).fetch(request())).status,409);assert.equal(calls,1);
  }finally{globalThis.fetch=original;sql.close();}
 });
-test('email-first accounts retain the original unmetered default',async()=>{
+test('email-first accounts require speech credit',async()=>{
  const {sql,db,ledger}=setup(),identity=new EmailIdentity(db);const link=await identity.request('fresh@example.invalid',null,'local');
- const account=await ledger.session(await identity.confirm(link.token,link.flow));assert.equal(account.enabled,0);sql.close();
+ const account=await ledger.session(await identity.confirm(link.token,link.flow));assert.equal(account.enabled,1);sql.close();
 });
 test('cron wake does not postpone an existing background reconciliation deadline',async()=>{
  const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');const {sql,db}=setup();let changed=false;
