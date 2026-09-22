@@ -1,4 +1,5 @@
 // Cloudflare transport for the shared reader. Browser speech never uses this.
+const settledReadings=new Set();
 export async function cloudFetch(url,options={}) {
  if(options.method==='POST'&&new URL(url).pathname==='/api/readings'){
   const session=await fetch('/api/billing/session',{method:'POST',headers:{'Content-Type':'application/json'},body:'{}'});
@@ -15,7 +16,15 @@ export async function cloudFetch(url,options={}) {
   if(status.ok)return Response.json({id});
   throw Error('Preparation could not be confirmed. Check your account before starting again.');
  }
- return fetch(url,options);
+ const response=await fetch(url,options);
+ if(options.method==='DELETE')window.dispatchEvent(new Event('speech-credit-change'));
+ else if(response.ok && /\/api\/readings\/[^/]+$/.test(new URL(url).pathname)){
+  const status=await response.clone().json();
+  if(['ready','failed','cancelled'].includes(status.state)&&!settledReadings.has(String(url))){
+   settledReadings.add(String(url));window.dispatchEvent(new Event('speech-credit-change'));
+  }
+ }
+ return response;
 }
 export function setupCloudReader({player,getEngine}){
  document.getElementById('seek').addEventListener('input',event=>player.seekTo(Number(event.target.value)));
@@ -28,5 +37,5 @@ export function setupCloudReader({player,getEngine}){
   }catch{document.getElementById('account-summary').textContent='Account status unavailable · browser voices remain free';}
  };
  document.getElementById('engine').addEventListener('change',update);
- window.addEventListener('focus',update);void update();
+ window.addEventListener('focus',update);window.addEventListener('speech-credit-change',update);void update();
 }

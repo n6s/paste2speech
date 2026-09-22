@@ -31,7 +31,7 @@ export function validContext(c){
  return c && !Array.isArray(c) && Object.keys(c).every(key=>['environment','browser','device','engine','voice','release','playback','cleanup','processing'].includes(key)) &&
  (c.cleanup===undefined || validCleanup(c.cleanup)) && (c.processing===undefined || (validProcessing(c.processing) && (c.processing.version===1 || c.engine===c.processing.engine))) &&
  ['test','production'].includes(c.environment) && ['Chrome','Edge','Firefox','Safari','Opera','Other'].includes(c.browser) &&
- ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation'].includes(c.engine) &&
+ ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation','google'].includes(c.engine) &&
  typeof c.voice==='string' && c.voice.length<=120 && !/[\u0000-\u001f\u007f]/.test(c.voice) &&
  typeof c.release==='string' && /^[a-zA-Z0-9._-]{1,40}$/.test(c.release) &&
  ['idle','preparing','ready','failed','playing','paused','done'].includes(c.playback);
@@ -39,7 +39,7 @@ export function validContext(c){
 export function contextSummary(raw){
  const c=JSON.parse(raw||'{}');
  if(!c.browser)return 'Diagnostics: not supplied (older reader).';
- const engine={browser:'Browser voices',kokoro:'On-device Kokoro',workstation:'Workstation - Kokoro'}[c.engine];
+ const engine={browser:'Browser voices',kokoro:'On-device Kokoro',workstation:'Workstation - Kokoro',google:'Google WaveNet'}[c.engine];
  return `Site: ${c.environment}\nBrowser: ${c.browser} · ${c.device} (approximate)\nEngine: ${engine}\nVoice: ${c.voice}\nRelease: ${c.release}\nPlayback: ${c.playback}${c.cleanup?'\nCleanup: '+Object.entries(c.cleanup).map(([key,value])=>`${key}=${value?'on':'off'}`).join(', '):''}${processingSummary(c.processing)}`;
 }
 export function validFeedback(data){

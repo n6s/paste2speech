@@ -6,7 +6,7 @@ review, then explicitly resumed and activated R2 and Zero Trust Free.
 Current staging: https://speak-staging.rogerpbrown.com/ . Production remains
 https://speak.rogerpbrown.com/ and still routes to the original Worker.
 
-September 22 activation and deployment:
+Historical September 22 activation and deployment (superseded by the restoration update below):
 
 - Dedicated private R2 bucket `private-wavenet-reader-staging`, WNAM Standard.
   Public r2.dev access is disabled. A 24-hour lifecycle deletes audio and aborts
@@ -78,3 +78,20 @@ Permit GET/HEAD with navigate/document metadata while retaining the Access JWT
 gate, mutation Origin checks, and rejection of cross-site API/iframe requests.
 All 17 reader tests pass, including the navigation and mutation regression matrix.
 Deployed only to staging; real-device confirmation remains pending.
+
+## Shared-reader restoration
+
+The established reader now runs on Cloudflare with browser voices and credit-gated
+WaveNet. The separate WaveNet-only harness was retired. Email and sandbox
+payments are enabled in private staging; the existing lifetime speech limit
+remains 100,000 with 7,501 consumed after the targeted US/UK sentence tests.
+All seven migrations are applied. New accounts require verified credit; imported
+legacy private-pilot entitlements remain explicit server-controlled data.
+
+The user confirmed real email sign-in. A real sandbox checkout granted exactly
+one pack. Partial-refund verification and the focused restored-interface mobile
+acceptance pass are in progress. Feedback and aggregate statistics use the
+isolated staging D1; the synthetic report has zero notification attempts.
+
+See `reader-feature-parity.md` for current verification and
+`private-reader-cutover.md` for the separate production approval boundary.

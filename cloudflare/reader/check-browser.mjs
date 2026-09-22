@@ -18,6 +18,7 @@ try{
  assert.equal(account.enabled,1);assert.equal(account.balance,0);
  execFileSync('node',['node_modules/wrangler/bin/wrangler.js','d1','execute','LEDGER','--local','--config','cloudflare/reader/wrangler.local.jsonc','--persist-to','work/private-reader/restoration-state','--command',`INSERT INTO grants VALUES('browser-${account.id}','${account.id}',100000);`],{stdio:'pipe'});
  await page.click('#play');await page.waitForFunction(()=>!document.querySelector('#download-audio').hidden,{timeout:120000});
+ await page.waitForFunction(expected=>document.querySelector('#account-summary').textContent===`${expected.toLocaleString()} characters available`,100000-creates.at(-1).chunks.reduce((n,t)=>n+[...t].length,0));
  assert.equal(await page.locator('.sentence').count(),40);assert.equal(creates.at(-1).chunks.length,40);
  await page.click('#pause');await page.click('#next-section');assert.match(await page.locator('.sentence[aria-current=true]').textContent(),/number 2/);
  await page.click('#previous-section');assert.match(await page.locator('.sentence[aria-current=true]').textContent(),/number 1/);

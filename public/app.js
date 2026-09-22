@@ -227,7 +227,7 @@ function render(p, message) {
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? `${isGoogle()?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use, or sooner when storage fills; Clear removes this recording.`
+    ? `${isGoogle()?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
   if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;

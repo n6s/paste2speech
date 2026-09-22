@@ -15,6 +15,7 @@ html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
 html=html.replace('<option value="kokoro" disabled>Workstation · checking…</option>','<option value="google">WaveNet · speech credit</option>');
 html=html.replace('PDFs are sent to your workstation for extraction and are not saved.','PDFs are read on this device and are not uploaded.');
 html=html.replace('<div class="mode-controls"','<button id="cancel-pdf" type="button" hidden>Cancel import</button><div class="mode-controls"');
+html=html.replace('Text is not saved.','Original editing text stays in this tab. Prepared WaveNet text and audio expire after 24 hours.');
 html=html.replace('Workstation voices send it over Tailscale to your workstation.','WaveNet sends the cleaned reading text to Google Cloud.');
 html=html.replace('<header>', '<header><p><a href="/api/billing">Account &amp; speech credit</a></p><p id="account-summary" class="hint"></p>');
 html=html.replace('<section class="player', '<p id="upgrade-note" class="hint" hidden>WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>. Browser voices remain free. Staging uses test purchases only.</p><section class="player');
