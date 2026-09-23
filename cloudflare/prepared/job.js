@@ -22,17 +22,19 @@ export function publicStatus(job){
     speechRules:'google-default',delivery:'complete',mode:job.mode};
 }
 // Persistent markers precede calls. An interrupted paid attempt is never resent.
-export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=async()=>{},maxBatches=Infinity,now=Date.now}){
+export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=async()=>{},maxBatches=Infinity,now=Date.now,concurrency=3,publishEach=false}){
   if(job.state!=='preparing')return;
+  if(![1,3].includes(concurrency))throw Error('Unsupported concurrency');
+  if(job.mode==='live'&&(concurrency!==3||publishEach))throw Error('Experimental scheduling is cached-only');
   const fail=async message=>{job.state='failed';job.error=message;job.costIncomplete=true;await save(job);};
   if(job.parts.some(p=>p.state==='submitting')){
     await fail('Preparation was interrupted during a speech request. No automatic retry; charges may be incomplete.');return;
   }
   try {
     let batches=0;
-    for(let base=0;base<job.parts.length;base+=3){
+    for(let base=0;base<job.parts.length;base+=concurrency){
       if(isCancelled())return;
-      const indices=job.parts.map((p,i)=>i>=base&&i<base+3&&p.state==='pending'?i:-1).filter(i=>i>=0);
+      const indices=job.parts.map((p,i)=>i>=base&&i<base+concurrency&&p.state==='pending'?i:-1).filter(i=>i>=0);
       if(!indices.length)continue;
       if(batches++>=maxBatches)return;
       await beforeBatch();if(isCancelled())return;
@@ -42,7 +44,9 @@ export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=
         const bytes=await speech(job.chunks[index],job.voice,index);
         const info=inspectMp3(bytes);
         await store.put(`${job.id}/part-${index}`,bytes);
-        return {index,state:'ready',samples:info.samples,bytes:info.bytes};
+        const part={state:'ready',samples:info.samples,bytes:info.bytes};
+        if(publishEach){job.parts[index]=part;await save(job);}
+        return {index,...part};
       }));
       let failed=false;
       for(const result of results){if(result.status==='fulfilled'){const {index,...info}=result.value;job.parts[index]=info;}else failed=true;}
