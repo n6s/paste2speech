@@ -143,7 +143,20 @@ then reached the same final time without seeking to the end. Thus these MSE runs
 do not reproduce the previous raw-stream 24 ms discrepancy; this is evidence for
 these fixtures and this desktop browser, not a universal browser/audio guarantee.
 
-## Phone acceptance — still required
+## Phone acceptance — passed on Pixel
+
+On September 23, 2026, Roger reported **"all tests passed on Pixel"** after
+receiving the test link and checklist below. This is user-reported acceptance of
+the phone checks, including screen-lock playback, controls/highlighting, and the
+one/three-request and connection-interruption comparisons. No Pixel model,
+browser version, or exported phone diagnostics were supplied; the numerical
+timing evidence above remains desktop evidence.
+
+The local experiment is accepted on the tested Pixel. The remaining step before
+any hosted-reader change is private Cloudflare staging verification. This report
+does not authorize a deployment, paid synthesis, or production activation.
+
+Phone checklist used:
 
 1. Open the phone URL with Tailscale connected. Start Normal with three requests.
    Listen for gaps, repetitions, or missing words through completion.
