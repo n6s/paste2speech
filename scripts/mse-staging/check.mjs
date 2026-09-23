@@ -17,11 +17,11 @@ async function start(page,{voice='en-US-Wavenet-F',concurrency=3,scenario='norma
 }
 async function finish(page,timeout=45000){await page.waitForFunction(()=>__stagingReader.finalized||__stagingReader.state==='failed',null,{timeout});assert.equal(await page.evaluate(()=>__stagingReader.error),'');}
 async function record(page,name){const d=await page.evaluate(()=>__stagingReader.diagnostics());await writeFile(`${root}/${name}.json`,JSON.stringify(d,null,2));results.push({name,passed:true,state:d.state,duration:d.status?.duration,job:d.status?.id});console.log('PASS '+name);return d;}
-async function run(name,check,init){if(process.env.MSE_CHECK_ONLY&&!new RegExp(process.env.MSE_CHECK_ONLY).test(name))return;const {context,page,errors}=await create(init);try{await check(page,context);assert.deepEqual(errors,[]);await record(page,name);}finally{await context.close();}}
+async function run(name,check,init){if(process.env.MSE_CHECK_ONLY&&!new RegExp(process.env.MSE_CHECK_ONLY).test(name))return;const {context,page,errors}=await create(init);try{await check(page,context);assert.deepEqual(errors,[]);await record(page,name);}catch(error){await record(page,name+'-FAILED');throw error;}finally{await context.close();}}
 try{
  for(const voice of Object.keys(fixtures))for(const concurrency of [1,3])await run(`${voice}-${concurrency}`,async(page,context)=>{
   await start(page,{voice,concurrency});await page.waitForFunction(()=>__stagingReader.audio.currentTime>.1);const source=await page.evaluate(()=>__stagingReader.audio.src);
-  await page.click('#pause');const pos=await page.evaluate(()=>__stagingReader.audio.currentTime);await page.waitForTimeout(300);assert.ok(Math.abs(await page.evaluate(()=>__stagingReader.audio.currentTime)-pos)<.02);
+  await page.click('#pause');assert.equal(await page.evaluate(()=>navigator.mediaSession.playbackState),'paused');const pos=await page.evaluate(()=>__stagingReader.audio.currentTime);await page.waitForTimeout(300);assert.ok(Math.abs(await page.evaluate(()=>__stagingReader.audio.currentTime)-pos)<.02);
   await page.locator('#rate').fill('2');await page.locator('#rate').dispatchEvent('input');await page.click('#play');await finish(page);
   const d=await page.evaluate(()=>__stagingReader.diagnostics());assert.deepEqual(d.events.filter(e=>e.type==='append').map(e=>e.index),[0,1,2,3,4,5,6,7]);
   for(const a of d.events.filter(e=>e.type==='append'))assert.ok(Math.abs(a.ranges.at(-1)[1]-(d.status.starts[a.index+1]??d.status.duration))<1/24000);
@@ -56,6 +56,12 @@ try{
  await run('out-of-order',async page=>{await start(page,{scenario:'out-of-order'});await finish(page);assert.deepEqual(await page.evaluate(()=>__stagingReader.events.filter(e=>e.type==='append').map(e=>e.index)),[0,1,2,3,4,5,6,7]);});
  await run('starvation-recovery',async page=>{await start(page,{scenario:'stalled'});await page.waitForFunction(()=>__stagingReader.audio.currentTime>1);await page.evaluate(()=>__stagingReader.setRate(2));await page.waitForFunction(()=>__stagingReader.state==='buffering'&&__stagingReader.audio.currentTime>3);await finish(page);await page.waitForFunction(()=>__stagingReader.audio.currentTime>6);});
  await run('failure',async page=>{await start(page,{scenario:'failure'});await page.waitForFunction(()=>__stagingReader.state==='failed');assert.equal(await page.evaluate(()=>__stagingReader.finalized),false);});
+ await run('cancel-late-create',async(page,context)=>{
+  let created;
+  await page.route('**/api/readings',async route=>{const response=await route.fetch();created=await response.json();await new Promise(r=>setTimeout(r,1200));await route.fulfill({response});});
+  await start(page);await page.waitForFunction(()=>__stagingReader.state==='preparing');await page.click('#stop');await page.waitForTimeout(2200);
+  assert.equal(await page.evaluate(()=>__stagingReader.state),'idle');assert.equal(await page.evaluate(()=>__stagingReader.job),null);assert.ok(created?.id);assert.equal((await context.request.get(`${origin}/api/readings/${created.id}`)).status(),404);
+ });
  await run('cancel-fetch',async(page,context)=>{await page.route('**/sections/0',async route=>{await new Promise(r=>setTimeout(r,800));await route.continue().catch(()=>{});});await start(page);await page.waitForFunction(()=>__stagingReader.status?.completed>0);const id=await page.evaluate(()=>__stagingReader.job);await page.click('#stop');await page.waitForTimeout(1300);assert.equal(await page.evaluate(()=>__stagingReader.next),0);assert.equal((await context.request.get(`${origin}/api/readings/${id}`)).status(),404);});
  await run('cancel-append',async page=>{await start(page);await page.waitForTimeout(3000);assert.equal(await page.evaluate(()=>__stagingReader.state),'idle');assert.equal(await page.evaluate(()=>__stagingReader.next),0);},()=>{const append=SourceBuffer.prototype.appendBuffer;SourceBuffer.prototype.appendBuffer=function(b){append.call(this,b);queueMicrotask(()=>window.__stagingReader.stop());};});
  await run('paused-buffering',async page=>{await start(page);await page.waitForFunction(()=>!!__stagingReader.job);await page.click('#pause');await finish(page);assert.equal(await page.evaluate(()=>__stagingReader.audio.paused),true);assert.equal(await page.evaluate(()=>__stagingReader.next),8);});

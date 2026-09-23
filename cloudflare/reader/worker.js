@@ -106,6 +106,7 @@ export default {
     else {
      const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
      const receipt=await ledger.receipt(id,owner);
+     if(mseStaging(env)&&env.MSE_ADMISSIONS_PAUSED==='1'&&!receipt)throw new CreditError('New live staging readings are paused.',503);
      if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError(trialMode(env)?'Not enough trial allowance. Browser voices remain free.':'WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
      if(env.ENABLE_LIVE_SYNTHESIS!=='1')throw new CreditError('Speech generation is disabled.',503);
      // Lifetime budget is deliberately never replenished automatically. Failed

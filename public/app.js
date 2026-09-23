@@ -513,5 +513,5 @@ if(MSE_STAGING){
   $('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
  };
  $('mse-cached').onchange=()=>{if(!$('mse-cached').checked)$('mse-scenario').value='normal';};
- $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download='staging-playback-results.json';a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+ $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 }

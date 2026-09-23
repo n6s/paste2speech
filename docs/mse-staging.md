@@ -89,7 +89,9 @@ existing jobs, set `MSE_NEW_READINGS=0`, build the normal reader without
 section endpoints remain functional; new normal-reader requests use full
 preparation. Keep the campaign trigger active.
 
-For a broader failure, stop new admissions first and inventory in-flight jobs.
+For a broader failure, set `MSE_ADMISSIONS_PAUSED=1` first and inventory
+in-flight jobs. This refuses new live readings while existing preparations
+continue with ENABLE_LIVE_SYNTHESIS=1.
 Changing ENABLE_LIVE_SYNTHESIS to 0 can fail unfinished live preparations, so
 account for and settle them before restoring the recorded compatible version.
 Do not roll back over a running progressive preparation: the older Worker does
