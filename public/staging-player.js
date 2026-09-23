@@ -1,4 +1,4 @@
-import {MSE_FIXTURE_VERSION} from './config.js';
+import {MSE_FIXTURE_VERSION,MSE_STAGING} from './config.js';
 import {MsePlayer} from './mse-buffer-player.js';
 export class StagingPlayer extends MsePlayer {
  constructor(onChange,{audio=new Audio(),fetcher}={}){
@@ -15,7 +15,7 @@ export class StagingPlayer extends MsePlayer {
   }
   this.settings={...settings};this.pendingIndex=null;
   this.rate=settings.rate;const delivery=settings.delivery==='mse'&&this.capability.mp3?'mse':'complete';
-  await super.start({chunks,voice:settings.voice,provider:'google',mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}},delivery==='mse'?'mse':'full',index);
+  await super.start({chunks,voice:settings.voice,provider:'google',...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
  }
  emit(){
   if(this.pendingIndex!=null&&this.status?.starts[this.pendingIndex]!=null&&this.audio){

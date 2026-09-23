@@ -9,3 +9,5 @@ export const CLOUD_READER = false;
 export const MSE_STAGING = false;
 
 export const MSE_FIXTURE_VERSION = '';
+
+export const MSE_ENABLED = false;

@@ -1,5 +1,5 @@
 import {production,trialMode,publicMode,verifiedCustomer,customerAllowed,paymentConfig} from './modes.js';
-import {mseStaging,stagingInput,fixtureChunks} from './mse-staging.js';
+import {mseStaging,progressiveReader,stagingInput,fixtureChunks} from './mse-staging.js';
 import {capacity,recordOperations} from './budget.js';
 import {receiveWebhook} from './webhooks.js';
 import publicWorker from '../worker.js';
@@ -131,7 +131,7 @@ export default {
    }
    const match=path.match(/^\/api\/readings\/([a-f0-9-]{36})(\/audio|\/sections\/\d+|\/download\/(?:mp3|vtt))?$/);
    if(match){
-    if(!owner)return json({},404);if(match[2]?.startsWith('/sections/')&&!mseStaging(env))return json({},404);if(!['GET','HEAD','DELETE'].includes(request.method)||request.method==='DELETE'&&match[2])return json({},405);
+    if(!owner)return json({},404);if(match[2]?.startsWith('/sections/')&&!progressiveReader(env))return json({},404);if(!['GET','HEAD','DELETE'].includes(request.method)||request.method==='DELETE'&&match[2])return json({},405);
     return env.JOBS.get(env.JOBS.idFromName(match[1])).fetch('https://job'+(match[2]||'/status'),{method:request.method,headers:{'X-Proof-Owner':owner,...(request.headers.has('Range')?{Range:request.headers.get('Range')}:{})}});
    }
    const assets={'/':'/index.html','/api/billing':'/billing.html','/api/billing/app.js':'/billing.js','/api/billing/signin':'/signin.html','/api/billing/signin.js':'/signin.js','/api/billing/signin.css':'/signin.css'};

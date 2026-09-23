@@ -1,5 +1,5 @@
 import {production,publicMode,customerAllowed} from '../reader/modes.js';
-import {mseStaging,fixtureDelay} from '../reader/mse-staging.js';
+import {progressiveReader,fixtureDelay} from '../reader/mse-staging.js';
 import {dispatchBudget} from '../reader/budget.js';
 import {loadJob,saveJob} from './storage.js';
 import {ReaderLedger} from '../reader/ledger.js';
@@ -78,7 +78,7 @@ export class PreparedReading {
           this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
         token=this.googleAuthorization.token;
       }
-      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:mseStaging(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:progressiveReader(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live'){
             if(this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Synthesis paused');
@@ -117,7 +117,7 @@ export class PreparedReading {
         return json({id:this.job.id,reused:true});
       }
       // Durable state and the alarm are committed together before acknowledging.
-      if(input.mseOptions&&!mseStaging(this.env))return json({detail:'Staging playback unavailable'},403);
+      if(input.mseOptions&&!progressiveReader(this.env))return json({detail:'Staging playback unavailable'},403);
       this.job=newJob(input,owner,input.id);
       if(input.mseOptions)this.job.mseOptions=input.mseOptions;
       this.job.proofScenario=input.proofScenario||'';

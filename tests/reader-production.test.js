@@ -54,9 +54,9 @@ test('billing usage is scoped to current account and excludes unowned legacy tot
  const second=await (await s.request('/api/billing/status',{token:two.token})).json();assert.equal(second.usage[0].seconds,120);
  await s.request('/api/billing/logout',{data:{},token:one.token});assert.deepEqual((await (await s.request('/api/billing/status',{token:one.token})).json()).usage,[]);s.sql.close();
 });
-for(const mode of ['production-trial','production-public'])test(mode+' durable preparation preserves credit audit, cached audio, ownership and restart',async t=>{
+for(const mode of ['production-trial','production-public','production-trial-progressive'])test(mode+' durable preparation preserves credit audit, cached audio, ownership and restart',async t=>{
  const s=setup(),owner=await s.verified('rogerpbrown@gmail.com');s.sql.exec(readFileSync('cloudflare/reader/grant-production-trial.sql','utf8'));s.env.ENABLE_LIVE_SYNTHESIS='1';
- s.env.READER_MODE=mode;s.env.PUBLIC_LAUNCH_OPEN='1';
+ s.env.READER_MODE=mode==='production-trial-progressive'?'production-trial':mode;s.env.PUBLIC_LAUNCH_OPEN='1';if(mode==='production-trial-progressive')s.env.PROGRESSIVE_READER='1';
  const saved=new Map(),objects=new Map();let initializing;
  const storage={get:async k=>structuredClone(saved.get(k)),put:async(k,v)=>saved.set(k,structuredClone(v)),delete:async k=>saved.delete(k),setAlarm:async()=>{},transaction:async f=>f(storage)};
  const ctx={storage,blockConcurrencyWhile:fn=>(initializing=fn())};
@@ -65,11 +65,13 @@ for(const mode of ['production-trial','production-public'])test(mode+' durable p
  let calls=0;t.mock.method(globalThis,'fetch',async url=>{assert.equal(url,'https://texttospeech.googleapis.com/v1/text:synthesize');calls++;return Response.json({audioContent:audio.toString('base64')});});
  let durable=new PreparedReading(ctx,s.env);await initializing;durable.googleAuthorization={token:'synthetic',expires:Date.now()+60000};
  const id=crypto.randomUUID(),input={id,voice:'en-US-Wavenet-F',chunks:['Hello.'],mode:'live'};
+ if(mode==='production-trial-progressive')input.mseOptions={delivery:'mse',concurrency:3,cached:false,scenario:'normal'};
  if(mode==='production-public')s.sql.prepare('INSERT INTO public_jobs VALUES(?,?)').run(id,owner.account.id);
  const request=(path,method='GET',body,who=owner.account.id,headers={})=>new Request('https://job'+path,{method,headers:{'X-Proof-Owner':who,...headers},...(body?{body:JSON.stringify(body)}:{})});
  assert.equal((await durable.fetch(request('/create','POST',input))).status,201);await durable.alarm();assert.equal(durable.job.state,'ready');assert.equal(calls,1);
  assert.equal((await s.ledger.account(owner.account.id)).balance,99994);assert.equal(s.sql.prepare('SELECT submitted FROM reading_audit WHERE job=?').get(id).submitted,6);
  assert.equal((await durable.fetch(request('/audio','GET',null,'someone-else'))).status,404);
+ if(mode==='production-trial-progressive'){assert.equal((await durable.fetch(request('/sections/0','GET',null,'someone-else'))).status,404);assert.deepEqual(Buffer.from(await (await durable.fetch(request('/sections/0'))).arrayBuffer()),audio);assert.equal((await durable.fetch(request('/create','POST',{...input,mseOptions:{...input.mseOptions,delivery:'complete'}}))).status,409);}
  assert.equal((await durable.fetch(request('/audio','GET',null,owner.account.id,{Range:'bytes=0-99'}))).status,206);
  durable=new PreparedReading(ctx,s.env);await initializing;assert.equal((await durable.fetch(request('/audio'))).status,200);assert.match(await (await durable.fetch(request('/download/vtt'))).text(),/Hello\./);assert.equal(calls,1);
  await durable.fetch(request('/status'));assert.equal((await s.ledger.account(owner.account.id)).balance,99994);
@@ -89,4 +91,21 @@ test('production feedback keeps the existing database and review delivery mode',
  const ticket=await (await s.request('/api/feedback-ticket')).json();
  const response=await worker.fetch(new Request(origin+'/api/feedback',{method:'POST',headers:{Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({message:'Production feedback test',email:'',website:'',ticket})}),s.env,ctx);
  assert.equal(response.status,202);await Promise.all(pending);assert.equal(s.sql.prepare('SELECT COUNT(*) n FROM feedback').get().n,0);assert.equal(other.sql.prepare('SELECT COUNT(*) n FROM feedback').get().n,1);assert.equal(other.sql.prepare('SELECT attempts FROM feedback').get().attempts,0);s.sql.close();other.sql.close();
+});
+
+test('production progressive options preserve owner admission and exclude staging controls',async()=>{
+ const s=setup(),owner=await s.verified('rogerpbrown@gmail.com'),other=await s.verified('other@example.invalid');
+ s.sql.exec(readFileSync('cloudflare/reader/grant-production-trial.sql','utf8'));
+ s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('other-progressive',other.account.id,100000);
+ s.env.ENABLE_LIVE_SYNTHESIS='1';s.env.PROGRESSIVE_READER='1';
+ const data={voice:'en-US-Wavenet-F',chunks:['Hello.'],delivery:'mse'};
+ assert.equal((await s.request('/api/readings',{data,token:other.token})).status,403);
+ for(const extra of [{cached:true},{concurrency:1},{scenario:'normal'},{mseOptions:{delivery:'mse'}}])assert.equal((await s.request('/api/readings',{data:{...data,...extra},token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,422);
+ assert.equal(s.sql.prepare('SELECT characters FROM speech_budget').get()?.characters||0,0);
+ assert.equal((await s.request('/api/readings',{data,token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,201);
+ assert.equal(s.sql.prepare('SELECT characters FROM speech_budget').get().characters,6);
+ s.env.MSE_NEW_READINGS='0';assert.equal((await s.request('/api/readings',{data,token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,422);
+ assert.equal((await s.request('/api/readings',{data:{...data,delivery:'complete'},token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,201);
+ delete s.env.PROGRESSIVE_READER;assert.equal((await s.request('/api/readings',{data,token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,422);
+ s.sql.close();
 });

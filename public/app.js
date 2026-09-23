@@ -1,5 +1,5 @@
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED } from './config.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
@@ -56,7 +56,7 @@ let stagingSampleText='';
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
-const workstationPlayer = new (MSE_STAGING?StagingPlayer:ProgressivePlayer)(render, CLOUD_READER ? {fetcher:cloudFetch} : {});
+const workstationPlayer = new (MSE_ENABLED?StagingPlayer:ProgressivePlayer)(render, CLOUD_READER ? {fetcher:cloudFetch} : {});
 const localPlayer = new AudioPlayer(render, {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)});
 localPlayer.getSettings = settings;
 workstationPlayer.getSettings = settings;
@@ -106,7 +106,7 @@ async function discoverWorkstation() {
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro · unavailable';
   }
 }
-function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_STAGING?$('mse-delivery').value:'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?$('mse-delivery').value:'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
@@ -230,7 +230,7 @@ function render(p, message) {
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_STAGING?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
+    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
   if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
@@ -241,7 +241,7 @@ function render(p, message) {
     if(href)$(id).href=href;else $(id).removeAttribute('href');
   }
   if(CLOUD_READER){
-    const available=MSE_STAGING?p.ranges?.().at(-1)?.[1]||0:p.complete?p.duration:0;
+    const available=MSE_ENABLED?p.ranges?.().at(-1)?.[1]||0:p.complete?p.duration:0;
     $('seek').disabled=!isGoogle()||!available;
     $('seek').max=available||1;$('seek').value=p.audio?.currentTime||0;
     $('seek-time').textContent=`${Math.floor(p.audio?.currentTime||0)} / ${Math.floor(p.duration||0)} seconds`;
@@ -278,7 +278,7 @@ function loadVoices() {
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = isGoogle() ? 'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.' + (MSE_STAGING ? ' Playback follows your selected preparation mode.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? 'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.' + (MSE_ENABLED ? ' Playback follows your selected preparation mode.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -499,12 +499,14 @@ if (WORKSTATION) {
   document.querySelector('footer').append(paragraph);
 }
 
-if(MSE_STAGING){
- window.__stagingReader=workstationPlayer;
+if(MSE_ENABLED){
  const supported=workstationPlayer.capability.mp3;
  if(!supported){$('mse-delivery').value='complete';$('mse-delivery').querySelector('[value=mse]').disabled=true;}
  $('mse-support').textContent=supported?'Progressive playback is available.':'This browser uses full preparation because MP3 progressive playback is unavailable.';
  $('mse-fallback').onclick=()=>workstationPlayer.useCompletedFile();
+}
+if(MSE_STAGING){
+ window.__stagingReader=workstationPlayer;
  $('mse-sample').onclick=async()=>{
   const response=await fetch('/api/staging/fixtures');if(!response.ok){$('status').textContent='Staging samples are unavailable.';return;}
   const data=await response.json(),voice=settings().voice;

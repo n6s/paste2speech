@@ -7,12 +7,14 @@ const fixtureManifest=JSON.parse(await readFile('scripts/wavenet-worker-proof/fi
 const fixtureHash=createHash('sha256').update(JSON.stringify(fixtureManifest));
 for(const list of Object.values(fixtureManifest))for(const section of list)fixtureHash.update(await readFile('tests/fixtures/wavenet/'+section.file));
 const fixtureVersion=fixtureHash.digest('hex');
-const mse=process.argv.includes('--mse-staging');if(mse&&production)throw Error('MSE build is staging-only');
+const mse=process.argv.includes('--mse-staging');if(mse&&production)throw Error('MSE test controls are staging-only');
+const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&(!production||publicLaunch))throw Error('Production MSE is owner-trial only');
+const progressive=mse||mseProduction;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
- if(!mse)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse},MSE_ENABLED=${progressive},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
  // Excluded engines have no implementation or model dependency in this build.
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
 }}]});
@@ -42,9 +44,11 @@ if(production){
  html=html.replace('This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications.','This site stores feedback and aggregate statistics for review.');
  html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
 }
-if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
+if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <label>Playback <select id="mse-delivery"><option value="mse">Progressive</option><option value="complete">Prepare everything first</option></select></label><p id="mse-support"></p>
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
+`);
+if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks"><summary>Staging checks</summary>
 <label><input id="mse-cached" type="checkbox">Use cached test audio · no credit used</label>
 <label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>

@@ -6,6 +6,7 @@
   "preview_urls": false,
   "vars": {
     "READER_MODE": "production-trial",
+    "PROGRESSIVE_READER": "1",
     "PRIVATE_READER": "0",
     "LOCAL_READER": "0",
     "ENABLE_LIVE_SYNTHESIS": "1",

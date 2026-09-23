@@ -50,7 +50,7 @@ export class MsePlayer {
     for(let attempt=0;;attempt++){
       try{
         const response=await this.fetcher(new URL(path,location.href),{...init,signal:AbortSignal.any([signal,AbortSignal.timeout(10000)])});
-        if(!response.ok){const error=Error(`Request ${response.status}`);error.retry=response.status>=500||response.status===409;throw error;}
+        if(!response.ok){const detail=await response.json().catch(()=>null);const error=Error(detail?.detail||`Request ${response.status}`);error.retry=response.status>=500||response.status===409;throw error;}
         // Consume inside the retry boundary; an interrupted body is a read failure too.
         const value=init.binary?await response.arrayBuffer():response.status===204?null:await response.json();
         return value;
