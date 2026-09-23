@@ -230,7 +230,7 @@ function render(p, message) {
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_STAGING?'On Pixel, wait until you hear speech before locking the phone. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
+    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_STAGING?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
   if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;

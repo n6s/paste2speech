@@ -3,7 +3,9 @@
 Status: cached desktop verification passed. Roger reports hosted Pixel
 playback continues normally when he waits for speech to start before locking.
 Locking before the first audible speech did not start playback; this limitation
-is documented in the reader. Live matrix verification follows under both caps.
+is documented with device-neutral start guidance in the reader. Pixel is the
+only phone verified; MSE capability does not establish background behavior on
+other mobile browsers. Live matrix verification follows under both caps.
 
 Implementation: `050ad88`, isolated branch `codex/mse-staging-reader`.
 Cached-only deployment: `cd1681da-d721-42b4-bd9a-3920a59b8c5f`.
