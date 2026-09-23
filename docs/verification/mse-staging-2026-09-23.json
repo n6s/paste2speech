@@ -1,0 +1,202 @@
+{
+  "date": "2026-09-23",
+  "deployedVersion": "e74da0d2-a53b-45d7-851a-f781c0e6f5af",
+  "browser": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+  "fixtureVersion": "e129bb0ca42fccf326ce5c86525c5960146ec2891084e45539cd8c02c94e8c40",
+  "liveRuns": [
+    {
+      "job": "4efd2c8e-0473-4632-9956-cb0967bfc1dc",
+      "configuration": {
+        "voice": "en-US-Wavenet-F",
+        "concurrency": 1,
+        "cached": false,
+        "scenario": "normal"
+      },
+      "characters": 521,
+      "providerAttempts": 8,
+      "firstPlayingMs": 3252,
+      "endOfStreamMs": 10388,
+      "duration": 38.712,
+      "rawBufferedEnd": 38.712,
+      "fullFileDuration": 38.712,
+      "sourceLoadsBeforeFallback": 1,
+      "orderedAppends": 8,
+      "exportMatchesSections": true,
+      "exportBytes": 309696,
+      "vttCues": 8,
+      "exportSha256": "3fbb8da677fe9bcd70c0e366d1de7d9ba125fc43ce21a5950a4b229ec985252e",
+      "replaySeekDownloadsFallbackAdditionalDebit": 0,
+      "ledger": {
+        "job": "4efd2c8e-0473-4632-9956-cb0967bfc1dc",
+        "total": 521,
+        "remaining": 0,
+        "state": "closed",
+        "outcome": "ready",
+        "consumed": 521,
+        "released": 0,
+        "metered": 1,
+        "usage_rows": 8,
+        "usage_characters": 521,
+        "lifetime_admission": 521,
+        "campaign_admission": 521,
+        "account_balance": 483322,
+        "unmetered_pilot": 0
+      }
+    },
+    {
+      "job": "f7f03eb1-3ec0-4a6a-add1-05ee88d03877",
+      "configuration": {
+        "voice": "en-US-Wavenet-F",
+        "concurrency": 3,
+        "cached": false,
+        "scenario": "normal"
+      },
+      "characters": 521,
+      "providerAttempts": 8,
+      "firstPlayingMs": 2561,
+      "endOfStreamMs": 6144,
+      "duration": 38.712,
+      "rawBufferedEnd": 38.712,
+      "fullFileDuration": 38.712,
+      "sourceLoadsBeforeFallback": 1,
+      "orderedAppends": 8,
+      "exportMatchesSections": true,
+      "exportBytes": 309696,
+      "vttCues": 8,
+      "exportSha256": "70c0bd6c715a5c6504ecab8424581fcd1eb7ff835cba7de3fb29c49f26fa5c09",
+      "replaySeekDownloadsFallbackAdditionalDebit": 0,
+      "ledger": {
+        "job": "f7f03eb1-3ec0-4a6a-add1-05ee88d03877",
+        "total": 521,
+        "remaining": 0,
+        "state": "closed",
+        "outcome": "ready",
+        "consumed": 521,
+        "released": 0,
+        "metered": 1,
+        "usage_rows": 8,
+        "usage_characters": 521,
+        "lifetime_admission": 521,
+        "campaign_admission": 521,
+        "account_balance": 483322,
+        "unmetered_pilot": 0
+      }
+    },
+    {
+      "job": "30f78666-2da0-409a-86e8-fde5953980a3",
+      "configuration": {
+        "voice": "en-GB-Wavenet-F",
+        "concurrency": 1,
+        "cached": false,
+        "scenario": "normal"
+      },
+      "characters": 521,
+      "providerAttempts": 8,
+      "firstPlayingMs": 3616,
+      "endOfStreamMs": 10271,
+      "duration": 38.952,
+      "rawBufferedEnd": 38.952,
+      "fullFileDuration": 38.952,
+      "sourceLoadsBeforeFallback": 1,
+      "orderedAppends": 8,
+      "exportMatchesSections": true,
+      "exportBytes": 311616,
+      "vttCues": 8,
+      "exportSha256": "ee01a54ded7d4a14f9a1976cb7c56ac8bc049299037ca7341fbf74d3b0f4f854",
+      "replaySeekDownloadsFallbackAdditionalDebit": 0,
+      "ledger": {
+        "job": "30f78666-2da0-409a-86e8-fde5953980a3",
+        "total": 521,
+        "remaining": 0,
+        "state": "closed",
+        "outcome": "ready",
+        "consumed": 521,
+        "released": 0,
+        "metered": 1,
+        "usage_rows": 8,
+        "usage_characters": 521,
+        "lifetime_admission": 521,
+        "campaign_admission": 521,
+        "account_balance": 483322,
+        "unmetered_pilot": 0
+      }
+    },
+    {
+      "job": "286f8b37-784c-496b-af67-4d3caf0a96ca",
+      "configuration": {
+        "voice": "en-GB-Wavenet-F",
+        "concurrency": 3,
+        "cached": false,
+        "scenario": "normal"
+      },
+      "characters": 521,
+      "providerAttempts": 8,
+      "firstPlayingMs": 2464,
+      "endOfStreamMs": 6001,
+      "duration": 38.952,
+      "rawBufferedEnd": 38.952,
+      "fullFileDuration": 38.952,
+      "sourceLoadsBeforeFallback": 1,
+      "orderedAppends": 8,
+      "exportMatchesSections": true,
+      "exportBytes": 311616,
+      "vttCues": 8,
+      "exportSha256": "3ee151b7d13427b1801a2761e4b872b36c24daec0b9008903a062bce332a0cf7",
+      "replaySeekDownloadsFallbackAdditionalDebit": 0,
+      "ledger": {
+        "job": "286f8b37-784c-496b-af67-4d3caf0a96ca",
+        "total": 521,
+        "remaining": 0,
+        "state": "closed",
+        "outcome": "ready",
+        "consumed": 521,
+        "released": 0,
+        "metered": 1,
+        "usage_rows": 8,
+        "usage_characters": 521,
+        "lifetime_admission": 521,
+        "campaign_admission": 521,
+        "account_balance": 483322,
+        "unmetered_pilot": 0
+      }
+    }
+  ],
+  "finalAccounting": [
+    [
+      {
+        "characters": 26184,
+        "maximum": 100000
+      }
+    ],
+    [
+      {
+        "characters": 2084,
+        "maximum": 3000,
+        "active": 1
+      }
+    ],
+    [
+      {
+        "open_reservations": 0
+      }
+    ],
+    [
+      {
+        "reservations": 14,
+        "consumed": 23911
+      }
+    ],
+    [
+      {
+        "usage_rows": 184,
+        "usage_characters": 23911
+      }
+    ],
+    [
+      {
+        "balances": 483322
+      }
+    ]
+  ],
+  "pixelEvidence": "Roger reports playback continues when locked after speech begins; locking before first speech does not start playback. Pixel JSON explicitly waived. Other mobile browsers unverified."
+}
