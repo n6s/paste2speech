@@ -1,8 +1,9 @@
 # Private staging MSE verification — 2026-09-23
 
-Status: cached desktop verification passed; hosted Pixel verification pending.
-Live synthesis remains disabled pending that result. No new live speech has
-been generated during this staging round yet.
+Status: cached desktop verification passed. Roger reports hosted Pixel
+playback continues normally when he waits for speech to start before locking.
+Locking before the first audible speech did not start playback; this limitation
+is documented in the reader. Live matrix verification follows under both caps.
 
 Implementation: `050ad88`, isolated branch `codex/mse-staging-reader`.
 Cached-only deployment: `cd1681da-d721-42b4-bd9a-3920a59b8c5f`.
@@ -91,7 +92,12 @@ No credit was granted, counters reset, or paid call retried.
 ## Hosted Pixel and live matrix
 
 Roger reported all local Tailscale Pixel tests passed before this integration.
-That is separate from the hosted staging trial, which is still pending.
+For hosted staging, Roger reported that locking before playback starts does
+not start speech, but waiting for speech before locking works. This confirms
+the requested continued-buffering case after playback starts, with an explicit
+initial-start limitation. No claim is made that a lock before first audio works.
+Separate hosted phone results for seeking/speed/highlighting and interruption
+have not yet been reported; their automated desktop checks passed.
 
 The approved live matrix is calculated in advance: eight sections, 521 Unicode
 code points per run, US/UK × one/three requests = 2,084 characters. Run only

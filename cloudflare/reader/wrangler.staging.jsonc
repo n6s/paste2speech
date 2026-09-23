@@ -7,7 +7,7 @@
   "vars": {
     "PRIVATE_READER": "1",
     "LOCAL_READER": "0",
-    "ENABLE_LIVE_SYNTHESIS": "0",
+    "ENABLE_LIVE_SYNTHESIS": "1",
     "ENABLE_PAYMENTS": "1",
     "ENABLE_EMAIL": "1",
     "READER_ORIGIN": "https://speak-staging.rogerpbrown.com",
