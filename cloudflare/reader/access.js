@@ -4,7 +4,7 @@ const decode=s=>JSON.parse(new TextDecoder().decode(bytes(s)));
 // No authentication bypass on a hosted origin, including workers.dev.
 export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={}){
  const url=new URL(request.url);
- if(env.LOCAL_READER==='1')return url.origin==='http://127.0.0.1:8790';
+ if(env.LOCAL_READER==='1')return url.origin===(env.READER_ORIGIN||'http://127.0.0.1:8790');
  if(url.origin!==env.READER_ORIGIN||url.protocol!=='https:'||!env.ACCESS_AUD||!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(env.ACCESS_ISSUER||''))return false;
  try{
   const token=request.headers.get('Cf-Access-Jwt-Assertion');if(!token||token.length>16000)return false;

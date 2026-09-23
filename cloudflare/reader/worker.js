@@ -1,4 +1,5 @@
 import {production,trialMode,publicMode,verifiedCustomer,customerAllowed,paymentConfig} from './modes.js';
+import {mseStaging,stagingInput,fixtureChunks} from './mse-staging.js';
 import {capacity,recordOperations} from './budget.js';
 import {receiveWebhook} from './webhooks.js';
 import publicWorker from '../worker.js';
@@ -88,14 +89,20 @@ export default {
     if(path.endsWith('/order')&&(env.ENABLE_PAYMENTS!=='1'||publicMode(env)&&env.ENABLE_LIVE_SYNTHESIS!=='1'))throw new CreditError('New purchases are temporarily paused.',503);
     const input=await body(request,2048);return env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:['en-US-Wavenet-F','en-GB-Wavenet-F'],account:account?{balance:account.balance,reserved:account.reserved}:null,eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
+   if(path==='/api/staging/fixtures'&&request.method==='GET'){
+    if(!mseStaging(env))return json({},404);
+    return json({voices:Object.fromEntries(Object.keys(fixtures).map(voice=>[voice,fixtureChunks(voice)]))});
+   }
+   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:['en-US-Wavenet-F','en-GB-Wavenet-F'],account:account?{balance:account.balance,reserved:account.reserved}:null,eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
     if(trialMode(env)&&!approved(env,account))return json({detail:'WaveNet is available only to the verified trial owner. Browser voices remain free.'},403);
     if(publicMode(env)){await rateLimit(env,'READING_LIMIT',request);if(!customerAllowed(env,account))throw new CreditError('WaveNet is not available for this account yet. Sign in with a verified email.',403);}
-    let input=await body(request);try{input=validateInput(input);}catch(error){throw new CreditError(error.message,422);}
+    let input=await body(request);try{input=stagingInput(input,env);}catch(error){throw new CreditError(error.message,422);}
     const id=request.headers.get('Idempotency-Key');if(!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id||''))throw new CreditError('A UUID request key is required.',422);
-    if(local){/* Local harness maps each sentence to cached synthetic audio. */}
+    const cachedStage=!!input.mseOptions?.cached;
+    if(cachedStage){/* Fixed synthetic sections never reserve credit or provider budget. */}
+    else if(local){/* Local harness maps each sentence to cached synthetic audio. */}
     else {
      const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
      const receipt=await ledger.receipt(id,owner);
@@ -110,16 +117,20 @@ export default {
       const admitted=await ledger.query('SELECT account FROM public_jobs WHERE job=?',id).first();
       if(admitted.account!==owner)throw new CreditError('Reading not found.',404);
      }else{
+     if(mseStaging(env)){
+      const campaign=await ledger.query("SELECT maximum,characters FROM mse_campaign WHERE id='mse-pixel-v1' AND active=1").first();
+      if(!campaign||campaign.maximum!==3000)throw new CreditError('Staging campaign budget is unavailable.',503);
+     }
      const maximum=Number(env.MAX_LIFETIME_CHARACTERS);if(!Number.isSafeInteger(maximum)||maximum<1||maximum>100000)throw new CreditError('Private speech budget is not configured.',503);
      await ledger.query("INSERT OR IGNORE INTO speech_budget VALUES('private-lifetime',0,?)",maximum).run();
      try{const fingerprint=await digest(JSON.stringify({owner,...input}));await ledger.query('INSERT INTO speech_admissions(job,characters,fingerprint) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM speech_admissions WHERE job=?)',id,sourceCounts(input.chunks).reduce((a,b)=>a+b,0),fingerprint,id).run();const admission=await ledger.query('SELECT fingerprint FROM speech_admissions WHERE job=?',id).first();if(admission.fingerprint!==fingerprint)throw Error('Request mismatch');}catch{throw new CreditError('Private speech budget reached. Generation is paused.',429);}
     }
     }
-    return env.JOBS.get(env.JOBS.idFromName(id)).fetch('https://job/create',{method:'POST',headers:{'X-Proof-Owner':owner},body:JSON.stringify({...input,id,mode:local?'fixture':'live'})});
+    return env.JOBS.get(env.JOBS.idFromName(id)).fetch('https://job/create',{method:'POST',headers:{'X-Proof-Owner':owner},body:JSON.stringify({...input,id,mode:cachedStage?'staging-fixture':local?'fixture':'live'})});
    }
-   const match=path.match(/^\/api\/readings\/([a-f0-9-]{36})(\/audio|\/download\/(?:mp3|vtt))?$/);
+   const match=path.match(/^\/api\/readings\/([a-f0-9-]{36})(\/audio|\/sections\/\d+|\/download\/(?:mp3|vtt))?$/);
    if(match){
-    if(!owner)return json({},404);if(!['GET','HEAD','DELETE'].includes(request.method)||request.method==='DELETE'&&match[2])return json({},405);
+    if(!owner)return json({},404);if(match[2]?.startsWith('/sections/')&&!mseStaging(env))return json({},404);if(!['GET','HEAD','DELETE'].includes(request.method)||request.method==='DELETE'&&match[2])return json({},405);
     return env.JOBS.get(env.JOBS.idFromName(match[1])).fetch('https://job'+(match[2]||'/status'),{method:request.method,headers:{'X-Proof-Owner':owner,...(request.headers.has('Range')?{Range:request.headers.get('Range')}:{})}});
    }
    const assets={'/':'/index.html','/api/billing':'/billing.html','/api/billing/app.js':'/billing.js','/api/billing/signin':'/signin.html','/api/billing/signin.js':'/signin.js','/api/billing/signin.css':'/signin.css'};

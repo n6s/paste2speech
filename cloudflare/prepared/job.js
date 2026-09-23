@@ -19,13 +19,14 @@ export function publicStatus(job){
   return {id:job.id,state:job.state,starts,duration:samples/24000,completed:starts.length,total:job.chunks.length,
     providerCost:job.mode==='live'?job.submittedCharacters*4e-6:0,submittedCharacters:job.submittedCharacters,
     attempts:job.attempts,costIncomplete:job.costIncomplete,error:job.error||'',readyMs:job.readyMs,
-    speechRules:'google-default',delivery:'complete',mode:job.mode};
+    speechRules:'google-default',delivery:job.mseOptions?.delivery||'complete',mode:job.mode,
+    ...(job.mseOptions?{sections:job.parts.slice(0,starts.length).map((p,index)=>({index,start:starts[index],samples:p.samples,bytes:p.bytes}))}:{})};
 }
 // Persistent markers precede calls. An interrupted paid attempt is never resent.
-export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=async()=>{},maxBatches=Infinity,now=Date.now,concurrency=3,publishEach=false}){
+export async function prepareJob(job,{save,speech,store,isCancelled,beforeBatch=async()=>{},maxBatches=Infinity,now=Date.now,concurrency=3,publishEach=false,stagingLive=false}){
   if(job.state!=='preparing')return;
   if(![1,3].includes(concurrency))throw Error('Unsupported concurrency');
-  if(job.mode==='live'&&(concurrency!==3||publishEach))throw Error('Experimental scheduling is cached-only');
+  if(job.mode==='live'&&!stagingLive&&(concurrency!==3||publishEach))throw Error('Experimental scheduling is cached-only');
   const fail=async message=>{job.state='failed';job.error=message;job.costIncomplete=true;await save(job);};
   if(job.parts.some(p=>p.state==='submitting')){
     await fail('Preparation was interrupted during a speech request. No automatic retry; charges may be incomplete.');return;

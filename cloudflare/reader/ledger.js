@@ -23,7 +23,7 @@ export class ReaderLedger extends UsageLedger {
   const identity=await this.account(account);
   if(!identity?.legacyPilot && !await this.query('SELECT job FROM public_jobs WHERE job=?',job).first())await this.query('UPDATE accounts SET enabled=1 WHERE id=?',account).run();
   const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
-  const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:''}));
+  const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:'',...(input.mseOptions?{mseOptions:input.mseOptions}:{})}));
   try{
    await this.query(`INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,created,metered)
     SELECT ?,?,?,?,?,?,?,enabled FROM accounts WHERE id=? AND (enabled=0 OR balance>=?)

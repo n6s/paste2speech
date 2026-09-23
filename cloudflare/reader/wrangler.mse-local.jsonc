@@ -1,0 +1,60 @@
+{
+  "name": "mse-staging-integration-local",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "PRIVATE_READER": "1",
+    "LOCAL_READER": "1",
+    "ENABLE_LIVE_SYNTHESIS": "0",
+    "ENABLE_PAYMENTS": "0",
+    "ENABLE_EMAIL": "0",
+    "READER_MODE": "staging",
+    "PADDLE_ENVIRONMENT": "sandbox",
+    "PADDLE_PRICE_ID": "pri_01m32vvy2sptegx6arebyvxh37",
+    "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b",
+    "MSE_STAGING": "1",
+    "READER_ORIGIN": "http://127.0.0.1:8791"
+  },
+  "assets": {
+    "directory": "../../work/private-reader/site",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "JOBS",
+        "class_name": "PreparedReading"
+      },
+      {
+        "name": "PAYMENTS",
+        "class_name": "PaymentCoordinator"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "PreparedReading",
+        "PaymentCoordinator"
+      ]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AUDIO",
+      "bucket_name": "private-reader-local"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "LEDGER",
+      "database_name": "private-reader-local",
+      "database_id": "00000000-0000-4000-8000-000000000002",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

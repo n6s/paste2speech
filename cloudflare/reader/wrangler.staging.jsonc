@@ -7,7 +7,7 @@
   "vars": {
     "PRIVATE_READER": "1",
     "LOCAL_READER": "0",
-    "ENABLE_LIVE_SYNTHESIS": "1",
+    "ENABLE_LIVE_SYNTHESIS": "0",
     "ENABLE_PAYMENTS": "1",
     "ENABLE_EMAIL": "1",
     "READER_ORIGIN": "https://speak-staging.rogerpbrown.com",
@@ -17,7 +17,8 @@
     "READER_MODE": "staging",
     "PADDLE_ENVIRONMENT": "sandbox",
     "PADDLE_PRICE_ID": "pri_01m32vvy2sptegx6arebyvxh37",
-    "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b"
+    "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b",
+    "MSE_STAGING": "1"
   },
   "assets": {
     "directory": "../../work/private-reader/site",

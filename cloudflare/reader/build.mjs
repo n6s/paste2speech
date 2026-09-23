@@ -1,11 +1,18 @@
 import {build} from 'esbuild';
+import {createHash} from 'node:crypto';
 import {mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
 const publicLaunch=process.argv.includes('--public');
 const production=publicLaunch||process.argv.includes('--production');
+const fixtureManifest=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
+const fixtureHash=createHash('sha256').update(JSON.stringify(fixtureManifest));
+for(const list of Object.values(fixtureManifest))for(const section of list)fixtureHash.update(await readFile('tests/fixtures/wavenet/'+section.file));
+const fixtureVersion=fixtureHash.digest('hex');
+const mse=process.argv.includes('--mse-staging');if(mse&&production)throw Error('MSE build is staging-only');
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ if(!mse)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
  // Excluded engines have no implementation or model dependency in this build.
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
 }}]});
@@ -35,6 +42,17 @@ if(production){
  html=html.replace('This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications.','This site stores feedback and aggregate statistics for review.');
  html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
 }
+if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
+<label>Playback <select id="mse-delivery"><option value="mse">Progressive</option><option value="complete">Prepare everything first</option></select></label><p id="mse-support"></p>
+<button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
+<details id="staging-checks"><summary>Staging checks</summary>
+<label><input id="mse-cached" type="checkbox">Use cached test audio · no credit used</label>
+<label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>
+<label>Requests in flight <select id="mse-concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
+<details><summary>Playback results</summary><pre id="mse-diagnostics"></pre></details>
+<button id="mse-sample" type="button">Load test sample</button><button id="mse-results" type="button">Save playback results</button>
+<p>Cached preparation timings are simulated. Live staging checks share a 3,000-character campaign limit. Loading a sample does not generate speech.</p>
+</details>`);
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');

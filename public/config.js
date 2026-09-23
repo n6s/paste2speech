@@ -5,3 +5,7 @@ export const RELEASE = 'development';
 export const KOKORO_ENABLED = true;
 
 export const CLOUD_READER = false;
+
+export const MSE_STAGING = false;
+
+export const MSE_FIXTURE_VERSION = '';

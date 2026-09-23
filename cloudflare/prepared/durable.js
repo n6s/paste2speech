@@ -1,4 +1,5 @@
 import {production,publicMode,customerAllowed} from '../reader/modes.js';
+import {mseStaging,fixtureDelay} from '../reader/mse-staging.js';
 import {dispatchBudget} from '../reader/budget.js';
 import {loadJob,saveJob} from './storage.js';
 import {ReaderLedger} from '../reader/ledger.js';
@@ -10,7 +11,9 @@ import fixtures from '../../scripts/wavenet-worker-proof/fixture.json';
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 export class PreparedReading {
   constructor(ctx,env){this.ctx=ctx;this.env=env;ctx.blockConcurrencyWhile(async()=>{this.job=await loadJob(ctx.storage);});}
+  cachedStage(){return this.job?.mode==='staging-fixture'&&!!this.job.mseOptions;}
   async settle(){
+    if(this.cachedStage())return;
     if(!this.env.LEDGER||this.job.admission==='rejected')return;
     const ledger=new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER);
     // Pending admission may expire/cancel before a debit, or after a committed
@@ -19,7 +22,7 @@ export class PreparedReading {
     await ledger.settle(this.job);
   }
   async admit(){
-    if(!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
+    if(this.cachedStage()||!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
     await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
       if(this.job.proofAdmissionFault==='after-reserve'){
         this.job.proofAdmissionFault='';await this.save(this.job);
@@ -32,7 +35,11 @@ export class PreparedReading {
     catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
     await this.ctx.storage.setAlarm(this.job.expires);
   }
-  async save(job){await saveJob(this.ctx.storage,job);}
+  save(job,alarm){
+    const snapshot=structuredClone(job);
+    const next=(this.saving||Promise.resolve()).then(()=>saveJob(this.ctx.storage,snapshot,alarm));
+    this.saving=next.catch(()=>{});return next;
+  }
   async clean(){
     if(!this.job)return true;
     const keys=[...this.job.parts.map((_,i)=>`${this.job.id}/part-${i}`),...Array.from({length:this.job.assembledBlocks||0},(_,i)=>`${this.job.id}/block-${i}`),`${this.job.id}/reading.mp3`,`${this.job.id}/reading.vtt`];
@@ -71,7 +78,7 @@ export class PreparedReading {
           this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
         token=this.googleAuthorization.token;
       }
-      await prepareJob(job,{maxBatches:1,beforeBatch:()=>this.env.LEDGER?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:mseStaging(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live'){
             if(this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Synthesis paused');
@@ -82,8 +89,8 @@ export class PreparedReading {
             return synthesize(text,voice,token);
           }
           const fixture=fixtures[voice][index % fixtures[voice].length];
-          await new Promise(resolve=>setTimeout(resolve,fixture.delayMs));
-          if(job.proofScenario==='fail-middle'&&index===1)throw Error('Synthetic failure');
+          await new Promise(resolve=>setTimeout(resolve,fixtureDelay(job,index,fixture.delayMs)));
+          if((job.proofScenario==='fail-middle'||job.mseOptions?.scenario==='failure')&&index===1)throw Error('Synthetic failure');
           const response=await this.env.ASSETS.fetch(new Request(`http://assets/samples/${fixture.file}`));
           if(!response.ok)throw Error('Missing fixture');return new Uint8Array(await response.arrayBuffer());
         }});
@@ -96,7 +103,7 @@ export class PreparedReading {
       const input=await request.json();
       if(this.job){
         if(this.job.owner!==owner)return json({detail:'Reading not found'},404);
-        if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks))return json({detail:'Request does not match existing reading'},409);
+        if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks)||JSON.stringify(this.job.mseOptions||null)!==JSON.stringify(input.mseOptions||null))return json({detail:'Request does not match existing reading'},409);
         if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
         try{await this.admit();}catch{this.job=await loadJob(this.ctx.storage);return json({detail:'Admission will recover automatically'},503);}
         if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
@@ -105,15 +112,17 @@ export class PreparedReading {
         if(!this.env.LEDGER&&canRetryAuthorization(this.job)){
           this.job.authorizationRestarts=(this.job.authorizationRestarts||0)+1;
           this.job.state='preparing';this.job.error='';this.job.costIncomplete=false;this.job.created=Date.now();
-          await saveJob(this.ctx.storage,this.job,Date.now()+1);
+          await this.save(this.job,Date.now()+1);
         }
         return json({id:this.job.id,reused:true});
       }
       // Durable state and the alarm are committed together before acknowledging.
+      if(input.mseOptions&&!mseStaging(this.env))return json({detail:'Staging playback unavailable'},403);
       this.job=newJob(input,owner,input.id);
+      if(input.mseOptions)this.job.mseOptions=input.mseOptions;
       this.job.proofScenario=input.proofScenario||'';
-      if(this.env.LEDGER){this.job.admission='pending';this.job.proofAdmissionFault=input.proofAdmissionFault||'';}
-      await saveJob(this.ctx.storage,this.job,Date.now()+(input.proofAdmissionFault?5000:1));
+      if(this.env.LEDGER&&!this.cachedStage()){this.job.admission='pending';this.job.proofAdmissionFault=input.proofAdmissionFault||'';}
+      await this.save(this.job,Date.now()+(input.proofAdmissionFault?5000:1));
       if(this.job.proofAdmissionFault==='after-intent'){
         this.job.proofAdmissionFault='';await this.save(this.job);
         return json({detail:'Synthetic interrupted admission'},503);
@@ -130,6 +139,16 @@ export class PreparedReading {
     }
     if(!this.running&&job.state!=='preparing')await this.settle();
     if(url.pathname==='/status')return json(publicStatus(job));
+    const section=/^\/sections\/(0|[1-9]\d*)$/.exec(url.pathname);
+    if(section){
+      if(!job.mseOptions)return json({detail:'Section delivery unavailable'},404);
+      if(job.state==='failed')return json({detail:'Preparation failed'},422);
+      const part=job.parts[Number(section[1])];if(!part)return json({},404);
+      if(part.state!=='ready')return json({detail:'Section pending'},409);
+      const object=await this.env.AUDIO.get(`${job.id}/part-${section[1]}`);
+      if(!object)return json({detail:'Section missing'},404);
+      return new Response(request.method==='HEAD'?null:object.body,{headers:{'Content-Type':'audio/mpeg','Content-Length':String(object.size),'Cache-Control':'no-store'}});
+    }
     if(job.state!=='ready')return json({detail:'The full reading is not ready'},409);
     const kind=url.pathname.endsWith('/vtt')?'vtt':'mp3';
     const range=request.headers.get('Range');
