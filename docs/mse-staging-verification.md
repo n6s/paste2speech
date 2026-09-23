@@ -28,6 +28,9 @@ See [operation and recovery](mse-staging.md) for backup details and commands.
 - API checks passed duplicate creation/reuse, rejected changed concurrency,
   pending/missing/cancelled section responses, denied foreign-account and
   unauthenticated section access, and rejected cross-origin cancellation.
+- Completed-file playback can seek beyond currently buffered bytes and read
+  from a selected section without creating another job (additional local Chrome
+  check).
 - Selecting a later section waits for that buffered position before playing.
   Failed preparation never becomes a successful end-of-stream.
 - The 64-section long hosted fixture completed naturally through one source.

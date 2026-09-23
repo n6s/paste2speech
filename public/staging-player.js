@@ -20,7 +20,7 @@ export class StagingPlayer extends MsePlayer {
  emit(){
   if(this.pendingIndex!=null&&this.status?.starts[this.pendingIndex]!=null&&this.audio){
    const target=this.pendingTime??this.status.starts[this.pendingIndex];
-   if(this.ranges().some(([a,b])=>a<=target&&b>target)){
+   if((this.mode==='full'&&this.finalized&&this.audio.readyState>=1)||this.ranges().some(([a,b])=>a<=target&&b>target)){
     this.pendingIndex=null;this.pendingTime=null;this.audio.currentTime=target;
     if(this.wantPlay)void this.play();
    }

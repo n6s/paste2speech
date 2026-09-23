@@ -51,7 +51,7 @@ if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="record
 <label>Requests in flight <select id="mse-concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
 <details><summary>Playback results</summary><pre id="mse-diagnostics"></pre></details>
 <button id="mse-sample" type="button">Load test sample</button><button id="mse-results" type="button">Save playback results</button>
-<p>Cached preparation timings are simulated. Live staging checks share a 3,000-character campaign limit. Loading a sample does not generate speech.</p>
+<p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated. Live staging checks share a 3,000-character campaign limit. Loading a sample does not generate speech.</p>
 </details>`);
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);

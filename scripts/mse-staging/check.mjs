@@ -49,6 +49,12 @@ try{
   assert.equal((await context.request.get(`${origin}/api/readings/${id}/sections/0`)).status(),404);
   const unauth=await browser.newContext();const denied=await unauth.request.get(`${origin}/api/readings/${id}/sections/0`,{maxRedirects:0});assert.ok([302,401,403,404].includes(denied.status()));await unauth.close();
  });
+ await run('full-preparation-controls',async page=>{
+  await start(page,{delivery:'complete'});await finish(page);await page.waitForFunction(()=>__stagingReader.audio.currentTime>0);await page.click('#pause');
+  const id=await page.evaluate(()=>__stagingReader.job);
+  await page.evaluate(()=>{__stagingReader.ranges=()=>[];if(!__stagingReader.seekTo(30))throw Error('Completed-file seek must request unbuffered data');});
+  await page.waitForFunction(()=>__stagingReader.audio.currentTime>=30);await page.locator('#preview .sentence').nth(2).click();await page.waitForFunction(()=>__stagingReader.state==='playing'&&__stagingReader.index===2);assert.equal(await page.evaluate(()=>__stagingReader.job),id);
+ });
  await run('selected-section-start',async page=>{
   await page.check('#mse-cached');await page.click('#mse-sample');await page.waitForFunction(()=>document.querySelectorAll('#preview .sentence').length===8);await page.click('#read-mode');await page.locator('#preview .sentence').nth(4).click();
   await page.waitForFunction(()=>__stagingReader.state==='playing');assert.equal(await page.evaluate(()=>__stagingReader.index),4);await finish(page);

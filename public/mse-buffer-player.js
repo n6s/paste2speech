@@ -143,7 +143,7 @@ export class MsePlayer {
   }
   seek(value){
     const time=Number(value);if(!Number.isFinite(time)||!this.job||this.fatal)return false;
-    const range=this.ranges().find(([a,b])=>time>=a&&time<b);
+    const range=this.mode==='full'&&this.finalized&&time>=0&&time<this.audio.duration||this.ranges().find(([a,b])=>time>=a&&time<b);
     if(!range){this.log('seek-unavailable',{target:time});return false;}
     this.audio.currentTime=time;this.log('seek-request',{target:time});this.emit();return true;
   }
