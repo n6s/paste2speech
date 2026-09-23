@@ -1,6 +1,21 @@
 # Resume public billing launch
 
-Session close: 2026-09-22. Start here, then consult public-launch-release.md.
+Updated: 2026-09-23. Start here, then consult gated-production-release.md for the
+prepared disabled release and public-launch-release.md for wider launch context.
+
+## September 23 verified progress
+
+- Sandbox purchase, 122-character speech, free replay and automatic full refund
+  passed; see sandbox-rehearsal-2026-09-23.md. Signed public webhook delivery is
+  still unproven. No real Paddle transaction was made.
+- Gated public release built locally with all three switches off; 175 Node tests,
+  three migration tests and Wrangler dry run passed. No deployment authorized.
+- Production migrations already current (all 11). Fresh preparation-time backup
+  restore passed; aggregate credit 75,032, two accounts, no orders or open
+  reservations. Refresh the backup and balances immediately before deployment.
+- Current production version after secret changes is
+  8e6fb643-8126-4c84-b877-d8f2cd12d0e1. HTTP status still confirms trial mode and
+  disabled checkout. The gated public release would pause owner synthesis too.
 
 ## Workspace and committed work
 
