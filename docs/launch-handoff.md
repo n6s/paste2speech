@@ -1,3 +1,5 @@
+> September 23 update: owner-only progressive playback is now deployed to production with billing still disabled. See [the production verification and rollback report](mse-production.md). The earlier production version references below are historical; public billing/access still require a separate decision.
+
 # Resume public billing launch
 
 Updated: 2026-09-23. Start here, then consult gated-production-release.md for the

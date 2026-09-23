@@ -17,3 +17,11 @@ Build with `npm run build:reader:production`. Run `node scripts/mse-production/c
 To stop new progressive readings while preserving existing jobs, set `MSE_NEW_READINGS=0`, keep `PROGRESSIVE_READER=1`, build with `node cloudflare/reader/build.mjs --production` (without the progressive flag), and deploy that production configuration directly with Wrangler. Do not use the normal release script for this fallback because it rebuilds progressive assets. Existing pages attempting new progressive jobs will receive an explicit rejection until refreshed. Existing section delivery and accounting remain available.
 
 For a broader rollback, pause new admissions, account for in-flight jobs and then restore the recorded compatible version. Preserve D1/R2 state; never restore the backup over newer transactions. Billing activation and public WaveNet access remain separate decisions.
+
+## Deployed result
+
+Production version `e49d7a55-00c9-455e-a758-a142a4329d3b` deployed successfully from implementation commit `e53502f`. Post-deployment comparison found exactly one binding change: the new `PROGRESSIVE_READER=1` flag. Existing bindings, secret names and values exposed by version metadata, payment gates and storage references were preserved; no secrets were modified.
+
+Deployed Chrome checks passed: Progressive selected, no staging controls or exposed staging player, no page errors, unsupported-browser fallback selected automatically, anonymous reading creation returned 401, anonymous section access returned 404 and fixture access returned 404. Billing reported checkout unconfigured and anonymous WaveNet eligibility false. Roger's signed-in browser displayed the progressive controls and 62,100-character balance.
+
+After deployment, the ledger still showed 37,900 lifetime characters, 62,100 available credit, three accounts, zero open reservations and zero orders. No new paid synthesis was performed. Production mobile listening was not repeated; the prior Pixel evidence is specifically from staging. The release and this report are committed on `codex/mse-production-reader`.

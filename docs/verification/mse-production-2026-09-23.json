@@ -1,0 +1,23 @@
+{
+  "eligible": false,
+  "configured": false,
+  "anonymousCreate": 401,
+  "anonymousSection": 404,
+  "fixtures": 404,
+  "chrome": "154.0.8037.57",
+  "unsupportedFallback": true,
+  "pageErrors": [],
+  "paidCalls": 0,
+  "version": "e49d7a55-00c9-455e-a758-a142a4329d3b",
+  "implementationCommit": "e53502f",
+  "testsPassed": 185,
+  "lifetimeCharacters": 37900,
+  "lifetimeMaximum": 100000,
+  "availableCredit": 62100,
+  "openReservations": 0,
+  "orders": 0,
+  "changedBindings": [
+    "PROGRESSIVE_READER"
+  ],
+  "ownerBrowserBalance": 62100
+}
