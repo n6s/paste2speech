@@ -218,7 +218,6 @@ $('reading-size').addEventListener('input', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
-  if (p === workstationPlayer) videoDownload?.usePrepared(p);
   if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error},null,2);}
   if (p !== player) return;
   if(p.state!==previousState){
@@ -243,6 +242,7 @@ function render(p, message) {
   if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   if(isDeepInfra() && p.id) $('recording-progress').textContent += ` · provider-reported estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
+    if (!$(id)) continue;
     const href = isWorkstation() && p.download?.(kind);
     $(id).hidden = !href || (kind==='vtt' && !$('include-captions').checked);
     if(href)$(id).href=href;else $(id).removeAttribute('href');
@@ -365,7 +365,7 @@ $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('previous-section').addEventListener('click',()=>workstationPlayer.move(-1));
 $('next-section').addEventListener('click',()=>workstationPlayer.move(1));
-$('include-captions').addEventListener('change',()=>render(player));
+$('include-captions')?.addEventListener('change',()=>render(player));
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());

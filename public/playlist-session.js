@@ -35,7 +35,10 @@ export class PlaylistSession {
       }
       while (!this.stopped) {
         const status = await this.status(record.id);
-        Object.assign(record, {state: status.state, duration: status.duration}); this.persist();
+        if (status.state === 'ready' && (status.total != null && (status.total !== this.parts[i].chunks.length || status.completed !== status.total || Array.isArray(status.starts) && status.starts.length !== status.total))) {
+          throw Error('Audio preparation is incomplete. Video conversion has not started.');
+        }
+        Object.assign(record, {state: status.state, duration: status.duration, completed: status.completed}); this.persist();
         if (status.state === 'ready') break;
         if (['failed', 'cancelled'].includes(status.state)) throw Error(status.error || `Part ${i + 1} ${status.state}. Completed parts remain available. No speech was retried.`);
         await this.sleep(1500);

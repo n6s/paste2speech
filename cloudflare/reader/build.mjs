@@ -74,23 +74,16 @@ if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="record
 <button id="mse-sample" type="button">Load test sample</button><button id="mse-results" type="button">Save playback results</button>
 <p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated and use no credit. Live speech uses your staging account credit. Loading a sample does not generate speech.</p>
 </details>`);
-if(videoDownload)html=html.replace(/<details id="recording-download">[\s\S]*?<\/details>/,old=>`<details id="video-download" hidden>
+if(videoDownload)html=html.replace(/<details id="recording-download">[\s\S]*?<\/details>/,`<details id="video-download" hidden>
 <summary>Download recording</summary>
 <p class="hint">One MP4 with audio and built-in subtitles. Adjust playback speed in your player.</p>
 <p id="video-prepared-note" class="hint"></p>
-<button id="prepare-video" type="button">Prepare audio for video</button>
-<button id="download-video" type="button" disabled>Download video</button>
+<button id="download-video" type="button" disabled>Download</button>
 <button id="cancel-video" type="button" hidden>Cancel</button>
 <p id="video-status" role="status" aria-live="polite"></p>
-<p><a id="open-video" href="#video-preview" hidden>Open video</a> <a id="save-video" hidden>Save MP4</a></p>
+<p><a id="open-video" hidden></a></p>
 <video id="video-preview" controls playsinline hidden style="width:100%;max-width:960px"></video>
-<details id="video-more-options"><summary>More options</summary>
-<p id="video-plan" class="hint"></p>
 <label id="video-split-settings" hidden>Split size <select id="video-split-limit"><option value="20000" ${production?'selected':''}>20,000 characters</option><option value="1200" ${production?'':'selected'}>1,200 characters · testing</option></select></label>
-<p class="hint">Preparing new speech uses your account credit. Video conversion runs on this device and uses no additional speech credit. Keep this tab open while working. Video tools load on the first download (about 31 MB); prepared audio expires after 24 hours.</p>
-<details><summary>Prepared audio parts</summary><ol id="video-parts"></ol></details>
-${old.replace('id="recording-download"','id="audio-download-options"').replace('Download recording</summary>','Audio and separate captions</summary>')}
-</details>
 </details>`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 const origin='https://speak.rogerpbrown.com';

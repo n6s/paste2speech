@@ -8,7 +8,10 @@ and enable that variable through the normal shared release workflow.
 ## Use
 
 Choose WaveNet, paste text or import a PDF, and expand **Download recording**.
-**Prepare audio for video** makes bounded WaveNet jobs sequentially, preferring
+Click **Download**. The button gives way to processing status, then one real
+MP4 link that can be opened or right-clicked and saved. There is no automatic
+download, separate preparation button, audio-parts list, or alternate-format UI.
+The preparation stage makes bounded WaveNet jobs sequentially, preferring
 paragraph boundaries. Oversized paragraphs fall back to the existing sentence,
 phrase and word splitter. There is no document-length or part-count ceiling in
 this path. All service requests remain at most 20,000 UTF-16 characters and
@@ -18,19 +21,24 @@ split-size selector appears only in `/?testing=1`; production defaults to 20,000
 PDF import with this feature enabled has no fixed file/text-size cutoff or
 40-second timer; user cancellation and the device remain the constraints.
 
-After audio is ready, **Download video** loads the approximately 31 MB encoder
+Only after every audio part is ready, the same action loads the approximately 31 MB encoder
 on this device and produces one MP4: H.264 title card, AAC audio, mov_text
-subtitles marked English/default. Existing matching complete reader audio is
-reused. The downloaded file includes every part; no ZIP, playlist or VTT file
+subtitles marked English/default. A matching running or complete reader job is
+reused. If just 6 of 44 sections are ready, conversion waits for all 44; it does
+not fetch partial audio or admit a duplicate job. In-flight job creation is also
+allowed to finish before deciding whether an existing job can be reused. The downloaded file includes every part; no ZIP, playlist or VTT file
 is required. The title card shows the site name and UTC conversion time.
-**Open video** displays native browser controls with an internally attached
+A plain click on the MP4 link displays native browser controls with an internally attached
 WebVTT track for reliable browser captions; that track is not a separate user
-download. **Save MP4** provides the same file for an external player.
+download. The same anchor points directly at the MP4 Blob for Save link as or
+modified clicks. The generated file is kept until Clear, a new download, or
+tab closure; it is not regenerated just by opening/saving the link.
 
 The video remains a local Blob in the tab. It is not uploaded or published as a
 remote URL; Open video does not force the OS to launch an external application.
-Automatic file handoff depends on device settings. Native VLC/mpv/Infuse and
-mobile-device listening/lock-screen acceptance remain user tests.
+Automatic file handoff depends on device settings. Roger reports successful
+desktop playback with subtitles. Mobile/Infuse and lock-screen acceptance remain
+real-device tests.
 
 ## Safety and lifecycle
 
@@ -39,8 +47,9 @@ and durable preparation system. Video encoding adds no provider call. IDs are
 saved in sessionStorage before POST and reconciled after uncertain replies.
 Checking or retrying conversion never creates replacement speech jobs. Terminal
 failed/cancelled/expired jobs are not automatically synthesized again. Completed
-part audio stays accessible if later parts fail. Cancellation stops scheduling
-and cancels unfinished jobs, including late POST acknowledgement. Clear removes
+audio remains retained if later parts fail. Cancellation stops scheduling
+and conversion; an already admitted audio job finishes and is reused on retry.
+Cancelling a download never cancels a borrowed reader job. Clear removes
 the active video's audio jobs and local result. Older explicitly replaced video
 preparations retain the existing service 24-hour expiry.
 
@@ -79,5 +88,8 @@ Upstream source/build recipes and licensing must accompany any broader release.
 
 The conversion check creates two audio jobs totaling 110.88 seconds, verifies
 one H.264/AAC/mov_text file with 60 captions, plays and seeks the browser preview,
-and downloads again without another speech request. Ignored local evidence is
+and saves the real link repeatedly without another speech request. A second
+case starts a 44-section reader job, holds it at six ready sections, clicks
+Download, verifies no duplicate admission/partial download/encoder load, then
+releases all 44 and verifies the complete audio duration and all 44 subtitles. Ignored local evidence is
 under `work/video-download`, including joined.mp4, title.png and verification.json.

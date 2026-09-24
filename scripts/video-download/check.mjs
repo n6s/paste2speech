@@ -20,7 +20,8 @@ const server=createServer(async(req,res)=>{try{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 try{
- const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0;
+ const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0,downloads=0,audioDownloads=0,partial=false,allowComplete=false,partialPolls=0;
+ page.on('download',()=>downloads++);
  if(remote)await page.context().addCookies([{name:'CF_Authorization',value:execFileSync('cloudflared',['access','token','--app',remote],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim(),url:remote,httpOnly:true,secure:true,sameSite:'Lax'}]);
  page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
  page.on('request',r=>{if(r.url().includes('/video/'))toolLoads++;});
@@ -30,14 +31,17 @@ try{
    const id=r.headers()['idempotency-key'],body=r.postDataJSON(); posts++;
    assert.ok(body.chunks.reduce((n,c)=>n+c.length,0)<=1200);assert.ok(body.chunks.every(c=>c===source.text));
    const starts=body.chunks.map((_,i)=>i*info.duration),duration=info.duration*body.chunks.length;
-   jobs.set(id,{mp3:Buffer.concat(body.chunks.map(()=>mp3)),vtt:captions(body.chunks,{starts,duration}),duration});
+   jobs.set(id,{mp3:Buffer.concat(body.chunks.map(()=>mp3)),vtt:captions(body.chunks,{starts,duration}),duration,total:body.chunks.length});
    return route.fulfill({json:{id}});
   }
   const match=p.match(/^\/api\/readings\/([^/]+)(.*)$/);
   if(match){const job=jobs.get(match[1]);assert.ok(job);
-   if(match[2]==='/download/mp3')return route.fulfill({contentType:'audio/mpeg',body:job.mp3});
+   if(match[2]==='/download/mp3'){audioDownloads++;return route.fulfill({contentType:'audio/mpeg',body:job.mp3});}
+   if(match[2].startsWith('/sections/'))return route.fulfill({contentType:'audio/mpeg',body:mp3});
    if(match[2]==='/download/vtt')return route.fulfill({contentType:'text/vtt',body:job.vtt});
-   return route.fulfill({json:{state:'ready',duration:job.duration}});
+   if(partial)partialPolls++;
+   const ready=!partial||allowComplete,count=ready?job.total:6;
+   return route.fulfill({json:{state:ready?'ready':'preparing',duration:count*info.duration,total:job.total,completed:count,starts:Array.from({length:count},(_,i)=>i*info.duration),sections:Array.from({length:count},(_,i)=>({index:i,start:i*info.duration,samples:info.samples,bytes:info.bytes}))}});
   }
   return route.fulfill({json:p==='/api/reader'?{eligible:true,account:{balance:10000}}:{}});
  });
@@ -45,16 +49,19 @@ try{
  await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
  await page.fill('#text',Array(60).fill(source.text).join('\n\n'));
  await page.locator('#video-download').evaluate(e=>e.open=true);
- await page.click('#prepare-video');
- await page.waitForFunction(()=>!document.getElementById('download-video').disabled);
- console.log('PREPARE:',await page.locator('#video-status').textContent(), 'jobs:',posts);
- assert.equal(await page.locator('#download-video').isDisabled(),false);
- assert.equal(posts,2);assert.equal(toolLoads,0,'Video tools must not load before Download');
- const downloadPromise=page.waitForEvent('download',{timeout:180000});
+ assert.equal(await page.locator('#prepare-video, #include-captions, #download-audio, #download-captions, #video-parts').count(),0);
+ assert.equal(toolLoads,0);assert.equal(posts,0);
  await page.click('#download-video');
- await page.waitForFunction(()=>!document.getElementById('download-video').disabled,{},{timeout:180000});
- console.log(await page.locator('#video-status').textContent());
- const download=await downloadPromise;const output=folder+'/joined.mp4';await download.saveAs(output);
+ assert.equal(await page.locator('#download-video').isVisible(),false);
+ await page.waitForFunction(()=>document.getElementById('open-video').getAttribute('href')?.startsWith('blob:'),{},{timeout:180000});
+ assert.equal(downloads,0,'No automatic download: expose a real link instead');
+ assert.equal(await page.locator('#download-video').isVisible(),false);
+ async function saveLink(path){
+   const pending=page.waitForEvent('download');
+   await page.locator('#open-video').evaluate(link=>{const a=document.createElement('a');a.href=link.href;a.download=link.textContent;a.click();});
+   await (await pending).saveAs(path);
+ }
+ const output=folder+'/joined.mp4';await saveLink(output);
  assert.equal(posts,2,'Conversion must never generate speech');
  assert.deepEqual(errors,[]);
  const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_streams','-show_format','-of','json',output],{encoding:'utf8'}));
@@ -68,8 +75,28 @@ try{
  await page.locator('#video-preview').evaluate(v=>{v.pause();v.currentTime=v.duration-2;});
  await page.waitForFunction(()=>document.getElementById('video-preview').currentTime>100);
  await page.screenshot({path:folder+'/browser.png',fullPage:true});
- const again=page.waitForEvent('download');await page.click('#download-video');await again;assert.equal(posts,2);
+ await saveLink(folder+'/joined-again.mp4');assert.equal(posts,2);
  await writeFile(folder+'/verification.json',JSON.stringify({parts:posts,expectedDuration:expected,formatDuration:probe.format.duration,codecs:probe.streams.map(s=>s.codec_name),subtitles:60,toolLoads,browserErrors:errors},null,2));
  execFileSync('ffmpeg',['-v','error','-y','-i',output,'-frames:v','1',folder+'/title.png']);
+ // Borrow a running 44-section reader job with only six sections ready.
+ partial=true;await page.reload();
+ await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+ await page.fill('#text',Array(44).fill(source.text).join('\n\n'));await page.click('#play');
+ await page.waitForFunction(()=>document.getElementById('recording-progress').textContent.includes('6 of 44'));
+ const priorPosts=posts,priorAudioDownloads=audioDownloads,priorTools=toolLoads;
+ await page.locator('#video-download').evaluate(e=>e.open=true);await page.click('#download-video');
+ while(partialPolls<3)await new Promise(r=>setTimeout(r,100));
+ assert.equal(posts,priorPosts,'Download must reuse the ongoing reader job');
+ assert.equal(audioDownloads,priorAudioDownloads,'No partial audio download');assert.equal(toolLoads,priorTools,'No encoder before complete audio');
+ assert.equal(await page.locator('#open-video').isVisible(),false);
+ allowComplete=true;
+ await page.waitForFunction(()=>document.getElementById('open-video').getAttribute('href')?.startsWith('blob:'),{},{timeout:180000});
+ await saveLink(folder+'/waited-for-complete.mp4');assert.equal(posts,priorPosts);
+ const full=JSON.parse(execFileSync('ffprobe',['-v','error','-show_streams','-of','json',folder+'/waited-for-complete.mp4'],{encoding:'utf8'}));
+ assert.ok(Math.abs(Number(full.streams.find(s=>s.codec_type==='audio').duration)-44*info.duration)<.1);
+ const fullSubs=execFileSync('ffmpeg',['-v','error','-i',folder+'/waited-for-complete.mp4','-map','0:s:0','-f','webvtt','-'],{encoding:'utf8'});
+ assert.equal((fullSubs.match(/A short pause follows\./g)||[]).length,44);
+ assert.deepEqual(errors,[]);
+ console.log('PASS: pending 6/44-section reader job reused without another admission; conversion waited for all 44 sections and captions.');
  console.log('PASS: two prepared jobs → one H.264/AAC/mov_text MP4; 60 captions; full duration; native preview, seeking, repeat download; zero provider calls.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}
