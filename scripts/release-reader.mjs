@@ -34,7 +34,14 @@ async function verifyHosted(name){
 }
 if(deploy&&environment==='production')await verifyHosted('staging');
 execFileSync('node',['node_modules/wrangler/bin/wrangler.js','deploy','--config',config(environment),...(deploy?[]:['--dry-run','--outdir',`work/shared-reader/${environment}-worker`])],{stdio:'inherit'});
-if(deploy)await verifyHosted(environment);
+if(deploy){
+ // A successful upload can precede the edge serving the new asset manifest.
+ // Retry read-only verification briefly; never retry the deployment itself.
+ for(let attempt=0;;attempt++){
+  try{await verifyHosted(environment);break;}
+  catch(error){if(attempt===5)throw error;console.log('Waiting for deployed assets to become available…');await new Promise(resolve=>setTimeout(resolve,2500*(attempt+1)));}
+ }
+}
 mkdirSync('work/shared-reader',{recursive:true});
 writeFileSync(`work/shared-reader/${environment}-${deploy?'deployed':'prepared'}.json`,JSON.stringify(releases[environment],null,2)+'\n');
 console.log(deploy?`${environment} deployed and served assets verified at ${releases[environment].commit}.`:'Both readers passed parity checks. Prepared locally; nothing deployed.');
