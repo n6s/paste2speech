@@ -11,16 +11,29 @@ const fixtureVersion=fixtureHash.digest('hex');
 const mse=process.argv.includes('--mse-staging');if(mse&&production)throw Error('MSE test controls are staging-only');
 const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&(!production||publicLaunch))throw Error('Production MSE is owner-trial only');
 const progressive=mse||mseProduction;
+const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
+const videoDownload=JSON.parse(await readFile(configPath,'utf8')).vars.VIDEO_DOWNLOAD==='1';
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
-await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
  // Excluded engines have no implementation or model dependency in this build.
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
 }}]});
 await build({...common,entryPoints:['browser/pdf.js'],outfile:root+'/pdf.js'});
 await copyFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs',root+'/pdf.worker.min.mjs');
+if(videoDownload){
+ await mkdir(root+'/video',{recursive:true});
+ await build({...common,entryPoints:['public/video-export.js'],outfile:root+'/video-export.js'});
+ await build({...common,entryPoints:['node_modules/@ffmpeg/ffmpeg/dist/esm/worker.js'],outfile:root+'/video/worker.js'});
+ await copyFile('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js',root+'/video/ffmpeg-core.js');
+ // Workers Assets have a per-file size limit; each immutable segment is 8 MiB.
+ const wasm=await readFile('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.wasm'),parts=[];
+ for(let i=0;i<wasm.length;i+=8*1024*1024){const name=`core-${parts.length}.bin`;parts.push(name);await writeFile(root+'/video/'+name,wasm.subarray(i,i+8*1024*1024));}
+ await writeFile(root+'/video/core.json',JSON.stringify({parts}));
+}
 await copyFile('public/style.css',root+'/style.css');
 let html=await readFile('public/index.html','utf8');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
@@ -61,6 +74,20 @@ if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="record
 <button id="mse-sample" type="button">Load test sample</button><button id="mse-results" type="button">Save playback results</button>
 <p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated and use no credit. Live speech uses your staging account credit. Loading a sample does not generate speech.</p>
 </details>`);
+if(videoDownload)html=html.replace('<section class="player',`<details id="video-download" hidden>
+<summary>Video download</summary>
+<p>Prepare the audio in manageable parts, then join them into one video with selectable subtitles. Preparing new speech uses your account credit. Video conversion uses this device and no additional speech credit.</p>
+<label id="video-split-settings" hidden>Split size <select id="video-split-limit"><option value="20000" ${production?'selected':''}>20,000 characters</option><option value="1200" ${production?'':'selected'}>1,200 characters · testing</option></select></label>
+<p id="video-plan" class="hint"></p><p id="video-prepared-note" class="hint"></p>
+<button id="prepare-video" type="button">Prepare audio for video</button>
+<button id="download-video" type="button" disabled>Download video</button>
+<button id="cancel-video" type="button" hidden>Cancel</button>
+<p id="video-status" role="status" aria-live="polite"></p>
+<p><a id="open-video" href="#video-preview" hidden>Open video</a> <a id="save-video" hidden>Save MP4</a></p>
+<video id="video-preview" controls playsinline hidden style="width:100%;max-width:960px"></video>
+<details><summary>Prepared audio parts</summary><ol id="video-parts"></ol></details>
+<p class="hint">Keep this tab open while preparing or converting. Video tools load on the first download (about 31 MB). Audio expires after 24 hours. Save the MP4 to keep it and open it in your preferred player.</p>
+</details><section class="player`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 const origin='https://speak.rogerpbrown.com';
 if(production)html=html.replace('<title>Paste to Speech</title>', '<title>Paste to Speech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
@@ -84,6 +111,5 @@ for(const page of ['terms','pricing']){
  await writeFile(root+'/'+page,content);
 }
 
-const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js'].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...(videoDownload?['video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

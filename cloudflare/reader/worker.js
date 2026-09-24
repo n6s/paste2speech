@@ -28,6 +28,7 @@ async function asset(request,env,path){
  const headers=new Headers(response.headers);if(!production(env)||['/billing.html','/signin.html','/release.json'].includes(path))headers.set('X-Robots-Tag','noindex, nofollow');if(['/terms','/pricing'].includes(path))headers.set('Content-Type','text/html; charset=utf-8');headers.set('Cache-Control','no-store');headers.set('Referrer-Policy','no-referrer');headers.set('X-Content-Type-Options','nosniff');
  headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self' https://cdn.paddle.com; style-src 'self' 'unsafe-inline'; connect-src 'self' https://*.paddle.com; frame-src https://*.paddle.com; worker-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  if(trialMode(env))headers.set('Content-Security-Policy',"default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:; media-src 'self' blob:; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
+ if(env.VIDEO_DOWNLOAD==='1')headers.set('Content-Security-Policy',headers.get('Content-Security-Policy').replace("script-src 'self'","script-src 'self' 'wasm-unsafe-eval'").replace("connect-src 'self'","connect-src 'self' blob:"));
  if(path.startsWith('/signin'))headers.set('Content-Security-Policy',"default-src 'none'; script-src 'self'; style-src 'self'; connect-src 'self'; frame-ancestors 'none'; base-uri 'none'; form-action 'self'");
  return new Response(response.body,{status:response.status,headers});
 }

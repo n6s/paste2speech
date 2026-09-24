@@ -11,3 +11,5 @@ export const MSE_STAGING = false;
 export const MSE_FIXTURE_VERSION = '';
 
 export const MSE_ENABLED = false;
+
+export const VIDEO_DOWNLOAD = false;

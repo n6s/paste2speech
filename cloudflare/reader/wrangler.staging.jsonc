@@ -17,7 +17,8 @@
     "PADDLE_ENVIRONMENT": "sandbox",
     "PADDLE_PRICE_ID": "pri_01m32vvy2sptegx6arebyvxh37",
     "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b",
-    "MSE_STAGING": "1"
+    "MSE_STAGING": "1",
+    "VIDEO_DOWNLOAD": "1"
   },
   "assets": {
     "directory": "../../work/private-reader/site",

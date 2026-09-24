@@ -17,6 +17,8 @@
     "check:reader:parity": "node scripts/reader-parity/check.mjs"
   },
   "dependencies": {
+    "@ffmpeg/core": "0.12.10",
+    "@ffmpeg/ffmpeg": "0.12.15",
     "@huggingface/transformers": "3.8.1",
     "pdfjs-dist": "6.3.289",
     "phonemizer": "1.2.1"

@@ -1,6 +1,6 @@
 import { getDocument, GlobalWorkerOptions } from 'pdfjs-dist';
 GlobalWorkerOptions.workerSrc=new URL('pdf.worker.min.mjs',location.href).href;
-export async function extractPdf(file,signal) {
+export async function extractPdf(file,signal,{maxCharacters=1000000}={}) {
  const task=getDocument({data:new Uint8Array(await file.arrayBuffer()),isEvalSupported:false,useSystemFonts:true});
  const cancel=()=>{void task.destroy();};signal.addEventListener('abort',cancel,{once:true});
  try {
@@ -10,7 +10,7 @@ export async function extractPdf(file,signal) {
    if(signal.aborted)throw new DOMException('Cancelled','AbortError');
    const page=await doc.getPage(n),content=await page.getTextContent();
    const text=content.items.map(x=>typeof x.str==='string'?x.str+(x.hasEOL?'\n':' '):'').join('').trim();
-   total+=text.length;if(total>1000000)throw Error('Too much text. Try a smaller PDF or a section of it.');
+   total+=text.length;if(total>maxCharacters)throw Error('Too much text. Try a smaller PDF or a section of it.');
    if(text)pages.push(text);else emptyPages++;page.cleanup();
   }
   if(!pages.length)throw Error('No readable text found. Scanned images need OCR, which this reader does not provide.');

@@ -1,5 +1,6 @@
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD } from './config.js';
+import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
@@ -53,6 +54,7 @@ let chunks = [];
 let paragraphStarts = [];
 let sentenceElements = [];
 let stagingSampleText='';
+let videoDownload;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
@@ -153,6 +155,7 @@ function preview() {
   $('character-savings').textContent = characters.before ? `${characters.before.toLocaleString()} original characters → ${characters.submitted.toLocaleString()} to read${characters.saved ? ` · ${characters.saved.toLocaleString()} saved` : ''}` : '';
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
+  videoDownload?.update();
 }
 function setMode(mode) {
   const reading = mode === 'read';
@@ -215,6 +218,7 @@ $('reading-size').addEventListener('input', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
+  if (p === workstationPlayer) videoDownload?.usePrepared(p);
   if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error},null,2);}
   if (p !== player) return;
   if(p.state!==previousState){
@@ -458,7 +462,7 @@ if (WORKSTATION) {
 $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;
-  if (file.size > 20 * 1024 * 1024) {
+  if (!VIDEO_DOWNLOAD && file.size > 20 * 1024 * 1024) {
     $('pdf-status').textContent = 'Choose a PDF smaller than 20 MB.';
     $('pdf-file').value = '';
     return;
@@ -470,11 +474,11 @@ $('pdf-file').addEventListener('change', async () => {
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
   const pdfController = new AbortController();
-  const pdfTimer = setTimeout(()=>pdfController.abort(),40000);
+  const pdfTimer = VIDEO_DOWNLOAD ? null : setTimeout(()=>pdfController.abort(),40000);
   $('cancel-pdf').hidden=false;$('cancel-pdf').onclick=()=>pdfController.abort();
   try {
     const {extractPdf}=await import('./pdf.js');
-    const data=await extractPdf(file, pdfController.signal);
+    const data=await extractPdf(file, pdfController.signal, {maxCharacters: VIDEO_DOWNLOAD ? Infinity : 1000000});
     resetReading();
     $('text').value = data.text;
     preview();
@@ -521,3 +525,5 @@ if(MSE_STAGING){
  $('mse-cached').onchange=()=>{if(!$('mse-cached').checked)$('mse-scenario').value='normal';};
  $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 }
+
+if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle});
