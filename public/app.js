@@ -3,7 +3,7 @@ import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED } f
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-answer-labels-1';
+import { cleanText, chunkText, readingCharacters, defaults } from './text.js?v=20260917-answer-labels-1';
 import { Player } from './player.js';
 import { StagingPlayer } from './staging-player.js';
 import { ProgressivePlayer } from './progressive-player.js';
@@ -148,6 +148,9 @@ function preview() {
     $('preview').append(group);
   }
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
+  const characters = readingCharacters($('text').value, chunks);
+  $('character-savings').hidden = !characters.before;
+  $('character-savings').textContent = characters.before ? `${characters.before.toLocaleString()} original characters → ${characters.submitted.toLocaleString()} to read${characters.saved ? ` · ${characters.saved.toLocaleString()} saved` : ''}` : '';
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
 }
