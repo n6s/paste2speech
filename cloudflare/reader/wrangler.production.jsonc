@@ -7,6 +7,8 @@
   "vars": {
     "READER_MODE": "production-trial",
     "PROGRESSIVE_READER": "1",
+    "LONG_READINGS": "1",
+    "VIDEO_DOWNLOAD": "1",
     "PRIVATE_READER": "0",
     "LOCAL_READER": "0",
     "ENABLE_LIVE_SYNTHESIS": "1",

@@ -1,5 +1,5 @@
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -285,7 +285,7 @@ function loadVoices() {
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = isGoogle() ? (VIDEO_DOWNLOAD?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback follows your selected preparation mode.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? (LONG_READINGS?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback starts as audio arrives where supported.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -462,7 +462,7 @@ if (WORKSTATION) {
 $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;
-  if (!VIDEO_DOWNLOAD && file.size > 20 * 1024 * 1024) {
+  if (!LONG_READINGS && file.size > 20 * 1024 * 1024) {
     $('pdf-status').textContent = 'Choose a PDF smaller than 20 MB.';
     $('pdf-file').value = '';
     return;
@@ -474,11 +474,11 @@ $('pdf-file').addEventListener('change', async () => {
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
   const pdfController = new AbortController();
-  const pdfTimer = VIDEO_DOWNLOAD ? null : setTimeout(()=>pdfController.abort(),40000);
+  const pdfTimer = LONG_READINGS ? null : setTimeout(()=>pdfController.abort(),40000);
   $('cancel-pdf').hidden=false;$('cancel-pdf').onclick=()=>pdfController.abort();
   try {
     const {extractPdf}=await import('./pdf.js');
-    const data=await extractPdf(file, pdfController.signal, {maxCharacters: VIDEO_DOWNLOAD ? Infinity : 1000000});
+    const data=await extractPdf(file, pdfController.signal, {maxCharacters: LONG_READINGS ? Infinity : 1000000});
     resetReading();
     $('text').value = data.text;
     preview();
@@ -528,3 +528,22 @@ if(MSE_STAGING){
 }
 
 if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle, onChange:()=>{if(player)render(player);}});
+
+// Logical readings have tab-local IDs. Join their existing exports on demand.
+for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
+ const link=$(id);if(!link)continue;
+ link.addEventListener('click',async event=>{
+  const active=player;
+  if(!active?.getVideoPreparation?.())return;
+  event.preventDefault();
+  const job=active.id;
+  try {
+   $('recording-progress').textContent='Preparing your download…';
+   const href=await active.longReadings.downloadURL(job,kind);
+   if(player!==active||active.id!==job)return;
+   link.href=href;
+   const download=document.createElement('a');download.href=href;download.download=`reading.${kind}`;download.click();
+   $('recording-progress').textContent='Recording ready to download · original speed';
+  }catch(error){$('recording-progress').textContent=error.message;}
+ });
+}

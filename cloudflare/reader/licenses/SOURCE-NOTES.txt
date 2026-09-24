@@ -1,0 +1,33 @@
+Paste to Speech — encoder source distribution
+
+Binaries: @ffmpeg/core 0.12.10 (GPL-2.0-or-later),
+@ffmpeg/ffmpeg 0.12.15 (MIT). We do not modify the encoder binary.
+The wrapper is bundled by esbuild; the core WebAssembly is split for delivery
+and reconstructed byte-for-byte in the browser.
+
+The encoder-build archive contains ffmpeg.wasm integration sources, Dockerfile,
+build scripts, and patches at the core 0.12.10 release commit:
+71aa99d37c02a7b4c435275ca9ef50e612f6efa1 (2025-01-07).
+The browser-wrapper archive contains the complete wrapper release sources.
+The other archives contain every dependency repository referenced by that
+Dockerfile, including the dependencies copied through intermediate build stages.
+Their original copyright notices and license files are retained in the archives.
+
+sources.json records repositories, immutable commits, SHA-256 hashes and sizes.
+Revisions were resolved from the release Dockerfile's refs. Every resolved
+revision predates the release, including the x264 and lame branch tips. This is
+source provenance against the upstream release recipe, not a claim of a
+byte-for-byte reproducible build audit. Upstream test-only git submodules
+(ffmpeg.wasm/testdata and zimg/test/extra/googletest) are not included; they are
+not compiled into this encoder. The Dockerfile supplies Emscripten SDK 3.1.40.
+
+To inspect/rebuild, extract encoder-build and consult its Dockerfile, Makefile
+and build directory. The recipe selects FFMPEG_ST for the single-thread core.
+The matching dependency sources are provided here as separate archives; use
+these in place of fetching the same repository refs in Docker ADD/clone steps.
+No reading text, audio, account data, or application credentials are included.
+
+Harfbuzz's upstream gzip archive exceeds the hosting per-file limit. It is
+recompressed as xz without changing the tar contents. The build verifies both
+the upstream gzip hash and the served xz hash. This requires xz when rebuilding
+with an empty local source cache. All other archives are upstream bytes.

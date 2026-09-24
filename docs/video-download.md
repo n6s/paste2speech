@@ -1,9 +1,8 @@
 # Joined video downloads
 
 This feature lives on the shared reader branch. `VIDEO_DOWNLOAD=1` enables the
-UI, local FFmpeg assets and WebAssembly CSP permission. Staging enables it;
-production has not been enabled or deployed. Promotion can use the same source
-and enable that variable through the normal shared release workflow.
+UI, local FFmpeg assets and WebAssembly CSP permission. Staging and the production candidate enable it; the shared release workflow
+promotes the same clean source commit with production billing disabled.
 
 ## Long-document playback
 
@@ -13,8 +12,9 @@ sample-based timelines, and streams sections into the existing MSE player. The
 completed-file fallback joins MP3 exports into one local Blob. The download waits
 for all of these jobs and uses them without another speech admission. Requests
 below the part size retain their original path. Cached staging fixtures retain
-the original fixture path. This rollout is gated by VIDEO_DOWNLOAD, so production
-playback is unchanged until promotion.
+the original fixture path. Long-reading orchestration is gated independently by LONG_READINGS (and also
+enabled by VIDEO_DOWNLOAD for compatibility). Both flags are enabled in the
+production candidate.
 
 The 21,347-character browser test uses the real split boundary: 20,000 plus 1,347.
 It verifies early playback at six ready sections, cross-part seeking, full-file
@@ -90,17 +90,21 @@ FFmpeg WebAssembly limits still apply; no infinite-size claim is made.
 
 Single-thread FFmpeg needs no cross-origin isolation. Assets stay on this origin;
 the WASM binary is transported in 8 MiB segments to fit Cloudflare Assets limits.
-Only enabled deployments permit WebAssembly compilation and blob fetches. The
-production build omits this feature and its encoder assets until enabled.
+Only enabled deployments permit WebAssembly compilation and blob fetches. Disabled builds omit the feature, encoder assets, and source archives.
 
 Dependencies: @ffmpeg/ffmpeg 0.12.15 (MIT) and @ffmpeg/core 0.12.10
 (GPL-2.0-or-later), unmodified, from https://github.com/ffmpegwasm/ffmpeg.wasm.
 Enabled builds include an Open-source licenses footer link, local GPL/MIT texts,
-and pinned wrapper/core source and build-recipe links under /licenses/index.html.
-The manifest hashes these disclosures with the encoder assets. Dependency links
-follow the upstream build recipe; several upstream references are moving branches.
-A complete, independently verified corresponding-source bundle is not yet
-assembled; do not treat these disclosures alone as a completed GPL source audit.
+and 18 locally served pinned source archives (about 53 MiB total). sources.json
+records upstream revisions and hashes; SOURCE-NOTES.txt describes provenance,
+build steps, packaging and test-only submodule exclusions. The build checks
+installed package versions and every archive checksum. Missing archives are
+retrieved from immutable upstream URLs into ignored work/encoder-sources.
+Harfbuzz is recompressed losslessly from gzip to xz to fit the hosting file limit;
+rebuilding an empty cache requires xz. The release manifest verifies all source
+archives alongside executable assets. This is source matching to the upstream
+release recipe; a byte-identical encoder rebuild is not claimed.
+
 
 ## Checks
 
@@ -159,3 +163,18 @@ places playback before voice settings, reduces mobile header spacing, and moves
 reader help into the footer. MP4 title and comment metadata identify Paste to
 Speech and its URL as the creation tool, without claiming authorship of input.
 These latest changes are local pending release, not a production deployment.
+
+## Independent long readings and production promotion (September 24)
+
+LONG_READINGS now selects splitting, bounded buffering and PDF limits independently
+of VIDEO_DOWNLOAD. With video disabled, a long logical reading joins MP3 and VTT
+exports on request, reusing prepared parts and preserving caption offsets. No
+server endpoint is fabricated for a tab-local logical reading ID.
+
+The production browser check is scripts/video-download/check-long-production.mjs.
+It uses cached audio and intercepted APIs, verifies 21,347 characters across two
+jobs, early playback, cross-part seeking and a complete download with 43 cues.
+It passed with MP4 disabled (joined MP3/VTT), then tests MP4 when enabled, including
+project metadata, duration, subtitles and exactly two admissions. It never calls
+a provider. Production keeps owner-only eligibility, the existing speech budget,
+and ENABLE_PAYMENTS=0. No ledger migration or grant is part of this release.

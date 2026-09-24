@@ -1,4 +1,4 @@
-import {splitReadingChunks} from './playlist-plan.js';
+import {splitReadingChunks,joinCaptions} from './playlist-plan.js';
 import {PlaylistSession} from './playlist-session.js';
 
 // A tab-local logical reading presents bounded durable jobs as one timeline to
@@ -34,6 +34,7 @@ export class LongReadingTransport {
         if(!response.ok&&response.status!==404)return response;
       }
       if(group.audioURL)URL.revokeObjectURL(group.audioURL);
+      if(group.captionURL)URL.revokeObjectURL(group.captionURL);
       sessionStorage.removeItem(group.key);return new Response(null,{status:204});
     }
     if(!match[2])return Response.json(this.status(group));
@@ -66,6 +67,23 @@ export class LongReadingTransport {
     return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',
       providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)};
   }
+  async downloadURL(id,kind) {
+    const group=this.groups.get(id);
+    if(!group||group.cancelled||this.status(group).state!=='ready')throw Error('The full reading is not ready.');
+    if(kind==='mp3')return this.audioURL(id);
+    if(kind!=='vtt')throw Error('Unsupported download format.');
+    if(!group.captionURL) {
+      const files=[];
+      for(const record of group.session.records) {
+        const response=await this.rawFetch(`/api/readings/${record.id}/download/vtt`,{signal:AbortSignal.timeout(30000)});
+        if(!response.ok)throw Error('Could not load the complete captions.');
+        files.push(await response.text());
+      }
+      if(group.cancelled)throw Error('Reading was cleared.');
+      group.captionURL=URL.createObjectURL(new Blob([joinCaptions(files,group.session.records.map(r=>r.duration))],{type:'text/vtt'}));
+    }
+    return group.captionURL;
+  }
   async audioURL(id) {
     const group=this.groups.get(id);if(!group)return `/api/readings/${id}/audio`;
     if(this.status(group).state!=='ready')throw Error('The full reading is not ready.');
@@ -76,6 +94,7 @@ export class LongReadingTransport {
         if(!response.ok)throw Error('Could not load the complete reading.');
         blobs.push(await response.blob());
       }
+      if(group.cancelled)throw Error('Reading was cleared.');
       group.audioURL=URL.createObjectURL(new Blob(blobs,{type:'audio/mpeg'}));
     }
     return group.audioURL;
