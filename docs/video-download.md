@@ -115,3 +115,28 @@ case starts a 44-section reader job, holds it at six ready sections, clicks
 Download, verifies no duplicate admission/partial download/encoder load, then
 releases all 44 and verifies the complete audio duration and all 44 subtitles. Ignored local evidence is
 under `work/video-download`, including joined.mp4, title.png and verification.json.
+
+## Mobile buffer recovery (September 24)
+
+Roger confirmed that an early Download click waited for all audio on mobile;
+MP4 playback worked in Podcast Addict, MPV and VLC, and the inline browser
+preview displayed subtitles. Podcast Addict subtitles were limited; external
+players may require their audio/background-playback setting. These are device
+observations, not a claim of universal player compatibility.
+
+The staging reader now keeps about 90 seconds ahead and 20 seconds behind the
+playhead, instead of appending the entire reading into MSE. On quota pressure it
+reduces the ahead window and releases played audio more aggressively. Seeking
+outside the window reloads existing prepared sections at their original sample
+positions; it does not synthesize again. If even the first section cannot fit,
+the same job switches to native completed-file playback. Server preparation and
+the complete MP4 download remain independent of the playback window. This is a
+playback-buffer bound, not a total browser-memory bound: MP4 generation still
+assembles the whole recording locally.
+
+`node scripts/video-download/check-buffer.mjs` uses real Chrome MSE with cached
+fixture bytes and intercepted APIs. It checks eviction, backward/forward seek,
+seek after end-of-stream, injected quota recovery, and same-job native fallback.
+The existing video check covers full download completion and captions. Run the
+buffer check against staging with `VIDEO_STAGING_ORIGIN` as for the video check.
+Physical-phone confirmation of this buffer fix is still needed.

@@ -248,7 +248,7 @@ function render(p, message) {
     if(href)$(id).href=href;else $(id).removeAttribute('href');
   }
   if(CLOUD_READER){
-    const available=MSE_ENABLED?p.ranges?.().at(-1)?.[1]||0:p.complete?p.duration:0;
+    const available=MSE_ENABLED?(p.boundedBuffer?p.duration:p.ranges?.().at(-1)?.[1])||0:p.complete?p.duration:0;
     $('seek').disabled=!isGoogle()||!available;
     $('seek').max=available||1;$('seek').value=p.audio?.currentTime||0;
     $('seek-time').textContent=`${Math.floor(p.audio?.currentTime||0)} / ${Math.floor(p.duration||0)} seconds`;
