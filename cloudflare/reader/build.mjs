@@ -1,7 +1,7 @@
 import {build} from 'esbuild';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
-import {mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
+import {mkdir,copyFile,readFile,writeFile,rm,cp} from 'node:fs/promises';
 const publicLaunch=process.argv.includes('--public');
 const production=publicLaunch||process.argv.includes('--production');
 const fixtureManifest=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
@@ -26,6 +26,7 @@ await build({...common,entryPoints:['browser/pdf.js'],outfile:root+'/pdf.js'});
 await copyFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs',root+'/pdf.worker.min.mjs');
 if(videoDownload){
  await mkdir(root+'/video',{recursive:true});
+ await cp('cloudflare/reader/licenses',root+'/licenses',{recursive:true});
  await build({...common,entryPoints:['public/video-export.js'],outfile:root+'/video-export.js'});
  await build({...common,entryPoints:['node_modules/@ffmpeg/ffmpeg/dist/esm/worker.js'],outfile:root+'/video/worker.js'});
  await copyFile('node_modules/@ffmpeg/core/dist/esm/ffmpeg-core.js',root+'/video/ffmpeg-core.js');
@@ -56,6 +57,7 @@ let footer=await readFile('browser/footer.html','utf8');
 footer=footer.replace('Voice generation uses Kokoro and Transformers.js; PDF extraction uses PDF.js.','Browser voices are free; WaveNet uses prepaid speech credit. PDF extraction uses PDF.js.');
 footer=footer.replace(/<details><summary>Privacy<\/summary>[\s\S]*?<\/details>/,`<details><summary>Privacy</summary><p>PDFs are read locally. Browser voices use your device speech service, which may connect to the internet. WaveNet sends cleaned reading text to Google Cloud. Prepared text and audio are stored privately for up to 24 hours for playback and downloads; Clear removes the recording. Account and payment records retain balances and usage without reading text. Preferences are saved in this browser.</p><p>This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications. Do Not Track and Global Privacy Control disable statistics.</p></details>`);
 footer=footer.replace(/<p class="hint">Your message, optional email,[\s\S]*?<\/p>/,'<p id="feedback-privacy" class="hint">Feedback stays in this private staging database. No notifications are sent. Do not include private reading text. Reports and aggregate statistics expire after 90 days.</p>');
+if(videoDownload)footer=footer.replace('</footer>','<p><a href="/licenses/index.html">Open-source licenses</a></p></footer>');
 html=html.replace('<footer>Made for a quieter kind of reading.</footer>',footer);
 const readerHelp=html.match(/<p class="hint reader-help">[\s\S]*?<\/p>/)[0];
 html=html.replace(readerHelp,'').replace('</footer>',readerHelp+'</footer>');
@@ -118,4 +120,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...(videoDownload?['video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...(videoDownload?['licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

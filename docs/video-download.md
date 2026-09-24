@@ -95,7 +95,12 @@ production build omits this feature and its encoder assets until enabled.
 
 Dependencies: @ffmpeg/ffmpeg 0.12.15 (MIT) and @ffmpeg/core 0.12.10
 (GPL-2.0-or-later), unmodified, from https://github.com/ffmpegwasm/ffmpeg.wasm.
-Upstream source/build recipes and licensing must accompany any broader release.
+Enabled builds include an Open-source licenses footer link, local GPL/MIT texts,
+and pinned wrapper/core source and build-recipe links under /licenses/index.html.
+The manifest hashes these disclosures with the encoder assets. Dependency links
+follow the upstream build recipe; several upstream references are moving branches.
+A complete, independently verified corresponding-source bundle is not yet
+assembled; do not treat these disclosures alone as a completed GPL source audit.
 
 ## Checks
 
