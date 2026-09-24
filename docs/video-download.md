@@ -7,7 +7,7 @@ and enable that variable through the normal shared release workflow.
 
 ## Use
 
-Choose WaveNet, paste text or import a PDF, and expand **Video download**.
+Choose WaveNet, paste text or import a PDF, and expand **Download recording**.
 **Prepare audio for video** makes bounded WaveNet jobs sequentially, preferring
 paragraph boundaries. Oversized paragraphs fall back to the existing sentence,
 phrase and word splitter. There is no document-length or part-count ceiling in

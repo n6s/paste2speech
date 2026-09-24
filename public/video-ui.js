@@ -18,6 +18,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
   function render() {
     const ready = session?.records.length && session.records.every(r => r.state === 'ready');
     $('clear').disabled = busy;
+    $('prepare-video').hidden = !!ready && getText() === preparedText && getVoice() === preparedVoice;
     $('prepare-video').disabled = busy || !getText().trim();
     $('download-video').disabled = busy || !ready;
     $('cancel-video').hidden = !busy;

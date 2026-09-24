@@ -46,7 +46,7 @@ try{
  await page.fill('#text',Array(60).fill(source.text).join('\n\n'));
  await page.locator('#video-download').evaluate(e=>e.open=true);
  await page.click('#prepare-video');
- await page.waitForFunction(()=>!document.getElementById('prepare-video').disabled);
+ await page.waitForFunction(()=>!document.getElementById('download-video').disabled);
  console.log('PREPARE:',await page.locator('#video-status').textContent(), 'jobs:',posts);
  assert.equal(await page.locator('#download-video').isDisabled(),false);
  assert.equal(posts,2);assert.equal(toolLoads,0,'Video tools must not load before Download');
