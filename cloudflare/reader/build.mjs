@@ -62,6 +62,11 @@ if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="record
 <p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated and use no credit. Live speech uses your staging account credit. Loading a sample does not generate speech.</p>
 </details>`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
+const origin='https://speak.rogerpbrown.com';
+if(production)html=html.replace('<title>Paste to Speech</title>', '<title>Paste to Speech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
+else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
+await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
+if(production)await writeFile(root+'/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/pricing','/terms'].map(path=>'<url><loc>'+origin+path+'</loc></url>').join('')+'</urlset>\n');
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
@@ -73,8 +78,11 @@ const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.j
 if(!production)for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
 console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');
 
-await copyFile('cloudflare/reader/terms.html',root+'/terms');
-await copyFile('cloudflare/reader/pricing.html',root+'/pricing');
+for(const page of ['terms','pricing']){
+ let content=await readFile('cloudflare/reader/'+page+'.html','utf8');
+ content=content.replace('</title>','</title>'+(production?'<link rel="canonical" href="'+origin+'/'+page+'">':'<meta name="robots" content="noindex, nofollow">'));
+ await writeFile(root+'/'+page,content);
+}
 
 const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
