@@ -43,8 +43,10 @@ if(production){
  html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
 }
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
+<details id="playback-options"><summary>Playback options</summary>
 <label>Playback <select id="mse-delivery"><option value="mse">Progressive</option><option value="complete">Prepare everything first</option></select></label><p id="mse-support"></p>
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
+</details>
 <details id="staging-checks"><summary>Staging checks</summary>
 <label><input id="mse-cached" type="checkbox">Use cached test audio · no credit used</label>
 <label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>
