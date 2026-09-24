@@ -57,7 +57,7 @@ try{
   await page.locator('#rate').fill('1.5');await page.locator('#rate').dispatchEvent('input');assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).playbackRate),1.5);
   await page.locator('#seek').evaluate(e=>{e.value=8;e.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>__audio.some(a=>a.currentTime>=8));
   assert.equal(await page.locator('#mse-fallback').isVisible(),false);
-  await page.locator('#playback-options summary').click();await page.click('#mse-fallback');await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.readyState>=1&&a.currentTime>=7.99));assert.equal(creates,1);
+  await page.locator('#mse-fallback').evaluate(button=>button.click());await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.readyState>=1&&a.currentTime>=7.99));assert.equal(creates,1);
   assert.deepEqual(errors,[]);
   // Both readers retain server explanations instead of reducing them to a code.
   reject=true;await page.reload();await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
@@ -69,7 +69,7 @@ try{
   }else{assert.equal(await page.locator('#staging-checks').count(),0);assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');}
   await context.close();
   const unsupported=await browser.newContext();await unsupported.addInitScript(()=>{window.MediaSource=undefined;});
-  const fallback=await unsupported.newPage();await fallback.route('**/api/**',r=>r.fulfill({json:{eligible:true}}));await fallback.goto(origin);await fallback.locator('#voice-settings').evaluate(e=>e.open=true);await fallback.selectOption('#engine','google');assert.equal(await fallback.locator('#mse-delivery').inputValue(),'complete');assert.ok(await fallback.locator('#mse-delivery option[value=mse]').evaluate(e=>e.disabled));await unsupported.close();
+  const fallback=await unsupported.newPage();await fallback.route('**/api/**',r=>r.fulfill({json:{eligible:true}}));await fallback.goto(origin);await fallback.locator('#voice-settings').evaluate(e=>e.open=true);await fallback.selectOption('#engine','google');assert.equal(await fallback.locator('#playback-options').isVisible(),false);await unsupported.close();
   console.log(`PASS ${environment}: default controls, early playback, pause, speed, seek, same-job fallback, errors, testing-mode isolation, unsupported browser`);
  }
 }finally{await browser.close();await new Promise(r=>server.close(r));}

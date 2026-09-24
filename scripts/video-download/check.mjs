@@ -70,6 +70,8 @@ try{
  assert.deepEqual(errors,[]);
  const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_streams','-show_format','-of','json',output],{encoding:'utf8'}));
  assert.deepEqual(probe.streams.map(s=>s.codec_name),['h264','aac','mov_text']);
+ assert.equal(probe.format.tags.title,'Paste to Speech recording');
+ assert.equal(probe.format.tags.comment,'Created with Paste to Speech — https://speak.rogerpbrown.com');
  const expected=[...jobs.values()].reduce((n,j)=>n+j.duration,0);
  assert.ok(Math.abs(Number(probe.streams.find(s=>s.codec_type==='audio').duration)-expected)<.1);
  const subs=execFileSync('ffmpeg',['-v','error','-i',output,'-map','0:s:0','-f','webvtt','-'],{encoding:'utf8'});

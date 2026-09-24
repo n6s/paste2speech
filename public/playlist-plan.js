@@ -32,6 +32,8 @@ export function videoArguments(duration) {
     '-map', '0:v:0', '-map', '1:a:0', '-map', '2:s:0', '-t', String(duration),
     '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'stillimage', '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '96k', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng',
+    '-metadata', 'title=Paste to Speech recording',
+    '-metadata', 'comment=Created with Paste to Speech — https://speak.rogerpbrown.com',
     '-disposition:s:0', 'default', '-movflags', '+faststart', '-y', 'part.mp4'];
 }
 

@@ -37,6 +37,12 @@ if(videoDownload){
 await copyFile('public/style.css',root+'/style.css');
 let html=await readFile('public/index.html','utf8');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
+// Keep the reader next to its controls, with optional settings following playback.
+const settingsCard=html.match(/<section class="card voice-settings-card"[\s\S]*?<\/section>/)[0];
+html=html.replace(settingsCard,'').replace('<footer>',settingsCard+'<footer>');
+html=html.replace('<main>','<main class="compact-reader">');
+html=html.replace('<p class="hint">Formatted paste','<p class="hint reader-help">Formatted paste');
+
 html=html.replace('<option value="kokoro" disabled>Workstation · checking…</option>','<option value="google">WaveNet · speech credit</option>');
 html=html.replace('PDFs are sent to your workstation for extraction and are not saved.','PDFs are read on this device and are not uploaded.');
 html=html.replace('<div class="mode-controls"','<button id="cancel-pdf" type="button" hidden>Cancel import</button><div class="mode-controls"');
@@ -51,6 +57,9 @@ footer=footer.replace('Voice generation uses Kokoro and Transformers.js; PDF ext
 footer=footer.replace(/<details><summary>Privacy<\/summary>[\s\S]*?<\/details>/,`<details><summary>Privacy</summary><p>PDFs are read locally. Browser voices use your device speech service, which may connect to the internet. WaveNet sends cleaned reading text to Google Cloud. Prepared text and audio are stored privately for up to 24 hours for playback and downloads; Clear removes the recording. Account and payment records retain balances and usage without reading text. Preferences are saved in this browser.</p><p>This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications. Do Not Track and Global Privacy Control disable statistics.</p></details>`);
 footer=footer.replace(/<p class="hint">Your message, optional email,[\s\S]*?<\/p>/,'<p id="feedback-privacy" class="hint">Feedback stays in this private staging database. No notifications are sent. Do not include private reading text. Reports and aggregate statistics expire after 90 days.</p>');
 html=html.replace('<footer>Made for a quieter kind of reading.</footer>',footer);
+const readerHelp=html.match(/<p class="hint reader-help">[\s\S]*?<\/p>/)[0];
+html=html.replace(readerHelp,'').replace('</footer>',readerHelp+'</footer>');
+
 if(production){
  if(!publicLaunch){html=html.replace('Staging uses test purchases only.','').replace('WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>.','WaveNet is available only to the verified trial owner. <a href="/api/billing">Sign in to your account</a>.');
  html=html.replace('WaveNet uses prepaid speech credit.','WaveNet is currently an owner-only trial.');}

@@ -140,3 +140,17 @@ seek after end-of-stream, injected quota recovery, and same-job native fallback.
 The existing video check covers full download completion and captions. Run the
 buffer check against staging with `VIDEO_STAGING_ORIGIN` as for the video check.
 Physical-phone confirmation of this buffer fix is still needed.
+
+## September 24 reader acceptance and compact controls
+
+Roger reports phone playback working; one non-reproducible glitch cleared on
+reload, and a separate failure was an expired staging Cloudflare Access session.
+He reports no player-experience blocker to promotion.
+
+Normal hosted playback chooses progressive automatically when supported; the
+manual full-preparation selector is confined to staging testing mode. Automatic
+unsupported-browser and buffer-pressure recovery remain. The hosted reader now
+places playback before voice settings, reduces mobile header spacing, and moves
+reader help into the footer. MP4 title and comment metadata identify Paste to
+Speech and its URL as the creation tool, without claiming authorship of input.
+These latest changes are local pending release, not a production deployment.

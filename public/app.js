@@ -108,7 +108,7 @@ async function discoverWorkstation() {
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro · unavailable';
   }
 }
-function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?$('mse-delivery').value:'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?(MSE_STAGING?$('mse-delivery').value:(workstationPlayer.capability.mp3?'mse':'complete')):'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
@@ -508,7 +508,8 @@ if (WORKSTATION) {
 
 if(MSE_ENABLED){
  const supported=workstationPlayer.capability.mp3;
- if(!supported){$('mse-delivery').value='complete';$('mse-delivery').querySelector('[value=mse]').disabled=true;}
+ if(MSE_STAGING&&!supported){$('mse-delivery').value='complete';$('mse-delivery').querySelector('[value=mse]').disabled=true;}
+ $('playback-options').hidden=!MSE_STAGING;
  $('mse-support').textContent=supported?'Progressive playback is available.':'This browser uses full preparation because MP3 progressive playback is unavailable.';
  $('mse-fallback').onclick=()=>workstationPlayer.useCompletedFile();
 }
