@@ -45,8 +45,10 @@ if(production){
  html=html.replace('Feedback stays in this private staging database. No notifications are sent.','Feedback is stored for review.');
 }
 if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
+<details id="playback-options"><summary>Playback options</summary>
 <label>Playback <select id="mse-delivery"><option value="mse">Progressive</option><option value="complete">Prepare everything first</option></select></label><p id="mse-support"></p>
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
+</details>
 `);
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks"><summary>Staging checks</summary>
