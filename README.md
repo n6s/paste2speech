@@ -1,3 +1,5 @@
+> Hosted reader releases: see [the shared staging and production workflow](docs/reader-release.md).
+
 # Paste to Speech
 
 Public reader: **https://speak.rogerpbrown.com**. The current deployment offers

@@ -13,7 +13,6 @@
     "READER_ORIGIN": "https://speak-staging.rogerpbrown.com",
     "ACCESS_ISSUER": "https://broad-king-0668.cloudflareaccess.com",
     "ACCESS_AUD": "cc8a795d34c6e3dd7a61e1d12a86f171de6c0764ca83088160ee2baf9d4ba971",
-    "MAX_LIFETIME_CHARACTERS": "100000",
     "READER_MODE": "staging",
     "PADDLE_ENVIRONMENT": "sandbox",
     "PADDLE_PRICE_ID": "pri_01m32vvy2sptegx6arebyvxh37",

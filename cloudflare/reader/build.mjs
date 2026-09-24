@@ -1,5 +1,6 @@
 import {build} from 'esbuild';
 import {createHash} from 'node:crypto';
+import {execFileSync} from 'node:child_process';
 import {mkdir,copyFile,readFile,writeFile,rm} from 'node:fs/promises';
 const publicLaunch=process.argv.includes('--public');
 const production=publicLaunch||process.argv.includes('--production');
@@ -13,7 +14,7 @@ const progressive=mse||mseProduction;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse},MSE_ENABLED=${progressive},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
  // Excluded engines have no implementation or model dependency in this build.
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
@@ -51,14 +52,16 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 </details>
 `);
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
-<details id="staging-checks"><summary>Staging checks</summary>
-<label><input id="mse-cached" type="checkbox">Use cached test audio · no credit used</label>
+<details id="staging-checks" hidden><summary>Staging checks</summary>
+<p>Testing mode · <a href="/">Return to the reader</a></p>
+<label><input id="mse-cached" type="checkbox" checked>Use cached test audio · no credit used</label>
 <label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>
 <label>Requests in flight <select id="mse-concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
 <details><summary>Playback results</summary><pre id="mse-diagnostics"></pre></details>
 <button id="mse-sample" type="button">Load test sample</button><button id="mse-results" type="button">Save playback results</button>
-<p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated. Live staging checks share a 3,000-character campaign limit. Loading a sample does not generate speech.</p>
+<p>To compare settings, choose them and load the sample again. Cached preparation timings are simulated and use no credit. Live speech uses your staging account credit. Loading a sample does not generate speech.</p>
 </details>`);
+if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
@@ -72,3 +75,7 @@ console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?
 
 await copyFile('cloudflare/reader/terms.html',root+'/terms');
 await copyFile('cloudflare/reader/pricing.html',root+'/pricing');
+
+const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
+const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js'].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

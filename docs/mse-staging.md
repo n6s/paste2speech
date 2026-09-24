@@ -1,3 +1,5 @@
+> September 24: staging and production now share the release workflow in [reader-release.md](reader-release.md). Staging testing tools require explicit testing mode; its old campaign/lifetime ceilings are retired. Earlier instructions below are historical where they differ. Public billing remains gated.
+
 # Progressive reading in private staging
 
 Integration branch: `codex/mse-staging-reader`, based on Pixel-accepted experiment

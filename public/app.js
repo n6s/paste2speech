@@ -506,6 +506,7 @@ if(MSE_ENABLED){
  $('mse-fallback').onclick=()=>workstationPlayer.useCompletedFile();
 }
 if(MSE_STAGING){
+ $('staging-checks').hidden=false;
  window.__stagingReader=workstationPlayer;
  $('mse-sample').onclick=async()=>{
   const response=await fetch('/api/staging/fixtures');if(!response.ok){$('status').textContent='Staging samples are unavailable.';return;}

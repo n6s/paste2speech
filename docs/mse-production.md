@@ -1,3 +1,5 @@
+> September 24: staging and production now share the release workflow in [reader-release.md](reader-release.md). Staging testing tools require explicit testing mode; its old campaign/lifetime ceilings are retired. Earlier instructions below are historical where they differ. Public billing remains gated.
+
 # Owner-only progressive production reader
 
 Roger authorized promotion on September 23, 2026, with billing still disabled. This release keeps `production-trial`, the verified-owner restriction, existing balances and the 100,000-character lifetime ceiling. Public checkout remains disabled. It introduces no migrations, grants, paid verification calls or public-launch changes. Private staging and the working Tailscale experiment are unchanged.

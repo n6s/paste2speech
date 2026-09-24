@@ -7,7 +7,7 @@ export const progressiveReader=env=>mseStaging(env)||mseProduction(env);
 export const fixtureChunks=(voice,scenario='normal')=>Array.from({length:scenario==='long'?64:8},(_,i)=>fixtures[voice][i%8].text);
 export function stagingInput(raw,env){
  if(raw?.delivery!==undefined){
-  if(!mseProduction(env)||raw.mseOptions||!['mse','complete'].includes(raw.delivery)||['cached','scenario','concurrency'].some(k=>k in raw))throw Error('Playback options are unavailable');
+  if(!progressiveReader(env)||raw.mseOptions||!['mse','complete'].includes(raw.delivery)||['cached','scenario','concurrency'].some(k=>k in raw))throw Error('Playback options are unavailable');
   if(env.MSE_NEW_READINGS==='0'&&raw.delivery==='mse')throw Error('New progressive readings are paused');
   return {...validateInput(raw),mseOptions:{delivery:raw.delivery,concurrency:3,cached:false,scenario:'normal'}};
  }

@@ -1,3 +1,5 @@
+> September 24: staging and production now share the release workflow in [reader-release.md](reader-release.md). Staging testing tools require explicit testing mode; its old campaign/lifetime ceilings are retired. Earlier instructions below are historical where they differ. Public billing remains gated.
+
 > September 23 update: owner-only progressive playback is now deployed to production with billing still disabled. See [the production verification and rollback report](mse-production.md). The earlier production version references below are historical; public billing/access still require a separate decision.
 
 # Resume public billing launch

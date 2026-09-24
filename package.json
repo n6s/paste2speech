@@ -11,7 +11,10 @@
     "build:reader:production": "node cloudflare/reader/build.mjs --production --mse-production",
     "release:reader:production": "node scripts/release-reader-production.mjs",
     "build:reader:public": "node cloudflare/reader/build.mjs --public",
-    "release:reader:public": "node scripts/release-reader-public.mjs"
+    "release:reader:public": "node scripts/release-reader-public.mjs",
+    "build:reader:staging": "node cloudflare/reader/build.mjs --mse-staging",
+    "release:reader:staging": "node scripts/release-reader.mjs --staging",
+    "check:reader:parity": "node scripts/reader-parity/check.mjs"
   },
   "dependencies": {
     "@huggingface/transformers": "3.8.1",

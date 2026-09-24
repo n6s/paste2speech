@@ -118,11 +118,9 @@ export default {
       const admitted=await ledger.query('SELECT account FROM public_jobs WHERE job=?',id).first();
       if(admitted.account!==owner)throw new CreditError('Reading not found.',404);
      }else{
-     if(mseStaging(env)){
-      const campaign=await ledger.query("SELECT maximum,characters FROM mse_campaign WHERE id='mse-pixel-v1' AND active=1").first();
-      if(!campaign||campaign.maximum!==3000)throw new CreditError('Staging campaign budget is unavailable.',503);
-     }
-     const maximum=Number(env.MAX_LIFETIME_CHARACTERS);if(!Number.isSafeInteger(maximum)||maximum<1||maximum>100000)throw new CreditError('Private speech budget is not configured.',503);
+     // Staging retains admission accounting, but its staging-only migration
+     // retires the campaign and removes the lifetime admission ceiling.
+     const maximum=mseStaging(env)?100000:Number(env.MAX_LIFETIME_CHARACTERS);if(!Number.isSafeInteger(maximum)||maximum<1||maximum>100000)throw new CreditError('Private speech budget is not configured.',503);
      await ledger.query("INSERT OR IGNORE INTO speech_budget VALUES('private-lifetime',0,?)",maximum).run();
      try{const fingerprint=await digest(JSON.stringify({owner,...input}));await ledger.query('INSERT INTO speech_admissions(job,characters,fingerprint) SELECT ?,?,? WHERE NOT EXISTS(SELECT 1 FROM speech_admissions WHERE job=?)',id,sourceCounts(input.chunks).reduce((a,b)=>a+b,0),fingerprint,id).run();const admission=await ledger.query('SELECT fingerprint FROM speech_admissions WHERE job=?',id).first();if(admission.fingerprint!==fingerprint)throw Error('Request mismatch');}catch{throw new CreditError('Private speech budget reached. Generation is paused.',429);}
     }
