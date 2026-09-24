@@ -59,3 +59,11 @@
  .compact-reader .mode-controls{margin:8px 0}
  .compact-reader .pdf-import{padding:8px;margin-top:6px}
 }
+
+.download-card>details,.cleanup-card>details{border:0;margin:0;padding:0}
+.download-card,.cleanup-card{padding-top:10px;padding-bottom:10px}
+.download-card>details>summary,.cleanup-card>details>summary{min-height:44px;display:flex;align-items:center}
+
+.download-card>details>summary::before,.cleanup-card>details>summary::before{content:"▸";margin-right:8px}
+.download-card>details[open]>summary::before,.cleanup-card>details[open]>summary::before{content:"▾"}
+.download-card summary::-webkit-details-marker,.cleanup-card summary::-webkit-details-marker{display:none}

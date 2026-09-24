@@ -46,7 +46,7 @@ try{
   assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');
   assert.equal(await page.locator('#staging-checks').isVisible(),false);
   assert.equal(await page.getByText('Download recording',{exact:true}).count(),1);
-  if(environment==='staging')assert.equal(await page.locator('#recording-controls > #video-download').count(),1);
+  if(environment==='staging')assert.equal(await page.locator('.download-card > #video-download').count(),1);
   const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download'].includes(c.id)).map(c=>c.outerHTML).join(''));
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
   await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.ok(Date.now()-started<1700);

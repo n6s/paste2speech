@@ -116,3 +116,14 @@ test('parallel stored-audio reads stay bounded and preserve sentence byte order'
  assert.equal(job.state,'ready');assert.equal(maximum,6);
  const audio=objects.get('parallel/reading.mp3');assert.deepEqual(Array.from({length:20},(_,i)=>audio[i*192+191]),Array.from({length:20},(_,i)=>i));
 });
+
+test('US and UK male WaveNet voices retain their locale through validation and synthesis',async()=>{
+ for(const voice of ['en-US-Wavenet-D','en-GB-Wavenet-D']){
+  assert.equal(validateInput({...input,voice}).voice,voice);
+  await synthesize('Hello.',voice,'test',{fetcher:async(url,options)=>{
+   assert.deepEqual(JSON.parse(options.body).voice,{languageCode:voice.slice(0,5),name:voice});
+   return Response.json({audioContent:btoa(String.fromCharCode(...frame()))});
+  }});
+ }
+ assert.throws(()=>validateInput({...input,voice:'en-US-Wavenet-unknown'}));
+});

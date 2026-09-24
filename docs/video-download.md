@@ -178,3 +178,13 @@ It passed with MP4 disabled (joined MP3/VTT), then tests MP4 when enabled, inclu
 project metadata, duration, subtitles and exactly two admissions. It never calls
 a provider. Production keeps owner-only eligibility, the existing speech budget,
 and ENABLE_PAYMENTS=0. No ledger migration or grant is part of this release.
+
+## Voice choices and flat settings (September 24)
+
+Hosted WaveNet now accepts US/UK male D as well as the original female F voices;
+the server validation, Google adapter, reader discovery and export validation
+share the expanded choices. Mocked synthesis verifies voice/locale forwarding;
+no paid audition was performed. The workstation-only menu keeps its old choices.
+Voice, Download recording and Clean up before reading are separate peer sections
+below playback. The filename link supplies the desired MP4 name; the browser's
+own Blob-video download menu can still use its generated identifier.

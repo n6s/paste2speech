@@ -101,6 +101,12 @@ if(videoDownload)html=html.replace(/<details id="recording-download">[\s\S]*?<\/
 <video id="video-preview" controls playsinline hidden style="width:100%;max-width:960px"></video>
 <label id="video-split-settings" hidden>Split size <select id="video-split-limit"><option value="20000" ${production?'selected':''}>20,000 characters</option><option value="1200" ${production?'':'selected'}>1,200 characters · testing</option></select></label>
 </details>`);
+// Peer sections: voice, download, and cleanup are independently expandable.
+const cleanup=html.match(/<details><summary>Clean up before reading<\/summary>[\s\S]*?<\/details>/)[0];
+html=html.replace(cleanup,'');
+const download=html.match(/<details id="(?:video-download|recording-download)"[^>]*>[\s\S]*?<\/details>/)[0];
+html=html.replace(download,'');
+html=html.replace('<footer',`<section class="card download-card" aria-label="Recording download">${download}</section><section class="card cleanup-card" aria-label="Text cleanup">${cleanup}</section><footer`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 const origin='https://speak.rogerpbrown.com';
 if(production)html=html.replace('<title>Paste to Speech</title>', '<title>Paste to Speech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');

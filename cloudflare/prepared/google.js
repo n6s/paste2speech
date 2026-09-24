@@ -41,7 +41,7 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
   }catch(error){throw Error(`Google authorization failed during ${stage}${httpStatus?` (HTTP ${httpStatus})`:` (${['TypeError','DataError','OperationError'].includes(error.name)?error.name:'request error'})`}. No speech request was retried.`);}
 }
 export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis.fetch(...args)}={}){
-  if(!['en-US-Wavenet-F','en-GB-Wavenet-F'].includes(voice) || typeof text!=='string' ||
+  if(!['en-US-Wavenet-F','en-GB-Wavenet-F','en-US-Wavenet-D','en-GB-Wavenet-D'].includes(voice) || typeof text!=='string' ||
      !text.trim() || encoder.encode(text).length>5000)throw Error('Unsupported speech input');
   try {
     const response=await fetcher(SPEECH_URL,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(60000),

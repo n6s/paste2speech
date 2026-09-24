@@ -39,7 +39,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     if (waitingForCreation && !prepared.id) throw Error('The current audio preparation could not be confirmed. No replacement speech was started.');
-    if (!['en-US-Wavenet-F', 'en-GB-Wavenet-F'].includes(voice)) throw Error('Choose a WaveNet voice first.');
+    if (!['en-US-Wavenet-F', 'en-GB-Wavenet-F', 'en-US-Wavenet-D', 'en-GB-Wavenet-D'].includes(voice)) throw Error('Choose a WaveNet voice first.');
     const reuse = prepared?.id && prepared.settings?.voice === voice &&
       JSON.stringify(parts.flatMap(p => p.chunks)) === JSON.stringify(prepared.chunks);
     if(reuse)borrowedPreparation=true;
@@ -118,7 +118,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   $('cancel-video').onclick = () => {
     stopRequested = true; if(!borrowedPreparation)session?.stop(); controller?.abort(); message('Stopping…');
   };
-  function update() { panel.hidden = !isGoogle(); render(); }
+  function update() { panel.hidden = !isGoogle(); panel.closest('.download-card').hidden = !isGoogle(); render(); }
   $('clear').addEventListener('click', async () => {
     if (busy) return;
     busy = true; releaseVideo(); render();

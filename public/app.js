@@ -281,7 +281,7 @@ function updateVoiceSummary() {
 function loadVoices() {
   $('voice').replaceChildren();
   if (isKokoro()) {
-    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'WaveNet F · American English'},{id:'en-GB-Wavenet-F',name:'WaveNet F · British English'}] : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
+    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'US female · WaveNet F'},{id:'en-US-Wavenet-D',name:'US male · WaveNet D'},{id:'en-GB-Wavenet-F',name:'UK female · WaveNet F'},{id:'en-GB-Wavenet-D',name:'UK male · WaveNet D'}].filter(v=>CLOUD_READER||v.id.endsWith('-F')) : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;

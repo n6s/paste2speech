@@ -1,6 +1,6 @@
 import {inspectMp3, captions} from './mp3.js';
 export const MAX_BYTES=32*1024*1024;
-export const VOICES=['en-US-Wavenet-F','en-GB-Wavenet-F'];
+export const VOICES=['en-US-Wavenet-F','en-GB-Wavenet-F','en-US-Wavenet-D','en-GB-Wavenet-D'];
 export function canRetryAuthorization(job){return job.mode==='live'&&job.state==='failed'&&job.attempts===0&&!(job.authorizationRestarts>=1);}
 export function validateInput(input){
   if(!input || !VOICES.includes(input.voice) || !Array.isArray(input.chunks) || !input.chunks.length || input.chunks.length>10000 ||
