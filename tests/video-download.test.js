@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {planPlaylist, joinCaptions, videoArguments, generatedLabel} from '../public/playlist-plan.js';
+import {planPlaylist, splitReadingChunks, joinCaptions, videoArguments, generatedLabel} from '../public/playlist-plan.js';
 import {chunkText} from '../public/text.js';
 import {validateInput} from '../cloudflare/prepared/job.js';
 import {PlaylistSession} from '../public/playlist-session.js';
@@ -72,3 +72,11 @@ test('stop during create cancels its late acknowledgement and never starts the n
   session.stop(); reply(Response.json({})); await pending; await session.cancelPending();
   assert.equal(posts, 1); assert.equal(deletes, 1); assert.equal(session.records[0].state, 'cancelled');
 });
+
+ test('normal playback splitting preserves paragraph boundaries and global sentence order', () => {
+   const chunks=Array.from({length:42},(_,i)=>String(i).padStart(3,'0')+'x'.repeat(497));
+   const parts=splitReadingChunks(chunks,[0,6,26],20000);
+   assert.deepEqual(parts.map(p=>p.characters),[13000,8000]);
+   assert.deepEqual(parts.flatMap(p=>p.chunks),chunks);
+   for(const part of parts)validateInput({voice:'en-US-Wavenet-F',chunks:part.chunks});
+ });

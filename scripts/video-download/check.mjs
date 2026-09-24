@@ -20,7 +20,7 @@ const server=createServer(async(req,res)=>{try{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 try{
- const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0,downloads=0,audioDownloads=0,partial=false,allowComplete=false,partialPolls=0;
+ const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0,downloads=0,audioDownloads=0,partial=false,allowComplete=false,partialPolls=0,longMode=false;
  page.on('download',()=>downloads++);
  if(remote)await page.context().addCookies([{name:'CF_Authorization',value:execFileSync('cloudflared',['access','token','--app',remote],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim(),url:remote,httpOnly:true,secure:true,sameSite:'Lax'}]);
  page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -29,7 +29,7 @@ try{
   const r=route.request(),p=new URL(r.url()).pathname;
   if(p==='/api/readings'&&r.method()==='POST'){
    const id=r.headers()['idempotency-key'],body=r.postDataJSON(); posts++;
-   assert.ok(body.chunks.reduce((n,c)=>n+c.length,0)<=1200);assert.ok(body.chunks.every(c=>c===source.text));
+   assert.ok(body.chunks.reduce((n,c)=>n+c.length,0)<=(longMode?20000:1200));if(!longMode)assert.ok(body.chunks.every(c=>c===source.text));
    const starts=body.chunks.map((_,i)=>i*info.duration),duration=info.duration*body.chunks.length;
    jobs.set(id,{mp3:Buffer.concat(body.chunks.map(()=>mp3)),vtt:captions(body.chunks,{starts,duration}),duration,total:body.chunks.length});
    return route.fulfill({json:{id}});
@@ -97,6 +97,35 @@ try{
  const fullSubs=execFileSync('ffmpeg',['-v','error','-i',folder+'/waited-for-complete.mp4','-map','0:s:0','-f','webvtt','-'],{encoding:'utf8'});
  assert.equal((fullSubs.match(/A short pause follows\./g)||[]).length,44);
  assert.deepEqual(errors,[]);
+ // Actual over-limit document: preserve all 21,347 submitted characters.
+ longMode=true;partial=true;allowComplete=false;partialPolls=0;
+ await page.goto((remote||`http://127.0.0.1:${server.address().port}`)+'/?testing=1');
+ await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+ await page.locator('#mse-cached').evaluate(e=>{e.checked=false;e.dispatchEvent(new Event('change'));});
+ await page.locator('#video-split-limit').evaluate(e=>e.value='20000');
+ const longText=[...Array(42).fill('Reading '+'a'.repeat(491)+'.'),'Ending '+'b'.repeat(339)+'.'].join('\n\n');
+ await page.fill('#text',longText);const beforeLong=posts;
+ await page.click('#play');await page.waitForFunction(()=>document.getElementById('recording-progress').textContent.includes('6 of 43'));
+ assert.equal(posts,beforeLong+1);assert.ok(await page.evaluate(()=>__stagingReader.chunks.reduce((n,c)=>n+c.length,0)===21347));
+ await page.locator('#video-download').evaluate(e=>e.open=true);await page.click('#download-video');
+ while(partialPolls<3)await new Promise(r=>setTimeout(r,100));
+ assert.equal(posts,beforeLong+1,'Video must follow the logical reading, not create another one');
+ allowComplete=true;
+ await page.waitForFunction(()=>document.getElementById('open-video').getAttribute('href')?.startsWith('blob:'),{},{timeout:180000});
+ assert.equal(posts,beforeLong+2,'21,347 characters must use two bounded jobs');
+ await saveLink(folder+'/long-reading.mp4');
+ const longSubs=execFileSync('ffmpeg',['-v','error','-i',folder+'/long-reading.mp4','-map','0:s:0','-f','webvtt','-'],{encoding:'utf8'});
+ assert.equal((longSubs.match(/ --> /g)||[]).length,43);
+ assert.ok(longSubs.includes('Ending '+'b'.repeat(339)+'.'));
+ await page.waitForFunction(()=>__stagingReader.finalized);await page.click('#pause');
+ await page.evaluate(()=>__stagingReader.seekTo(40*1.848+.1));
+ await page.waitForFunction(()=>__stagingReader.index===40);
+ await page.locator('#playback-options').evaluate(e=>e.open=true);await page.click('#mse-fallback');
+ await page.waitForFunction(()=>__stagingReader.mode==='full'&&__stagingReader.finalized&&__stagingReader.audio.readyState>=1);
+ assert.ok(Math.abs(await page.evaluate(()=>__stagingReader.audio.duration)-43*info.duration)<.1);
+ assert.equal(posts,beforeLong+2,'Seeking and full-file fallback must not regenerate speech');
+ assert.deepEqual(errors,[]);
+ console.log('PASS: 21,347-character normal Play split into 20,000 + 1,347; continuous playback, cross-part seek, full-file fallback, and complete 43-cue video all reused two jobs.');
  console.log('PASS: pending 6/44-section reader job reused without another admission; conversion waited for all 44 sections and captions.');
  console.log('PASS: two prepared jobs → one H.264/AAC/mov_text MP4; 60 captions; full duration; native preview, seeking, repeat download; zero provider calls.');
 }finally{await browser.close();await new Promise(r=>server.close(r));}

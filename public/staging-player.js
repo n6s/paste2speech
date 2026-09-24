@@ -1,8 +1,11 @@
-import {MSE_FIXTURE_VERSION,MSE_STAGING} from './config.js';
+import {MSE_FIXTURE_VERSION,MSE_STAGING,VIDEO_DOWNLOAD} from './config.js';
+import {LongReadingTransport} from './long-reading.js';
 import {MsePlayer} from './mse-buffer-player.js';
 export class StagingPlayer extends MsePlayer {
  constructor(onChange,{audio=new Audio(),fetcher}={}){
-  super(audio,p=>{onChange(p,p.error||'');const button=document.getElementById('mse-fallback');if(button)button.hidden=!p.job||p.mode!=='mse';},fetcher);
+  const transport=VIDEO_DOWNLOAD?new LongReadingTransport(fetcher):null;
+  super(audio,p=>{onChange(p,p.error||'');const button=document.getElementById('mse-fallback');if(button)button.hidden=!p.job||p.mode!=='mse';},transport?transport.fetch.bind(transport):fetcher);
+  this.longReadings=transport;
  }
  diagnostics(){return {...super.diagnostics(),fixtureVersion:this.settings?.cached?MSE_FIXTURE_VERSION:null,simulated:!!this.settings?.cached,configuration:this.settings?{voice:this.settings.voice,concurrency:this.settings.concurrency,cached:this.settings.cached,scenario:this.settings.scenario}:null};}
  get id(){return this.job;}get chunks(){return this.texts||[];}get starts(){return this.status?.starts||[];}
@@ -15,7 +18,7 @@ export class StagingPlayer extends MsePlayer {
   }
   this.settings={...settings};this.pendingIndex=null;
   this.rate=settings.rate;const delivery=settings.delivery==='mse'&&this.capability.mp3?'mse':'complete';
-  await super.start({chunks,voice:settings.voice,provider:'google',...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
+  await super.start({chunks,voice:settings.voice,provider:'google',...(VIDEO_DOWNLOAD?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
  }
  emit(){
   if(this.pendingIndex!=null&&this.status?.starts[this.pendingIndex]!=null&&this.audio){
@@ -39,6 +42,8 @@ export class StagingPlayer extends MsePlayer {
  invalidate(){this.pendingIndex=null;this.pendingTime=null;return super.invalidate();}
  release(){if(navigator.mediaSession){for(const name of ['play','pause','stop','seekto','seekforward','seekbackward'])try{navigator.mediaSession.setActionHandler(name,null);}catch{}navigator.mediaSession.playbackState='none';}}
  download(kind){return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
+ getVideoPreparation(){return this.longReadings?.groups.get(this.job);}
+ completedAudioURL(){return this.longReadings?.audioURL(this.job)||super.completedAudioURL();}
  useCompletedFile(){
   if(!this.job)return;
   const time=this.audio.currentTime,wantPlay=this.wantPlay;this.controller.abort();this.serial++;this.controller=new AbortController();

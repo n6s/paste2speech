@@ -80,6 +80,7 @@ export class MsePlayer {
       this.setRate(this.rate);void this.pump(serial);
     }catch(error){if(serial===this.serial)this.fail(error);}
   }
+  completedAudioURL(){return `/api/readings/${this.job}/audio`;}
   async pump(serial=this.serial){
     if(this.pumping||this.fatal||!this.job)return;
     this.pumping=true;const signal=this.controller.signal;
@@ -115,7 +116,8 @@ export class MsePlayer {
             this.log('end-of-stream',{expectedDuration:status.duration});this.emit();return;
           }
         }else if(status.state==='ready'){
-          this.audio.src=`/api/readings/${this.job}/audio`;this.audio.load();
+          const url=await this.completedAudioURL();if(serial!==this.serial)return;
+          this.audio.src=url;this.audio.load();
           if(this.objectURL)URL.revokeObjectURL(this.objectURL);this.objectURL=null;this.source=null;this.buffer=null;this.setRate(this.rate);this.finalized=true;
           this.log('complete-file-loaded');if(this.wantPlay&&this.pendingIndex==null)void this.play();this.emit();return;
         }

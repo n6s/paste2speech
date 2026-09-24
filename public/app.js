@@ -79,7 +79,7 @@ function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
+function canPlay() { if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   player?.stop();
   workstationPlayer.release();
@@ -285,7 +285,7 @@ function loadVoices() {
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = isGoogle() ? 'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.' + (MSE_ENABLED ? ' Playback follows your selected preparation mode.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? (VIDEO_DOWNLOAD?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback follows your selected preparation mode.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -526,4 +526,4 @@ if(MSE_STAGING){
  $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
 }
 
-if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle});
+if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle, onChange:()=>{if(player)render(player);}});

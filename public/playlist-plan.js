@@ -60,3 +60,21 @@ export function joinCaptions(files, durations) {
   if (!cues.length) throw Error('No subtitles found.');
   return 'WEBVTT\n\n' + cues.join('\n\n') + '\n';
 }
+
+// Split the reader's existing chunks without changing its sentence indexes.
+export function splitReadingChunks(chunks, paragraphStarts = [0], limit = 20000) {
+  if (!Number.isInteger(limit) || limit < 100 || limit > 20000) throw Error('Invalid audio part size.');
+  const boundaries = [...new Set([0, ...paragraphStarts.filter(n => Number.isInteger(n) && n >= 0 && n < chunks.length), chunks.length])].sort((a,b)=>a-b);
+  const parts = []; let current = [], size = 0;
+  const flush = () => {if(current.length)parts.push({chunks:current,characters:size});current=[];size=0;};
+  for(let p=0;p<boundaries.length-1;p++) {
+    const paragraph=chunks.slice(boundaries[p],boundaries[p+1]), length=paragraph.reduce((n,t)=>n+t.length,0);
+    if(size+length>limit || current.length+paragraph.length>10000)flush();
+    for(const chunk of paragraph) {
+      if(chunk.length>limit)throw Error('A speech section exceeds the part size.');
+      if(size+chunk.length>limit || current.length===10000)flush();
+      current.push(chunk);size+=chunk.length;
+    }
+  }
+  flush();return parts;
+}

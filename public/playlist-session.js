@@ -1,8 +1,8 @@
 // One paid job per part. Persist IDs before POST so an uncertain acknowledgement
 // can be checked, never silently replaced with another chargeable request.
 export class PlaylistSession {
-  constructor(parts, voice, {fetcher = (...args) => fetch(...args), save = () => {}, records = [], changed = () => {}, sleep = ms => new Promise(r => setTimeout(r, ms))} = {}) {
-    Object.assign(this, {parts, voice, fetcher, save, changed, sleep});
+  constructor(parts, voice, {fetcher = (...args) => fetch(...args), save = () => {}, records = [], changed = () => {}, statusChanged = () => {}, sleep = ms => new Promise(r => setTimeout(r, ms))} = {}) {
+    Object.assign(this, {parts, voice, fetcher, save, changed, statusChanged, sleep});
     this.records = parts.map((_, i) => records[i] || {});
     this.stopped = false;
   }
@@ -38,6 +38,7 @@ export class PlaylistSession {
         if (status.state === 'ready' && (status.total != null && (status.total !== this.parts[i].chunks.length || status.completed !== status.total || Array.isArray(status.starts) && status.starts.length !== status.total))) {
           throw Error('Audio preparation is incomplete. Video conversion has not started.');
         }
+        this.statusChanged(i, status);
         Object.assign(record, {state: status.state, duration: status.duration, completed: status.completed}); this.persist();
         if (status.state === 'ready') break;
         if (['failed', 'cancelled'].includes(status.state)) throw Error(status.error || `Part ${i + 1} ${status.state}. Completed parts remain available. No speech was retried.`);

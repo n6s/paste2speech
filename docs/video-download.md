@@ -5,6 +5,28 @@ UI, local FFmpeg assets and WebAssembly CSP permission. Staging enables it;
 production has not been enabled or deployed. Promotion can use the same source
 and enable that variable through the normal shared release workflow.
 
+## Long-document playback
+
+Normal Play now uses the same bounded preparation for long documents. A tab-local
+logical reading maps global sentence indexes to sequential durable jobs, joins
+sample-based timelines, and streams sections into the existing MSE player. The
+completed-file fallback joins MP3 exports into one local Blob. The download waits
+for all of these jobs and uses them without another speech admission. Requests
+below the part size retain their original path. Cached staging fixtures retain
+the original fixture path. This rollout is gated by VIDEO_DOWNLOAD, so production
+playback is unchanged until promotion.
+
+The 21,347-character browser test uses the real split boundary: 20,000 plus 1,347.
+It verifies early playback at six ready sections, cross-part seeking, full-file
+fallback, exactly two admissions, and all 43 cues in the resulting MP4. Speech
+APIs are intercepted; no real provider calls are made by the test. Staging still
+uses 1,200 internally by default; the testing selector can exercise 20,000.
+
+If Download starts preparing its own audio first, normal Play waits for that
+preparation rather than racing it into duplicate paid jobs. A later Play reuses
+its stored job IDs. Cancelling or clearing a reader stops scheduling future
+parts; Clear cancels/removes that logical reading's admitted jobs.
+
 ## Use
 
 Choose WaveNet, paste text or import a PDF, and expand **Download recording**.

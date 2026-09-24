@@ -1,11 +1,11 @@
 import {planPlaylist} from './playlist-plan.js';
 import {PlaylistSession} from './playlist-session.js';
 
-export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
+export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, onChange = () => {}}) {
   const $ = id => document.getElementById(id);
   const panel = $('video-download'), status = $('video-status');
   let preparedText, preparedVoice, session, signature;
-  let busy = false, stopRequested = false, controller, videoURL, captionURL;
+  let busy = false, stopRequested = false, borrowedPreparation = false, controller, videoURL, captionURL;
   const message = text => { status.textContent = text; };
   const matchesEditor = () => preparedText === getText() && preparedVoice === getVoice();
   function releaseVideo() {
@@ -24,6 +24,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
     $('video-split-limit').disabled = busy;
     $('video-prepared-note').textContent = session && !matchesEditor()
       ? 'This recording uses your previous text or voice. Download again to use the current selection.' : '';
+    onChange();
   }
   async function prepare() {
     // Prefer the whole existing job, even if only its first few sections are
@@ -41,6 +42,21 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
     if (!['en-US-Wavenet-F', 'en-GB-Wavenet-F'].includes(voice)) throw Error('Choose a WaveNet voice first.');
     const reuse = prepared?.id && prepared.settings?.voice === voice &&
       JSON.stringify(parts.flatMap(p => p.chunks)) === JSON.stringify(prepared.chunks);
+    if(reuse)borrowedPreparation=true;
+    const group=reuse && prepared.getVideoPreparation?.();
+    if(group) {
+      borrowedPreparation=true;preparedText=text;preparedVoice=voice;
+      while(!group.done && !stopRequested) {
+        const completed=group.session.records.reduce((n,r)=>n+(r.completed||0),0);
+        message(`Preparing complete audio… ${Math.floor(completed/prepared.chunks.length*100)}%`);
+        await new Promise(resolve=>setTimeout(resolve,250));
+      }
+      if(stopRequested)return false;
+      if(group.error)throw group.error;
+      if(group.cancelled)throw Error('Reading preparation was cancelled.');
+      session=group.session;signature=group.key.slice('paste2speech.video.'.length);
+      return session.records.length===session.parts.length && session.records.every(r=>r.state==='ready');
+    }
     if (reuse) parts = [{chunks: [...prepared.chunks], characters: prepared.chunks.reduce((n,c)=>n+c.length,0)}];
     const hash = [...new Uint8Array(await crypto.subtle.digest('SHA-256', new TextEncoder().encode(JSON.stringify({parts, voice}))))].map(n => n.toString(16).padStart(2, '0')).join('');
     const key = 'paste2speech.video.' + hash;
@@ -65,7 +81,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
   }
   $('download-video').onclick = async () => {
     if (busy) return;
-    busy = true; stopRequested = false; releaseVideo(); message('Preparing complete audio…'); render();
+    busy = true; stopRequested = false; borrowedPreparation = false; releaseVideo(); message('Preparing complete audio…'); render();
     try {
       if (!await prepare()) return;
       if (stopRequested) return;
@@ -99,7 +115,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
     video.append(track); video.hidden = false; void video.play().catch(() => {});
   };
   $('cancel-video').onclick = () => {
-    stopRequested = true; session?.stop(); controller?.abort(); message('Stopping…');
+    stopRequested = true; if(!borrowedPreparation)session?.stop(); controller?.abort(); message('Stopping…');
   };
   function update() { panel.hidden = !isGoogle(); render(); }
   $('clear').addEventListener('click', async () => {
@@ -120,5 +136,5 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle}) {
   panel.addEventListener('toggle', update);
   window.addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   $('video-split-settings').hidden = new URLSearchParams(location.search).get('testing') !== '1';
-  update(); return {update};
+  update(); return {update, get preparingAudio(){return busy && !borrowedPreparation && !controller;}};
 }
