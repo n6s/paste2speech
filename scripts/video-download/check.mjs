@@ -58,8 +58,12 @@ try{
  assert.equal(await page.locator('#download-video').isVisible(),false);
  async function saveLink(path){
    const pending=page.waitForEvent('download');
-   await page.locator('#open-video').evaluate(link=>{const a=document.createElement('a');a.href=link.href;a.download=link.textContent;a.click();});
-   await (await pending).saveAs(path);
+   const expectedName=await page.locator('#open-video').textContent();
+   // Clone the actual anchor to exercise its native download attributes without
+   // the plain-click preview handler supplying or overriding a filename.
+   await page.locator('#open-video').evaluate(link=>{const a=link.cloneNode(true);a.removeAttribute('id');document.body.append(a);a.click();a.remove();});
+   const download=await pending;assert.equal(download.suggestedFilename(),expectedName);
+   await download.saveAs(path);
  }
  const output=folder+'/joined.mp4';await saveLink(output);
  assert.equal(posts,2,'Conversion must never generate speech');

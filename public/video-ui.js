@@ -12,7 +12,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
     if (videoURL) URL.revokeObjectURL(videoURL);
     if (captionURL) URL.revokeObjectURL(captionURL);
     videoURL = captionURL = null;
-    $('open-video').hidden = true; $('open-video').removeAttribute('href');
+    $('open-video').hidden = true; $('open-video').removeAttribute('href'); $('open-video').removeAttribute('download');
     $('video-preview').pause(); $('video-preview').removeAttribute('src');
     $('video-preview').replaceChildren(); $('video-preview').load(); $('video-preview').hidden = true;
   }
@@ -92,6 +92,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       captionURL = URL.createObjectURL(new Blob([result.vtt], {type:'text/vtt'}));
       const link = $('open-video'); link.href = videoURL;
       link.textContent = `paste-to-speech-${result.label.slice(10, 26).replaceAll(':', '').replace(' ', '-')}.mp4`;
+      link.download = link.textContent;
       link.hidden = false;
       message('Ready. Open the recording, or right-click the link and choose Save link as.');
     } catch (error) {
@@ -106,7 +107,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   };
   $('open-video').onclick = event => {
     // The anchor is a real MP4 Blob URL, so context-menu Save link as and
-    // modified clicks work normally. Plain clicks show captioned native controls.
+    // the download attribute supplies its filename. Plain clicks still show captions.
     if (event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || event.altKey) return;
     event.preventDefault(); getPrepared()?.pause?.();
     const video = $('video-preview'); video.src = videoURL; video.replaceChildren();
