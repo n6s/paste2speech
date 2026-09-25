@@ -76,6 +76,31 @@ References:
 - https://cloud.google.com/products/document-ai/pricing
 - https://docs.cloud.google.com/vertex-ai/generative-ai/docs/samples/googlegenaisdk-textgen-with-pdf
 
+## Personal paid-usage projections and value
+
+Add a quiet, optional “Your usage” section on the account page to help people
+assess what their speech packs buy in their own reading routine.
+
+- Show the exact remaining character balance, estimated days remaining at the
+  user's recent pace, and equivalent monthly spending at that pace. Spending is
+  an estimate for prepaid packs, not a subscription or scheduled charge.
+- Base projections on the user's actual paid-character deductions, accounting
+  for returned allowance. Use a rolling 30-calendar-day window including days
+  with no usage; exclude staging, development, and project-wide Google totals.
+- Label shorter histories as early estimates and show the observation period.
+  With too little history or no recent usage, show the balance without a forecast.
+- Use conditional wording such as “At your recent pace…” Packs do not expire;
+  estimated days remaining should not look like an expiration date or create
+  pressure to purchase.
+- Consider a value measure such as hours of speech generated from paid credit.
+  Generated audio duration is not measured listening time, and replay should not
+  increase paid usage. Per-pack claims would need reliable attribution when users
+  have multiple packs.
+
+Illustrative example for the discussed $10 / 1-million-character pack:
+“840,000 characters remaining—about 35 days at your recent pace of 24,000
+characters per day.” This is example copy, not a promised amount of use.
+
 ## When revisiting
 
 Choose one small feature based on Roger's priorities at that time. The earlier
