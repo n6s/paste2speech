@@ -1,3 +1,5 @@
+Future product ideas are collected in [Future feature ideas](docs/future-feature-ideas.md).
+
 ## Payment recovery and refund accounting — private sandbox
 
 - Service checks recorded Paddle transactions at startup and every 60 seconds
