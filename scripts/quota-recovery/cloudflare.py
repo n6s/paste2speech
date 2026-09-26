@@ -24,13 +24,28 @@ def inventory(env):
  return items
 
 def report(since):
+ now=datetime.datetime.now(datetime.timezone.utc);end=now-datetime.timedelta(minutes=2)
+ until=end.strftime('%Y-%m-%dT%H:%M:%SZ')
  q='''{viewer{accounts(filter:{accountTag:"%s"}){
- d1AnalyticsAdaptiveGroups(limit:1000,filter:{datetime_geq:"%s"}){dimensions{databaseId} sum{rowsWritten rowsRead}}
- durableObjectsInvocationsAdaptiveGroups(limit:1000,filter:{datetime_geq:"%s"}){dimensions{scriptName type status} sum{requests}}
- }}}'''%(ACCOUNT,since,since)
+ d1AnalyticsAdaptiveGroups(limit:1000,filter:{datetime_geq:"%s",datetime_lt:"%s"}){dimensions{databaseId} sum{rowsWritten rowsRead}}
+ durableObjectsInvocationsAdaptiveGroups(limit:1000,filter:{datetime_geq:"%s",datetime_lt:"%s"}){dimensions{scriptName type status} sum{requests}}
+ }}}'''%(ACCOUNT,since,until,since,until)
  data=api('graphql',{'query':q})['data']['viewer']['accounts'][0]
- now=datetime.datetime.now(datetime.timezone.utc);start=datetime.datetime.fromisoformat(since.replace('Z','+00:00'));scale=86400/max(1,(now-start).total_seconds())
- print(json.dumps({'since':since,'checked':now.isoformat(),'analytics':data,'daily_projection_multiplier':scale},indent=2))
+ start=datetime.datetime.fromisoformat(since.replace('Z','+00:00'));seconds=max(1,(end-start).total_seconds());scale=86400/seconds
+ summary={name:{'rows_written':0,'requests':0,'failed_alarms':0} for name in ENVS}
+ for row in data['d1AnalyticsAdaptiveGroups']:
+  for name,(_,db,_) in ENVS.items():
+   if row['dimensions']['databaseId']==db:summary[name]['rows_written']+=row['sum']['rowsWritten']
+ for row in data['durableObjectsInvocationsAdaptiveGroups']:
+  for name,(script,_,_) in ENVS.items():
+   if row['dimensions']['scriptName']!=script:continue
+   count=row['sum']['requests'];summary[name]['requests']+=count
+   if row['dimensions']['type']=='alarm' and row['dimensions']['status']!='success':summary[name]['failed_alarms']+=count
+ for name,row in summary.items():
+  row['projected_daily_writes']=round(row['rows_written']*scale)
+  row['projected_daily_requests']=round(row['requests']*scale)
+  row['maintenance']=query(name,'SELECT state,COUNT(*) AS count FROM reader_maintenance GROUP BY state')
+ print(json.dumps({'since':since,'until':until,'minutes':round(seconds/60,2),'checked':now.isoformat(),'summary':summary,'analytics':data},indent=2))
 
 if __name__=='__main__':
  p=argparse.ArgumentParser();p.add_argument('command',choices=['report','inventory','queue','probes','status','verify']);p.add_argument('--env',choices=ENVS,default='staging');p.add_argument('--since');p.add_argument('--action',choices=['inspect','retire'],default='inspect');p.add_argument('--apply',action='store_true');p.add_argument('--limit',type=int,default=5)

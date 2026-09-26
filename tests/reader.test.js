@@ -167,3 +167,21 @@ test('external sign-in navigation is allowed while cross-site API and mutations 
   assert.equal(allowedRequestSource(new Request(url,{method,headers:{Origin:'https://other.invalid'}})),false);
  }
 });
+test('completed payments stay quiet across 48 hours; manual reconciliation remains immediate',async t=>{
+ const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');
+ const {sql,db,ledger}=setup(),account=(await ledger.session(await ledger.newAccount())).id;
+ const transaction='txn_'+'c'.repeat(26);let order=await ledger.newOrder(account,{environment:'sandbox',price:'pri_01m32vvy2sptegx6arebyvxh37',product:'pro_01m32gd3hj94whqywcvmyta74b',amount:'1000',currency:'USD',characters:1000000});await ledger.bindOrder(order.id,transaction);
+ let now=Date.now(),reads=0,refund=0;t.mock.method(Date,'now',()=>now);
+ t.mock.method(globalThis,'fetch',async url=>{
+  reads++;
+  if(url.includes('/adjustments?'))return Response.json({data:refund?[{id:'adj_'+'d'.repeat(26),transaction_id:transaction,currency_code:'USD',status:'approved',action:'refund',totals:{subtotal:String(refund)}}]:[],meta:{pagination:{has_more:false}}});
+  return Response.json({data:{id:transaction,status:'completed',custom_data:{p2s_order:order.id},currency_code:'USD',items:[{quantity:1,price:{id:'pri_01m32vvy2sptegx6arebyvxh37',product_id:'pro_01m32gd3hj94whqywcvmyta74b',unit_price:{amount:'1000',currency_code:'USD'}}}],details:{totals:{discount:'0',subtotal:'1000'}}}});
+ });
+ let alarm=null;const ctx={storage:{getAlarm:async()=>alarm,setAlarm:async value=>{alarm=value;},deleteAlarm:async()=>{alarm=null;}}};
+ const coordinator=new PaymentCoordinator(ctx,{LEDGER:db,ENABLE_PAYMENTS:'1',PADDLE_ENVIRONMENT:'sandbox',PADDLE_CLIENT_TOKEN:'test_synthetic',PADDLE_PRICE_ID:'pri_01m32vvy2sptegx6arebyvxh37',PADDLE_PRODUCT_ID:'pro_01m32gd3hj94whqywcvmyta74b',PADDLE_API_KEY:'pdl_sdbx_apikey_synthetic'});
+ await coordinator.alarm();assert.equal(reads,2);const initial=sql.prepare('SELECT total_changes() n').get().n;
+ for(let minute=1;minute<=48*60;minute++){now+=60000;await coordinator.alarm();}
+ assert.equal(reads,6);assert.equal(sql.prepare('SELECT total_changes() n').get().n-initial,4);
+ refund=1000;const response=await coordinator.fetch(new Request('https://payments/reconcile',{method:'POST',body:JSON.stringify({action:'reconcile',account,id:order.id})}));
+ assert.equal(response.status,200);assert.equal((await ledger.account(account)).balance,0);assert.equal(sql.prepare('SELECT COUNT(*) n FROM grants').get().n,1);sql.close();
+});
