@@ -33,7 +33,7 @@ def report(since):
  print(json.dumps({'since':since,'checked':now.isoformat(),'analytics':data,'daily_projection_multiplier':scale},indent=2))
 
 if __name__=='__main__':
- p=argparse.ArgumentParser();p.add_argument('command',choices=['report','inventory','queue','status','verify']);p.add_argument('--env',choices=ENVS,default='staging');p.add_argument('--since');p.add_argument('--action',choices=['inspect','retire'],default='inspect');p.add_argument('--apply',action='store_true');p.add_argument('--limit',type=int,default=5)
+ p=argparse.ArgumentParser();p.add_argument('command',choices=['report','inventory','queue','probes','status','verify']);p.add_argument('--env',choices=ENVS,default='staging');p.add_argument('--since');p.add_argument('--action',choices=['inspect','retire'],default='inspect');p.add_argument('--apply',action='store_true');p.add_argument('--limit',type=int,default=5)
  args=p.parse_args()
  if args.command=='report':report(args.since or (datetime.datetime.now(datetime.timezone.utc)-datetime.timedelta(minutes=30)).strftime('%Y-%m-%dT%H:%M:%SZ'))
  elif args.command=='inventory':print(json.dumps(inventory(args.env)))
@@ -43,6 +43,13 @@ if __name__=='__main__':
  elif args.command=='status':
   print(json.dumps(query(args.env,'SELECT action,state,COUNT(*) AS n FROM reader_maintenance GROUP BY action,state')))
   print(json.dumps(query(args.env,"SELECT object_id,action,state,attempts,result FROM reader_maintenance WHERE state='attention' OR action='inspect' ORDER BY updated LIMIT 10")))
+ elif args.command=='probes':
+  if args.env!='staging':raise SystemExit('Cached probes are staging-only')
+  import uuid
+  print(json.dumps({'environment':args.env,'probes':['ready','cancel','expire'],'apply':args.apply}))
+  if args.apply:
+   for kind in ['ready','cancel','expire']:
+    query(args.env,"INSERT INTO reader_maintenance(object_id,action,probe,updated) VALUES(?,'inspect',?,-1)",[str(uuid.uuid4()),kind])
  elif args.command=='queue':
   objects=[row['id'] for row in inventory(args.env) if row['hasStoredData']][:args.limit]
   print(json.dumps({'environment':args.env,'action':args.action,'objects':len(objects),'apply':args.apply}))

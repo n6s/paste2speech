@@ -1,6 +1,7 @@
 import {Miniflare,convertV4MiniflareOptions} from 'miniflare';
 import {build} from 'esbuild';
 import assert from 'node:assert/strict';
+import {readFileSync} from 'node:fs';
 const source=`
 import {PreparedReading} from './cloudflare/prepared/durable.js';
 export class TestReading extends PreparedReading {
@@ -17,7 +18,7 @@ export class TestReading extends PreparedReading {
 export default {fetch(request,env){return env.JOBS.get(env.JOBS.idFromName(request.headers.get('x-job')||'one')).fetch(request);}};
 `;
 const bundled=await build({stdin:{contents:source,resolveDir:process.cwd()},bundle:true,write:false,format:'esm',platform:'browser'});
-const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-09-21',durableObjects:{JOBS:{className:'TestReading',useSQLite:true}},r2Buckets:['AUDIO'],bindings:{},log:new (await import('miniflare')).Log((await import('miniflare')).LogLevel.ERROR)}));
+const mf=new Miniflare(convertV4MiniflareOptions({modules:true,script:bundled.outputFiles[0].text,compatibilityDate:'2026-09-21',durableObjects:{JOBS:{className:'TestReading',useSQLite:true}},r2Buckets:['AUDIO'],bindings:{MSE_STAGING:'1',PRIVATE_READER:'1',READER_MODE:'staging'},serviceBindings:{ASSETS:async request=>new Response(readFileSync('work/private-reader/site/samples/'+new URL(request.url).pathname.split('/').at(-1)))},log:new (await import('miniflare')).Log((await import('miniflare')).LogLevel.ERROR)}));
 try{
  const base=Date.now(),id='00000000-0000-4000-8000-000000000001';
  const call=async(job,path,body)=>{const response=await mf.dispatchFetch('https://local'+path,{method:'POST',headers:{'x-job':job,'Content-Type':'application/json'},body:JSON.stringify(body)});assert.equal(response.status,200);return response.json();};
@@ -37,5 +38,10 @@ try{
  result=await call('corrupt','/tick',{now});assert.equal(result.recovery.attempts,5);assert.equal(result.recovery.next,null);
  result=await call('corrupt','/tick',{now:now+48*3600000});assert.equal(result.recovery.attempts,5);
  const retired=await call('corrupt','/maintenance',{action:'retire'});assert.equal(retired.done,true);
+ for(const probe of ['ready','cancel','expire']){
+  const probeId=crypto.randomUUID();let outcome;
+  for(let attempt=0;attempt<8;attempt++){outcome=await call('probe-'+probe,'/maintenance',{action:'inspect',probe,id:probeId});if(outcome.done||outcome.attention)break;await new Promise(resolve=>setTimeout(resolve,1000));}
+  assert.equal(outcome.done,true,JSON.stringify(outcome));assert.equal(outcome.state,probe==='expire'?'expired':probe==='cancel'?'cancelled':'ready');
+ }
  console.log('Real Cloudflare runtime checks passed: expiry, completed cleanup, multi-batch R2 cleanup, corrupt pages, bounded retries, 48-hour clock, retirement.');
 }finally{await mf.dispose();}

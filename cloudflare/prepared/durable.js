@@ -1,5 +1,5 @@
 import {production,publicMode,customerAllowed} from '../reader/modes.js';
-import {progressiveReader,fixtureDelay} from '../reader/mse-staging.js';
+import {progressiveReader,fixtureDelay,fixtureChunks,mseStaging} from '../reader/mse-staging.js';
 import {dispatchBudget} from '../reader/budget.js';
 import {loadJob,saveJob} from './storage.js';
 import {ReaderLedger} from '../reader/ledger.js';
@@ -125,7 +125,30 @@ export class PreparedReading {
     }catch(error){if(job.state!=='cancelled'){job.state='failed';job.error=error.message.startsWith('Google authorization failed')?error.message:'Preparation interrupted. No automatic retry.';job.costIncomplete=true;await this.save(job);}}
     finally{this.running=false;if(job.state==='preparing')await this.ctx.storage.setAlarm(Date.now()+1);else await this.finish();}
   }
-  async maintenance({action}){
+  async maintenance({action,probe,id}){
+    if(probe){
+      if(!mseStaging(this.env)||!['ready','cancel','expire'].includes(probe)||!/^[a-f0-9-]{36}$/.test(id))return json({attention:true,code:'probe_forbidden'},403);
+      try{
+        await this.load();
+        if(!this.job){
+          this.job=newJob({voice:'en-US-Wavenet-F',chunks:fixtureChunks('en-US-Wavenet-F'),mode:'staging-fixture'},'maintenance-probe',id);
+          this.job.mseOptions={delivery:'mse',concurrency:3,cached:true,scenario:'normal'};
+          this.job.probeKind=probe;await this.save(this.job);
+        }
+        if(this.job.probeDone)return json(this.job.probeDone);
+        if(this.job.probeKind!==probe||this.job.owner!=='maintenance-probe'||!this.cachedStage())return json({attention:true,code:'probe_mismatch'});
+        await this.runAlarm();
+        if(probe==='cancel'&&this.job.state==='preparing'){this.job.state='cancelled';await this.save(this.job);await this.finish();}
+        if(this.job.state==='failed')return json({attention:true,code:'probe_failed'});
+        if(this.job.state==='preparing')return json({done:false,probe,state:'preparing'});
+        if(probe==='cancel'){await this.ctx.storage.deleteAlarm();this.job.probeDone={done:true,probe,state:this.job.state};await this.save(this.job);return json(this.job.probeDone);}
+        const audio=await this.env.AUDIO.head(id+'/reading.mp3'),captions=await this.env.AUDIO.head(id+'/reading.vtt');
+        if(!audio?.size||!captions?.size)return json({attention:true,code:'probe_artifacts_missing'});
+        if(probe==='expire'){this.job.expires=Date.now()-1;await this.save(this.job);await this.runAlarm();}
+        await this.ctx.storage.deleteAlarm();
+        this.job.probeDone={done:true,probe,state:this.job.state,audioBytes:audio.size};await this.save(this.job);return json(this.job.probeDone);
+      }catch(error){return json({attention:true,code:error.name||'Error'});}
+    }
     try{
       const meta=await this.ctx.storage.get('job');
       if(action==='inspect'){
@@ -152,7 +175,7 @@ export class PreparedReading {
       await this.save(tombstone);this.job=tombstone;this.loaded=true;
       await this.ctx.storage.delete('recovery');await this.ctx.storage.deleteAlarm();
       return json({done:true,state:'retired'});
-    }catch(error){return json({done:false,attention:true,code:error?.name||'Error'});}
+    }catch(error){return json({done:false,attention:true,code:error?.name||'Error',message:String(error.message).slice(0,200)});}
   }
   async fetch(request){
     if(new URL(request.url).pathname==='/maintenance')return this.maintenance(await request.json());
