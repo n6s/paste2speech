@@ -63,3 +63,18 @@ test('retirement skips damaged pages when reservation is closed and retains a to
  const result=await (await object.maintenance({action:'retire'})).json();assert.equal(result.done,true);
  assert.equal(ctx.values.get('job').retired,true);assert.equal(ctx.values.get('job').owner,'');assert.equal(await ctx.storage.getAlarm(),null);
 });
+test('lost tombstone write cannot masquerade as completed cleanup in memory',async t=>{
+ let now=Date.now();t.mock.method(Date,'now',()=>now);t.mock.method(console,'error',()=>{});
+ const ctx=context(),id='00000000-0000-4000-8000-000000000002';ctx.values.set('job',{id,state:'ready',owner:'owner',created:now-86400000,expires:now-1,chunks:[],parts:[]});
+ const put=ctx.storage.put;let fail=true;
+ ctx.storage.put=async(key,value)=>{if(key==='job'&&value.state==='expired'&&fail){fail=false;throw Error('lost tombstone');}return put(key,value);};
+ const object=new PreparedReading(ctx,{AUDIO:{delete:async()=>{}}});
+ await object.alarm();assert.equal(object.job.owner,'owner');assert.equal(ctx.values.get('recovery').attempts,1);
+ now+=60000;await object.alarm();assert.equal(object.job.owner,'');assert.equal(ctx.values.get('job').owner,'');assert.equal(ctx.values.has('recovery'),false);
+});
+test('retired legacy jobs cannot resume after maintenance, even with missing pages',async()=>{
+ const ctx=context();ctx.values.set('job',{created:1,storageVersion:2,pageCount:1});
+ const object=new PreparedReading(ctx,{RETIRE_BEFORE:'2',LEDGER:new Proxy({},{get(){throw Error('Legacy ledger accessed');}})});
+ await object.alarm();assert.equal(await ctx.storage.getAlarm(),null);assert.equal(ctx.values.has('recovery'),false);
+ assert.equal((await object.fetch(new Request('https://job/status'))).status,410);
+});

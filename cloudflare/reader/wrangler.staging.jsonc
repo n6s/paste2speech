@@ -5,8 +5,10 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
-    "BACKGROUND_WORK_PAUSED": "1",
+    "BACKGROUND_WORK_PAUSED": "0",
     "MAINTENANCE_QUEUE_ENABLED": "1",
+    "MAINTENANCE_QUEUE_LIMIT": "1",
+    "RETIRE_BEFORE": "1790389200000",
     "PRIVATE_READER": "1",
     "LOCAL_READER": "0",
     "ENABLE_LIVE_SYNTHESIS": "1",

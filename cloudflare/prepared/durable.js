@@ -24,6 +24,7 @@ export class PreparedReading {
     if(recovery.next)await this.ctx.storage.setAlarm(recovery.next);else await this.ctx.storage.deleteAlarm();
     console.error(JSON.stringify({event:'reading_recovery',...recovery}));
   }
+  retired(meta){const cutoff=Number(this.env.RETIRE_BEFORE||0);return cutoff>0&&meta&&(meta.created||0)<cutoff;}
   cachedStage(){return this.job?.mode==='staging-fixture'&&!!this.job.mseOptions;}
   async settle(){
     if(this.job.settlementDone||this.cachedStage())return;
@@ -67,6 +68,7 @@ export class PreparedReading {
   async alarm(){
     if(this.env.BACKGROUND_WORK_PAUSED==='1'){await this.ctx.storage.setAlarm(Date.now()+86400000);return;}
     try{
+      if(this.retired(await this.ctx.storage.get('job'))){await this.ctx.storage.deleteAlarm();return;}
       const recovery=await this.ctx.storage.get('recovery');
       if(recovery?.next===null)return;
       if(recovery?.next>Date.now()){await this.ctx.storage.setAlarm(recovery.next);return;}
@@ -89,9 +91,9 @@ export class PreparedReading {
       if(job.state==='preparing')job.state='expired';
       await this.settle();
       if(!await this.clean()){await this.ctx.storage.setAlarm(Date.now()+1000);return;}
-      job.state='expired';
-      // Keep only an attempt tombstone, so the bounded live ID cannot be reused.
-      job.chunks=[];job.parts=[];job.owner='';await this.save(job);return;
+      // Publish the tombstone in memory only after durable commit succeeds.
+      const tombstone={...job,state:'expired',chunks:[],parts:[],owner:''};
+      await this.save(tombstone);this.job=tombstone;return;
     }
     if(job.state!=='preparing'){await this.finish();return;}
     if(this.running)return;
@@ -180,6 +182,7 @@ export class PreparedReading {
   async fetch(request){
     if(new URL(request.url).pathname==='/maintenance')return this.maintenance(await request.json());
     if(this.env.BACKGROUND_WORK_PAUSED==='1')return json({detail:'Reading is temporarily paused for maintenance.'},503);
+    if(this.retired(await this.ctx.storage.get('job')))return json({detail:'This old test reading has been retired.'},410);
     const recovery=await this.ctx.storage.get('recovery');
     if(recovery)return json({detail:'Reading recovery needs attention.'},503);
     try{await this.load();}catch(error){await this.recover(error);return json({detail:'Reading recovery needs attention.'},503);}

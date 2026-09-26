@@ -1,7 +1,8 @@
 // Only cron and operator-populated D1 rows can reach this path. No public route.
 export async function runMaintenance(env,now=Date.now()){
  if(env.MAINTENANCE_QUEUE_ENABLED!=='1')return;
- const rows=await env.LEDGER.prepare("SELECT * FROM reader_maintenance WHERE state='pending' AND next_attempt<=? ORDER BY (probe IS NOT NULL) DESC,updated,object_id LIMIT 5").bind(now).all();
+ const limit=Math.min(5,Math.max(1,Number(env.MAINTENANCE_QUEUE_LIMIT)||5));
+ const rows=await env.LEDGER.prepare("SELECT * FROM reader_maintenance WHERE state='pending' AND next_attempt<=? ORDER BY (probe IS NOT NULL) DESC,updated,object_id LIMIT ?").bind(now,Math.floor(limit)).all();
  for(const row of rows.results){
   let result;
   try{
