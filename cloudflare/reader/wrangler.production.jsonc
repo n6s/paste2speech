@@ -6,6 +6,7 @@
   "preview_urls": false,
   "vars": {
     "BACKGROUND_WORK_PAUSED": "1",
+    "MAINTENANCE_QUEUE_ENABLED": "1",
     "READER_MODE": "production-trial",
     "PROGRESSIVE_READER": "1",
     "LONG_READINGS": "1",

@@ -6,6 +6,7 @@
   "preview_urls": false,
   "vars": {
     "BACKGROUND_WORK_PAUSED": "1",
+    "MAINTENANCE_QUEUE_ENABLED": "1",
     "PRIVATE_READER": "1",
     "LOCAL_READER": "0",
     "ENABLE_LIVE_SYNTHESIS": "1",

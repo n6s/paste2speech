@@ -94,7 +94,8 @@ test('email includes permanent account URL and temporary fragment, never tokens 
  });assert.equal(called,1);
 });
 
-test('background payment reconciliation works without browsers and serializes duplicate checkout',async()=>{
+test('background payment reconciliation works without browsers and serializes duplicate checkout',async t=>{
+ let now=Date.now();t.mock.method(Date,'now',()=>now);
  const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');
  const {sql,db,ledger}=setup(),account=(await ledger.session(await ledger.newAccount())).id;
  const remoteId='txn_'+'a'.repeat(26);let orderId,creates=0,refund=0,alarms=0;
@@ -110,8 +111,8 @@ test('background payment reconciliation works without browsers and serializes du
   const request=()=>new Request('https://payments/',{method:'POST',body:JSON.stringify({action:'order',account})});
   const responses=await Promise.all([coordinator.fetch(request()),coordinator.fetch(request())]);assert.deepEqual(responses.map(r=>r.status),[200,200]);assert.equal(creates,1);
   await coordinator.alarm();assert.equal((await ledger.account(account)).balance,1000000);
-  refund=500;await coordinator.alarm();assert.equal((await ledger.account(account)).balance,500000);
-  refund=0;await coordinator.alarm();assert.equal((await ledger.account(account)).balance,1000000);assert.ok(alarms>=5);
+  refund=500;now+=86400001;await coordinator.alarm();assert.equal((await ledger.account(account)).balance,500000);
+  refund=0;now+=86400001;await coordinator.alarm();assert.equal((await ledger.account(account)).balance,1000000);assert.ok(alarms>=5);
  }finally{globalThis.fetch=original;sql.close();}
 });
 test('lost checkout response is never automatically resubmitted after restart',async()=>{

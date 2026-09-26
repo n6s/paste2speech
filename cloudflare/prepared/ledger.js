@@ -37,6 +37,10 @@ export class UsageLedger {
   async syncPayment(id,transaction,state,revoked=0){
     if(!Number.isSafeInteger(revoked)||revoked<0||revoked>3000000)throw new CreditError('Invalid revocation');
     const existed=await this.query('SELECT id FROM grants WHERE id=?',transaction).first();
+    const prior=await this.query('SELECT state,revoked FROM payment_sync WHERE order_id=?',id).first();
+    if(prior?.state===state&&prior.revoked===revoked&&(state!=='completed'||existed)){
+      await this.query('UPDATE payment_sync SET checked=? WHERE order_id=?',Date.now(),id).run();return false;
+    }
     await this.query('INSERT INTO payment_commands VALUES(?,?,?,?,?,?)',crypto.randomUUID(),id,transaction,state,revoked,Date.now()).run();
     return state==='completed'&&!existed;
   }

@@ -10,19 +10,34 @@ import {accessToken,synthesize} from './google.js';
 import fixtures from '../../scripts/wavenet-worker-proof/fixture.json';
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 export class PreparedReading {
-  constructor(ctx,env){this.ctx=ctx;this.env=env;if(env.BACKGROUND_WORK_PAUSED!=='1')ctx.blockConcurrencyWhile(async()=>{this.job=await loadJob(ctx.storage);});}
+  constructor(ctx,env){this.ctx=ctx;this.env=env;}
+  async load(){
+    if(this.loaded)return;
+    this.loading??=loadJob(this.ctx.storage).then(job=>{this.job=job;this.loaded=true;}).finally(()=>{this.loading=null;});
+    await this.loading;
+  }
+  async recover(error){
+    const previous=await this.ctx.storage.get('recovery')||{attempts:0};
+    const attempts=previous.attempts+1,delays=[60000,300000,900000,3600000];
+    const recovery={attempts,next:attempts<=delays.length?Date.now()+delays[attempts-1]:null,phase:this.phase||'load',code:error?.name||'Error'};
+    await this.ctx.storage.put('recovery',recovery);
+    if(recovery.next)await this.ctx.storage.setAlarm(recovery.next);else await this.ctx.storage.deleteAlarm();
+    console.error(JSON.stringify({event:'reading_recovery',...recovery}));
+  }
   cachedStage(){return this.job?.mode==='staging-fixture'&&!!this.job.mseOptions;}
   async settle(){
-    if(this.cachedStage())return;
+    if(this.job.settlementDone||this.cachedStage())return;
     if(!this.env.LEDGER||this.job.admission==='rejected')return;
     const ledger=new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER);
     // Pending admission may expire/cancel before a debit, or after a committed
     // debit whose response was lost. Serialized admission prevents a late debit.
     if(this.job.admission==='pending'&&!await ledger.receipt(this.job.id,this.job.owner))return;
+    this.phase='settlement';
     await ledger.settle(this.job);
+    this.job.settlementDone=true;await this.save(this.job);
   }
   async admit(){
-    if(this.cachedStage()||!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
+    if(!this.job||Date.now()>=this.job.expires||this.cachedStage()||!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
     await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
       if(this.job.proofAdmissionFault==='after-reserve'){
         this.job.proofAdmissionFault='';await this.save(this.job);
@@ -31,8 +46,7 @@ export class PreparedReading {
     }});
   }
   async finish(){
-    try{await this.settle();if(this.job.state==='cancelled'&&!await this.clean()){await this.ctx.storage.setAlarm(Date.now()+1);return;}}
-    catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
+    await this.settle();if(this.job.state==='cancelled'&&!await this.clean()){await this.ctx.storage.setAlarm(Date.now()+1000);return;}
     await this.ctx.storage.setAlarm(this.job.expires);
   }
   save(job,alarm){
@@ -43,26 +57,39 @@ export class PreparedReading {
   async clean(){
     if(!this.job)return true;
     const keys=[...this.job.parts.map((_,i)=>`${this.job.id}/part-${i}`),...Array.from({length:this.job.assembledBlocks||0},(_,i)=>`${this.job.id}/block-${i}`),`${this.job.id}/reading.mp3`,`${this.job.id}/reading.vtt`];
+    this.phase='cleanup';
     const start=this.job.cleanupOffset||0;
+    if(start>=keys.length)return true;
     await this.env.AUDIO.delete(keys.slice(start,start+100));
     this.job.cleanupOffset=Math.min(start+100,keys.length);await this.save(this.job);
     return this.job.cleanupOffset===keys.length;
   }
   async alarm(){
     if(this.env.BACKGROUND_WORK_PAUSED==='1'){await this.ctx.storage.setAlarm(Date.now()+86400000);return;}
-    // No admission await may race cancellation/expiry or another create.
+    try{
+      const recovery=await this.ctx.storage.get('recovery');
+      if(recovery?.next===null)return;
+      if(recovery?.next>Date.now()){await this.ctx.storage.setAlarm(recovery.next);return;}
+      this.phase='load';await this.load();
+      await this.runAlarm();
+      if(recovery)await this.ctx.storage.delete('recovery');
+    }catch(error){await this.recover(error);}
+  }
+  async runAlarm(){
+    // Catch inside the concurrency gate: rejecting it resets the object.
+    let admissionError;
     await this.ctx.blockConcurrencyWhile(async()=>{
-      if(this.job?.state==='preparing'&&Date.now()<this.job.expires){
-        try{await this.admit();}
-        catch{this.job=await loadJob(this.ctx.storage);await this.ctx.storage.setAlarm(Date.now()+5000);return;}
-      }
+      try{this.phase='admission';await this.admit();}catch(error){admissionError=error;}
     });
+    if(admissionError)throw admissionError;
     const job=this.job;if(!job)return;
     if(job.state==='preparing'&&job.admission==='pending'&&Date.now()<job.expires)return;
     if(job.state==='expired'&&!job.owner)return;
     if(Date.now()>=job.expires){
-      job.state='expired';await this.save(job);
-      try{await this.settle();if(!await this.clean()){await this.ctx.storage.setAlarm(Date.now()+1);return;}}catch(error){await this.ctx.storage.setAlarm(Date.now()+60000);throw error;}
+      if(job.state==='preparing')job.state='expired';
+      await this.settle();
+      if(!await this.clean()){await this.ctx.storage.setAlarm(Date.now()+1000);return;}
+      job.state='expired';
       // Keep only an attempt tombstone, so the bounded live ID cannot be reused.
       job.chunks=[];job.parts=[];job.owner='';await this.save(job);return;
     }
@@ -98,8 +125,41 @@ export class PreparedReading {
     }catch(error){if(job.state!=='cancelled'){job.state='failed';job.error=error.message.startsWith('Google authorization failed')?error.message:'Preparation interrupted. No automatic retry.';job.costIncomplete=true;await this.save(job);}}
     finally{this.running=false;if(job.state==='preparing')await this.ctx.storage.setAlarm(Date.now()+1);else await this.finish();}
   }
+  async maintenance({action}){
+    try{
+      const meta=await this.ctx.storage.get('job');
+      if(action==='inspect'){
+        let code=null;try{await this.load();}catch(error){code=error.message==='Missing durable reading page'?'missing_page':error.name;}
+        return json({state:meta?.state||'missing',admission:meta?.admission||null,expires:meta?.expires||null,pageCount:meta?.pageCount||0,cleanupOffset:meta?.cleanupOffset||0,partsCount:this.job?.parts?.length??null,assembledBlocks:meta?.assembledBlocks||0,code,recovery:await this.ctx.storage.get('recovery')||null});
+      }
+      if(action!=='retire')return json({detail:'Unsupported maintenance action'},400);
+      await this.ctx.storage.deleteAlarm();
+      if(!meta){return json({done:true,state:'empty'});}
+      if(!meta.id||!/^[a-f0-9-]{36}$/.test(meta.id))return json({done:false,attention:true,code:'invalid_job_id'});
+      if(this.env.LEDGER){
+        const ledger=new ReaderLedger(this.env.LEDGER),receipt=await ledger.receipt(meta.id,meta.owner);
+        if(receipt?.state==='open'){
+          await this.load();
+          if(this.job.parts.some(part=>part.state==='submitting'))return json({done:false,attention:true,code:'uncertain_speech'});
+          if(this.job.state==='preparing')this.job.state='cancelled';
+          await this.settle();
+        }
+      }
+      const listed=await this.env.AUDIO.list({prefix:meta.id+'/',limit:100});
+      if(listed.objects.length)await this.env.AUDIO.delete(listed.objects.map(object=>object.key));
+      if(listed.truncated)return json({done:false});
+      const tombstone={id:meta.id,state:'expired',owner:'',chunks:[],parts:[],created:meta.created,expires:meta.expires,retired:true};
+      await this.save(tombstone);this.job=tombstone;this.loaded=true;
+      await this.ctx.storage.delete('recovery');await this.ctx.storage.deleteAlarm();
+      return json({done:true,state:'retired'});
+    }catch(error){return json({done:false,attention:true,code:error?.name||'Error'});}
+  }
   async fetch(request){
+    if(new URL(request.url).pathname==='/maintenance')return this.maintenance(await request.json());
     if(this.env.BACKGROUND_WORK_PAUSED==='1')return json({detail:'Reading is temporarily paused for maintenance.'},503);
+    const recovery=await this.ctx.storage.get('recovery');
+    if(recovery)return json({detail:'Reading recovery needs attention.'},503);
+    try{await this.load();}catch(error){await this.recover(error);return json({detail:'Reading recovery needs attention.'},503);}
     const url=new URL(request.url),owner=request.headers.get('X-Proof-Owner');
     if(url.pathname==='/create')return this.ctx.blockConcurrencyWhile(async()=>{
       const input=await request.json();
@@ -107,7 +167,7 @@ export class PreparedReading {
         if(this.job.owner!==owner)return json({detail:'Reading not found'},404);
         if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks)||JSON.stringify(this.job.mseOptions||null)!==JSON.stringify(input.mseOptions||null))return json({detail:'Request does not match existing reading'},409);
         if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
-        try{await this.admit();}catch{this.job=await loadJob(this.ctx.storage);return json({detail:'Admission will recover automatically'},503);}
+        try{await this.admit();}catch(error){await this.recover(error);return json({detail:'Admission will recover automatically'},503);}
         if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
         // An explicit new create may retry authorization once, but only if the
         // durable audit proves no speech request was ever attempted.
@@ -120,7 +180,7 @@ export class PreparedReading {
       }
       // Durable state and the alarm are committed together before acknowledging.
       if(input.mseOptions&&!progressiveReader(this.env))return json({detail:'Staging playback unavailable'},403);
-      this.job=newJob(input,owner,input.id);
+      this.job=newJob(input,owner,input.id);this.loaded=true;
       if(input.mseOptions)this.job.mseOptions=input.mseOptions;
       this.job.proofScenario=input.proofScenario||'';
       if(this.env.LEDGER&&!this.cachedStage()){this.job.admission='pending';this.job.proofAdmissionFault=input.proofAdmissionFault||'';}
@@ -129,17 +189,17 @@ export class PreparedReading {
         this.job.proofAdmissionFault='';await this.save(this.job);
         return json({detail:'Synthetic interrupted admission'},503);
       }
-      try{await this.admit();}catch{this.job=await loadJob(this.ctx.storage);return json({detail:'Admission will recover automatically'},503);}
+      try{await this.admit();}catch(error){await this.recover(error);return json({detail:'Admission will recover automatically'},503);}
       if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
       return json({id:this.job.id},201);
     });
     const job=this.job;
     if(!job||job.owner!==owner||Date.now()>=job.expires||['cancelled','expired'].includes(job.state))return json({detail:'Reading not found'},404);
     if(request.method==='DELETE'){
-      job.state='cancelled';await this.save(job);if(!this.running)await this.finish();else await this.ctx.storage.setAlarm(job.expires);
+      job.state='cancelled';await this.save(job);if(!this.running){try{await this.finish();}catch(error){await this.recover(error);}}else await this.ctx.storage.setAlarm(job.expires);
       return new Response(null,{status:204});
     }
-    if(!this.running&&job.state!=='preparing')await this.settle();
+    if(!this.running&&job.state!=='preparing'&&!job.settlementDone){try{await this.settle();}catch(error){await this.recover(error);return json({detail:'Reading settlement is recovering.'},503);}}
     if(url.pathname==='/status')return json(publicStatus(job));
     const section=/^\/sections\/(0|[1-9]\d*)$/.exec(url.pathname);
     if(section){

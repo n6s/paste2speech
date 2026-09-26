@@ -12,7 +12,9 @@ export class ReaderLedger extends UsageLedger {
  async logout(token){await super.logout(token);if(token)await this.query('DELETE FROM legacy_accounts WHERE token_hash=?',await digest(token)).run();}
  async settle(job){
   await super.settle(job);
-  await this.query('INSERT INTO reading_audit VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(job) DO UPDATE SET submitted=excluded.submitted,seconds=excluded.seconds,incomplete=excluded.incomplete,outcome=excluded.outcome',job.id,job.owner,job.created,job.voice,job.mode,job.submittedCharacters||0,job.parts.reduce((n,p)=>n+(p.samples||0)/24000,0),job.costIncomplete?1:0,job.state).run();
+  const receipt=await this.receipt(job.id,job.owner);
+  const outcome=receipt?.outcome||job.state;
+  await this.query('INSERT INTO reading_audit VALUES(?,?,?,?,?,?,?,?,?) ON CONFLICT(job) DO UPDATE SET submitted=excluded.submitted,seconds=excluded.seconds,incomplete=excluded.incomplete,outcome=excluded.outcome WHERE reading_audit.submitted<>excluded.submitted OR reading_audit.seconds<>excluded.seconds OR reading_audit.incomplete<>excluded.incomplete OR reading_audit.outcome<>excluded.outcome',job.id,job.owner,job.created,job.voice,job.mode,job.submittedCharacters||0,job.parts.reduce((n,p)=>n+(p.samples||0)/24000,0),job.costIncomplete?1:0,outcome).run();
  }
  async summary(month,account=null){
   const rows=await this.query("SELECT 'google' AS provider,CASE WHEN mode='live' THEN 'reading' ELSE 'development' END AS kind,SUM(seconds) AS seconds,SUM(CASE WHEN mode='live' THEN submitted*0.000004 ELSE 0 END) AS providerCost,SUM(incomplete) AS incompleteCosts FROM reading_audit WHERE strftime('%Y-%m',created/1000,'unixepoch')=? AND (? IS NULL OR account=?) GROUP BY mode",month,account,account).all();
