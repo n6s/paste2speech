@@ -10,7 +10,7 @@ import {accessToken,synthesize} from './google.js';
 import fixtures from '../../scripts/wavenet-worker-proof/fixture.json';
 const json=(value,status=200,headers={})=>new Response(JSON.stringify(value),{status,headers:{'Content-Type':'application/json','Cache-Control':'no-store',...headers}});
 export class PreparedReading {
-  constructor(ctx,env){this.ctx=ctx;this.env=env;ctx.blockConcurrencyWhile(async()=>{this.job=await loadJob(ctx.storage);});}
+  constructor(ctx,env){this.ctx=ctx;this.env=env;if(env.BACKGROUND_WORK_PAUSED!=='1')ctx.blockConcurrencyWhile(async()=>{this.job=await loadJob(ctx.storage);});}
   cachedStage(){return this.job?.mode==='staging-fixture'&&!!this.job.mseOptions;}
   async settle(){
     if(this.cachedStage())return;
@@ -49,6 +49,7 @@ export class PreparedReading {
     return this.job.cleanupOffset===keys.length;
   }
   async alarm(){
+    if(this.env.BACKGROUND_WORK_PAUSED==='1'){await this.ctx.storage.setAlarm(Date.now()+86400000);return;}
     // No admission await may race cancellation/expiry or another create.
     await this.ctx.blockConcurrencyWhile(async()=>{
       if(this.job?.state==='preparing'&&Date.now()<this.job.expires){
@@ -98,6 +99,7 @@ export class PreparedReading {
     finally{this.running=false;if(job.state==='preparing')await this.ctx.storage.setAlarm(Date.now()+1);else await this.finish();}
   }
   async fetch(request){
+    if(this.env.BACKGROUND_WORK_PAUSED==='1')return json({detail:'Reading is temporarily paused for maintenance.'},503);
     const url=new URL(request.url),owner=request.headers.get('X-Proof-Owner');
     if(url.pathname==='/create')return this.ctx.blockConcurrencyWhile(async()=>{
       const input=await request.json();

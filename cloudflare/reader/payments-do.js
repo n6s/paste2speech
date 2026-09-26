@@ -11,6 +11,7 @@ export class PaymentCoordinator {
  serial(fn){const result=this.tail.then(fn);this.tail=result.catch(()=>{});return result;}
  async sync(ledger,order,provider){try{return await syncOrder(ledger,order,provider);}catch{await ledger.paymentError(order.id);throw Error('Payment status could not be verified. Please try again; do not pay again.');}}
  async alarm(){
+  if(this.env.BACKGROUND_WORK_PAUSED==='1'){await this.ctx.storage.setAlarm(Date.now()+86400000);return;}
   if(trialMode(this.env)||this.env.LOCAL_READER==='1')return;
   await this.ctx.storage.setAlarm(Date.now()+60000);
   await this.serial(async()=>{
@@ -33,7 +34,9 @@ export class PaymentCoordinator {
    for(const row of rows.results)await this.sync(ledger,row,provider).catch(()=>{});
   });
  }
- async fetch(request){return this.serial(async()=>{
+ async fetch(request){
+  if(this.env.BACKGROUND_WORK_PAUSED==='1')return json({detail:'Payments are temporarily paused for maintenance.'},503);
+  return this.serial(async()=>{
   try{
    const {action,account,id}=await request.json(),ledger=new UsageLedger(this.env.LEDGER),provider=paddleProvider(this.env);
    // A cron wake or frequent browser request must never postpone an already

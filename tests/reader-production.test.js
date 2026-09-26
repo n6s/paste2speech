@@ -109,3 +109,17 @@ test('production progressive options preserve owner admission and exclude stagin
  delete s.env.PROGRESSIVE_READER;assert.equal((await s.request('/api/readings',{data,token:owner.token,headers:{'Idempotency-Key':crypto.randomUUID()}})).status,422);
  s.sql.close();
 });
+test('emergency pause defers alarms without loading jobs or touching ledgers and blocks API work',async()=>{
+ const s=setup();s.env.BACKGROUND_WORK_PAUSED='1';s.env.LEDGER=new Proxy({}, {get(){throw Error('Paused ledger accessed');}});
+ const alarms=[];const ctx={blockConcurrencyWhile(){throw Error('Paused object loaded');},storage:{setAlarm:async value=>alarms.push(value)}};
+ const durable=new PreparedReading(ctx,s.env);await durable.alarm();
+ assert.ok(alarms[0]>=Date.now()+86390000);
+ assert.equal((await durable.fetch(new Request('https://internal/create'))).status,503);
+ const {PaymentCoordinator}=await import('../cloudflare/reader/payments-do.js');
+ const payments=new PaymentCoordinator(ctx,s.env);await payments.alarm();
+ assert.equal((await payments.fetch(new Request('https://internal/wake'))).status,503);
+ await worker.scheduled({},s.env,{});
+ assert.equal((await s.request('/api/readings',{data:{}})).status,503);
+ assert.equal((await s.request('/api/billing/order',{data:{}})).status,503);
+ assert.equal(alarms.length,2);s.sql.close();
+});
