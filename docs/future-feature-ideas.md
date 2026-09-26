@@ -39,11 +39,30 @@ Possible later extensions: keyboard shortcut, main-article extraction without
 menus/ads, and playback controls within the source page. These are secondary to
 the selected-text right-click workflow.
 
-## Premium scan-to-speech
+## Premium scan-to-speech and image input
 
 Accept photographed pages and scanned/image-only PDFs, including multipage PDFs.
 Use high-quality AI-assisted OCR to recover faithful text and reading order from
 columns, headings and imperfect scans, then feed it into the existing reader.
+
+Expanded September 26, 2026: treat screenshots, book-page photographs and scans
+as related ways to supply text for listening. Support a series of images, with
+clipboard image paste alongside file upload and camera input. This helps when
+text is visible but inconvenient to copy—for example, an AI response split across
+several chat bubbles that can only be copied individually.
+
+- Shared flow: add images → review/reorder pages → extract into one continuous
+  reading → review if needed → play. Make repeated clipboard pastes convenient.
+- For books, preserve paragraph continuity across pages, join words hyphenated
+  at line breaks, and omit page numbers and repeated running headers.
+- For chat screenshots, preserve bubble order, offer “Replies only” or “Whole
+  conversation,” and skip interface labels and controls. Consider removing
+  duplicated passages when consecutive screenshots overlap.
+- Preserve the author's wording rather than summarizing. Flag uncertain or
+  clipped text instead of guessing what was outside the image.
+- Keep the phone workflow short enough to be useful for preparing listening
+  before a drive or while stopped. Test the interaction with real screenshots
+  and book photos as well as extraction accuracy.
 
 - Let users review and correct extraction before generating speech; flag uncertain
   text rather than silently inventing or rewriting it.
