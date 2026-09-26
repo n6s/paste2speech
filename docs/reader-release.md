@@ -83,3 +83,12 @@ that older code requires an active campaign. Fix forward on this shared baseline
 (or pause new live staging admissions while recovering). Never restore a ledger
 backup over newer transactions. Production rollback does not require a schema
 change; preserve production data and bindings.
+
+## Quota recovery safeguards
+
+See [the September 25 incident and recovery record](quota-incident-2026-09-25.md)
+for bounded retries, payment reconciliation cadence, legacy reading retirement,
+and read-only quota/maintenance checks. Keep the deployment's `RETIRE_BEFORE`
+cutoff fixed: changing it forward would retire newer readings. Do not clear retry
+state or requeue `attention` items without diagnosing them. The maintenance queue
+has a separate enable switch from the main background-work pause.
