@@ -19,7 +19,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 try{
- for(const failure of ['failed','network','within-failed']){
+ for(const failure of ['failed','network','within-failed','cancel-buffer']){
   const context=await browser.newContext(),page=await context.newPage();
   const jobs=new Map(),posts=[];let interruptedAt,failedId,allowRecovery=false,dialogs=0;
   await page.route('**/api/**',async route=>{
@@ -61,7 +61,15 @@ try{
    assert.equal(posts.length,2);assert.equal(await page.evaluate(()=>player.audio.currentTime),before.time);
    page.once('dialog',async d=>{dialogs++;allowRecovery=true;await d.accept();});
   }else allowRecovery=true;
-  await page.click('#resume');await page.waitForFunction(()=>player.finalized);
+  if(failure==='cancel-buffer')await page.evaluate(()=>Object.defineProperty(player.buffer,'updating',{get:()=>true}));
+  await page.click('#resume');
+  if(failure==='cancel-buffer'){
+   await page.waitForFunction(()=>player.resuming&&!player.fatal);
+   await page.evaluate(()=>player.invalidate());await page.waitForFunction(()=>!player.resuming);
+   assert.equal(await page.evaluate(()=>player.state),'idle');assert.ok(posts.length<=3);
+   await context.close();console.log('PASS Resume cancellation interrupts an in-flight buffer wait');continue;
+  }
+  await page.waitForFunction(()=>player.finalized);
   const after=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job,error:player.error,state:player.state,duration:player.audio.duration}));
   assert.equal(after.src,before.src);assert.equal(after.job,before.job);assert.ok(after.time>=before.time);assert.ok(after.time<before.time+2);
   assert.equal(after.error,'');assert.equal(posts.filter(p=>p.part===0).length,1);

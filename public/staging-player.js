@@ -48,7 +48,7 @@ export class StagingPlayer extends MsePlayer {
     this.controller=new AbortController();this.fatal=false;this.error='';this.pumping=false;this.finalized=false;
     if(result.replacedFrom!=null&&this.mode==='mse'){
      const cutoff=this.starts[result.replacedFrom]??this.status.duration;
-     if(this.buffer.updating)await new Promise(resolve=>this.buffer.addEventListener('updateend',resolve,{once:true}));
+     if(this.buffer.updating)await this.bufferOperation(()=>{},this.controller.signal);
      if(serial!==this.serial)return;
      if(this.ranges().some(([,end])=>end>cutoff))await this.bufferOperation(()=>this.buffer.remove(cutoff,Infinity),this.controller.signal);
      if(serial!==this.serial)return;
@@ -58,7 +58,7 @@ export class StagingPlayer extends MsePlayer {
      this.status=this.longReadings.status(group);
     }
     this.state='disconnected';
-   }catch(error){if(serial===this.serial){this.error=error.message;this.emit();}return;}
+   }catch(error){if(serial===this.serial)this.fail(error);return;}
    finally{this.resuming=false;}
   }
   super.resume();
