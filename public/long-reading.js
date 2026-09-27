@@ -22,7 +22,7 @@ export class LongReadingTransport {
         save:records=>sessionStorage.setItem(key,JSON.stringify(records)),
         statusChanged:(index,status)=>{group.statuses[index]=status;}});
       this.groups.set(id,group);
-      group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));
+      this.prepare(group);
       return Response.json({id});
     }
     const match=path.match(/^\/api\/readings\/([^/]+)(.*)$/),group=match&&this.groups.get(match[1]);
@@ -52,6 +52,43 @@ export class LongReadingTransport {
     }
     return Response.json({detail:'Unknown logical reading endpoint'},{status:404});
   }
+  prepare(group) {
+    group.error=null;group.done=false;
+    group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));
+  }
+  async resume(id,{confirmRetry=()=>false}={}) {
+    const group=this.groups.get(id);
+    if(!group||group.cancelled)throw Error('This reading is no longer available.');
+    if(group.resuming)return group.resuming;
+    group.resuming=(async()=>{
+      await group.finished;
+      if(group.cancelled)throw Error('This reading was cleared.');
+      if(!group.error)return {resumed:true};
+      const index=group.session.active||0,record=group.session.records[index];
+      let replacedFrom=null;
+      if(record.id) {
+        // A failed GET or lost POST acknowledgement never authorizes new speech.
+        const status=await group.session.status(record.id);
+        if(group.cancelled)throw Error('This reading was cleared.');
+        if(status.state==='failed') {
+          const characters=group.parts[index].chunks.reduce((n,text)=>n+[...text].length,0);
+          if(!await confirmRetry({part:index+1,characters}))return {resumed:false};
+          if(group.cancelled)throw Error('This reading was cleared.');
+          // Preserve the old ID for audit; only this confirmed terminal part is replaced.
+          group.session.records[index]={previousAttempts:[...(record.previousAttempts||[]),record.id],previousCost:(record.previousCost||0)+(status.providerCost||0),previousCostIncomplete:!!(record.previousCostIncomplete||status.costIncomplete)};
+          group.session.persist();
+          group.statuses.length=index;
+          replacedFrom=group.parts.slice(0,index).reduce((n,part)=>n+part.chunks.length,0);
+        }else if(['cancelled','expired'].includes(status.state)) {
+          throw Error('This part is no longer available. Completed parts have not been regenerated.');
+        }
+      }
+      if(group.cancelled)throw Error('This reading was cleared.');
+      this.prepare(group);
+      return {resumed:true,replacedFrom};
+    })();
+    try{return await group.resuming;}finally{group.resuming=null;}
+  }
   status(group) {
     const starts=[],sections=[];let samples=0;
     for(let p=0;p<group.parts.length;p++) {
@@ -64,8 +101,8 @@ export class LongReadingTransport {
     }
     const total=group.parts.reduce((n,p)=>n+p.chunks.length,0);
     const state=group.cancelled?'cancelled':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
-    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',
-      providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)};
+    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',canResumePreparation:!!group.error&&!group.cancelled,
+      providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0)+group.session.records.reduce((n,r)=>n+(r.previousCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)||group.session.records.some(r=>r.previousCostIncomplete)};
   }
   async downloadURL(id,kind) {
     const group=this.groups.get(id);
