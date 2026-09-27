@@ -145,3 +145,81 @@ not proof of paid synthesis capacity or a 24-hour hosted soak. Longer failure an
 payment schedules were exercised in accelerated local tests. The exact original
 alarm exception remains unconfirmed. Local Tailscale/Kokoro was confirmed working
 by the user during the incident and was not changed by this repair.
+
+## September 27 read optimization
+
+Changes: `b48970a` adds the partial `reservations_open_account` index; `48899b2`
+uses one metered reserved-credit aggregate for reader account status. The base
+ledger retains its all-open-reservations policy. Public response fields and
+payment settings are unchanged.
+
+Both pre-migration private SQL exports passed SQLite integrity checks. Migration
+history was checked before applying only `0014_reservation_read_index.sql`.
+The existing shared release checkout and migration/release workflows were used.
+
+Measured D1 rows read, summed across the same account IDs for each query:
+
+| Environment | Query | Before | After index |
+| --- | --- | ---: | ---: |
+| Staging (32 accounts) | Account plus all open holds | 20,515 | 35 |
+| Staging (32 accounts) | Metered open holds | 20,480 | 0 |
+| Production (3 accounts) | Account plus all open holds | 83 | 5 |
+| Production (3 accounts) | Metered open holds | 78 | 0 |
+
+Staging combined reads fell 99.91%; production fell 96.89%. These are per-call
+measurements, not a projection of rolling daily traffic. Both live query plans
+changed from `SCAN reservations` to the partial index. Index creation is a
+one-time migration cost; Wrangler's migration receipt did not expose a separate
+rows-written total, so it is not counted as ongoing savings.
+
+Staging had concurrent activity during baseline capture: one 19-section job
+settled as failed (799 characters consumed, 376 released). The balance increased
+by 376 and reserved credit went from 1,175 to zero between measurements. Thus
+live result equality could not be asserted across those timestamps. Replaying
+both queries against the exact backup before and after index creation produced
+identical results. Production live results matched exactly. No snapshot was
+restored. Later staging differences include normal usage and hosted-test session
+creation; grants and debt were unchanged.
+
+Operational incident: the user reported audiobook preparation failing during
+this work. Long readings are split into smaller durable jobs, which explains
+why no single 7,873-section reservation exists. The latest failed part started
+at 22:45:51 UTC, immediately before the staging export at approximately 22:45:55.
+D1 exports briefly block queries; export-related interruption is plausible, but
+the preparation path suppresses the original exception, so causation is not
+proven. Do not take an export or migrate/deploy over an active preparation:
+check open reservations and coordinate with the user first. Retain existing
+book part records; do not automatically regenerate uncertain paid work.
+
+Validation: 211 JavaScript tests passed, including 1,000 closed reservations,
+multiple accounts/open holds, metered/unmetered separation, missing accounts,
+identity/debt/legacy-pilot fields, settlement/cancellation, and exactly one reader
+hold aggregate. Both staging and production browser parity passed. Hosted cached
+playback, ownership, and cancellation passed after renewing Cloudflare Access.
+The real Cloudflare runtime recovery/cleanup regression check also passed.
+
+Private receipts and backups: `work/read-optimization/` (ignored, not committed).
+
+Executing the refactored `ReaderLedger.account()` against live D1 for the original
+account sets read 35 rows for 32 staging lookups and 5 rows for 3 production
+lookups. Both wrote zero rows and executed exactly one held-credit aggregate per
+lookup. This verifies the full helper/pilot/held lookup path, not only standalone
+SQL. Production's accounts, grants, debt, usage, and reservations matched its
+backup exactly before promotion. Staging's recorded balance difference was
+explained by the failed job refund (+376) and a later cancelled job's consumed
+speech (-385), net -9; test-created accounts had zero balances.
+
+The staging observation gate covered 2026-09-27T22:50:40Z through 2026-09-27T23:20:40Z
+(30.00 minutes, excluding the final two minutes of analytics lag).
+Staging recorded 65 writes and 91 Durable Object requests, with zero failed
+alarms and all 274 maintenance records complete. Production recorded no writes
+or Durable Object requests. No new failed reading audits appeared during the
+window, and both environments had zero open reservations before promotion.
+This is an idle/cached-test observation, not a full-book paid synthesis load test.
+
+Optimization release `48899b2ebfa4afb477b707d65f97b102f346b3cb` was verified
+against hosted staging and promoted through the normal production workflow.
+Production version: `ed8df5d6-a550-477f-8d12-48972b119194`. All served asset hashes
+matched; reader API was available, checkout remained disabled/trial-only, and
+anonymous reading creation returned 401. A separate, tested frontend Resume
+improvement follows on staging; it is not part of this observation gate.
