@@ -39,3 +39,12 @@ test('account fields and metered holds stay correct through reservation lifecycl
  const after=await s.reader.account('a');assert.equal(after.balance,95);assert.equal(after.reserved,0);assert.equal(after.email,before.email);assert.equal(after.legacyPilot,true);
  s.sql.exec("INSERT INTO account_debt VALUES('a',7) ON CONFLICT(account) DO UPDATE SET characters=excluded.characters");assert.equal((await s.reader.account('a')).shortfall,7);s.sql.close();
 });
+
+test('reader account uses one metered hold aggregate and missing accounts use none',async()=>{
+ const s=setup();await s.reader.account('a');
+ const aggregates=s.queries.filter(q=>/SUM\(remaining\)/.test(q));
+ assert.equal(aggregates.length,1);assert.match(aggregates[0],/metered=1/);
+ s.queries.length=0;assert.equal(await s.reader.account('missing'),null);
+ assert.equal(s.queries.filter(q=>/SUM\(remaining\)/.test(q)).length,0);
+ assert.equal(await s.base.account('missing'),null);s.sql.close();
+});

@@ -1,7 +1,7 @@
 import {UsageLedger,CreditError,digest,sourceCounts} from '../prepared/ledger.js';
 export class ReaderLedger extends UsageLedger {
  async account(id){
-  const account=await super.account(id);if(!account)return null;
+  const account=await this.accountDetails(id);if(!account)return null;
   const pilot=await this.query('SELECT account FROM legacy_pilots WHERE account=?',id).first();
   const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open' AND metered=1",id).first();return {...account,legacyPilot:!!pilot,reserved:held.reserved};
  }

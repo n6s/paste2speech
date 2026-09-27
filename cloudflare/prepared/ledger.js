@@ -17,8 +17,14 @@ export class UsageLedger {
     return token;
   }
   async logout(token){if(token)await this.query('DELETE FROM sessions WHERE token_hash=?',await digest(token)).run();}
+  // Internal shared identity/balance lookup; subclasses choose their hold policy.
+  async accountDetails(id){
+    return this.query("SELECT id,label,balance,enabled,COALESCE((SELECT characters FROM account_debt WHERE account=accounts.id),0) AS shortfall,(SELECT email FROM identities WHERE account=accounts.id) AS email FROM accounts WHERE id=?",id).first();
+  }
   async account(id){
-    return this.query("SELECT id,label,balance,enabled,COALESCE((SELECT characters FROM account_debt WHERE account=accounts.id),0) AS shortfall,(SELECT email FROM identities WHERE account=accounts.id) AS email,(SELECT COALESCE(SUM(remaining),0) FROM reservations WHERE account=accounts.id AND state='open') AS reserved FROM accounts WHERE id=?",id).first();
+    const account=await this.accountDetails(id);if(!account)return null;
+    const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open'",id).first();
+    return {...account,reserved:held.reserved};
   }
   async receipt(job,account){return this.query('SELECT job,total,remaining,state,outcome,consumed,released FROM reservations WHERE job=? AND account=?',job,account).first();}
   async newAccount(){
