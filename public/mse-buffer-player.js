@@ -110,7 +110,7 @@ export class MsePlayer {
         const status=await this.request(`/api/readings/${this.job}`);
         if(serial!==this.serial)return;
         this.status=status;this.log('status',{state:status.state,completed:status.completed,total:status.total,starts:status.starts});
-        if(status.state==='failed')throw Error('Preparation failed. Partial audio is not a complete reading.');
+        if(status.state==='failed')throw Error(status.canResumePreparation?`${status.error||'Preparation interrupted.'} Tap Resume to check the saved parts.`:'Preparation failed. Partial audio is not a complete reading.');
         if(this.mode==='mse'){
           if(this.boundedBuffer){
             if(this.pendingIndex!=null && status.sections[this.pendingIndex] && this.pendingIndex!==this.next &&
