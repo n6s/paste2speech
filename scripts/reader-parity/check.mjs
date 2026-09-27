@@ -68,6 +68,25 @@ try{
    await page.goto(origin);assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');assert.equal(await page.locator('#staging-checks').isVisible(),false);
   }else{assert.equal(await page.locator('#staging-checks').count(),0);assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');}
   await context.close();
+  const cleared=await browser.newContext(),fresh=await cleared.newPage();let freshCreates=0;const freshJobs=new Map();
+  await fresh.route('**/api/**',async route=>{
+   const request=route.request(),path=new URL(request.url()).pathname;
+   if(path==='/api/reader')return route.fulfill({json:{eligible:true,account:{balance:900000}}});
+   if(path==='/api/readings'&&request.method()==='POST'){freshCreates++;const id=request.headers()['idempotency-key'];freshJobs.set(id,request.postDataJSON().chunks.length);return route.fulfill({json:{id}});}
+   if(path.startsWith('/api/readings/')){const count=freshJobs.get(path.split('/')[3])||1;return route.fulfill({json:{state:'ready',total:count,completed:count,starts:Array(count).fill(0),sections:Array.from({length:count},(_,index)=>({...sections[0],index})),duration:sections[0].samples/24000}});}
+   return route.fulfill({json:{}});
+  });
+  await fresh.goto(origin);
+  await fresh.evaluate(()=>{sessionStorage.setItem('paste2speech.video.stale',JSON.stringify([{id:'cancelled-part'}]));sessionStorage.setItem('unrelated','keep');});
+  await fresh.click('#clear');await fresh.reload();
+  assert.equal(await fresh.evaluate(()=>sessionStorage.getItem('paste2speech.video.stale')),null);
+  assert.equal(await fresh.evaluate(()=>sessionStorage.getItem('unrelated')),'keep');
+  await fresh.locator('#voice-settings').evaluate(e=>e.open=true);await fresh.selectOption('#engine','google');
+  await fresh.locator('#video-split-limit').evaluate(e=>{e.value='1200';});
+  await fresh.fill('#text','A'.repeat(1100)+'.\n\n'+'B'.repeat(1100)+'.');await fresh.click('#play');
+  await fresh.waitForFunction(()=>Object.keys(sessionStorage).some(k=>k.startsWith('paste2speech.video.')&&JSON.parse(sessionStorage.getItem(k)).filter(r=>r.id).length===2));
+  assert.equal(freshCreates,2);await cleared.close();
+  console.log(`PASS ${environment}: Clear, refresh, and fresh long-reading preparation in Chrome`);
   const unsupported=await browser.newContext();await unsupported.addInitScript(()=>{window.MediaSource=undefined;});
   const fallback=await unsupported.newPage();await fallback.route('**/api/**',r=>r.fulfill({json:{eligible:true}}));await fallback.goto(origin);await fallback.locator('#voice-settings').evaluate(e=>e.open=true);await fallback.selectOption('#engine','google');assert.equal(await fallback.locator('#playback-options').isVisible(),false);await unsupported.close();
   console.log(`PASS ${environment}: default controls, early playback, pause, speed, seek, same-job fallback, errors, testing-mode isolation, unsupported browser`);

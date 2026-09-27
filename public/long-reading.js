@@ -7,6 +7,14 @@ export class LongReadingTransport {
   constructor(fetcher, {rawFetch=(...args)=>fetch(...args), limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
     this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.groups=new Map();
   }
+  clearSavedReadings() {
+    // Clear is synchronous: a reload must not retain IDs awaiting network cleanup.
+    for(const group of this.groups.values())group.forgotten=true;
+    for(let i=sessionStorage.length-1;i>=0;i--){
+      const key=sessionStorage.key(i);
+      if(key?.startsWith('paste2speech.video.'))sessionStorage.removeItem(key);
+    }
+  }
   async fetch(url, options={}) {
     const path=new URL(url,location.href).pathname;
     if(path==='/api/readings' && options.method==='POST') {
@@ -19,7 +27,7 @@ export class LongReadingTransport {
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
       const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,
-        save:records=>sessionStorage.setItem(key,JSON.stringify(records)),
+        save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
         statusChanged:(index,status)=>{group.statuses[index]=status;}});
       this.groups.set(id,group);
       this.prepare(group);
@@ -28,14 +36,17 @@ export class LongReadingTransport {
     const match=path.match(/^\/api\/readings\/([^/]+)(.*)$/),group=match&&this.groups.get(match[1]);
     if(!group)return this.upstream(url,options);
     if(options.method==='DELETE') {
-      group.cancelled=true;group.session.stop();await group.finished;
+      group.cancelled=true;group.session.stop();
+      if(!group.forgotten)sessionStorage.removeItem(group.key);
+      group.forgotten=true;
+      await group.finished;
       for(const record of group.session.records)if(record.id) {
         const response=await this.rawFetch(`/api/readings/${record.id}`,{method:'DELETE',signal:AbortSignal.timeout(15000)});
         if(!response.ok&&response.status!==404)return response;
       }
       if(group.audioURL)URL.revokeObjectURL(group.audioURL);
       if(group.captionURL)URL.revokeObjectURL(group.captionURL);
-      sessionStorage.removeItem(group.key);return new Response(null,{status:204});
+      return new Response(null,{status:204});
     }
     if(!match[2])return Response.json(this.status(group));
     const section=match[2].match(/^\/sections\/(\d+)$/);

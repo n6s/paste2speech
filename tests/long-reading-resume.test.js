@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {LongReadingTransport} from '../public/long-reading.js';
 globalThis.location=new URL('https://reader.test');
 globalThis.window=new EventTarget();
-const storage=new Map();globalThis.sessionStorage={getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
+const storage=new Map();globalThis.sessionStorage={get length(){return storage.size;},key:i=>[...storage.keys()][i],getItem:k=>storage.get(k),setItem:(k,v)=>storage.set(k,v),removeItem:k=>storage.delete(k)};
 async function fixture({failure='failed'}={}){
  storage.clear();
  const posts=[],jobs=new Map();let fail=failure;
@@ -70,4 +70,18 @@ test('saved part IDs survive recreating the transport and are reused on Resume',
  await transport.resume(group.id,{confirmRetry:()=>{f.setFailure(null);return true;}});await group.finished;
  assert.equal(f.posts.length,3);assert.equal(group.session.records[0].id,f.posts[0].id);
  assert.equal(transport.status(group).state,'ready');
+});
+
+test('Clear forgets saved parts before network cleanup and late saves cannot resurrect them',async()=>{
+ const f=await fixture();storage.set('unrelated','keep');
+ f.transport.clearSavedReadings();f.group.session.persist();
+ assert.deepEqual([...storage.keys()],['unrelated']);
+ f.setFailure(null);
+ const fresh=new LongReadingTransport(null,{rawFetch:f.transport.rawFetch,limit:()=>100});
+ const response=await fresh.fetch('/api/readings',{method:'POST',body:JSON.stringify({voice:'en-US-Wavenet-D',chunks:['A'.repeat(100),'B'.repeat(100)]})});
+ await fresh.groups.get((await response.json()).id).finished;
+ assert.equal(f.posts.length,4);assert.notEqual(f.posts[0].id,f.posts[2].id);
+});
+test('Clear after reload forgets records even without an active logical reading',async()=>{
+ await fixture();const fresh=new LongReadingTransport();fresh.clearSavedReadings();assert.equal(storage.size,0);
 });

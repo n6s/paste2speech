@@ -360,7 +360,7 @@ $('paste-play').addEventListener('click', async () => {
     $('paste-play').disabled = false;
   }
 });
-$('clear').addEventListener('click', () => { pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+$('clear').addEventListener('click', () => { workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('previous-section').addEventListener('click',()=>workstationPlayer.move(-1));

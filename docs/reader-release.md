@@ -119,3 +119,13 @@ It applies to split long readings, not arbitrary media-decoding errors.
 `npm run check:reader:resume` exercises real browser MSE recovery with intercepted
 synthetic APIs, including different replacement durations. The normal release
 script includes it; no provider calls or credit grants are used by these tests.
+
+## Clear and saved long readings
+
+Clear synchronously forgets the tab's saved long-reading part IDs, including IDs
+left by an earlier page load. Server cancellation remains asynchronous; late
+preparation or cleanup responses cannot restore forgotten IDs or remove a newer
+reading's saved records. Refresh after Clear therefore starts new preparation
+when the text is imported again. Resume without Clear still preserves saved IDs.
+Regression coverage includes Clear followed by reload and fresh preparation in
+Chrome against both reader builds, with speech API calls intercepted.
