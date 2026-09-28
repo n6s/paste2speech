@@ -163,3 +163,22 @@ staging email sign-in to recover the same verified account at the new hostname.
 Staging remains noindex, with robots.txt disallowing crawling; it is not included
 in the public sitemap. Historical rehearsal records retain the old hostname.
 Current release/check scripts and staging runbooks use the new hostname.
+
+Staging cutover completed September 28, 2026:
+- Code commit `3572310389ca7fccf5441d0203fb245dd379d4d4`; Worker version
+  `be0c212b-cb47-45e4-ab15-c10a1919c141`.
+- All 225 tests plus both builds, Chrome playback/parity and Resume/Clear checks
+  passed. Initial hosted verification lacked a cloudflared token cached for the
+  new hostname; renewed the normal Access login and independently verified the
+  exact release metadata and every hosted asset digest without redeploying.
+- Both hostnames send unauthenticated requests to Access. Authenticated old-host
+  navigation returns 301 to new staging; arbitrary query strings are removed.
+- New homepage returns noindex; robots.txt disallows crawling. Account status
+  confirms sandbox checkout/email configuration. No purchase or live synthesis
+  was performed.
+- Paddle Sandbox default payment link changed from the legacy Tailscale account
+  URL to `https://staging.pastetospeech.com/api/billing`, saved and verified after
+  reload. This account-wide sandbox setting also affects future payment links
+  created by the legacy workstation; its product IDs and API credentials stay
+  unchanged. Existing sandbox receipt/statement branding is unchanged.
+- Production was not redeployed for this staging-only hostname change.
