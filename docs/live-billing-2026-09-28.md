@@ -83,3 +83,19 @@ All ten signed events processed with zero failed attempts and zero pending
 events; zero open reservations. No manual balance changes were used.
 The purchase/refund accounting proof passes. Explicit notification replay and
 the capped production speech/download smoke check still precede public opening.
+
+
+## Final launch checks
+
+Replayed original transaction.completed notification ntf_01m3n51vyz78j7ytx2k43cwc25
+through Paddle. Replay ntf_01m3n5myrftkf1dz7fj4zwnre7 reports Delivered.
+Refund remained revoked by 1,000,000 characters; exactly one original grant remains.
+Production WaveNet read 90 characters across two sections successfully; balance
+is 14,538, with zero open reservations. Export produced a six-second MP4;
+browser player loaded it (readyState 4) with an English captions track.
+Direct automation file download timed out; the normal recording link and
+embedded preview succeeded. No second provider generation was needed for export.
+
+Roger authorized opening purchasing after these checks. Set PUBLIC_LAUNCH_OPEN=1
+and update pricing copy, preserving budget limits, verified-email requirements,
+private staging, financial history and current playback features.
