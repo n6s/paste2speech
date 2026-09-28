@@ -73,3 +73,13 @@ Public launch remains closed. Next read this existing adjustment, never submit
 a duplicate. Once approved, verify exactly 1,000,000 characters revoked and no
 unrelated balance changes. Still outstanding: explicit notification replay,
 capped production speech/download smoke check and final public launch promotion.
+
+## Refund approved and reconciled
+
+Paddle adjustment adj_01m3n5563jypwwwbc159tx9tgn is now approved for
+$10.75; retained processing fee is confirmed $1.04. Production reconciliation
+revoked exactly 1,000,000 characters and restored the original 14,628 balance.
+All ten signed events processed with zero failed attempts and zero pending
+events; zero open reservations. No manual balance changes were used.
+The purchase/refund accounting proof passes. Explicit notification replay and
+the capped production speech/download smoke check still precede public opening.
