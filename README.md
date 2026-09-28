@@ -4,9 +4,8 @@
 
 See [the rebrand inventory and domain cutover notes](docs/rebrand.md).
 
-New public domain: **https://pastetospeech.com** (prepared locally; domain cutover
-and deployment are pending). The existing deployment at
-**https://speak.rogerpbrown.com** offers
+Public reader: **https://pastetospeech.com**. The former address,
+**https://speak.rogerpbrown.com**, shows a move notice and redirects. The reader offers
 free browser voices and an owner-only WaveNet trial. Public paid WaveNet is prepared
 but remains gated pending Paddle live-account setup and final activation checks.
 See [public launch release](docs/public-launch-release.md) for implementation,

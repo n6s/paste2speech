@@ -71,3 +71,48 @@ Local checks: 223 Node tests; legacy build; staging/production builds; synthetic
 Chrome playback/parity and Resume/Clear checks; mobile portfolio/redirect layout,
 automatic redirect, generated canonicals/sitemaps; staging and production Wrangler
 dry runs. These do not establish real email delivery or a paid transaction.
+
+## Completed live cutover
+
+- Reader commit `6a718a2` deployed through staging to production. Both deployments
+  verified their served release metadata and asset digests. Existing shared-reader
+  changes since the previous production commit `48899b2` were included: Resume/Clear
+  recovery, chunk seeking, preset speeds, error wording and media metadata.
+- Production Worker version from the code deployment:
+  `5a652c8f-2c28-455b-9898-22d791cd9408`. Later EMAIL_FROM secret updates create
+  newer Worker versions without changing the reader asset commit.
+- Cloudflare attached pastetospeech.com to the existing production Worker, with
+  managed website DNS/TLS. The old hostname remains attached for the move page.
+  Live new-site HTTP 200, old move page, account status and disabled checkout verified.
+- Portfolio commit `f97f35f` pushed to main and its deployed HTML verified with the
+  new project name and destination.
+- Resend domain pastetospeech.com verified; DKIM TXT plus DNS-only `rsend` and
+  `send` CNAMEs installed exactly as supplied. Added initial DMARC `p=none`.
+  Receiving remains off; tracking is unconfigured; TLS is Enforced.
+- Production/staging EMAIL_FROM and private workstation sender now use
+  `PasteToSpeech <signin@pastetospeech.com>` / `signin@pastetospeech.com`.
+  Sending-only key retained (all-domains scope). Old sender domain retained.
+- One authorized sign-in email reached Gmail Inbox with SPF/DKIM/DMARC passing.
+  The browser showed the existing verified owner account and 14,628 available
+  characters. No synthesis, new credit, or purchase was performed.
+- Live Paddle product name is `PasteToSpeech — Speech pack`, with an updated
+  description and the same product ID, $10 price and 1,000,000-character pack.
+- Paddle approved pastetospeech.com and activated the merchant account during this
+  session. Its September 28 activation email explicitly names the new domain.
+- Default payment link saved as `https://pastetospeech.com/api/billing` after domain
+  approval. Statement descriptor saved as `PASTESPEAK` (Paddle allows at most ten
+  characters). Live webhook URL updated to
+  `https://pastetospeech.com/api/billing/webhook`; same ID, secret and 12 events,
+  still Inactive. Site checkout remains disabled in production-trial mode.
+
+## Remaining launch work
+
+This completes the rebrand and domain move, not paid-launch activation. Paddle's
+activation email asks the owner to enter payout details. Verify payout setup and
+complete the existing billing launch checks before enabling checkout/webhooks or
+switching to the future public-launch configuration. No live purchase was tested.
+Sandbox catalog/receipt/card wording and the historical live-setup records were
+not rewritten to imply sandbox settings had changed. Search-console properties
+and old sitemap submissions retain their prior records; new-domain submission is
+separate follow-up work. The staging hostname and internal project identifiers
+remain unchanged. The older main/Tailscale checkout was not overwritten.
