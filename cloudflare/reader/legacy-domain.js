@@ -14,3 +14,14 @@ export function legacyDomainResponse(request) {
  delete headers['X-Robots-Tag'];
  return new Response(null,{status:301,headers});
 }
+
+// Called only after validating Cloudflare Access for the old staging origin.
+export function legacyStagingResponse(request) {
+ const url=new URL(request.url);
+ const account=['/signin','/api/billing','/api/billing/','/api/billing/signin','/billing'].includes(url.pathname);
+ const headers={'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Robots-Tag':'noindex, nofollow'};
+ if(!['GET','HEAD'].includes(request.method)||(url.pathname.startsWith('/api/')&&!account))return Response.json({detail:'Staging has moved. Open https://staging.pastetospeech.com and sign in again.'},{status:410,headers});
+ const path=account?'/api/billing':['/pricing','/terms'].includes(url.pathname)?url.pathname:'/';
+ const testing=path==='/'&&url.searchParams.get('testing')==='1'?'?testing=1':'';
+ return new Response(null,{status:301,headers:{...headers,Location:'https://staging.pastetospeech.com'+path+testing+'#'}});
+}

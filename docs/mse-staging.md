@@ -4,7 +4,7 @@
 
 Integration branch: `codex/mse-staging-reader`, based on Pixel-accepted experiment
 `01126ab`. The original experiment and production are unchanged. The normal
-reader at https://speak-staging.rogerpbrown.com is the deployment target.
+reader at https://staging.pastetospeech.com is the deployment target.
 
 ## Isolation and behavior
 

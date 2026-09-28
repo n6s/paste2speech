@@ -5,7 +5,7 @@ import {mkdir,writeFile,readFile} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 import fixtures from '../wavenet-worker-proof/fixture.json' with {type:'json'};
 const origin=process.env.MSE_STAGING_ORIGIN||'http://127.0.0.1:8791';
-if(!['http://127.0.0.1:8791','https://speak-staging.rogerpbrown.com'].includes(origin))throw Error('Only isolated local or private staging is allowed');
+if(!['http://127.0.0.1:8791','https://staging.pastetospeech.com'].includes(origin))throw Error('Only isolated local or private staging is allowed');
 const remote=origin.startsWith('https:');
 const cookies=remote?[{name:'CF_Authorization',value:execFileSync('cloudflared',['access','token','--app',origin],{encoding:'utf8'}).trim(),url:origin,httpOnly:true,secure:true,sameSite:'Lax'}]:[];
 const root=`work/mse-staging/${remote?'remote':'local'}-checks`;await mkdir(root,{recursive:true});

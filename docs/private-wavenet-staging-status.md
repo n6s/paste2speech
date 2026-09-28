@@ -3,7 +3,7 @@
 The user approved staging deployment and credential setup, paused for a cost
 review, then explicitly resumed and activated R2 and Zero Trust Free.
 
-Current staging: https://speak-staging.rogerpbrown.com/ . Production remains
+Current staging: https://staging.pastetospeech.com/ . Production remains
 https://speak.rogerpbrown.com/ and still routes to the original Worker.
 
 Historical September 22 activation and deployment (superseded by the restoration update below):

@@ -112,7 +112,7 @@ release recipe; a byte-identical encoder rebuild is not claimed.
   provider validation, caption offsets, uncertain creation and cancellation.
 - `node scripts/video-download/check.mjs`: actual Chrome/WASM conversion with
   intercepted speech APIs and cached real audio; no paid provider requests.
-- Set `VIDEO_STAGING_ORIGIN=https://speak-staging.rogerpbrown.com` for the same
+- Set `VIDEO_STAGING_ORIGIN=https://staging.pastetospeech.com` for the same
   browser check against hosted assets and real CSP. Speech APIs stay intercepted.
 - `npm run release:reader:staging`: all unit tests, both builds, existing browser
   parity checks, and staging Worker dry run.

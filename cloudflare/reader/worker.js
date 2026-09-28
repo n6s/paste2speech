@@ -1,4 +1,4 @@
-import {legacyDomainResponse} from './legacy-domain.js';
+import {legacyDomainResponse,legacyStagingResponse} from './legacy-domain.js';
 import {runMaintenance} from './maintenance.js';
 import {production,trialMode,publicMode,verifiedCustomer,customerAllowed,paymentConfig} from './modes.js';
 import {mseStaging,progressiveReader,stagingInput,fixtureChunks} from './mse-staging.js';
@@ -37,6 +37,10 @@ async function asset(request,env,path){
 export default {
  async scheduled(_event,env,ctx){await runMaintenance(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
+  if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
+   if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
+   return legacyStagingResponse(request);
+  }
   const moved=production(env)&&legacyDomainResponse(request);
   if(moved)return moved;
   if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);

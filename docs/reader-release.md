@@ -25,7 +25,7 @@ npm run release:reader:staging
 npm run release:reader:staging -- --deploy
 
 # Cached-only hosted check; no provider calls or account credits consumed.
-MSE_STAGING_ORIGIN=https://speak-staging.rogerpbrown.com \
+MSE_STAGING_ORIGIN=https://staging.pastetospeech.com \
 MSE_CHECK_ONLY='^en-US-Wavenet-F-3$' node scripts/mse-staging/check.mjs
 
 # Promote the same clean commit after staging verification.

@@ -5,7 +5,7 @@ email identity, accounts, WaveNet preparation, stored audio, and sandbox payment
 reconciliation in Workers, Durable Objects, D1, and R2. No Python speech server,
 encoder, ffmpeg process, or workstation tunnel is part of its runtime.
 
-This is deployed privately at https://speak-staging.rogerpbrown.com/.
+This is deployed privately at https://staging.pastetospeech.com/.
 See `reader-feature-parity.md` for current verification and pending acceptance.
 The running checkout, its site, credentials, customer data and balances were not
 modified. The isolated branch is `codex/wavenet-mp3-proof`.

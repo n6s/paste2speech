@@ -146,3 +146,20 @@ Confirmed the move from the URL-prefix property `https://speak.rogerpbrown.com/`
 to the `pastetospeech.com` domain property. Search Console now reports "This site
 is currently moving", started September 28, 2026. The parent rogerpbrown.com
 property was not moved.
+
+## Staging hostname
+
+The new private staging origin is `https://staging.pastetospeech.com`.
+The same Cloudflare Access application protects both this hostname and
+`speak-staging.rogerpbrown.com`, with the existing Roger-only policy, audience,
+identity provider and session duration. Protection is configured before attaching
+the new Worker custom domain. The old staging address redirects safe navigation
+only after Access verification; old API work returns 410, with no cross-origin
+replay or token forwarding. Testing-mode bookmarks keep only `testing=1`.
+
+Worker, sandbox catalog, database, audio storage and account records are unchanged.
+Browser cookies/preferences/saved readings are origin-scoped: request a fresh
+staging email sign-in to recover the same verified account at the new hostname.
+Staging remains noindex, with robots.txt disallowing crawling; it is not included
+in the public sitemap. Historical rehearsal records retain the old hostname.
+Current release/check scripts and staging runbooks use the new hostname.

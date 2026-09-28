@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import {captions, inspectMp3} from '../../cloudflare/prepared/mp3.js';
 import fixtures from '../wavenet-worker-proof/fixture.json' with {type:'json'};
 const remote=undefined;
-if(remote && remote!=='https://speak-staging.rogerpbrown.com')throw Error('Only private staging is permitted');
+if(remote && remote!=='https://staging.pastetospeech.com')throw Error('Only private staging is permitted');
 const folder='work/long-reading'; await mkdir(folder,{recursive:true});
 const source=fixtures['en-US-Wavenet-F'][3]; // A single whole sentence, known audio.
 const mp3=await readFile('tests/fixtures/wavenet/'+source.file), info=inspectMp3(mp3);
