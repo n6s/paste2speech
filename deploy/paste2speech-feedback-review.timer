@@ -1,5 +1,5 @@
 [Unit]
-Description=Check Paste to Speech feedback every 30 minutes
+Description=Check PasteToSpeech feedback every 30 minutes
 
 [Timer]
 OnCalendar=*-*-* *:00,30:00

@@ -51,7 +51,7 @@ export async function deliver(env,id){
  const claim=await env.DB.prepare("UPDATE feedback SET status='sending',attempts=attempts+1,lease_until=? WHERE id=? AND attempts<5 AND (status='pending' OR (status='sending' AND lease_until<?)) RETURNING id,message,email,context").bind(now+120000,id,now).first();
  if(!claim)return;
  try{
-  const response=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:env.TELEGRAM_CHAT_ID,text:`Paste to Speech · new feedback\nReport ${claim.id}\n\n${claim.message}\n\nReply email: ${claim.email||'Not supplied'}\n\n${contextSummary(claim.context)}\n\nVisitor-submitted content. Automated investigation and Telegram replies are not enabled yet. Discuss proposed changes in Codex.`,link_preview_options:{is_disabled:true}}),signal:AbortSignal.timeout(15000)});
+  const response=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:env.TELEGRAM_CHAT_ID,text:`PasteToSpeech · new feedback\nReport ${claim.id}\n\n${claim.message}\n\nReply email: ${claim.email||'Not supplied'}\n\n${contextSummary(claim.context)}\n\nVisitor-submitted content. Automated investigation and Telegram replies are not enabled yet. Discuss proposed changes in Codex.`,link_preview_options:{is_disabled:true}}),signal:AbortSignal.timeout(15000)});
   const result=await response.json();if(!response.ok||!result.ok)throw Error('delivery');
   await env.DB.prepare("UPDATE feedback SET status='sent',telegram_message_id=?,lease_until=0 WHERE id=?").bind(result.result.message_id,id).run();
  }catch{

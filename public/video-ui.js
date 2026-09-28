@@ -91,7 +91,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       videoURL = URL.createObjectURL(result.blob);
       captionURL = URL.createObjectURL(new Blob([result.vtt], {type:'text/vtt'}));
       const link = $('open-video'); link.href = videoURL;
-      link.textContent = `paste-to-speech-${result.label.slice(10, 26).replaceAll(':', '').replace(' ', '-')}.mp4`;
+      link.textContent = `pastetospeech-${result.label.slice(10, 26).replaceAll(':', '').replace(' ', '-')}.mp4`;
       link.download = link.textContent;
       link.hidden = false;
       message('Ready. Open the recording, or right-click the link and choose Save link as.');

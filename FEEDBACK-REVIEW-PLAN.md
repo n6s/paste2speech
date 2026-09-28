@@ -123,7 +123,7 @@ Aim for one short message per actionable report; batch simple sentiments if need
 Include the category, report reference, finding, uncertainty, and next action.
 Example (illustrative, not a real finding):
 
-> Paste to Speech · pronunciation · Report <ID>
+> PasteToSpeech · pronunciation · Report <ID>
 >
 > A visitor says “ExampleName” sounds wrong with on-device Kokoro. I found no
 > dictionary override. A targeted override may help, but the intended pronunciation

@@ -4,6 +4,10 @@ Updated September 24, 2026. This is the current release workflow for the private
 staging reader and owner-only production reader. Their separate earlier branch
 instructions are historical. Public billing launch remains a separate workflow.
 
+The local production configuration now targets `https://pastetospeech.com`.
+Before deploying it, follow [the domain cutover notes](rebrand.md); the old
+hostname and external payment/email settings have not been migrated.
+
 ## One release baseline
 
 Use branch `codex/reader-shared-release` in

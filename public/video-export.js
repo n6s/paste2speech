@@ -11,8 +11,8 @@ async function titleCard(label) {
   const ctx = canvas.getContext('2d');
   ctx.fillStyle = '#101b28'; ctx.fillRect(0, 0, canvas.width, canvas.height);
   ctx.textAlign = 'center'; ctx.fillStyle = '#f3f6fa'; ctx.font = '42px sans-serif';
-  ctx.fillText('Paste to Speech', 480, 175);
-  ctx.fillStyle = '#b5c9df'; ctx.font = '26px sans-serif'; ctx.fillText('speak.rogerpbrown.com', 480, 225);
+  ctx.fillText('PasteToSpeech', 480, 175);
+  ctx.fillStyle = '#b5c9df'; ctx.font = '26px sans-serif'; ctx.fillText('pastetospeech.com', 480, 225);
   ctx.font = '22px sans-serif'; ctx.fillText(label, 480, 270);
   // Leave the lower portion empty for player-rendered selectable subtitles.
   const blob = await new Promise(resolve => canvas.toBlob(resolve, 'image/png'));

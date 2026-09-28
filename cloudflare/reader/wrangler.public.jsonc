@@ -11,8 +11,8 @@
     "ENABLE_LIVE_SYNTHESIS": "0",
     "ENABLE_PAYMENTS": "0",
     "ENABLE_EMAIL": "1",
-    "READER_ORIGIN": "https://speak.rogerpbrown.com",
-    "PUBLIC_ORIGIN": "https://speak.rogerpbrown.com",
+    "READER_ORIGIN": "https://pastetospeech.com",
+    "PUBLIC_ORIGIN": "https://pastetospeech.com",
     "FEEDBACK_DELIVERY_MODE": "review",
     "TELEGRAM_CHAT_ID": "579044008",
     "PADDLE_ENVIRONMENT": "live",
@@ -73,6 +73,10 @@
   },
   "account_id": "c71dba5be3cc617a904adc61e767704d",
   "routes": [
+    {
+      "pattern": "pastetospeech.com",
+      "custom_domain": true
+    },
     {
       "pattern": "speak.rogerpbrown.com",
       "custom_domain": true

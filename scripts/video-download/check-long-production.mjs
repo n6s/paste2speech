@@ -66,7 +66,7 @@ try{
   await page.waitForFunction(()=>document.getElementById('open-video').getAttribute('href')?.startsWith('blob:'),{},{timeout:180000});
   const pending=page.waitForEvent('download');await page.locator('#open-video').evaluate(link=>{const a=link.cloneNode(true);a.removeAttribute('id');document.body.append(a);a.click();a.remove();});await (await pending).saveAs(folder+'/joined.mp4');
   const probe=JSON.parse(execFileSync('ffprobe',['-v','error','-show_streams','-show_format','-of','json',folder+'/joined.mp4'],{encoding:'utf8'}));
-  assert.deepEqual(probe.streams.map(s=>s.codec_name),['h264','aac','mov_text']);assert.equal(probe.format.tags.comment,'Created with Paste to Speech — https://speak.rogerpbrown.com');
+  assert.deepEqual(probe.streams.map(s=>s.codec_name),['h264','aac','mov_text']);assert.equal(probe.format.tags.comment,'Created with PasteToSpeech — https://pastetospeech.com');
   const vtt=execFileSync('ffmpeg',['-v','error','-i',folder+'/joined.mp4','-map','0:s:0','-f','webvtt','-'],{encoding:'utf8'});assert.equal((vtt.match(/ --> /g)||[]).length,43);
   assert.ok(Math.abs(Number(probe.streams.find(s=>s.codec_type==='audio').duration)-43*info.duration)<.1);
  }else{

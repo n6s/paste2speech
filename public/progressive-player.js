@@ -31,7 +31,7 @@ export class ProgressivePlayer {
   claim() {
     if(!this.media)return;
     this.claimed=true;
-    if(globalThis.MediaMetadata)this.media.metadata=new MediaMetadata({title:'Paste to Speech',artist:this.settings?.provider==='google'?'Google WaveNet':'Kokoro'});
+    if(globalThis.MediaMetadata)this.media.metadata=new MediaMetadata({title:'PasteToSpeech',artist:this.settings?.provider==='google'?'Google WaveNet':'Kokoro'});
     const actions={play:()=>this.resume(this.getSettings?.() || this.settings),pause:()=>this.pause(),stop:()=>this.stop(),
       previoustrack:()=>this.move(-1),nexttrack:()=>this.move(1),seekbackward:()=>this.move(-1),seekforward:()=>this.move(1),seekto:e=>this.seekTo(e.seekTime)};
     for(const [name,handler] of Object.entries(actions)){try{this.media.setActionHandler(name,handler);}catch{}}

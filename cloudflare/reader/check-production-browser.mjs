@@ -1,7 +1,7 @@
 import {chromium} from 'playwright';
 import {readFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const origin='https://speak.rogerpbrown.com';
+const origin='https://pastetospeech.com';
 const browser=await chromium.launch({headless:true,executablePath:'/usr/bin/google-chrome'});
 try{
  const page=await browser.newPage({viewport:{width:393,height:851}}),errors=[],external=[],mutations=[];

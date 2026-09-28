@@ -8,7 +8,7 @@ import {EmailIdentity} from '../cloudflare/prepared/identity.js';
 import {paddleProvider} from '../cloudflare/reader/providers.js';
 const bundled=await build({entryPoints:['cloudflare/reader/worker.js'],bundle:true,write:false,format:'esm',platform:'node'});
 const {default:worker,PreparedReading}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
-const origin='https://speak.rogerpbrown.com';
+const origin='https://pastetospeech.com';
 function setup(){
  const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  const db={prepare(text){return {bind(...values){return {first:async()=>sql.prepare(text).get(...values)||null,run:async()=>sql.prepare(text).run(...values),all:async()=>({results:sql.prepare(text).all(...values)})};}};},async batch(statements){sql.exec('BEGIN');try{for(const s of statements)await s.run();sql.exec('COMMIT');}catch(e){sql.exec('ROLLBACK');throw e;}}};
@@ -122,4 +122,17 @@ test('emergency pause defers alarms without loading jobs or touching ledgers and
  assert.equal((await s.request('/api/readings',{data:{}})).status,503);
  assert.equal((await s.request('/api/billing/order',{data:{}})).status,503);
  assert.equal(alarms.length,2);s.sql.close();
+});
+
+test('old hostname shows the move without touching accounts or forwarding tokens',async()=>{
+ const env={READER_MODE:'production-trial',READER_ORIGIN:origin};
+ for(const [path,target] of [['/','/'],['/terms','/terms'],['/pricing','/pricing'],['/api/billing/signin?token=secret','/api/billing'],['//evil.invalid/?next=https://evil.invalid','/']]){
+  const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path),env,{});
+  assert.equal(response.status,200);const html=await response.text();assert.ok(html.includes(`6;url=${origin}${target}`));assert.ok(html.includes('PasteToSpeech has moved'));assert.ok(!html.includes('secret'));assert.ok(!html.includes('evil.invalid'));assert.equal(response.headers.get('referrer-policy'),'no-referrer');
+ }
+ for(const [path,method] of [['/api/readings','POST'],['/api/billing/webhook','POST'],['/api/billing/status','GET']]){
+  const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path,{method}),env,{});assert.equal(response.status,410);assert.equal(response.headers.get('location'),null);
+ }
+ const head=await worker.fetch(new Request('https://speak.rogerpbrown.com/',{method:'HEAD'}),env,{});assert.equal(await head.text(),'');
+ const staging=await worker.fetch(new Request('https://speak.rogerpbrown.com/'),{READER_MODE:'staging'},{});assert.equal(staging.status,403);
 });

@@ -15,7 +15,7 @@ page.on('pageerror',e=>errors.push(e.message));page.on('request',r=>{if(r.method
 page.on('response',async r=>{if(r.request().method()==='POST'&&r.url().endsWith('/api/readings'))try{recordingId=(await r.json()).id;}catch{};if(/\/api\/readings\/[^/]+$/.test(r.url())&&r.request().method()==='GET')try{latest=await r.json();}catch{}});
 await page.addInitScript(()=>{const NativeAudio=window.Audio;window.__audios=[];window.Audio=function(...args){const a=new NativeAudio(...args);window.__audios.push(a);return a;};});
 await page.route('**/app.js?*',r=>r.fulfill({contentType:'text/javascript',body:bundle}));
-await page.route('https://speak.rogerpbrown.com/api/**',r=>r.fulfill({status:204,headers:{'access-control-allow-origin':base}}));
+await page.route('https://pastetospeech.com/api/**',r=>r.fulfill({status:204,headers:{'access-control-allow-origin':base}}));
 try {
  await page.goto(base);
  await page.locator('#voice-settings > summary').click();

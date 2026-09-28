@@ -1,3 +1,4 @@
+import {legacyDomainResponse} from './legacy-domain.js';
 import {runMaintenance} from './maintenance.js';
 import {production,trialMode,publicMode,verifiedCustomer,customerAllowed,paymentConfig} from './modes.js';
 import {mseStaging,progressiveReader,stagingInput,fixtureChunks} from './mse-staging.js';
@@ -36,6 +37,8 @@ async function asset(request,env,path){
 export default {
  async scheduled(_event,env,ctx){await runMaintenance(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
+  const moved=production(env)&&legacyDomainResponse(request);
+  if(moved)return moved;
   if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(env.BACKGROUND_WORK_PAUSED==='1'&&url.pathname.startsWith('/api/'))return json({detail:'The reader is temporarily paused for maintenance. Please try again later.'},503);

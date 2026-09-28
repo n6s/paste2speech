@@ -29,7 +29,7 @@ Help free browser-voice users discover the natural paid voices.
 
 Roger especially liked this interaction:
 
-**Select text → right-click → Read in Paste to Speech.**
+**Select text → right-click → Read in PasteToSpeech.**
 
 Open the existing reader with the selected text ready and saved voice/speed
 preferences. Keep playback, downloads, accounts and billing in the web app;

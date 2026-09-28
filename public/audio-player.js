@@ -69,7 +69,7 @@ export class AudioPlayer {
   claim() {
     if (!this.media) return;
     this.claimed = true;
-    if (globalThis.MediaMetadata) this.media.metadata = new MediaMetadata({title: 'Paste to Speech'});
+    if (globalThis.MediaMetadata) this.media.metadata = new MediaMetadata({title: 'PasteToSpeech'});
     for (const [action, handler] of Object.entries({play: () => this.resume(this.getSettings?.() || this.settings), pause: () => this.pause(), stop: () => this.stop(), seekbackward: () => this.seekBy(-15), seekforward: () => this.seekBy(15), seekto: event => this.seekTo(event.seekTime)})) {
       try { this.media.setActionHandler(action, handler); } catch {}
     }

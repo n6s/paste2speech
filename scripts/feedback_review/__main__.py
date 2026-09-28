@@ -144,7 +144,7 @@ def plain(text, limit):
 
 def render(review):
     r = review['result']
-    chunks = [f"Paste to Speech · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
+    chunks = [f"PasteToSpeech · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
     if r['category'] == 'appreciation':
         return '\n\n'.join(chunks + [f"No action needed. Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."])
     for key, label, limit in [('evidence', 'Evidence', 600), ('uncertainty', 'Still uncertain', 400),
@@ -233,7 +233,7 @@ def run_reviews(db, state=STATE, reviewer=investigate, model='gpt-6-astra'):
         export(db, identity, state)
     # Failed/stale runs get a durable notice, distinct from an actual investigation.
     with db:
-        db.execute("""UPDATE reports SET message='Paste to Speech · investigation needs attention' || char(10) ||
+        db.execute("""UPDATE reports SET message='PasteToSpeech · investigation needs attention' || char(10) ||
           'Report ' || id || char(10) || 'Automatic review failed after three attempts. The original report is saved. '
           || 'Ask Codex to review this report. No changes made.' WHERE status='needs_attention' AND message IS NULL""")
 
@@ -271,14 +271,14 @@ def health(db, error=None, sender=send):
         set_meta(db, 'health_error', error or '')
     if error and not alerted:
         try:
-            sender(f'Paste to Speech feedback reviewer needs attention: {error}. Reports remain queued. Ask Codex to check the feedback reviewer.')
+            sender(f'PasteToSpeech feedback reviewer needs attention: {error}. Reports remain queued. Ask Codex to check the feedback reviewer.')
         except Exception:
             return
         with db:
             set_meta(db, 'health_alerted', 'yes')
     elif not error and alerted:
         try:
-            sender('Paste to Speech feedback reviewer has recovered. Queued reports will continue processing.')
+            sender('PasteToSpeech feedback reviewer has recovered. Queued reports will continue processing.')
         except Exception:
             return
         with db:

@@ -1,8 +1,12 @@
 > Hosted reader releases: see [the shared staging and production workflow](docs/reader-release.md).
 
-# Paste to Speech
+# PasteToSpeech
 
-Public reader: **https://speak.rogerpbrown.com**. The current deployment offers
+See [the rebrand inventory and domain cutover notes](docs/rebrand.md).
+
+New public domain: **https://pastetospeech.com** (prepared locally; domain cutover
+and deployment are pending). The existing deployment at
+**https://speak.rogerpbrown.com** offers
 free browser voices and an owner-only WaveNet trial. Public paid WaveNet is prepared
 but remains gated pending Paddle live-account setup and final activation checks.
 See [public launch release](docs/public-launch-release.md) for implementation,
@@ -34,7 +38,7 @@ Or paste text, choose **Read** to review the cleaned text without starting or re
 
 ## Use it from your Pixel over Tailscale
 
-Open **https://pop-os.tailbd091c.ts.net/speak/** with Tailscale connected on the Pixel. Immich remains at the hostname's root. Paste to Speech is served directly from `public/` by Tailscale; Python is only needed for local development.
+Open **https://pop-os.tailbd091c.ts.net/speak/** with Tailscale connected on the Pixel. Immich remains at the hostname's root. PasteToSpeech is served directly from `public/` by Tailscale; Python is only needed for local development.
 
 The route is already configured. To recreate it:
 
@@ -50,7 +54,7 @@ To inspect routes:
 tailscale serve status
 ```
 
-To remove only Paste to Speech:
+To remove only PasteToSpeech:
 
 ```sh
 sudo tailscale serve --https=443 --set-path=/speak off

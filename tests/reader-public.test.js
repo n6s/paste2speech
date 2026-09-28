@@ -12,7 +12,7 @@ import {PaymentCoordinator} from '../cloudflare/reader/payments-do.js';
 import {validPurchase,syncOrder} from '../cloudflare/prepared/payments.js';
 const bundled=await build({entryPoints:['cloudflare/reader/worker.js'],bundle:true,write:false,format:'esm',platform:'node'});
 const {default:worker}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
-const origin='https://speak.rogerpbrown.com',txn='txn_'+'a'.repeat(26);
+const origin='https://pastetospeech.com',txn='txn_'+'a'.repeat(26);
 function setup(){
  const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  const db={prepare(text){return {bind(...values){return {first:async()=>sql.prepare(text).get(...values)||null,run:async()=>sql.prepare(text).run(...values),all:async()=>({results:sql.prepare(text).all(...values)})};}};},async batch(statements){sql.exec('BEGIN');try{for(const s of statements)await s.run();sql.exec('COMMIT');}catch(e){sql.exec('ROLLBACK');throw e;}}};

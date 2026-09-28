@@ -116,8 +116,8 @@ const download=html.match(/<details id="(?:video-download|recording-download)"[^
 html=html.replace(download,'');
 html=html.replace('<footer',`<section class="card download-card" aria-label="Recording download">${download}</section><section class="card cleanup-card" aria-label="Text cleanup">${cleanup}</section><footer`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
-const origin='https://speak.rogerpbrown.com';
-if(production)html=html.replace('<title>Paste to Speech</title>', '<title>Paste to Speech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
+const origin='https://pastetospeech.com';
+if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToSpeech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
 else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
 await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
 if(production)await writeFile(root+'/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/pricing','/terms'].map(path=>'<url><loc>'+origin+path+'</loc></url>').join('')+'</urlset>\n');

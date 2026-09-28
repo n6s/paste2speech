@@ -1,4 +1,4 @@
-Paste to Speech — encoder source distribution
+PasteToSpeech — encoder source distribution
 
 Binaries: @ffmpeg/core 0.12.10 (GPL-2.0-or-later),
 @ffmpeg/ffmpeg 0.12.15 (MIT). We do not modify the encoder binary.

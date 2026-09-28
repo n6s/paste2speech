@@ -125,7 +125,7 @@ try {
  if (await page.locator('#play').isEnabled()) await page.locator('#play').click();
  assert.equal(await page.evaluate(() => testAudio.src), preparedSource);
  assert.equal(await page.locator('.sentence[aria-current=true]').count(), 1);
- assert.equal(await page.evaluate(() => navigator.mediaSession.metadata.title), 'Paste to Speech');
+ assert.equal(await page.evaluate(() => navigator.mediaSession.metadata.title), 'PasteToSpeech');
  await page.evaluate(() => mediaHandlers.pause());
  assert.equal(await page.locator('#play').textContent(), '▶ Resume');
  await page.evaluate(() => mediaHandlers.play());

@@ -1,5 +1,5 @@
 [Unit]
-Description=Review Paste to Speech feedback and send Telegram summaries
+Description=Review PasteToSpeech feedback and send Telegram summaries
 Wants=network-online.target
 After=network-online.target
 

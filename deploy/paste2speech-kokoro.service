@@ -1,5 +1,5 @@
 [Unit]
-Description=Paste to Speech local Kokoro voices
+Description=PasteToSpeech local Kokoro voices
 After=network.target
 
 [Service]

@@ -32,11 +32,11 @@ export function videoArguments(duration) {
     '-map', '0:v:0', '-map', '1:a:0', '-map', '2:s:0', '-t', String(duration),
     '-c:v', 'libx264', '-preset', 'ultrafast', '-tune', 'stillimage', '-pix_fmt', 'yuv420p',
     '-c:a', 'aac', '-b:a', '96k', '-c:s', 'mov_text', '-metadata:s:s:0', 'language=eng',
-    '-metadata', 'title=Paste to Speech recording',
-    '-metadata', 'artist=speak.rogerpbrown.com',
-    '-metadata', 'album=Paste to Speech',
-    '-metadata', 'album_artist=speak.rogerpbrown.com',
-    '-metadata', 'comment=Created with Paste to Speech — https://speak.rogerpbrown.com',
+    '-metadata', 'title=PasteToSpeech recording',
+    '-metadata', 'artist=pastetospeech.com',
+    '-metadata', 'album=PasteToSpeech',
+    '-metadata', 'album_artist=pastetospeech.com',
+    '-metadata', 'comment=Created with PasteToSpeech — https://pastetospeech.com',
     '-disposition:s:0', 'default', '-movflags', '+faststart', '-y', 'part.mp4'];
 }
 

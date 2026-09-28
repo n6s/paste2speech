@@ -4,7 +4,7 @@ const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',hea
 try {
  for(const privateHost of [false,true]) {
   const page=await browser.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));
-  await page.route('https://speak.rogerpbrown.com/api/**',r=>r.fulfill({status:204,headers:{'access-control-allow-origin':'https://pop-os.tailbd091c.ts.net'}}));
+  await page.route('https://pastetospeech.com/api/**',r=>r.fulfill({status:204,headers:{'access-control-allow-origin':'https://pop-os.tailbd091c.ts.net'}}));
   if(privateHost)await page.route('https://pop-os.tailbd091c.ts.net/speak/**',async route=>{
    const path=new URL(route.request().url()).pathname.slice('/speak/'.length);
    const response=await route.fetch({url:path.startsWith('api/')?'http://127.0.0.1:8766/'+path:'http://127.0.0.1:8777/'+path});await route.fulfill({response});
