@@ -17,3 +17,10 @@ PasteToSpeech · staging. Benign pipeline tests use the test category.
 Initial activation imports the four retained staging reports, including Roger's
 September 28 test. Future scans run at :05 and :35 each hour; empty scans are quiet.
 Staging reports are not merged into production, and no billing data is modified.
+
+Activation verified September 28, 2026: all four retained reports reviewed as
+benign tests and notified once (Telegram message IDs 26–29). Latest report
+28a36aee-8183-4636-93b5-b16c3a883db8 delivered as message 29. A second service
+run imported zero rows, stayed healthy and left every delivery_attempts count at
+one. All 16 reviewer tests passed. Production service and state were untouched;
+no Worker deployment or billing configuration change was required.
