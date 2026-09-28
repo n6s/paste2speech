@@ -119,3 +119,30 @@ not rewritten to imply sandbox settings had changed. Search-console properties
 and old sitemap submissions retain their prior records; new-domain submission is
 separate follow-up work. The staging hostname and internal project identifiers
 remain unchanged. The older main/Tailscale checkout was not overwritten.
+
+## Search migration follow-up
+
+Reader commit `b769c87` changes the former public host to permanent 301 redirects,
+with the informative notice on the new site. The old robots.txt allows crawling
+public redirects; the sitemap redirects to the new sitemap. Account navigation
+strips queries and fragments, and API work still returns 410. Both shared release
+pipelines passed 223 tests, browser playback/parity and Resume/Clear checks;
+staging and production served assets were verified. Production Worker version:
+`b3b94cc5-5583-49ee-815a-b8778f31f8f0`.
+
+On September 28, 2026, pastetospeech.com ownership was verified directly via
+Cloudflare DNS in Google Search Console (TXT) and Bing Webmaster Tools (CNAME).
+Keep both verification records. No Google-to-Bing account import was required.
+Google processed the new sitemap successfully with three discovered pages.
+Bing accepted the sitemap (initial status Processing) and the homepage URL
+submission. Submission/discovery is not proof of search-result inclusion.
+
+Keep the former hostname and redirects for at least one year, through September
+28, 2027, preferably longer for old bookmarks. Keep existing verification records
+for rogerpbrown.com and the old speech property; the portfolio is not moving.
+
+Google Change of Address passed its required homepage-301 and ownership checks.
+Confirmed the move from the URL-prefix property `https://speak.rogerpbrown.com/`
+to the `pastetospeech.com` domain property. Search Console now reports "This site
+is currently moving", started September 28, 2026. The parent rogerpbrown.com
+property was not moved.
