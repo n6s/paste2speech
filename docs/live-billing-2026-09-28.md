@@ -51,3 +51,25 @@ Next: Roger completes the live checkout after reviewing its final total;
 verify exactly one million-character grant and duplicate delivery safety;
 perform the approved capped speech/refund proof before opening public purchasing.
 Do not create another order while this pending checkout exists.
+
+## Paid purchase and approved refund request
+
+Roger completed checkout and authorized the exact $10.75 refund after being told
+of the $1.04 processing fee. Paddle transaction is completed; subtotal $10.00,
+tax $0.75, total $10.75. Exactly one transaction-keyed grant of 1,000,000
+characters exists; account balance increased from 14,628 to 1,014,628.
+Eight signed transaction events processed with no failed attempts, and zero
+open reservations. The browser also reports purchase verified.
+
+The stored API key cannot create adjustments (403); no API refund was created.
+The authorized full-amount refund was submitted once through Paddle's dashboard.
+Adjustment adj_01m3n5563jypwwwbc159tx9tgn has total 1075 USD cents and
+pending_approval status. Paddle labels the item-based adjustment partial even
+though it covers the complete $10.75 transaction total. UI reports Full refund
+requested. Nine signed events now processed without failures or pending intake.
+Credit correctly remains 1,014,628, revoked=0 while approval is pending.
+
+Public launch remains closed. Next read this existing adjustment, never submit
+a duplicate. Once approved, verify exactly 1,000,000 characters revoked and no
+unrelated balance changes. Still outstanding: explicit notification replay,
+capped production speech/download smoke check and final public launch promotion.
