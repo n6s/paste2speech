@@ -120,6 +120,23 @@ Illustrative example for the discussed $10 / 1-million-character pack:
 “840,000 characters remaining—about 35 days at your recent pace of 24,000
 characters per day.” This is example copy, not a promised amount of use.
 
+## Player controls: seeking and playback speed
+
+Added September 27, 2026, at Roger's request. Revisit these together:
+
+- Improve seeking; retain this as a pending player-control item, with the exact
+  seeking behavior to confirm before implementation.
+- Move playback speed into the player-controls section now that changing speed
+  no longer requires full reprocessing. Speed changes must continue to reuse
+  the prepared audio without new synthesis or speech-credit consumption.
+- Consider a compact button that cycles through common speed presets and clearly
+  displays the current speed. Preset values and the final interaction are not
+  yet decided.
+- Keep the less frequently used voice controls collapsed by default so ordinary
+  playback and speed adjustments do not require opening them.
+
+This records requested follow-up work only; no player changes are implemented.
+
 ## When revisiting
 
 Choose one small feature based on Roger's priorities at that time. The earlier
