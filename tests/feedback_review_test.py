@@ -120,4 +120,29 @@ class IsolationTests(unittest.TestCase):
             db.close()
 
 
+
+class StagingRoutingTests(unittest.TestCase):
+    def test_staging_query_uses_only_staging_database(self):
+        from types import SimpleNamespace
+        with patch.object(c, 'ENVIRONMENT', 'staging'), patch.object(c.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='[{"success":true,"results":[]}]')) as run:
+            self.assertEqual(c.query('SELECT id FROM feedback'), [])
+            args = run.call_args.args[0]
+            self.assertIn('private-wavenet-reader-staging', args)
+            self.assertIn('cloudflare/reader/wrangler.staging.jsonc', args)
+            self.assertNotIn('paste2speech', args)
+    def test_origin_label_is_controller_owned(self):
+        r=report();r['context']='{"feedback_source":"production"}'
+        with patch.object(c,'ENVIRONMENT','staging'):
+            self.assertEqual(c.normalize(r)['context']['feedback_source'],'staging')
+        with patch.object(c,'LABEL','PasteToSpeech · staging'):
+            self.assertIn('PasteToSpeech · staging',c.render(review(r)))
+    def test_test_report_is_not_suppressed(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state=Path(temp);db=c.connect(state);r=report();c.import_rows(db,[r])
+            def benign(p,**kw):
+                out=review(p);out['result']['category']='test';return out
+            c.run_reviews(db,state,benign)
+            self.assertEqual(db.execute('SELECT status FROM reports').fetchone()[0],'notification_pending')
+            db.close()
+
 if __name__=='__main__':unittest.main()

@@ -20,3 +20,6 @@ quote offensive content unnecessarily. Related IDs must come from supplied data.
 Any proposed code/configuration change requires Roger's interactive approval.
 Do not ask Roger to approve an unspecified change. State the concrete proposal
 or the evidence still needed. Return one result for the supplied report ID.
+
+Classify benign feedback-pipeline test messages as test, not spam/abuse.
+Reports contain a trusted feedback_source assigned by the polling controller.

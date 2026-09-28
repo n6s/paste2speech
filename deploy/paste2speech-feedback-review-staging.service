@@ -1,0 +1,17 @@
+[Unit]
+Description=Review PasteToSpeech staging feedback and send Telegram summaries
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=%h/.codex/worktrees/reader-shared-release/paste2speech
+ExecStart=/usr/bin/python3 -m scripts.feedback_review run
+Environment=PATH=%h/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin
+Environment=PYTHONUNBUFFERED=1
+Environment=P2S_FEEDBACK_ENVIRONMENT=staging
+UMask=0077
+TimeoutStartSec=25min
+TimeoutStopSec=15
+KillMode=control-group
+MemoryMax=2G

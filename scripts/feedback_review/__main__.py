@@ -16,7 +16,11 @@ import urllib.request
 import uuid
 from .runner import ROOT, investigate
 
-STATE = Path.home() / '.local/state/paste2speech-feedback'
+ENVIRONMENT = os.environ.get('P2S_FEEDBACK_ENVIRONMENT', 'production')
+if ENVIRONMENT not in {'production', 'staging'}:
+    raise ValueError('invalid_feedback_environment')
+STATE = Path.home() / ('.local/state/paste2speech-feedback-staging' if ENVIRONMENT == 'staging' else '.local/state/paste2speech-feedback')
+LABEL = 'PasteToSpeech · ' + ENVIRONMENT
 CONFIG = Path.home() / '.config/paste2speech'
 RETENTION = 90 * 86400 * 1000
 CHAT_ID = '579044008'
@@ -72,8 +76,9 @@ def query(sql):
     token = token_file.read_text().strip() if token_file.exists() else os.environ.get('CLOUDFLARE_API_TOKEN', '')
     if token:
         environment['CLOUDFLARE_API_TOKEN'] = token
+    target = ['private-wavenet-reader-staging', '--config', 'cloudflare/reader/wrangler.staging.jsonc'] if ENVIRONMENT == 'staging' else ['paste2speech']
     result = subprocess.run([str(ROOT / 'node_modules/.bin/wrangler'), 'd1', 'execute',
-        'paste2speech', '--remote', '--json', '--command', sql], cwd=ROOT,
+        *target, '--remote', '--json', '--command', sql], cwd=ROOT,
         capture_output=True, text=True, timeout=60, env=environment)
     if result.returncode:
         raise RuntimeError('cloudflare_query_failed')
@@ -95,6 +100,7 @@ def normalize(row):
         context = json.loads(context)
     if not isinstance(context, dict) or len(json.dumps(context)) > 3000:
         raise ValueError('invalid_context')
+    context['feedback_source'] = ENVIRONMENT
     # The optional email is deliberately not imported or sent to Codex.
     return {'id': identity, 'created_at': row['created_at'], 'message': message, 'context': context}
 
@@ -144,7 +150,7 @@ def plain(text, limit):
 
 def render(review):
     r = review['result']
-    chunks = [f"PasteToSpeech · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
+    chunks = [f"{LABEL} · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
     if r['category'] == 'appreciation':
         return '\n\n'.join(chunks + [f"No action needed. Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."])
     for key, label, limit in [('evidence', 'Evidence', 600), ('uncertainty', 'Still uncertain', 400),
@@ -233,9 +239,9 @@ def run_reviews(db, state=STATE, reviewer=investigate, model='gpt-6-astra'):
         export(db, identity, state)
     # Failed/stale runs get a durable notice, distinct from an actual investigation.
     with db:
-        db.execute("""UPDATE reports SET message='PasteToSpeech · investigation needs attention' || char(10) ||
+        db.execute("""UPDATE reports SET message='PasteToSpeech · ' || ? || ' · investigation needs attention' || char(10) ||
           'Report ' || id || char(10) || 'Automatic review failed after three attempts. The original report is saved. '
-          || 'Ask Codex to review this report. No changes made.' WHERE status='needs_attention' AND message IS NULL""")
+          || 'Ask Codex to review this report. No changes made.' WHERE status='needs_attention' AND message IS NULL""", (ENVIRONMENT,))
 
 
 def deliver_pending(db, state=STATE, sender=send):
@@ -271,14 +277,14 @@ def health(db, error=None, sender=send):
         set_meta(db, 'health_error', error or '')
     if error and not alerted:
         try:
-            sender(f'PasteToSpeech feedback reviewer needs attention: {error}. Reports remain queued. Ask Codex to check the feedback reviewer.')
+            sender(f'{LABEL} feedback reviewer needs attention: {error}. Reports remain queued. Ask Codex to check the feedback reviewer.')
         except Exception:
             return
         with db:
             set_meta(db, 'health_alerted', 'yes')
     elif not error and alerted:
         try:
-            sender('PasteToSpeech feedback reviewer has recovered. Queued reports will continue processing.')
+            sender(f'{LABEL} feedback reviewer has recovered. Queued reports will continue processing.')
         except Exception:
             return
         with db:
