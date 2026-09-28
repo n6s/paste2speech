@@ -99,3 +99,14 @@ embedded preview succeeded. No second provider generation was needed for export.
 Roger authorized opening purchasing after these checks. Set PUBLIC_LAUNCH_OPEN=1
 and update pricing copy, preserving budget limits, verified-email requirements,
 private staging, financial history and current playback features.
+
+## Public purchasing open
+
+Release 50aa35cfd71c4cb865756ba6fb82306741efc8b5 passed all 227 tests and
+browser parity/Resume checks, deployed to staging first and then production.
+Production Worker version b49410e8-2ba7-41b1-ba08-16a6e6f77fcd serves the
+verified release metadata and matching asset digests. Live settings read-back
+confirms PUBLIC_LAUNCH_OPEN=1, ENABLE_PAYMENTS=1, ENABLE_LIVE_SYNTHESIS=1,
+production-public mode and live Paddle. Anonymous checkout still requires sign-in.
+Pricing visibly says speech packs are available now. Roger independently observed
+the new URL in downloaded MP4 metadata. No further payments or refunds were made.
