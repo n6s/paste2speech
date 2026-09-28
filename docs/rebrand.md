@@ -19,9 +19,12 @@ hostname. The lockfile package identity was separately retained.
   and sitemap URLs for pastetospeech.com.
 - Production-trial and future public-launch configurations use the new reader
   and feedback origins while keeping both custom domains on the same Worker.
-- The former hostname displays a six-second informative redirect. Pricing and
+- The former hostname uses permanent 301 redirects. A compact expandable move
+  notice now appears on the new homepage, pricing, terms and account pages. Pricing and
   terms keep their destinations; account/sign-in pages lead to a fresh account
-  sign-in. Other public paths lead home. Queries and tokens are never forwarded.
+  sign-in. Other public paths lead home; sitemap.xml keeps its path, and robots.txt allows
+  crawling the redirects. Queries and tokens are never forwarded (including
+  inherited URL fragments). Redirect responses do not carry noindex.
   Old API calls and writes return 410 rather than replaying across origins.
 - The workstation frontend's hosted feedback origin and the corresponding
   browser mocks use the new domain. Reader tests and MP4 checks match the brand.

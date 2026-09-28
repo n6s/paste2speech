@@ -4,8 +4,8 @@ Updated September 24, 2026. This is the current release workflow for the private
 staging reader and owner-only production reader. Their separate earlier branch
 instructions are historical. Public billing launch remains a separate workflow.
 
-Production now serves `https://pastetospeech.com`; the old hostname shows a move
-notice and redirects. See [the domain move record](rebrand.md) for provider
+Production now serves `https://pastetospeech.com`; the old hostname permanently redirects, with a move
+notice on the new site. See [the domain move record](rebrand.md) for provider
 settings and validation. Public checkout remains disabled.
 
 ## One release baseline

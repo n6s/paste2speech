@@ -124,15 +124,16 @@ test('emergency pause defers alarms without loading jobs or touching ledgers and
  assert.equal(alarms.length,2);s.sql.close();
 });
 
-test('old hostname shows the move without touching accounts or forwarding tokens',async()=>{
+test('old hostname permanently redirects without touching accounts or forwarding tokens',async()=>{
  const env={READER_MODE:'production-trial',READER_ORIGIN:origin};
- for(const [path,target] of [['/','/'],['/terms','/terms'],['/pricing','/pricing'],['/api/billing/signin?token=secret','/api/billing'],['//evil.invalid/?next=https://evil.invalid','/']]){
+ for(const [path,target] of [['/','/'],['/terms','/terms'],['/pricing','/pricing'],['/sitemap.xml','/sitemap.xml'],['/signin#secret','/api/billing'],['/api/billing/signin?token=secret','/api/billing'],['//evil.invalid/?next=https://evil.invalid','/']]){
   const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path),env,{});
-  assert.equal(response.status,200);const html=await response.text();assert.ok(html.includes(`6;url=${origin}${target}`));assert.ok(html.includes('PasteToSpeech has moved'));assert.ok(!html.includes('secret'));assert.ok(!html.includes('evil.invalid'));assert.equal(response.headers.get('referrer-policy'),'no-referrer');
+  assert.equal(response.status,301);assert.equal(response.headers.get('location'),`${origin}${target}#`);assert.equal(response.headers.get('x-robots-tag'),null);assert.equal(await response.text(),'');assert.equal(response.headers.get('referrer-policy'),'no-referrer');
  }
  for(const [path,method] of [['/api/readings','POST'],['/api/billing/webhook','POST'],['/api/billing/status','GET']]){
   const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path,{method}),env,{});assert.equal(response.status,410);assert.equal(response.headers.get('location'),null);
  }
+ const robots=await worker.fetch(new Request('https://speak.rogerpbrown.com/robots.txt'),env,{});assert.equal(robots.status,200);assert.match(await robots.text(),/Allow: \/\n/);
  const head=await worker.fetch(new Request('https://speak.rogerpbrown.com/',{method:'HEAD'}),env,{});assert.equal(await head.text(),'');
  const staging=await worker.fetch(new Request('https://speak.rogerpbrown.com/'),{READER_MODE:'staging'},{});assert.equal(staging.status,403);
 });

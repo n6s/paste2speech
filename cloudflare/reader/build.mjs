@@ -117,6 +117,8 @@ html=html.replace(download,'');
 html=html.replace('<footer',`<section class="card download-card" aria-label="Recording download">${download}</section><section class="card cleanup-card" aria-label="Text cleanup">${cleanup}</section><footer`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 const origin='https://pastetospeech.com';
+const moveNotice='<details class="domain-move hint"><summary>We have a new home: pastetospeech.com</summary><p>The same PasteToSpeech reader, with an address of its own. Please update your bookmark from speak.rogerpbrown.com.</p><p>You may need to sign in again. Browser preferences and unfinished readings do not move between websites. For an old sign-in link, request a fresh link on the <a href="/api/billing">account page</a>.</p></details>';
+if(production)html=html.replace('</header>',moveNotice+'</header>');
 if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToSpeech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
 else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
 await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
@@ -125,6 +127,7 @@ await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
 billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').replace(/<p><label><input id="mode"[\s\S]*?<\/label><\/p>/,'').replace('Pronunciation expansions cost no extra allowance.','WaveNet uses its default pronunciation.');
+if(production)billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
 await writeFile(root+'/billing.js',billingJS);
@@ -135,6 +138,7 @@ console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?
 for(const page of ['terms','pricing']){
  let content=await readFile('cloudflare/reader/'+page+'.html','utf8');
  content=content.replace('</title>','</title>'+(production?'<link rel="canonical" href="'+origin+'/'+page+'">':'<meta name="robots" content="noindex, nofollow">'));
+ if(production)content=content.replace('</h1>','</h1>'+moveNotice);
  await writeFile(root+'/'+page,content);
 }
 
