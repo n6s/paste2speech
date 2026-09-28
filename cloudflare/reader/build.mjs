@@ -11,9 +11,10 @@ for(const list of Object.values(fixtureManifest))for(const section of list)fixtu
 const fixtureVersion=fixtureHash.digest('hex');
 const mse=process.argv.includes('--mse-staging');if(mse&&production)throw Error('MSE test controls are staging-only');
 const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&(!production||publicLaunch))throw Error('Production MSE is owner-trial only');
-const progressive=mse||mseProduction;
+
 const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const configVars=JSON.parse(await readFile(configPath,'utf8')).vars;
+const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READER==='1');
 const videoDownload=configVars.VIDEO_DOWNLOAD==='1';
 const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
@@ -65,7 +66,7 @@ html=html.replace(sectionNavigation,'');
 html=html.replace('<button id="speed-preset"',sectionNavigation.replace('class="controls"','class="controls section-controls"').replace('</div>','<button id="speed-preset"'));
 html=html.replace('Activate to change speed.">1×</button><div id="recording-controls"','Activate to change speed.">1×</button></div><div id="recording-controls"');
 html=html.replace('<div class="settings">','<div class="settings" style="grid-template-columns:1fr">');
-html=html.replace(/<p id="playback-note"[^>]*>.*?<\/p>/,'<p id="playback-note" class="hint">Browser voices are free. WaveNet prepares the complete recording before playback.</p>');
+html=html.replace(/<p id="playback-note"[^>]*>.*?<\/p>/,'<p id="playback-note" class="hint">Browser voices are free. WaveNet starts playback as audio becomes ready.</p>');
 let footer=await readFile('browser/footer.html','utf8');
 footer=footer.replace('Voice generation uses Kokoro and Transformers.js; PDF extraction uses PDF.js.','Browser voices are free; WaveNet uses prepaid speech credit. PDF extraction uses PDF.js.');
 footer=footer.replace(/<details><summary>Privacy<\/summary>[\s\S]*?<\/details>/,`<details><summary>Privacy</summary><p>PDFs are read locally. Browser voices use your device speech service, which may connect to the internet. WaveNet sends cleaned reading text to Google Cloud. Prepared text and audio are stored privately for up to 24 hours for playback and downloads; Clear removes the recording. Account and payment records retain balances and usage without reading text. Preferences are saved in this browser.</p><p>This private staging site stores feedback and aggregate statistics separately from production. It sends no test notifications. Do Not Track and Global Privacy Control disable statistics.</p></details>`);
@@ -119,7 +120,7 @@ if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testi
 const origin='https://pastetospeech.com';
 const moveNotice='<details class="domain-move hint"><summary>We have a new home: pastetospeech.com</summary><p>The same PasteToSpeech reader, with an address of its own. Please update your bookmark from speak.rogerpbrown.com.</p><p>You may need to sign in again. Browser preferences and unfinished readings do not move between websites. For an old sign-in link, request a fresh link on the <a href="/api/billing">account page</a>.</p></details>';
 if(production)html=html.replace('</header>',moveNotice+'</header>');
-if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToSpeech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. WaveNet is currently an owner-only trial."><link rel="canonical" href="'+origin+'/">');
+if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToSpeech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. '+(publicLaunch?'WaveNet recordings use prepaid speech credit.':'WaveNet is currently an owner-only trial.')+'"><link rel="canonical" href="'+origin+'/">');
 else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
 await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
 if(production)await writeFile(root+'/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/pricing','/terms'].map(path=>'<url><loc>'+origin+path+'</loc></url>').join('')+'</urlset>\n');

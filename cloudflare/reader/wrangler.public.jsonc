@@ -8,8 +8,8 @@
     "READER_MODE": "production-public",
     "PRIVATE_READER": "0",
     "LOCAL_READER": "0",
-    "ENABLE_LIVE_SYNTHESIS": "0",
-    "ENABLE_PAYMENTS": "0",
+    "ENABLE_LIVE_SYNTHESIS": "1",
+    "ENABLE_PAYMENTS": "1",
     "ENABLE_EMAIL": "1",
     "READER_ORIGIN": "https://pastetospeech.com",
     "PUBLIC_ORIGIN": "https://pastetospeech.com",
@@ -19,7 +19,14 @@
     "PADDLE_PRICE_ID": "pri_01m35bk8byw8drpd8t2rhayene",
     "PADDLE_PRODUCT_ID": "pro_01m35bhyw23tf3f8yfafsezark",
     "PUBLIC_LAUNCH_OPEN": "0",
-    "LAUNCH_TEST_EMAIL": "rogerpbrown@gmail.com"
+    "LAUNCH_TEST_EMAIL": "rogerpbrown@gmail.com",
+    "BACKGROUND_WORK_PAUSED": "0",
+    "MAINTENANCE_QUEUE_ENABLED": "1",
+    "MAINTENANCE_QUEUE_LIMIT": "1",
+    "RETIRE_BEFORE": "1790389200000",
+    "PROGRESSIVE_READER": "1",
+    "LONG_READINGS": "1",
+    "VIDEO_DOWNLOAD": "1"
   },
   "assets": {
     "directory": "../../work/production-reader/site",

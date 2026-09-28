@@ -2,7 +2,7 @@ import {validateInput} from '../prepared/job.js';
 import fixtures from '../../scripts/wavenet-worker-proof/fixture.json' with {type:'json'};
 export const scenarios=['normal','out-of-order','stalled','failure','long'];
 export const mseStaging=env=>env.MSE_STAGING==='1'&&env.PRIVATE_READER==='1'&&env.READER_MODE==='staging';
-export const mseProduction=env=>env.PROGRESSIVE_READER==='1'&&env.READER_MODE==='production-trial'&&env.PRIVATE_READER==='0'&&env.LOCAL_READER==='0';
+export const mseProduction=env=>env.PROGRESSIVE_READER==='1'&&['production-trial','production-public'].includes(env.READER_MODE)&&env.PRIVATE_READER==='0'&&env.LOCAL_READER==='0';
 export const progressiveReader=env=>mseStaging(env)||mseProduction(env);
 export const fixtureChunks=(voice,scenario='normal')=>Array.from({length:scenario==='long'?64:8},(_,i)=>fixtures[voice][i%8].text);
 export function stagingInput(raw,env){

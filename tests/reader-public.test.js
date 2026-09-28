@@ -124,3 +124,13 @@ test('failed webhook processing backs off without starving another completed pur
  const coordinator=new PaymentCoordinator({storage:{getAlarm:async()=>null,setAlarm:async()=>{}}},s.env);await coordinator.alarm();await coordinator.alarm();
  assert.equal(failures,1);assert.equal((await s.ledger.account(a.account.id)).balance,1000000);assert.ok(s.sql.prepare("SELECT next_attempt FROM webhook_events WHERE id='bad'").get().next_attempt>Date.now());s.sql.close();
 });
+test('closed public launch admits progressive playback only for tester and excludes fixture controls',async()=>{
+ const s=setup(),a=await s.verified();s.env.PUBLIC_LAUNCH_OPEN='0';s.env.LAUNCH_TEST_EMAIL='owner@example.invalid';s.env.PROGRESSIVE_READER='1';
+ s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('progressive-grant',a.account.id,100);
+ const data={voice:'en-US-Wavenet-F',chunks:['Hello.'],delivery:'mse'},headers={'Idempotency-Key':crypto.randomUUID()};
+ assert.equal((await s.request('/api/readings',{token:a.token,data,headers})).status,403);
+ s.env.LAUNCH_TEST_EMAIL='reader@example.invalid';
+ assert.equal((await s.request('/api/readings',{token:a.token,data,headers})).status,201);
+ assert.equal((await s.request('/api/readings',{token:a.token,data:{...data,cached:true},headers})).status,422);
+ assert.equal((await s.request('/api/staging/fixtures',{token:a.token})).status,404);s.sql.close();
+});
