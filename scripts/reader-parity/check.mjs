@@ -50,17 +50,40 @@ try{
   const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download'].includes(c.id)).map(c=>c.outerHTML).join(''));
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
   await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.ok(Date.now()-started<1700);
+  assert.equal(await page.locator('#seek').getAttribute('max'),'0');
   const source=await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).src);
   await page.click('#pause');await page.waitForFunction(()=>__appends===3);await page.waitForFunction(()=>__audio.some(a=>Number.isFinite(a.duration)&&a.duration>10));
   const state=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {source:a.src,loads:a.__loads,duration:a.duration,paused:a.paused};});
   assert.equal(state.source,source);assert.equal(state.loads,1);assert.ok(state.paused);assert.ok(Math.abs(state.duration-duration)<1/24000);
-  await page.locator('#rate').fill('1.5');await page.locator('#rate').dispatchEvent('input');assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).playbackRate),1.5);
-  await page.locator('#seek').evaluate(e=>{e.value=8;e.dispatchEvent(new Event('input',{bubbles:true}));});await page.waitForFunction(()=>__audio.some(a=>a.currentTime>=8));
+  assert.equal(await page.locator('#rate').getAttribute('type'),'hidden');
+  assert.equal(await page.locator('#speed-preset').textContent(),'1×');
+  await page.click('#speed-preset');await page.click('#speed-preset');
+  assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');
+  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).playbackRate),1.5);
+  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).paused),true);
+  assert.equal(await page.locator('#seek').getAttribute('step'),'1');
+  assert.equal(await page.locator('#seek').getAttribute('max'),'2');
+  const beforeInput=await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).currentTime);
+  await page.locator('#seek').evaluate(e=>{e.value=1;e.dispatchEvent(new Event('input',{bubbles:true}));});
+  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).currentTime),beforeInput);
+  await page.locator('#seek').dispatchEvent('change');
+  await page.waitForFunction(target=>__audio.some(a=>Math.abs(a.currentTime-target)<.01),sections[1].start);
+  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).paused),true);
+  assert.equal(await page.locator('#seek').getAttribute('aria-valuetext'),'Section 2 of 3');
   assert.equal(await page.locator('#mse-fallback').isVisible(),false);
-  await page.locator('#mse-fallback').evaluate(button=>button.click());await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.readyState>=1&&a.currentTime>=7.99));assert.equal(creates,1);
+  await page.locator('#mse-fallback').evaluate(button=>button.click());await page.waitForFunction(target=>__audio.some(a=>a.src.includes('/audio')&&a.readyState>=1&&Math.abs(a.currentTime-target)<.01),sections[1].start);assert.equal(creates,1);
+  for(const speed of ['2×','0.75×','1×','1.25×','1.5×']){
+   await page.click('#speed-preset');assert.equal(await page.locator('#speed-preset').textContent(),speed);
+  }
+  await page.locator('#seek').focus();await page.keyboard.press('ArrowLeft');
+  await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.currentTime===0));
+  assert.equal(await page.locator('#seek').getAttribute('aria-valuetext'),'Section 1 of 3');
+  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.includes('/audio')).paused),true);
+  assert.ok(await page.locator('#speed-preset').isVisible());
+  await page.screenshot({path:`work/shared-reader/${environment}-playback-controls.png`});
   assert.deepEqual(errors,[]);
   // Both readers retain server explanations instead of reducing them to a code.
-  reject=true;await page.reload();await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
+  reject=true;await page.reload();assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
   await page.goto(origin+'/?testing=1');
   if(environment==='staging'){
    await page.waitForFunction(()=>window.__stagingReader);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');

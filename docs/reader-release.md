@@ -129,3 +129,15 @@ reading's saved records. Refresh after Clear therefore starts new preparation
 when the text is imported again. Resume without Clear still preserves saved IDs.
 Regression coverage includes Clear followed by reload and fresh preparation in
 Chrome against both reader builds, with speech API calls intercepted.
+
+## Chunk navigation and speed presets
+
+The public reader position slider selects sentence chunks, using the existing
+500-character splitting limit and phrase-boundary fallback. Only consecutively
+prepared chunks are selectable; the position count retains the whole-reading
+total. Dragging commits on release and preserves playing or paused state.
+
+The speed button near the playback controls cycles through 0.75, 1, 1.25, 1.5,
+and 2 times normal speed, without regenerating audio. Preferences persist in
+the browser; earlier custom rates map to the nearest preset (lower on ties).
+The original Tailscale UI remains unchanged.

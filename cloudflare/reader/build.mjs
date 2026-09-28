@@ -56,7 +56,15 @@ html=html.replace('Text is not saved.','Original editing text stays in this tab.
 html=html.replace('Workstation voices send it over Tailscale to your workstation.','WaveNet sends the cleaned reading text to Google Cloud.');
 html=html.replace('<header>', '<header><p><a href="/api/billing">Account &amp; speech credit</a></p><p id="account-summary" class="hint"></p>');
 html=html.replace('<section class="player', '<p id="upgrade-note" class="hint" hidden>WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>. Browser voices remain free. Staging uses test purchases only.</p><section class="player');
-html=html.replace('<div id="recording-controls" hidden>','<div id="recording-controls" hidden><label>Position <span id="seek-time">0 / 0 seconds</span><input id="seek" type="range" min="0" max="1" step="0.05" value="0" disabled></label>');
+html=html.replace('<div id="recording-controls" hidden>','<div id="recording-controls" hidden><label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label>');
+html=html.replace('Voice &amp; speed','Voice');
+html=html.replace(/<label>Speed <output id="rate-value">[\s\S]*?<\/label>/,'<input id="rate" type="hidden" value="1"><output id="rate-value" hidden></output>');
+html=html.replace('<div id="recording-controls" hidden>','<button id="speed-preset" type="button" class="quiet" aria-label="Playback speed: 1×. Activate to change speed.">1×</button><div id="recording-controls" hidden>');
+const sectionNavigation='<div class="controls"><button id="previous-section" class="quiet" disabled>Previous section</button><button id="next-section" class="quiet" disabled>Next section</button></div>';
+html=html.replace(sectionNavigation,'');
+html=html.replace('<button id="speed-preset"',sectionNavigation.replace('class="controls"','class="controls section-controls"').replace('</div>','<button id="speed-preset"'));
+html=html.replace('Activate to change speed.">1×</button><div id="recording-controls"','Activate to change speed.">1×</button></div><div id="recording-controls"');
+html=html.replace('<div class="settings">','<div class="settings" style="grid-template-columns:1fr">');
 html=html.replace(/<p id="playback-note"[^>]*>.*?<\/p>/,'<p id="playback-note" class="hint">Browser voices are free. WaveNet prepares the complete recording before playback.</p>');
 let footer=await readFile('browser/footer.html','utf8');
 footer=footer.replace('Voice generation uses Kokoro and Transformers.js; PDF extraction uses PDF.js.','Browser voices are free; WaveNet uses prepaid speech credit. PDF extraction uses PDF.js.');

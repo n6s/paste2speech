@@ -27,7 +27,14 @@ export async function cloudFetch(url,options={}) {
  return response;
 }
 export function setupCloudReader({player,getEngine}){
- document.getElementById('seek').addEventListener('input',event=>player.seekTo(Number(event.target.value)));
+ const seek=document.getElementById('seek');
+ seek.addEventListener('pointercancel',()=>{delete seek.dataset.dragging;});
+ seek.addEventListener('input',()=>{seek.dataset.dragging='true';seek.setAttribute('aria-valuetext',`Section ${Number(seek.value)+1} of ${player.chunks.length}`);});
+ seek.addEventListener('change',()=>{
+  delete seek.dataset.dragging;
+  const target=player.starts[Number(seek.value)];
+  if(Number.isFinite(target))player.seekTo(target);
+ });
  const update=async()=>{
   try{
    const response=await fetch('/api/reader');if(!response.ok)throw Error();

@@ -67,3 +67,5 @@
 .download-card>details>summary::before,.cleanup-card>details>summary::before{content:"▸";margin-right:8px}
 .download-card>details[open]>summary::before,.cleanup-card>details[open]>summary::before{content:"▾"}
 .download-card summary::-webkit-details-marker,.cleanup-card summary::-webkit-details-marker{display:none}
+
+.compact-reader .section-controls{grid-template-columns:1fr 1fr auto}.compact-reader .section-controls .quiet{padding:8px 4px}

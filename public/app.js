@@ -1,3 +1,4 @@
+import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
 import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
@@ -14,7 +15,7 @@ let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
 const options = { ...defaults };
 for (const key of Object.keys(defaults)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
-$('rate').value = Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
+$('rate').value = CLOUD_READER ? presetRate(saved.rate) : Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
 $('follow-reading').checked = saved.followReading === true;
 $('reading-size').value = Number.isFinite(saved.readingSize) ? Math.min(32, Math.max(14, Math.round(saved.readingSize))) : 20;
 function applyReadingSize() {
@@ -248,13 +249,17 @@ function render(p, message) {
     if(href)$(id).href=href;else $(id).removeAttribute('href');
   }
   if(CLOUD_READER){
-    const available=MSE_ENABLED?(p.boundedBuffer?p.duration:p.ranges?.().at(-1)?.[1])||0:p.complete?p.duration:0;
-    $('seek').disabled=!isGoogle()||!available;
-    $('seek').max=available||1;$('seek').value=p.audio?.currentTime||0;
-    $('seek-time').textContent=`${Math.floor(p.audio?.currentTime||0)} / ${Math.floor(p.duration||0)} seconds`;
+    const available=preparedChunkCount(p);
+    const index=Math.max(0,Math.min(p.chunks.length-1,p.index||0));
+    const seek=$('seek');
+    seek.disabled=!isGoogle()||!available;
+    seek.max=Math.max(0,available-1);
+    if(seek.dataset.dragging!=='true')seek.value=Math.min(index,Math.max(0,available-1));
+    seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${p.chunks.length}`);
+    $('seek-time').textContent=`${p.chunks.length?index+1:0} / ${p.chunks.length}`;
   }
-  $('previous-section').disabled = !p.chunks.length || p.index===0;
-  $('next-section').disabled = !p.chunks.length || p.index>=p.chunks.length-1;
+  $('previous-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index===0;
+  $('next-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index>=p.chunks.length-1;
   const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
   for (const [index, button] of sentenceElements.entries()) {
     const current = active && p.index === index;
@@ -274,7 +279,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
-  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice} · ${$('rate').value}×`;
+  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice}${CLOUD_READER?'':` · ${$('rate').value}×`}`;
   $('voice-settings-summary').textContent = summary;
   $('voice-settings-summary').title = summary;
 }
@@ -372,6 +377,17 @@ $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+if(CLOUD_READER){
+  const button=$('speed-preset');
+  const updateSpeed=()=>{button.textContent=`${$('rate').value}×`;button.setAttribute('aria-label',`Playback speed: ${$('rate').value}×. Activate to change speed.`);};
+  button.addEventListener('click',()=>{
+    $('rate').value=SPEED_PRESETS[(SPEED_PRESETS.indexOf(Number($('rate').value))+1)%SPEED_PRESETS.length];
+    if(isWorkstation())workstationPlayer.setRate(settings().rate);
+    else if(player?.state==='playing'){player.pause();player.resume(settings());}
+    updateSpeed();save();
+  });
+  updateSpeed();save();
+}
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
