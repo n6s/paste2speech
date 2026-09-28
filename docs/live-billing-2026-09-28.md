@@ -30,3 +30,24 @@ continue with release:reader:public; the historical trial release command is not
 a rollback path for paid accounts. To pause, turn off ENABLE_PAYMENTS and
 ENABLE_LIVE_SYNTHESIS in the public configuration and deploy compatible code,
 keeping email, account recovery, webhook intake and reconciliation available.
+
+## Deployed checkpoint
+
+Commit 7996c547b50dc946d2d296faa109a451972eb3f0 passed 227 tests,
+browser parity and Resume checks. Staging version
+593d6577-fb45-48cd-96e9-424452607e35 and production version
+cda866bf-d6b8-4d6e-9ca4-b631aa8b2ddb deployed; served metadata and every
+release asset digest verified. Public checkout remains gated.
+
+Existing live destination ntfset_01m35ct3p29vxze92gt4tmwfdd activated,
+retaining its URL, secret and 12 subscribed events. Opening Roger's checkout
+created txn_01m3n4rsa3djc82vyehgew9rph (order
+574919a6-9feb-4526-9c69-d42e71df1d7b). Two actual signed notifications were
+accepted and processed with zero failed attempts. Order remains pending;
+balance remains 14,628. No payment or refund has been made by the agent.
+Checkout currently displays $10.75, subject to final billing-location tax.
+
+Next: Roger completes the live checkout after reviewing its final total;
+verify exactly one million-character grant and duplicate delivery safety;
+perform the approved capped speech/refund proof before opening public purchasing.
+Do not create another order while this pending checkout exists.
