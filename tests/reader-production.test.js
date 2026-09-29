@@ -42,9 +42,11 @@ test('only verified metered owner can admit; caps are atomic and failed attempts
  assert.equal((await s.request('/api/readings',{data,headers,token:other.token})).status,403);
  assert.equal((await s.request('/api/readings',{data,headers,token:owner.token})).status,503);
  s.env.ENABLE_LIVE_SYNTHESIS='1';s.env.MAX_LIFETIME_CHARACTERS='10';
- const results=await Promise.all([s.request('/api/readings',{data,headers,token:owner.token}),s.request('/api/readings',{data,headers:{'Idempotency-Key':crypto.randomUUID()},token:owner.token})]);assert.deepEqual(results.map(r=>r.status).sort(),[201,429]);
+ const otherHeaders={'Idempotency-Key':crypto.randomUUID()};
+ const results=await Promise.all([s.request('/api/readings',{data,headers,token:owner.token}),s.request('/api/readings',{data,headers:otherHeaders,token:owner.token})]);assert.deepEqual(results.map(r=>r.status).sort(),[201,429]);
+ const acceptedHeaders=results[0].status===201?headers:otherHeaders;
  assert.equal(s.sql.prepare('SELECT characters FROM speech_budget').get().characters,6);
- assert.equal((await s.request('/api/readings',{data,headers,token:owner.token})).status,201);assert.equal(s.sql.prepare('SELECT characters FROM speech_budget').get().characters,6);
+ assert.equal((await s.request('/api/readings',{data,headers:acceptedHeaders,token:owner.token})).status,201);assert.equal(s.sql.prepare('SELECT characters FROM speech_budget').get().characters,6);
  s.sql.prepare('INSERT INTO legacy_pilots VALUES(?)').run(owner.account.id);assert.equal((await s.request('/api/readings',{data,headers,token:owner.token})).status,403);s.sql.close();
 });
 test('billing usage is scoped to current account and excludes unowned legacy totals',async()=>{
