@@ -230,8 +230,9 @@ function render(p, message) {
     previousState=p.state;
   }
   const blocked = message === 'Press Play to start';
+  const wasBlocked = $('play').classList.contains('autoplay-blocked');
   $('play').classList.toggle('autoplay-blocked', blocked);
-  if (blocked) $('play').focus({preventScroll: true});
+  if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;

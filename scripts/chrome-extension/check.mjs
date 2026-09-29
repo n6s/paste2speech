@@ -96,6 +96,8 @@ try {
   await page.waitForFunction(()=>document.getElementById('status').textContent==='Press Play to start');
   assert.equal(await page.locator('#play').evaluate(e=>e.classList.contains('autoplay-blocked')),true);
   const prepared=creates;
+  await page.click('#speed-preset');
+  assert.equal(await page.evaluate(()=>document.activeElement.id),'speed-preset','Background preparation must not steal focus back from controls');
   await page.evaluate(()=>window.restorePlay());await page.click('#play');
   await page.waitForFunction(()=>document.getElementById('status').textContent==='Reading aloud');assert.equal(creates,prepared);
   // Late clipboard results must not replace an incoming selection.
