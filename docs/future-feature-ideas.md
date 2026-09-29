@@ -25,23 +25,14 @@ Help free browser-voice users discover the natural paid voices.
   qualifying purchase. Settle provider acceptance, self-referral prevention,
   refund handling, and economics after billing works.
 
-## Browser extension: selected text to reader
+## Browser extension improvements
 
-Roger especially liked this interaction:
+- Add a keyboard shortcut for sending selected text to the reader.
+- Extract the main article without menus or ads.
+- Offer playback controls within the source page.
 
-**Select text → right-click → Read with PasteToSpeech.**
-
-Open the existing reader with the selected text ready and saved voice/speed
-preferences. Keep playback, downloads, accounts and billing in the web app;
-make the extension small and focused. Only transfer text the user selected.
-
-Possible later extensions: keyboard shortcut, main-article extraction without
-menus/ads, and playback controls within the source page. These are secondary to
-the selected-text right-click workflow.
-
-The selected-text extension shipped as a personal Chrome trial on September 28,
-2026. See [installation and verification](chrome-extension.md). The additional
-ideas above remain future work.
+Build on the existing [selected-text extension](chrome-extension.md), keeping
+playback, downloads, accounts and billing in the web app.
 
 ## Premium scan-to-speech and image input
 
@@ -124,25 +115,11 @@ Illustrative example for the discussed $10 / 1-million-character pack:
 “840,000 characters remaining—about 35 days at your recent pace of 24,000
 characters per day.” This is example copy, not a promised amount of use.
 
-## Player controls: seeking and playback speed
+## Further seeking improvements
 
-Added September 27, 2026, at Roger's request. Revisit these together:
-
-- Improve seeking; retain this as a pending player-control item, with the exact
-  seeking behavior to confirm before implementation.
-- Move playback speed into the player-controls section now that changing speed
-  no longer requires full reprocessing. Speed changes must continue to reuse
-  the prepared audio without new synthesis or speech-credit consumption.
-- Consider a compact button that cycles through common speed presets and clearly
-  displays the current speed. Preset values and the final interaction are not
-  yet decided.
-- Keep the less frequently used voice controls collapsed by default so ordinary
-  playback and speed adjustments do not require opening them.
-
-September 28 status: the released reader now has section seeking, a preset speed
-button beside the playback controls, and collapsed voice settings. These changes
-reuse prepared audio. Keep further seeking improvements as a follow-up to clarify;
-the original request above is retained as planning history.
+Improve seeking beyond the existing section controls. Confirm the desired
+behavior before implementation, and continue reusing prepared audio without
+new synthesis or speech-credit consumption.
 
 ## When revisiting
 
