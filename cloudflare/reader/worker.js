@@ -1,3 +1,4 @@
+import {ownerResponse} from './owner-dashboard.js';
 import {legacyDomainResponse,legacyStagingResponse} from './legacy-domain.js';
 import {runMaintenance} from './maintenance.js';
 import {production,trialMode,publicMode,verifiedCustomer,customerAllowed,paymentConfig} from './modes.js';
@@ -51,7 +52,9 @@ export default {
   if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
-   const ledger=new ReaderLedger(env.LEDGER),token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox'),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
+   const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
+   if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
+   const ledger=new ReaderLedger(env.LEDGER),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
     if(production(env)&&!owner)await rateLimit(env,'ACCOUNT_LIMIT',request);

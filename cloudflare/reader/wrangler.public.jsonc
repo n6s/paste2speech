@@ -5,6 +5,7 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
+    "OWNER_EMAIL": "rogerpbrown@gmail.com",
     "READER_MODE": "production-public",
     "PRIVATE_READER": "0",
     "LOCAL_READER": "0",
