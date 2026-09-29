@@ -101,13 +101,12 @@ related user-facing reader features. No sale of extension user data, advertising
 use, creditworthiness assessment, or lending use is part of this implementation.
 The publisher should confirm these statements before submitting the certifications.
 
-Privacy URL, after the extension-specific text is published:
+Privacy URL (verify the deployed section before submitting):
 https://pastetospeech.com/terms#chrome-extension
 
-**Submission blocker:** the extension-specific privacy addition is drafted in
-`privacy-addition.html` but has not been published. The current live policy covers
-the reader, not the extension’s session handling or the explicit Limited Use notice.
-Do not present the new anchor as live until the addition is deployed and checked.
+The extension-specific section is included in `cloudflare/reader/terms.html`,
+with a reference copy in `privacy-addition.html`. Deploy through staging and public
+production and verify the section at the URL above before store submission.
 
 ## Reviewer test instructions
 
