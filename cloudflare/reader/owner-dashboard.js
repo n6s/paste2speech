@@ -1,3 +1,4 @@
+import dashboardScript from './owner-dashboard-client.txt';
 import {digest} from '../prepared/ledger.js';
 import {production} from './modes.js';
 
@@ -57,36 +58,11 @@ export async function ownerResponse(request,env,token) {
   if(!['today','week','launch'].includes(period))return response('{}',400,'application/json');
   return response(JSON.stringify(await ownerReport(env,period)),200,'application/json');
  }
- if(path==='/api/owner/app.js')return response(`(${dashboardClient.toString()})();`,200,'text/javascript');
+ if(path==='/api/owner/app.js')return response(dashboardScript,200,'text/javascript');
  if(path!=='/api/owner')return response('Not found',404,'text/plain');
  return response(page);
 }
-function dashboardClient(){
- const $=id=>document.getElementById(id),number=n=>Number(n||0).toLocaleString();
- async function refresh(){
-  $('refresh').disabled=true;$('status').textContent='Loading…';$('results').hidden=true;
-  try{
-   const response=await fetch('/api/owner/report?period='+$('period').value,{cache:'no-store'});
-   if(!response.ok)throw Error(response.status===403?'Your owner session has expired. Sign in again through Account.':'The report could not be loaded. Try Refresh.');
-   const data=await response.json();$('environment').textContent=data.environment+' · private dashboard';
-   $('status').textContent='Updated '+new Date(data.generatedAt).toLocaleString()+'. Reporting days use UTC.';
-   const totals={page_view:0,playback_start:0};for(const row of data.events)totals[row.event]+=row.count;
-   $('views').textContent=number(totals.page_view);$('plays').textContent=number(totals.playback_start);
-   for(const audience of ['customers','owner'])for(const [key,value] of Object.entries(data.groups[audience])){
-    const cell=document.querySelector(`[data-audience="${audience}"][data-metric="${key}"]`);if(cell)cell.textContent=number(value);
-   }
-   const body=$('days');body.replaceChildren();const days=new Map();
-   for(const row of data.events){if(!days.has(row.day))days.set(row.day,{views:0,browser:0,google:0,kokoro:0});const day=days.get(row.day);if(row.event==='page_view')day.views+=row.count;else if(row.engine in day)day[row.engine]+=row.count;}
-   for(const [day,values] of [...days].reverse()){
-    const tr=document.createElement('tr');for(const value of [day,...Object.values(values)]){const td=document.createElement('td');td.textContent=typeof value==='number'?number(value):value;tr.append(td);}body.append(tr);
-   }
-   $('empty').hidden=days.size>0;
-   $('health').textContent=`${number(data.health.stuckReadings)} preparations open over 15 minutes · ${number(data.health.delayedWebhooks)} payment notifications waiting over 5 minutes · ${number(data.health.paymentErrors)} payment sync errors`;
-   $('results').hidden=false;
-  }catch(error){$('status').textContent=error.message;}finally{$('refresh').disabled=false;}
- }
- $('refresh').addEventListener('click',refresh);$('period').addEventListener('change',refresh);refresh();
-}
+
 const metrics=[['accounts','Verified accounts · current total'],['activeAccounts','Accounts preparing WaveNet'],['readings','WaveNet preparations started'],['characters','Characters generated'],['failures','Failed preparations'],['preparing','Still preparing'],['purchases','Completed purchases'],['reversedPurchases','Purchases with reversed credit']];
 const page=`<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>PasteToSpeech · Private dashboard</title><style>
 :root{font-family:system-ui,sans-serif;color:#20352e;background:#f3f6f2;color-scheme:light}body{max-width:940px;margin:auto;padding:28px 20px 60px}h1{font-size:2rem;margin:8px 0}h2{font-size:1.2rem}a{color:#246549}.eyebrow{color:#52665b}header nav{float:right}section{background:white;border:1px solid #d8e3d9;border-radius:14px;padding:22px;margin-top:20px}.toolbar{display:flex;gap:12px;align-items:center;flex-wrap:wrap;margin:22px 0}select,button{font:inherit;padding:10px 14px;border:1px solid #8b9f90;border-radius:8px;background:white;color:inherit}button{cursor:pointer;background:#225e46;color:white}button:disabled{opacity:.6}.totals{display:flex;gap:48px;flex-wrap:wrap}.totals strong{display:block;font-size:2rem}p{line-height:1.55}.note{font-size:.9rem;color:#52665b}.table-wrap{overflow-x:auto}table{width:100%;border-collapse:collapse;text-align:left;font-variant-numeric:tabular-nums}th,td{padding:12px 10px;border-bottom:1px solid #e4ebe4}td:not(:first-child),th:not(:first-child){text-align:right}button:focus-visible,select:focus-visible,a:focus-visible{outline:3px solid #daaa25;outline-offset:3px}[hidden]{display:none!important}@media(max-width:500px){body{padding:20px 12px}section{padding:16px}th,td{padding:10px 6px;font-size:.9rem}}

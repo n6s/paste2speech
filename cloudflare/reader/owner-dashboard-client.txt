@@ -1,0 +1,26 @@
+(function dashboardClient(){
+ const $=id=>document.getElementById(id),number=n=>Number(n||0).toLocaleString();
+ async function refresh(){
+  $('refresh').disabled=true;$('status').textContent='Loading…';$('results').hidden=true;
+  try{
+   const response=await fetch('/api/owner/report?period='+$('period').value,{cache:'no-store'});
+   if(!response.ok)throw Error(response.status===403?'Your owner session has expired. Sign in again through Account.':'The report could not be loaded. Try Refresh.');
+   const data=await response.json();$('environment').textContent=data.environment+' · private dashboard';
+   $('status').textContent='Updated '+new Date(data.generatedAt).toLocaleString()+'. Reporting days use UTC.';
+   const totals={page_view:0,playback_start:0};for(const row of data.events)totals[row.event]+=row.count;
+   $('views').textContent=number(totals.page_view);$('plays').textContent=number(totals.playback_start);
+   for(const audience of ['customers','owner'])for(const [key,value] of Object.entries(data.groups[audience])){
+    const cell=document.querySelector(`[data-audience="${audience}"][data-metric="${key}"]`);if(cell)cell.textContent=number(value);
+   }
+   const body=$('days');body.replaceChildren();const days=new Map();
+   for(const row of data.events){if(!days.has(row.day))days.set(row.day,{views:0,browser:0,google:0,kokoro:0});const day=days.get(row.day);if(row.event==='page_view')day.views+=row.count;else if(row.engine in day)day[row.engine]+=row.count;}
+   for(const [day,values] of [...days].reverse()){
+    const tr=document.createElement('tr');for(const value of [day,...Object.values(values)]){const td=document.createElement('td');td.textContent=typeof value==='number'?number(value):value;tr.append(td);}body.append(tr);
+   }
+   $('empty').hidden=days.size>0;
+   $('health').textContent=`${number(data.health.stuckReadings)} preparations open over 15 minutes · ${number(data.health.delayedWebhooks)} payment notifications waiting over 5 minutes · ${number(data.health.paymentErrors)} payment sync errors`;
+   $('results').hidden=false;
+  }catch(error){$('status').textContent=error.message;}finally{$('refresh').disabled=false;}
+ }
+ $('refresh').addEventListener('click',refresh);$('period').addEventListener('change',refresh);refresh();
+})();

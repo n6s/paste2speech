@@ -1,4 +1,6 @@
-import {ownerResponse} from '../../cloudflare/reader/owner-dashboard.js';
+import {build} from 'esbuild';
+const bundled=await build({entryPoints:['cloudflare/reader/owner-dashboard.js'],bundle:true,write:false,format:'esm',platform:'node',keepNames:true});
+const {ownerResponse}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {mkdir} from 'node:fs/promises';
