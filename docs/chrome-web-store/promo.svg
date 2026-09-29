@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="440" height="280" viewBox="0 0 440 280">
+<rect width="440" height="280" fill="#f7f5ef"/>
+<rect x="24" y="24" width="64" height="64" rx="15" fill="#153d37"/>
+<g transform="translate(24 24)" fill="none" stroke="#fffef8" stroke-width="5" stroke-linecap="round"><path d="M14 22h16M14 32h12M14 42h16M38 24q8 8 0 16"/><path d="M47 17q14 15 0 30" stroke="#d88a5d"/></g>
+<g fill="#153d37" font-family="DejaVu Sans,sans-serif"><text x="105" y="63" font-size="28" font-weight="bold">PasteToSpeech</text><text x="24" y="139" font-size="34" font-weight="bold">Highlight it.</text><text x="24" y="181" font-size="34" font-weight="bold">Hear it.</text><text x="24" y="224" font-size="16">Right-click → Read with PasteToSpeech</text><text x="24" y="254" font-size="13" fill="#5b6e64">Your voice. Your speed. A little less screen time.</text></g>
+</svg>
