@@ -1,3 +1,4 @@
+import {setupExtensionHandoff} from './extension-handoff.js';
 import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
 import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
@@ -228,6 +229,9 @@ function render(p, message) {
     if(p.state==='playing' && countNextPlayback){event('playback_start',isGoogle()?'google':isKokoro()?'kokoro':'browser');countNextPlayback=false;}
     previousState=p.state;
   }
+  const blocked = message === 'Press Play to start';
+  $('play').classList.toggle('autoplay-blocked', blocked);
+  if (blocked) $('play').focus({preventScroll: true});
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
@@ -318,6 +322,7 @@ $('text').addEventListener('paste', event => {
 });
 // Read first: denied, empty, or unreadable clipboards must not erase a reading.
 let pasteRequest = 0;
+let pdfRequest = 0, activePdfController;
 async function clipboardText() {
   if (navigator.clipboard?.read) {
     const items = await navigator.clipboard.read();
@@ -483,6 +488,7 @@ $('pdf-file').addEventListener('change', async () => {
     $('pdf-file').value = '';
     return;
   }
+  const request = ++pdfRequest;
   player?.stop();
   $('pdf-file').disabled = true;
   $('text').readOnly = true;
@@ -490,20 +496,25 @@ $('pdf-file').addEventListener('change', async () => {
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
   const pdfController = new AbortController();
+  activePdfController = pdfController;
   const pdfTimer = LONG_READINGS ? null : setTimeout(()=>pdfController.abort(),40000);
   $('cancel-pdf').hidden=false;$('cancel-pdf').onclick=()=>pdfController.abort();
   try {
     const {extractPdf}=await import('./pdf.js');
     const data=await extractPdf(file, pdfController.signal, {maxCharacters: LONG_READINGS ? Infinity : 1000000});
+    if (request !== pdfRequest) return;
     resetReading();
     $('text').value = data.text;
     preview();
     setMode('edit');
     $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the imported text, then choose Read to listen. Columns and tables may read out of order.`;
   } catch (error) {
+    if (request !== pdfRequest) return;
     $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not read this PDF on this device. Try another file.' : error.message);
   } finally {
     clearTimeout(pdfTimer);
+    if (request !== pdfRequest) return;
+    activePdfController = undefined;
     $('cancel-pdf').hidden=true;
     $('pdf-file').disabled = false;
     $('pdf-file').value = '';
@@ -563,3 +574,25 @@ for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) 
   }catch(error){$('recording-progress').textContent=error.message;}
  });
 }
+
+if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
+  pasteRequest++;
+  pdfRequest++;
+  activePdfController?.abort(); activePdfController = undefined;
+  $('cancel-pdf').hidden = true;
+  $('pdf-file').disabled = false; $('pdf-file').value = '';
+  $('text').readOnly = false;
+  $('paste-play').disabled = false; $('clear').disabled = false;
+  $('pdf-status').textContent = '';
+  $('paste-status').hidden = true;
+  resetReading();
+  $('text').value = text;
+  preview();
+  setMode('read');
+  if (autoplay) readAndPlay();
+  else if (cleaned) { $('status').textContent = 'Text restored. Press Play to start'; $('play').focus({preventScroll: true}); }
+  if (!cleaned) {
+    $('paste-status').textContent = 'Text received, but nothing remains after cleanup. Adjust cleanup options to read it.';
+    $('paste-status').hidden = false;
+  }
+}});

@@ -138,7 +138,7 @@ export class ProgressivePlayer {
     const generation=this.generation, sequence=++this.playSequence;
     this.wantPlay=true;
     try{await this.audio.play();}
-    catch{if(generation===this.generation && sequence===this.playSequence){this.wantPlay=false;this.state='ready';this.emit('Audio ready · tap Play.');}}
+    catch(error){if(generation===this.generation && sequence===this.playSequence){this.wantPlay=false;this.state='ready';this.emit(error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.');}}
   }
   pause() {this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.id || this.state==='preparing'){this.state='paused';this.emit();}}
   resume(settings) {

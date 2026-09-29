@@ -186,7 +186,7 @@ export class MsePlayer {
   async play(){
     const serial=this.serial;this.wantPlay=true;
     try{await this.audio.play();if(serial===this.serial)this.error='';}
-    catch(error){if(serial===this.serial&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error='Audio ready — tap Resume to play.';this.log('play-blocked',{name:error.name});this.emit();}}
+    catch(error){if(serial===this.serial&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
   pause(){this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
   resume(){

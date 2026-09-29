@@ -69,3 +69,5 @@
 .download-card summary::-webkit-details-marker,.cleanup-card summary::-webkit-details-marker{display:none}
 
 .compact-reader .section-controls{grid-template-columns:1fr 1fr auto}.compact-reader .section-controls .quiet{padding:8px 4px}
+
+#play.autoplay-blocked{outline:3px solid currentColor;outline-offset:4px}

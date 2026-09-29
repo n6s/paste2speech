@@ -15,7 +15,9 @@
     "build:reader:staging": "node cloudflare/reader/build.mjs --mse-staging",
     "release:reader:staging": "node scripts/release-reader.mjs --staging",
     "check:reader:parity": "node scripts/reader-parity/check.mjs",
-    "check:reader:resume": "node scripts/reader-parity/check-resume.mjs"
+    "check:reader:resume": "node scripts/reader-parity/check-resume.mjs",
+    "build:extension": "node scripts/chrome-extension/build.mjs",
+    "check:extension": "node scripts/chrome-extension/check.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",
