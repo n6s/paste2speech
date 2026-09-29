@@ -1,0 +1,9 @@
+{
+  "passage": "Sometimes it’s easier to hear a piece of writing than to read it on a screen. Take a breath, settle in, and listen. A familiar sentence may sound different when spoken aloud. Which voice would you choose for your next article, story, or long conversation?",
+  "voices": [
+    {"id":"en-US-Wavenet-F","label":"US female","file":"en-US-Wavenet-F.mp3"},
+    {"id":"en-US-Wavenet-D","label":"US male","file":"en-US-Wavenet-D.mp3"},
+    {"id":"en-GB-Wavenet-F","label":"UK female","file":"en-GB-Wavenet-F.mp3"},
+    {"id":"en-GB-Wavenet-D","label":"UK male","file":"en-GB-Wavenet-D.mp3"}
+  ]
+}

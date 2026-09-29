@@ -1,5 +1,6 @@
 import {setupExtensionHandoff} from './extension-handoff.js';
 import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
+import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
 import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
@@ -57,6 +58,7 @@ let paragraphStarts = [];
 let sentenceElements = [];
 let stagingSampleText='';
 let videoDownload;
+let voicePreviews;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
@@ -170,6 +172,7 @@ function setMode(mode) {
 }
 $('edit-mode').addEventListener('click', () => setMode('edit'));
 function readAndPlay() {
+  voicePreviews?.stop();
   $('text').blur();
   setMode('read');
   if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
@@ -222,6 +225,7 @@ $('reading-size').addEventListener('input', () => {
 function render(p, message) {
   if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error},null,2);}
   if (p !== player) return;
+  if (CLOUD_READER && ['playing','preparing','buffering'].includes(p.state)) voicePreviews?.stop();
   if(p.state!==previousState){
     if(p.state==='preparing') preparationStarted=performance.now();
     if(!CLOUD_READER && p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
@@ -284,7 +288,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
-  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice}${CLOUD_READER?'':` · ${$('rate').value}×`}`;
+  const summary = `${isGoogle()?(CLOUD_READER?'Natural · ':'Google · '):isDeepInfra()?'DeepInfra · ':''}${voice}${CLOUD_READER?'':` · ${$('rate').value}×`}`;
   $('voice-settings-summary').textContent = summary;
   $('voice-settings-summary').title = summary;
 }
@@ -465,6 +469,7 @@ if (!CLOUD_READER) {
 }
 }
 if (CLOUD_READER) {
+  voicePreviews=setupVoicePreviews({pauseReading:()=>{if(['playing','preparing','buffering'].includes(player?.state))player.pause();}});
   setupCloudReader({player:workstationPlayer, getEngine:()=> $('engine').value});
   if(saved.engine==='google'){$('engine').value='google';changeEngine();}
   setupFeedback(()=>player?.state||'idle',()=>({...options}));

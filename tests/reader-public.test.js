@@ -35,7 +35,10 @@ test('live configuration rejects sandbox credentials and missing catalog; paused
 });
 test('public anonymous reader stays free; only verified enabled customers can buy or generate',async()=>{
  const s=setup();assert.equal((await s.request('/')).status,200);for(const path of ['/terms','/pricing'])assert.match((await s.request(path)).headers.get('Content-Type'),/text\/html/);assert.equal((await (await s.request('/api/billing/status')).json()).configured,false);
- const a=await s.verified();s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant',a.account.id,100);
+ const anonymous=await (await s.request('/api/reader')).json();assert.equal(anonymous.account,null);assert.equal(anonymous.accessAllowed,false);
+ const a=await s.verified();
+ const unfunded=await (await s.request('/api/reader',{token:a.token})).json();assert.equal(unfunded.account.verified,true);assert.equal(unfunded.accessAllowed,true);assert.equal(unfunded.eligible,false);
+ s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant',a.account.id,100);
  const status=await (await s.request('/api/billing/status',{token:a.token})).json();assert.equal(status.configured,true);assert.equal(status.trial,false);
  const data={voice:'en-US-Wavenet-F',chunks:['Hello.']},headers={'Idempotency-Key':crypto.randomUUID()};
  assert.equal((await s.request('/api/readings',{token:a.token,data,headers})).status,201);

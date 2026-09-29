@@ -5,6 +5,8 @@ import {execFileSync} from 'node:child_process';
 import {mkdir,copyFile,readFile,writeFile,rm,cp} from 'node:fs/promises';
 const publicLaunch=process.argv.includes('--public');
 const production=publicLaunch||process.argv.includes('--production');
+const previewManifest=JSON.parse(await readFile('assets/voice-previews/manifest.json'));
+const previewAssets=['voice-previews/manifest.json',...previewManifest.voices.map(v=>'voice-previews/'+v.file)];
 const fixtureManifest=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
 const fixtureHash=createHash('sha256').update(JSON.stringify(fixtureManifest));
 for(const list of Object.values(fixtureManifest))for(const section of list)fixtureHash.update(await readFile('tests/fixtures/wavenet/'+section.file));
@@ -52,13 +54,26 @@ html=html.replace(settingsCard,'').replace('<footer>',settingsCard+'<footer>');
 html=html.replace('<main>','<main class="compact-reader">');
 html=html.replace('<p class="hint">Formatted paste','<p class="hint reader-help">Formatted paste');
 
-html=html.replace('<option value="kokoro" disabled>Workstation · checking…</option>','<option value="google">WaveNet · speech credit</option>');
+html=html.replace('<option value="browser">Browser voices</option>','<option value="browser">Browser voices · Free</option>');
+html=html.replace('<option value="kokoro" disabled>Workstation · checking…</option>','<option value="google">Natural voices · Paid</option>');
 html=html.replace('PDFs are sent to your workstation for extraction and are not saved.','PDFs are read on this device and are not uploaded.');
 html=html.replace('<div class="mode-controls"','<button id="cancel-pdf" type="button" hidden>Cancel import</button><div class="mode-controls"');
 html=html.replace('Text is not saved.','Original editing text stays in this tab. Prepared WaveNet text and audio expire after 24 hours.');
 html=html.replace('Workstation voices send it over Tailscale to your workstation.','WaveNet sends the cleaned reading text to Google Cloud.');
 html=html.replace('<header>', '<header><p><a href="/api/billing">Account &amp; speech credit</a></p><p id="account-summary" class="hint"></p>');
-html=html.replace('<section class="player', '<p id="upgrade-note" class="hint" hidden>WaveNet requires speech credit. <a href="/api/billing">Upgrade with a speech pack</a>. Browser voices remain free. Staging uses test purchases only.</p><section class="player');
+html=html.replace('<section class="card voice-settings-card"', `<section class="card voice-discovery" aria-labelledby="voice-discovery-title">
+<h2 id="voice-discovery-title">Find your listening voice</h2>
+<p><strong>Browser voices · Free</strong><br>Listen free using voices available on your device.</p>
+<p><strong>Natural voices · Paid</strong><br>Google WaveNet voices offer more natural-sounding speech and downloadable MP4 recordings with built-in subtitles.</p>
+<details id="voice-preview-panel"><summary>Hear free samples</summary>
+<p class="hint">Free previews. No sign-in or speech credit needed.</p>
+<div class="voice-preview-buttons">${previewManifest.voices.map(v=>`<button type="button" class="quiet" data-preview-label="${v.label}" data-preview-src="/voice-previews/${v.file}">▶ ${v.label}</button>`).join('')}</div>
+<p id="voice-preview-status" class="hint" role="status" aria-live="polite"></p>
+<p class="hint">Every voice reads the same passage at normal speed.</p>
+<p>Use these voices for your own text with a speech pack. <a href="/api/billing">View speech packs</a>.</p>
+${!production?'<p class="hint">Staging uses test purchases only.</p>':''}
+</details></section><section class="card voice-settings-card"`);
+html=html.replace('<p id="voice-note"', '<p id="upgrade-note" class="hint" role="status" hidden></p><p id="voice-note"');
 html=html.replace('<div id="recording-controls" hidden>','<div id="recording-controls" hidden><label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label>');
 html=html.replace('Voice &amp; speed','Voice');
 html=html.replace(/<label>Speed <output id="rate-value">[\s\S]*?<\/label>/,'<input id="rate" type="hidden" value="1"><output id="rate-value" hidden></output>');
@@ -134,6 +149,8 @@ if(production)billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
 await writeFile(root+'/billing.js',billingJS);
+await mkdir(root+'/voice-previews',{recursive:true});
+for(const name of previewAssets)await copyFile('assets/'+name,root+'/'+name);
 const fixtures=JSON.parse(await readFile('scripts/wavenet-worker-proof/fixture.json'));
 if(!production)for(const list of Object.values(fixtures))for(const section of list)await copyFile('tests/fixtures/wavenet/'+section.file,root+'/samples/'+section.file);
 console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');
@@ -146,4 +163,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

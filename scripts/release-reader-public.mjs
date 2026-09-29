@@ -15,6 +15,7 @@ execFileSync('npm',['run','build:reader:staging'],{stdio:'inherit'});
 execFileSync('node',['cloudflare/reader/build.mjs','--public'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:parity'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:resume'],{stdio:'inherit'});
+execFileSync('npm',['run','check:reader:previews'],{stdio:'inherit'});
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
 if(readdirSync(site+'/samples').length)throw Error('Test audio must not ship');

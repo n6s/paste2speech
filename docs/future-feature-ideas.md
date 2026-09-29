@@ -6,6 +6,9 @@ implementation plan, launch requirements, or authorization to enable paid servic
 
 ## Introduce free users to WaveNet
 
+September 29 status: natural-voice explanations and cached previews of all four
+voices are implemented for staging review. Production promotion is pending.
+
 Help free browser-voice users discover the natural paid voices.
 
 - Start with a short curated passage, generated once and cached for each voice.
