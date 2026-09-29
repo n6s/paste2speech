@@ -50,13 +50,31 @@ def request(bus, method, signature, args, options):
 
 def pipeline_description(audio, test=False):
     video = ('videotestsrc is-live=true' if test else 'pipewiresrc name=capture do-timestamp=true')
-    description = (video + ' ! queue ! videoconvert ! video/x-raw,format=I420 '
+    description = (video + ' ! queue ! videoconvert ! video/x-raw,format=RGB '
+                   '! videobox name=padding autocrop=true ! videoconvert '
+                   '! capsfilter name=encoded_size caps=video/x-raw,format=I420 '
                    '! x264enc tune=zerolatency speed-preset=ultrafast quantizer=20 pass=qual '
                    '! h264parse ! queue ! mux. matroskamux name=mux ! filesink name=output')
     for index, device in enumerate(audio):
         source = 'audiotestsrc is-live=true' if test else f'pulsesrc name=audio{index} do-timestamp=true'
         description += ' ' + source + ' ! queue ! audioconvert ! audioresample ! opusenc ! queue ! mux.'
     return description
+
+
+def pad_to_even_dimensions(pipeline):
+    """Pad odd-sized windows by one pixel for H.264 4:2:0 encoding."""
+    def caps_event(pad, info):
+        event = info.get_event()
+        if event.type == Gst.EventType.CAPS:
+            structure = event.parse_caps().get_structure(0)
+            width = structure.get_value('width')
+            height = structure.get_value('height')
+            pipeline.get_by_name('encoded_size').set_property(
+                'caps', Gst.Caps.from_string(
+                    f'video/x-raw,format=I420,width={width + width % 2},height={height + height % 2}'))
+        return Gst.PadProbeReturn.OK
+    pipeline.get_by_name('padding').get_static_pad('sink').add_probe(
+        Gst.PadProbeType.EVENT_DOWNSTREAM, caps_event)
 
 
 def main():
@@ -113,6 +131,7 @@ def main():
                 GLib.VariantType.new('(h)'), Gio.DBusCallFlags.NONE, 10000, None, None)
             fd = fd_list.get(reply.unpack()[0])
         pipeline = Gst.parse_launch(pipeline_description(audio, args.self_test))
+        pad_to_even_dimensions(pipeline)
         pipeline.get_by_name('output').set_property('location', str(output))
         if not args.self_test:
             capture = pipeline.get_by_name('capture')
