@@ -24,3 +24,7 @@ gstreamer1.0-pipewire, gstreamer1.0-plugins-good,
 gstreamer1.0-plugins-bad, gstreamer1.0-plugins-ugly, pulseaudio-utils.
 Uses the ScreenCast portal documented at
 https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.ScreenCast.html
+
+To omit title bars/tabs, use `grab-wayland --crop-top 100 demo.mkv`.
+The amount is in captured pixels, removed before automatic even-dimension padding.
+Adjust the number after a short test; keep it smaller than the captured height.

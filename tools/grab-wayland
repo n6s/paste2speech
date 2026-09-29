@@ -50,7 +50,7 @@ def request(bus, method, signature, args, options):
 
 def pipeline_description(audio, test=False):
     video = ('videotestsrc is-live=true' if test else 'pipewiresrc name=capture do-timestamp=true')
-    description = (video + ' ! queue ! videoconvert ! video/x-raw,format=RGB '
+    description = (video + ' ! queue ! videocrop name=trim ! videoconvert ! video/x-raw,format=RGB '
                    '! videobox name=padding autocrop=true ! videoconvert '
                    '! capsfilter name=encoded_size caps=video/x-raw,format=I420 '
                    '! x264enc tune=zerolatency speed-preset=ultrafast quantizer=20 pass=qual '
@@ -82,11 +82,15 @@ def main():
     parser.add_argument('output', nargs='?', help='New .mkv file (default: timestamp in current directory)')
     parser.add_argument('--audio', choices=['system', 'mic', 'both', 'none'], default='both',
                         help='Audio to record; both stores separate system/mic tracks (default: both)')
+    parser.add_argument('--crop-top', type=int, default=0, metavar='PIXELS',
+                        help='Remove this many pixels from the top of the selected window/screen')
     parser.add_argument('--mic-device', help='PulseAudio microphone source name (default: current default input)')
     parser.add_argument('--duration', type=int, default=0, help='Stop automatically after this many seconds')
     parser.add_argument('--geometry-only', action='store_true', help='Select and report portal geometry without recording')
     parser.add_argument('--self-test', action='store_true', help='Record synthetic video/audio without capturing your desktop')
     args = parser.parse_args()
+    if args.crop_top < 0:
+        parser.error('--crop-top must be nonnegative')
     if args.duration < 0:
         parser.error('--duration must be nonnegative')
     output = Path(args.output or datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f.mkv')).expanduser().absolute()
@@ -131,6 +135,7 @@ def main():
                 GLib.VariantType.new('(h)'), Gio.DBusCallFlags.NONE, 10000, None, None)
             fd = fd_list.get(reply.unpack()[0])
         pipeline = Gst.parse_launch(pipeline_description(audio, args.self_test))
+        pipeline.get_by_name('trim').set_property('top', args.crop_top)
         pad_to_even_dimensions(pipeline)
         pipeline.get_by_name('output').set_property('location', str(output))
         if not args.self_test:
