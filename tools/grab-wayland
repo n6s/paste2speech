@@ -1,0 +1,195 @@
+#!/usr/bin/python3
+"""Record a portal-selected Wayland window or monitor to MKV."""
+import argparse
+import datetime
+import os
+from pathlib import Path
+import signal
+import subprocess
+import sys
+import uuid
+import gi
+
+gi.require_version('Gst', '1.0')
+from gi.repository import Gio, GLib, Gst
+
+DEST = 'org.freedesktop.portal.Desktop'
+ROOT = '/org/freedesktop/portal/desktop'
+IFACE = 'org.freedesktop.portal.ScreenCast'
+
+
+def request(bus, method, signature, args, options):
+    token = 'grab_' + uuid.uuid4().hex
+    options = dict(options, handle_token=GLib.Variant('s', token))
+    path = ROOT + '/request/' + bus.get_unique_name()[1:].replace('.', '_') + '/' + token
+    loop = GLib.MainLoop()
+    answer = []
+    def response(*values):
+        answer.append(values[-2].unpack())
+        loop.quit()
+    sub = bus.signal_subscribe(DEST, 'org.freedesktop.portal.Request', 'Response', path,
+                               None, Gio.DBusSignalFlags.NONE, response)
+    timer = GLib.timeout_add_seconds(180, lambda: (loop.quit(), False)[1])
+    try:
+        bus.call_sync(DEST, ROOT, IFACE, method,
+                      GLib.Variant(signature, (*args, options)), None,
+                      Gio.DBusCallFlags.NONE, 10000, None)
+        if not answer:
+            loop.run()
+        if not answer:
+            raise RuntimeError('Screen selection timed out.')
+        code, result = answer[0]
+        if code:
+            raise RuntimeError('Screen selection cancelled or denied.')
+        return result
+    finally:
+        bus.signal_unsubscribe(sub)
+        if answer:
+            GLib.source_remove(timer)
+
+
+def pipeline_description(audio, test=False):
+    video = ('videotestsrc is-live=true' if test else 'pipewiresrc name=capture do-timestamp=true')
+    description = (video + ' ! queue ! videoconvert ! video/x-raw,format=I420 '
+                   '! x264enc tune=zerolatency speed-preset=ultrafast quantizer=20 pass=qual '
+                   '! h264parse ! queue ! mux. matroskamux name=mux ! filesink name=output')
+    for index, device in enumerate(audio):
+        source = 'audiotestsrc is-live=true' if test else f'pulsesrc name=audio{index} do-timestamp=true'
+        description += ' ' + source + ' ! queue ! audioconvert ! audioresample ! opusenc ! queue ! mux.'
+    return description
+
+
+def main():
+    parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('output', nargs='?', help='New .mkv file (default: timestamp in current directory)')
+    parser.add_argument('--audio', choices=['system', 'mic', 'both', 'none'], default='both',
+                        help='Audio to record; both stores separate system/mic tracks (default: both)')
+    parser.add_argument('--mic-device', help='PulseAudio microphone source name (default: current default input)')
+    parser.add_argument('--duration', type=int, default=0, help='Stop automatically after this many seconds')
+    parser.add_argument('--geometry-only', action='store_true', help='Select and report portal geometry without recording')
+    parser.add_argument('--self-test', action='store_true', help='Record synthetic video/audio without capturing your desktop')
+    args = parser.parse_args()
+    if args.duration < 0:
+        parser.error('--duration must be nonnegative')
+    output = Path(args.output or datetime.datetime.now().strftime('%Y%m%d-%H%M%S-%f.mkv')).expanduser().absolute()
+    if output.suffix.lower() != '.mkv':
+        parser.error('Use an .mkv output filename.')
+    Gst.init(None)
+    for name in ['pipewiresrc', 'x264enc', 'h264parse', 'matroskamux', 'pulsesrc', 'opusenc']:
+        if not Gst.ElementFactory.find(name):
+            raise RuntimeError(f'Missing GStreamer element: {name}')
+    audio = []
+    if args.audio in ('system', 'both'):
+        sink = subprocess.check_output(['pactl', 'get-default-sink'], text=True).strip()
+        audio.append(sink + '.monitor')
+    if args.audio in ('mic', 'both'):
+        audio.append(args.mic_device or subprocess.check_output(['pactl', 'get-default-source'], text=True).strip())
+    bus = None
+    session = None
+    fd = None
+    pipeline = None
+    reserved = False
+    try:
+        if not args.geometry_only:
+            with output.open('xb'):
+                pass
+            reserved = True
+        if not args.self_test:
+            bus = Gio.bus_get_sync(Gio.BusType.SESSION, None)
+            session = request(bus, 'CreateSession', '(a{sv})', (), {
+                'session_handle_token': GLib.Variant('s', 'grab_' + uuid.uuid4().hex)})['session_handle']
+            request(bus, 'SelectSources', '(oa{sv})', (session,), {
+                'types': GLib.Variant('u', 3), 'multiple': GLib.Variant('b', False),
+                'cursor_mode': GLib.Variant('u', 2)})
+            print('Choose a window or screen in the desktop sharing dialog.', flush=True)
+            result = request(bus, 'Start', '(osa{sv})', (session, ''), {})
+            node, metadata = result['streams'][0]
+            print('Portal size (logical coordinates):', metadata.get('size', 'not supplied'))
+            print('Portal position:', metadata.get('position', 'not supplied for this window'))
+            if args.geometry_only:
+                return
+            reply, fd_list = bus.call_with_unix_fd_list_sync(
+                DEST, ROOT, IFACE, 'OpenPipeWireRemote', GLib.Variant('(oa{sv})', (session, {})),
+                GLib.VariantType.new('(h)'), Gio.DBusCallFlags.NONE, 10000, None, None)
+            fd = fd_list.get(reply.unpack()[0])
+        pipeline = Gst.parse_launch(pipeline_description(audio, args.self_test))
+        pipeline.get_by_name('output').set_property('location', str(output))
+        if not args.self_test:
+            capture = pipeline.get_by_name('capture')
+            capture.set_property('fd', fd)
+            capture.set_property('path', str(node))
+            for index, device in enumerate(audio):
+                pipeline.get_by_name(f'audio{index}').set_property('device', device)
+        loop = GLib.MainLoop()
+        errors = []
+        stopping = False
+        def stop():
+            nonlocal stopping
+            if not stopping:
+                stopping = True
+                print('Finalizing recording…', flush=True)
+                pipeline.send_event(Gst.Event.new_eos())
+                def timeout():
+                    errors.append('Timed out finalizing; recording may be incomplete.')
+                    loop.quit()
+                    return False
+                GLib.timeout_add_seconds(10, timeout)
+            return False
+        def message(bus_, msg):
+            if msg.type == Gst.MessageType.ERROR:
+                error, debug = msg.parse_error()
+                errors.append(str(error))
+                loop.quit()
+            elif msg.type == Gst.MessageType.EOS:
+                loop.quit()
+        gst_bus = pipeline.get_bus()
+        gst_bus.add_signal_watch()
+        gst_bus.connect('message', message)
+        for sig in (signal.SIGINT, signal.SIGTERM):
+            GLib.unix_signal_add(GLib.PRIORITY_DEFAULT, sig, stop)
+        if session:
+            bus.signal_subscribe(DEST, 'org.freedesktop.portal.Session', 'Closed', session,
+                                 None, Gio.DBusSignalFlags.NONE, lambda *a: stop())
+        status = pipeline.set_state(Gst.State.PLAYING)
+        if status == Gst.StateChangeReturn.FAILURE:
+            raise RuntimeError('Could not start the recording pipeline.')
+        def dimensions():
+            element = pipeline.get_by_name('capture')
+            caps = element.get_static_pad('src').get_current_caps() if element else None
+            if caps:
+                s = caps.get_structure(0)
+                print(f"Capture pixels: {s.get_value('width')}x{s.get_value('height')}", flush=True)
+                return False
+            return not stopping
+        if not args.self_test:
+            GLib.timeout_add(500, dimensions)
+        duration = args.duration or (3 if args.self_test else 0)
+        if duration:
+            GLib.timeout_add_seconds(duration, stop)
+        print(f'Recording to {output}\nAudio: {args.audio}. Press Ctrl+C to stop.', flush=True)
+        loop.run()
+        if errors:
+            raise RuntimeError('; '.join(errors))
+        pipeline.set_state(Gst.State.NULL)
+        print(f'Saved: {output}')
+    finally:
+        if pipeline:
+            pipeline.set_state(Gst.State.NULL)
+        if fd is not None:
+            os.close(fd)
+        if session:
+            try:
+                bus.call_sync(DEST, session, 'org.freedesktop.portal.Session', 'Close', None,
+                              None, Gio.DBusCallFlags.NONE, 3000, None)
+            except GLib.Error:
+                pass
+        if reserved and output.exists() and output.stat().st_size == 0:
+            output.unlink()
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (Exception, KeyboardInterrupt) as error:
+        print(f'grab-wayland: {error or "cancelled"}', file=sys.stderr)
+        sys.exit(1)
