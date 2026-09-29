@@ -1,5 +1,6 @@
 import {setupExtensionHandoff} from './extension-handoff.js';
 import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
+import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
 import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
@@ -295,8 +296,14 @@ function updateVoiceSummary() {
 function loadVoices() {
   $('voice').replaceChildren();
   if (isKokoro()) {
-    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'US female · WaveNet F'},{id:'en-US-Wavenet-D',name:'US male · WaveNet D'},{id:'en-GB-Wavenet-F',name:'UK female · WaveNet F'},{id:'en-GB-Wavenet-D',name:'UK male · WaveNet D'}].filter(v=>CLOUD_READER||v.id.endsWith('-F')) : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
-    for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
+    const availableVoices = isGoogle() ? (CLOUD_READER ? WAVENET_VOICES : [{id:'en-US-Wavenet-F',name:'US female · WaveNet F'},{id:'en-GB-Wavenet-F',name:'UK female · WaveNet F'}]) : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
+    if(CLOUD_READER && isGoogle()){
+      for(const groupName of ['US English','UK English']){
+        const group=document.createElement('optgroup');group.label=groupName;
+        for(const voice of availableVoices.filter(v=>v.group===groupName))group.append(new Option(voice.name,voice.id));
+        $('voice').append(group);
+      }
+    }else for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
     $('voice-note').textContent = isGoogle() ? (LONG_READINGS?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback starts as audio arrives where supported.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
@@ -469,9 +476,9 @@ if (!CLOUD_READER) {
 }
 }
 if (CLOUD_READER) {
-  voicePreviews=setupVoicePreviews({pauseReading:()=>{if(['playing','preparing','buffering'].includes(player?.state))player.pause();}});
   setupCloudReader({player:workstationPlayer, getEngine:()=> $('engine').value});
   if(saved.engine==='google'){$('engine').value='google';changeEngine();}
+  voicePreviews=setupVoicePreviews({pauseReading:()=>{if(['playing','preparing','buffering'].includes(player?.state))player.pause();}});
   setupFeedback(()=>player?.state||'idle',()=>({...options}));
 }
 if (WORKSTATION) {

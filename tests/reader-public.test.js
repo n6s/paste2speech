@@ -1,3 +1,4 @@
+import {WAVENET_VOICE_IDS} from '../public/wavenet-voices.js';
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';
@@ -35,7 +36,7 @@ test('live configuration rejects sandbox credentials and missing catalog; paused
 });
 test('public anonymous reader stays free; only verified enabled customers can buy or generate',async()=>{
  const s=setup();assert.equal((await s.request('/')).status,200);for(const path of ['/terms','/pricing'])assert.match((await s.request(path)).headers.get('Content-Type'),/text\/html/);assert.equal((await (await s.request('/api/billing/status')).json()).configured,false);
- const anonymous=await (await s.request('/api/reader')).json();assert.equal(anonymous.account,null);assert.equal(anonymous.accessAllowed,false);
+ const anonymous=await (await s.request('/api/reader')).json();assert.deepEqual(anonymous.voices,WAVENET_VOICE_IDS);assert.equal(anonymous.account,null);assert.equal(anonymous.accessAllowed,false);
  const a=await s.verified();
  const unfunded=await (await s.request('/api/reader',{token:a.token})).json();assert.equal(unfunded.account.verified,true);assert.equal(unfunded.accessAllowed,true);assert.equal(unfunded.eligible,false);
  s.sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('grant',a.account.id,100);

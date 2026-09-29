@@ -1,3 +1,4 @@
+import {WAVENET_VOICE_IDS} from '../../public/wavenet-voices.js';
 // Server-side only. Default Google speech: plain text, no SSML or rewrites.
 const TOKEN_URL='https://oauth2.googleapis.com/token';
 const SPEECH_URL='https://texttospeech.googleapis.com/v1/text:synthesize';
@@ -41,7 +42,7 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
   }catch(error){throw Error(`Google authorization failed during ${stage}${httpStatus?` (HTTP ${httpStatus})`:` (${['TypeError','DataError','OperationError'].includes(error.name)?error.name:'request error'})`}. No speech request was retried.`);}
 }
 export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis.fetch(...args)}={}){
-  if(!['en-US-Wavenet-F','en-GB-Wavenet-F','en-US-Wavenet-D','en-GB-Wavenet-D'].includes(voice) || typeof text!=='string' ||
+  if(!WAVENET_VOICE_IDS.includes(voice) || typeof text!=='string' ||
      !text.trim() || encoder.encode(text).length>5000)throw Error('Unsupported speech input');
   try {
     const response=await fetcher(SPEECH_URL,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(60000),

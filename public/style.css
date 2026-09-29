@@ -74,4 +74,4 @@
 
 #speed-preset{-webkit-user-select:none;user-select:none}
 
-.voice-discovery h2{margin-top:0}.voice-preview-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem;margin-top:.8rem}.voice-preview-buttons button{min-height:44px}.voice-discovery #voice-preview-status:empty{display:none}
+.voice-discovery-prompt{margin:0 0 .5rem}.voice-preview-buttons{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:.6rem;margin-top:.8rem}.voice-preview-buttons button{min-height:44px}.voice-discovery #voice-preview-status:empty{display:none}

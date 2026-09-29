@@ -7,7 +7,9 @@ implementation plan, launch requirements, or authorization to enable paid servic
 ## Introduce free users to WaveNet
 
 September 29 status: natural-voice explanations and cached previews of all four
-voices are implemented for staging review. Production promotion is pending.
+voices are implemented for staging review. The introduction is a compact,
+browser-only prompt; paid selection offers ten US voices and the existing UK
+pair. Production promotion is pending.
 
 Help free browser-voice users discover the natural paid voices.
 

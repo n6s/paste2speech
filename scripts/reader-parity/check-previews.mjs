@@ -3,6 +3,7 @@ import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {readFile,mkdir} from 'node:fs/promises';
 import assert from 'node:assert/strict';
+import {WAVENET_VOICE_IDS,WAVENET_VOICES} from '../../public/wavenet-voices.js';
 import {inspectMp3} from '../../cloudflare/prepared/mp3.js';
 let assets;
 const server=createServer(async(req,res)=>{
@@ -19,7 +20,7 @@ try{
   assets=environment==='staging'?'work/private-reader/site':'work/production-reader/site';
   const context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),errors=[];
   page.on('pageerror',e=>errors.push(e.message));
-  await page.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.Audio=function(...args){const audio=new Original(...args);window.__audio.push(audio);return audio;};});
+  await page.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.__spoken=[];Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[],cancel(){},speak(u){window.__spoken.push(u.text);u.onboundary?.({name:'word',charIndex:3});},addEventListener(){}}});window.Audio=function(...args){const audio=new Original(...args);window.__audio.push(audio);return audio;};});
   let config={account:null,eligible:false},mutations=0;
   const reading=await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3'),mp3=inspectMp3(reading);
   await page.route('**/api/**',async route=>{
@@ -34,6 +35,7 @@ try{
   await page.goto(origin);
   assert.equal(await page.locator('#voice-settings').evaluate(e=>e.open),false);
   assert.equal(await page.locator('.voice-discovery').isVisible(),true);
+  assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
   await page.locator('#voice-preview-panel summary').click();
   const buttons=page.locator('[data-preview-src]');assert.equal(await buttons.count(),4);
   await page.fill('#text','My own text must survive a voice preview.');
@@ -54,23 +56,36 @@ try{
   await page.unroute('**/voice-previews/en-US-Wavenet-F.mp3');
   await buttons.nth(0).focus();await page.keyboard.press('Enter');await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
   await page.keyboard.press('Enter');
+  // Preview pauses a browser reading, preserving its word offset until explicit Resume.
+  await page.click('#play');assert.equal(await page.locator('#status').textContent(),'Reading aloud');
+  await buttons.nth(1).click();await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
+  assert.match(await page.locator('#status').textContent(),/Paused/);
+  await buttons.nth(1).click();await page.click('#play');
+  assert.equal(await page.evaluate(()=>__spoken.at(-1)),initial.text.slice(3));await page.click('#pause');
+  await buttons.nth(0).click();await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
   await page.locator('#voice-settings summary').first().click();await page.selectOption('#engine','google');
+  assert.equal(await page.locator('.voice-discovery').isVisible(),false);
+  assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
+  assert.equal(await page.evaluate(()=>__audio.some(a=>a.src.includes('/voice-previews/')&&!a.paused)),false);
+  assert.equal(await page.locator('#voice').inputValue(),'en-US-Wavenet-F');
+  assert.deepEqual(await page.locator('#voice optgroup').evaluateAll(es=>es.map(e=>e.label)),['US English','UK English']);
+  assert.deepEqual(await page.locator('#voice option').evaluateAll(es=>es.map(e=>e.value)),WAVENET_VOICE_IDS);
+  for(const voice of WAVENET_VOICES){
+   await page.locator('#voice-settings').evaluate(e=>e.open=true);
+   await page.selectOption('#voice',voice.id);assert.match(await page.locator('#voice-settings-summary').textContent(),new RegExp(voice.name));
+   await page.reload();assert.equal(await page.locator('#voice').inputValue(),voice.id);
+   assert.equal(await page.locator('.voice-discovery').isVisible(),false);
+  }
+  assert.equal(mutations,0,'Changing/restoring paid voices must not create paid readings');
+  await page.locator('#voice-settings').evaluate(e=>e.open=true);
+
   await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('Sign in'));
   config={account:{balance:0,verified:false},accessAllowed:false,eligible:false};await page.evaluate(()=>window.dispatchEvent(new Event('speech-credit-change')));await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('Verify your email'));
   config={account:{balance:0,verified:true},accessAllowed:true,eligible:false};await page.evaluate(()=>window.dispatchEvent(new Event('speech-credit-change')));await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('speech pack'));
   config={account:{balance:10000,verified:true},accessAllowed:true,eligible:true};await page.evaluate(()=>window.dispatchEvent(new Event('speech-credit-change')));await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('10,000'));
-  // Pause a real prepared reading and retain its position/source through preview.
-  await buttons.nth(0).click();await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
-  await page.click('#play');assert.equal(await page.evaluate(()=>__audio.some(a=>a.src.includes('/voice-previews/')&&!a.paused)),false);try{await page.waitForFunction(()=>__audio.some(a=>a.src.startsWith('blob:')&&a.currentTime>.2),{},{timeout:10000});}catch(e){console.log(await page.locator('#status').textContent());console.log(await page.evaluate(()=>__audio.map(a=>({src:a.src,time:a.currentTime,error:a.error?.message}))));throw e;}
-  const before=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {src:a.src,time:a.currentTime};});
-  const writes=mutations;
-  await buttons.nth(1).click();await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
-  const paused=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {src:a.src,time:a.currentTime,paused:a.paused};});
-  assert.equal(paused.src,before.src);assert.ok(paused.time>=before.time);assert.ok(paused.paused);
-  await buttons.nth(1).click();assert.equal(mutations,writes);
-  await page.click('#play');await page.waitForFunction(()=>__audio.some(a=>a.src.startsWith('blob:')&&!a.paused));
-  assert.equal(mutations,writes,'Resume after preview must reuse prepared audio');
-  await page.click('#pause');
+  await page.selectOption('#engine','browser');
+  assert.equal(await page.locator('.voice-discovery').isVisible(),true);
+  assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
   await page.locator('#voice-settings').evaluate(e=>e.open=false);
   await page.screenshot({path:`work/voice-previews/${environment}-mobile.png`,fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Mobile layout must not overflow');

@@ -2,6 +2,7 @@
 export function setupVoicePreviews({pauseReading, audio = new Audio(), root = document}) {
  const panel=root.getElementById('voice-preview-panel');
  if(!panel)return {stop(){}};
+ const discovery=root.getElementById('voice-discovery'),engine=root.getElementById('engine');
  const buttons=[...panel.querySelectorAll('[data-preview-src]')];
  const status=root.getElementById('voice-preview-status');
  let active=null,serial=0;
@@ -25,5 +26,11 @@ export function setupVoicePreviews({pauseReading, audio = new Audio(), root = do
  });
  panel.addEventListener('toggle',()=>{if(!panel.open)stop();});
  window.addEventListener('pagehide',()=>stop());
- resetButtons();return {stop};
+ function updateVisibility(){
+  const visible=engine.value==='browser';
+  if(!visible){stop();panel.open=false;}
+  discovery.hidden=!visible;
+ }
+ engine.addEventListener('change',updateVisibility);
+ resetButtons();updateVisibility();return {stop};
 }

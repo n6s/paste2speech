@@ -61,11 +61,10 @@ html=html.replace('<div class="mode-controls"','<button id="cancel-pdf" type="bu
 html=html.replace('Text is not saved.','Original editing text stays in this tab. Prepared WaveNet text and audio expire after 24 hours.');
 html=html.replace('Workstation voices send it over Tailscale to your workstation.','WaveNet sends the cleaned reading text to Google Cloud.');
 html=html.replace('<header>', '<header><p><a href="/api/billing">Account &amp; speech credit</a></p><p id="account-summary" class="hint"></p>');
-html=html.replace('<section class="card voice-settings-card"', `<section class="card voice-discovery" aria-labelledby="voice-discovery-title">
-<h2 id="voice-discovery-title">Find your listening voice</h2>
-<p><strong>Browser voices · Free</strong><br>Listen free using voices available on your device.</p>
-<p><strong>Natural voices · Paid</strong><br>Google WaveNet voices offer more natural-sounding speech and downloadable MP4 recordings with built-in subtitles.</p>
+html=html.replace('<section class="card voice-settings-card"', `<section id="voice-discovery" class="card voice-discovery" aria-label="Natural voice samples" hidden>
+<p class="voice-discovery-prompt">Want more natural speech and recordings with subtitles?</p>
 <details id="voice-preview-panel"><summary>Hear free samples</summary>
+<p>Google WaveNet voices offer more natural-sounding speech and downloadable MP4 recordings with built-in subtitles.</p>
 <p class="hint">Free previews. No sign-in or speech credit needed.</p>
 <div class="voice-preview-buttons">${previewManifest.voices.map(v=>`<button type="button" class="quiet" data-preview-label="${v.label}" data-preview-src="/voice-previews/${v.file}">▶ ${v.label}</button>`).join('')}</div>
 <p id="voice-preview-status" class="hint" role="status" aria-live="polite"></p>
