@@ -14,6 +14,24 @@ import { StagingPlayer } from './staging-player.js';
 import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 const $ = id => document.getElementById(id);
+const extensionRecommendation = document.querySelector('.extension-recommendation');
+if (extensionRecommendation) {
+  const tooltip = $('extension-tooltip');
+  const show = () => { tooltip.hidden = false; };
+  const hide = () => { tooltip.hidden = true; };
+  extensionRecommendation.addEventListener('pointerenter', event => {
+    if (event.pointerType !== 'touch') show();
+  });
+  extensionRecommendation.addEventListener('pointerleave', () => {
+    if (!extensionRecommendation.contains(document.activeElement)) hide();
+  });
+  extensionRecommendation.addEventListener('focusin', show);
+  extensionRecommendation.addEventListener('focusout', hide);
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') hide();
+  });
+}
+
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
 const options = { ...defaults };

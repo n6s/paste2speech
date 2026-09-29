@@ -60,7 +60,7 @@ html=html.replace('PDFs are sent to your workstation for extraction and are not 
 html=html.replace('<div class="mode-controls"','<button id="cancel-pdf" type="button" hidden>Cancel import</button><div class="mode-controls"');
 html=html.replace('Text is not saved.','Original editing text stays in this tab. Prepared WaveNet text and audio expire after 24 hours.');
 html=html.replace('Workstation voices send it over Tailscale to your workstation.','WaveNet sends the cleaned reading text to Google Cloud.');
-html=html.replace('<header>', '<header><p><a href="/api/billing">Account &amp; speech credit</a></p><p id="account-summary" class="hint"></p>');
+html=html.replace('<header>', `<header><div class="reader-header-links"><a href="/api/billing">Account &amp; speech credit</a><span class="extension-recommendation"><a href="https://chromewebstore.google.com/detail/pastetospeech/oekkjondmbfnlglmmblpjpdppgampnon" target="_blank" rel="noopener noreferrer" aria-describedby="extension-tooltip">Chrome extension ↗</a><span id="extension-tooltip" role="tooltip" hidden>Highlight text on a webpage, right-click ‘Read with PasteToSpeech,’ and listen using your saved voice and speed. Free to install, with free browser voices. For desktop Chrome. Chrome may show an Enhanced Safe Browsing trust warning while our publisher account is new.</span></span></div><p id="account-summary" class="hint"></p>`);
 html=html.replace('<section class="card voice-settings-card"', `<section id="voice-discovery" class="card voice-discovery" aria-label="Natural voice samples" hidden>
 <p class="voice-discovery-prompt">Want more natural speech and recordings with subtitles?</p>
 <details id="voice-preview-panel"><summary>Hear free samples</summary>
