@@ -10,6 +10,7 @@ await build({...common,entryPoints:['browser/pdf.js'],outfile:'dist/pdf.js'});
 for(const name of await readdir('node_modules/onnxruntime-web/dist'))if(/ort-wasm-simd-threaded.*\.(wasm|mjs)$/.test(name))await copyFile(`node_modules/onnxruntime-web/dist/${name}`,`dist/${name}`);
 await copyFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','dist/pdf.worker.min.mjs');
 await copyFile('public/style.css','dist/style.css');
+for(const name of ['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'])await copyFile(`public/${name}`,`dist/${name}`);
 let html=await readFile('public/index.html','utf8');
 html=html.replace('<title>Paste to Speech</title>','<title>Paste to Speech — Free Text-to-Speech Reader</title><meta name="description" content="A free text-to-speech reader for pasted text and PDFs. Listen with browser voices or experimental on-device Kokoro. No subscription required."><link rel="canonical" href="https://speak.rogerpbrown.com/">');
 html=html.replace(/style\.css\?[^" ]+/g,`style.css?v=${release}`).replace(/app\.js\?[^" ]+/g,`app.js?v=${release}`);
