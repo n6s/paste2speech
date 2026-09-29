@@ -1,10 +1,10 @@
 import { validProcessing } from '../shared/processing-metrics.js';
 import { defaults } from './text.js';
 // Coarse diagnostics only: never include the raw user agent or reading content.
-export function feedbackContext({navigator, environment, release, engine, voice, playback, cleanup, processing}) {
+export function feedbackContext({navigator, environment, release, engine, voice, playback, cleanup, processing, cloudReader=false}) {
  // Private hosted trials still run through the workstation relay. Keep the
  // deployed feedback schema compatible, identifying the provider in the voice.
- if(engine==='google'){engine='workstation';voice=`Google WaveNet · ${voice||'Device default'}`;}
+ if(engine==='google'&&!cloudReader){engine='workstation';voice=`Google WaveNet · ${voice||'Device default'}`;}
  if(engine==='deepinfra'){engine='workstation';voice=`DeepInfra · ${voice||'Device default'}`;}
  if(playback==='buffering')playback='preparing';
  const ua=navigator.userAgent || '';

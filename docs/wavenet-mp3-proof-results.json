@@ -1,0 +1,800 @@
+{
+  "date": "2026-09-21",
+  "submittedCharacters": 2084,
+  "estimatedListPriceUSD": 0.008336,
+  "providerRequests": 32,
+  "providerCostIsEstimate": true,
+  "voices": [
+    {
+      "voice": "en-US-Wavenet-F",
+      "duration": 38.712,
+      "starts": [
+        0,
+        4.896,
+        11.376,
+        16.392,
+        18.24,
+        23.472,
+        28.92,
+        33.96
+      ],
+      "inspection": [
+        {
+          "frames": 204,
+          "samples": 117504,
+          "duration": 4.896,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 39168,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 270,
+          "samples": 155520,
+          "duration": 6.48,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 51840,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 209,
+          "samples": 120384,
+          "duration": 5.016,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 40128,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 77,
+          "samples": 44352,
+          "duration": 1.848,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 14784,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 218,
+          "samples": 125568,
+          "duration": 5.232,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 41856,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 227,
+          "samples": 130752,
+          "duration": 5.448,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 43584,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 210,
+          "samples": 120960,
+          "duration": 5.04,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 40320,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 198,
+          "samples": 114048,
+          "duration": 4.752,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 38016,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        }
+      ],
+      "sha256": "51cbac2265683c9d38e17f251e38e0aa69c23b69f5f9a76be64a159d45c6e5ac"
+    },
+    {
+      "voice": "en-GB-Wavenet-F",
+      "duration": 38.952,
+      "starts": [
+        0,
+        4.944,
+        11.76,
+        16.608,
+        18.408,
+        23.616,
+        29.208,
+        34.32
+      ],
+      "inspection": [
+        {
+          "frames": 206,
+          "samples": 118656,
+          "duration": 4.944,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 39552,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 284,
+          "samples": 163584,
+          "duration": 6.816,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 54528,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 202,
+          "samples": 116352,
+          "duration": 4.848,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 38784,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 75,
+          "samples": 43200,
+          "duration": 1.8,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 14400,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 217,
+          "samples": 124992,
+          "duration": 5.208,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 41664,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 233,
+          "samples": 134208,
+          "duration": 5.592,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 44736,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 213,
+          "samples": 122688,
+          "duration": 5.112,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 40896,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        },
+        {
+          "frames": 193,
+          "samples": 111168,
+          "duration": 4.632,
+          "sampleRate": 24000,
+          "channels": 1,
+          "bitrates": [
+            64
+          ],
+          "bytes": 37056,
+          "metadata": "none",
+          "delayPaddingMetadata": false
+        }
+      ],
+      "sha256": "ca89bd5305f0ecd624a2a877375aad72cd877fb99875fa6820aa4d8ab97bd85d"
+    }
+  ],
+  "decoderAnalysis": [
+    {
+      "voice": "en-US-Wavenet-F",
+      "decodedSamples": 929088,
+      "decodedDuration": 38.712,
+      "maxDecodeDifference": 1.3649859056386049e-06,
+      "boundaries": [
+        {
+          "section": 1,
+          "time": 4.896,
+          "previousQuietTailMs": 223.5,
+          "nextQuietLeadMs": 96.91666666666667,
+          "combinedQuietMs": 320.4166666666667,
+          "maxJoinDecodeDifference": 4.6793246610832284e-07,
+          "joinSampleStep": 2.6307449729756627e-07
+        },
+        {
+          "section": 2,
+          "time": 11.376,
+          "previousQuietTailMs": 700.4583333333333,
+          "nextQuietLeadMs": 91.33333333333334,
+          "combinedQuietMs": 791.7916666666666,
+          "maxJoinDecodeDifference": 7.288567758223508e-07,
+          "joinSampleStep": 6.162711088109063e-07
+        },
+        {
+          "section": 3,
+          "time": 16.392,
+          "previousQuietTailMs": 701.5833333333334,
+          "nextQuietLeadMs": 91.33333333333334,
+          "combinedQuietMs": 792.9166666666667,
+          "maxJoinDecodeDifference": 6.115528776717838e-07,
+          "joinSampleStep": 9.83128813913936e-08
+        },
+        {
+          "section": 4,
+          "time": 18.24,
+          "previousQuietTailMs": 226.54166666666666,
+          "nextQuietLeadMs": 110.0,
+          "combinedQuietMs": 336.5416666666667,
+          "maxJoinDecodeDifference": 5.383773213907261e-07,
+          "joinSampleStep": 1.1677094846618274e-07
+        },
+        {
+          "section": 5,
+          "time": 23.472,
+          "previousQuietTailMs": 225.04166666666666,
+          "nextQuietLeadMs": 100.08333333333333,
+          "combinedQuietMs": 325.125,
+          "maxJoinDecodeDifference": 6.245654731174e-07,
+          "joinSampleStep": 2.600677362352144e-07
+        },
+        {
+          "section": 6,
+          "time": 28.92,
+          "previousQuietTailMs": 352.2916666666667,
+          "nextQuietLeadMs": 107.875,
+          "combinedQuietMs": 460.1666666666667,
+          "maxJoinDecodeDifference": 1.3649859056386049e-06,
+          "joinSampleStep": 9.290162097386201e-07
+        },
+        {
+          "section": 7,
+          "time": 33.96,
+          "previousQuietTailMs": 688.7916666666667,
+          "nextQuietLeadMs": 108.66666666666666,
+          "combinedQuietMs": 797.4583333333334,
+          "maxJoinDecodeDifference": 6.418979410227621e-07,
+          "joinSampleStep": 2.6415995080242283e-07
+        }
+      ]
+    },
+    {
+      "voice": "en-GB-Wavenet-F",
+      "decodedSamples": 934848,
+      "decodedDuration": 38.952,
+      "maxDecodeDifference": 3.343720436532749e-06,
+      "boundaries": [
+        {
+          "section": 1,
+          "time": 4.944,
+          "previousQuietTailMs": 165.125,
+          "nextQuietLeadMs": 77.83333333333334,
+          "combinedQuietMs": 242.95833333333334,
+          "maxJoinDecodeDifference": 2.536335159675218e-06,
+          "joinSampleStep": 1.7301606476394227e-06
+        },
+        {
+          "section": 2,
+          "time": 11.76,
+          "previousQuietTailMs": 642.7916666666666,
+          "nextQuietLeadMs": 88.66666666666667,
+          "combinedQuietMs": 731.4583333333334,
+          "maxJoinDecodeDifference": 3.183353555868962e-06,
+          "joinSampleStep": 1.4506269963021623e-06
+        },
+        {
+          "section": 3,
+          "time": 16.608,
+          "previousQuietTailMs": 643.9583333333333,
+          "nextQuietLeadMs": 74.91666666666667,
+          "combinedQuietMs": 718.8749999999999,
+          "maxJoinDecodeDifference": 2.4137311811500695e-06,
+          "joinSampleStep": 7.239433443828602e-07
+        },
+        {
+          "section": 4,
+          "time": 18.408,
+          "previousQuietTailMs": 180.0,
+          "nextQuietLeadMs": 119.33333333333333,
+          "combinedQuietMs": 299.3333333333333,
+          "maxJoinDecodeDifference": 1.5240545963024488e-06,
+          "joinSampleStep": 4.6313311941048596e-07
+        },
+        {
+          "section": 5,
+          "time": 23.616,
+          "previousQuietTailMs": 159.16666666666669,
+          "nextQuietLeadMs": 85.375,
+          "combinedQuietMs": 244.54166666666669,
+          "maxJoinDecodeDifference": 3.343720436532749e-06,
+          "joinSampleStep": 7.395271950372262e-07
+        },
+        {
+          "section": 6,
+          "time": 29.208,
+          "previousQuietTailMs": 293.875,
+          "nextQuietLeadMs": 114.29166666666667,
+          "combinedQuietMs": 408.1666666666667,
+          "maxJoinDecodeDifference": 2.291314558533486e-06,
+          "joinSampleStep": 2.021020009124186e-06
+        },
+        {
+          "section": 7,
+          "time": 34.32,
+          "previousQuietTailMs": 649.7083333333334,
+          "nextQuietLeadMs": 86.83333333333333,
+          "combinedQuietMs": 736.5416666666666,
+          "maxJoinDecodeDifference": 1.9788114968832815e-06,
+          "joinSampleStep": 1.8648454442882212e-06
+        }
+      ]
+    }
+  ],
+  "localWorker": [
+    {
+      "voice": "en-US-Wavenet-F",
+      "bytes": 309696,
+      "localRoundTripMs": 39.867442,
+      "duration": 38.712,
+      "identical": true
+    },
+    {
+      "voice": "en-GB-Wavenet-F",
+      "bytes": 311616,
+      "localRoundTripMs": 12.920062000000001,
+      "duration": 38.952,
+      "identical": true
+    }
+  ],
+  "browserRuns": [
+    {
+      "mode": "live-progressive",
+      "voice": "en-US-Wavenet-F",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "events": [
+        {
+          "event": "waiting",
+          "elapsedMs": 1178.1000000238419,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 1180,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 1180.1000000238419,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "ended",
+          "elapsedMs": 39973.60000002384,
+          "time": 38.688,
+          "duration": 38.688
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 51043.80000001192,
+          "time": 0,
+          "duration": 38.688
+        }
+      ],
+      "firstPlayingMs": 1180.1000000238419,
+      "firstAdvanceMs": 1443.9000000357628,
+      "completeMs": 2809.400000035763,
+      "duration": 38.712,
+      "checks": [
+        "Pause holds audio clock",
+        "Highlight text matches original sections exactly",
+        "Speed changes without regenerating audio"
+      ],
+      "serverReadyMs": 2777.4094619999996,
+      "result": "FAIL",
+      "error": "Playback check timed out",
+      "evidenceFile": "work/wavenet-mp3-proof/browser-1790026745754.json"
+    },
+    {
+      "mode": "live-full",
+      "voice": "en-US-Wavenet-F",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "completeMs": 2666.400000035763,
+      "duration": 38.712,
+      "events": [
+        {
+          "event": "waiting",
+          "elapsedMs": 2669.900000035763,
+          "time": 0,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 2670.7000000476837,
+          "time": 0,
+          "duration": 38.712
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 2670.800000011921,
+          "time": 0,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 15364.900000035763,
+          "time": 0.2,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 15382.700000047684,
+          "time": 18.439999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 15409.200000047684,
+          "time": 34.16,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 15433.900000035763,
+          "time": 11.575999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 15460,
+          "time": 16.041999,
+          "duration": 38.712
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 15484.300000011921,
+          "time": 16.041999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 16165.800000011921,
+          "time": 38.312,
+          "duration": 38.712
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 16191.700000047684,
+          "time": 38.312963,
+          "duration": 38.712
+        },
+        {
+          "event": "ended",
+          "elapsedMs": 16664.400000035763,
+          "time": 38.712,
+          "duration": 38.712
+        }
+      ],
+      "firstPlayingMs": 2670.800000011921,
+      "firstAdvanceMs": 2931.300000011921,
+      "checks": [
+        "Pause holds audio clock",
+        "Highlight text matches original sections exactly",
+        "Speed changes without regenerating audio",
+        "Seek and highlight section 1",
+        "Seek and highlight section 5",
+        "Seek and highlight section 8",
+        "Seek and highlight section 3",
+        "Highlight crosses section boundary on audio clock",
+        "VTT includes every original section",
+        "Flat MP3 export is available",
+        "Browser decoded duration matches frame-count timeline",
+        "Playback reaches the real final frame",
+        "Native duration agrees with captions"
+      ],
+      "serverReadyMs": 2655.516824999999,
+      "browserDecodedDuration": 38.712,
+      "browserDecodedSamples": 929088,
+      "nativeDuration": 38.712,
+      "result": "PASS",
+      "evidenceFile": "work/wavenet-mp3-proof/browser-1790026804131.json"
+    },
+    {
+      "mode": "progressive",
+      "voice": "en-US-Wavenet-F",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "checks": [
+        "Pause holds audio clock",
+        "Highlight text matches original sections exactly",
+        "Speed changes without regenerating audio",
+        "Seek and highlight section 1",
+        "Seek and highlight section 5",
+        "Seek and highlight section 8",
+        "Seek and highlight section 3",
+        "Highlight crosses section boundary on audio clock",
+        "VTT includes every original section",
+        "Flat MP3 export is available",
+        "Browser decoded duration matches frame-count timeline",
+        "Export retains original bytes for section 1",
+        "Export retains original bytes for section 2",
+        "Export retains original bytes for section 3",
+        "Export retains original bytes for section 4",
+        "Export retains original bytes for section 5",
+        "Export retains original bytes for section 6",
+        "Export retains original bytes for section 7",
+        "Export retains original bytes for section 8",
+        "Browser section joins preserve decoded audio",
+        "Playback reaches the real final frame",
+        "Native completed-file duration agrees with captions"
+      ],
+      "events": [
+        {
+          "event": "waiting",
+          "elapsedMs": 1092.7999999523163,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 1096.699999988079,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 1097.0999999642372,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3119.599999964237,
+          "time": 0.2,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3128.699999988079,
+          "time": 18.439999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3154.7999999523163,
+          "time": 34.16,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3181.599999964237,
+          "time": 11.575999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3206.5,
+          "time": 16.041999,
+          "duration": 38.712
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 3232.599999964237,
+          "time": 16.041999,
+          "duration": 38.712
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3963.399999976158,
+          "time": 38.312,
+          "duration": 38.712
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 3989.199999988079,
+          "time": 38.312,
+          "duration": 38.712
+        },
+        {
+          "event": "ended",
+          "elapsedMs": 4512.599999964237,
+          "time": 38.712,
+          "duration": 38.712
+        }
+      ],
+      "firstPlayingMs": 1097.0999999642372,
+      "firstAdvanceMs": 1348.699999988079,
+      "completeMs": 2760.199999988079,
+      "duration": 38.712,
+      "serverReadyMs": 2739.8834239999996,
+      "browserDecodedDuration": 38.712,
+      "browserDecodedSamples": 929088,
+      "browserMaxJoinDifference": 1.367009417663212e-06,
+      "nativeDuration": 38.712,
+      "result": "PASS",
+      "evidenceFile": "work/wavenet-mp3-proof/browser-1790026866718.json"
+    },
+    {
+      "mode": "progressive",
+      "voice": "en-GB-Wavenet-F",
+      "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+      "checks": [
+        "Pause holds audio clock",
+        "Highlight text matches original sections exactly",
+        "Speed changes without regenerating audio",
+        "Seek and highlight section 1",
+        "Seek and highlight section 5",
+        "Seek and highlight section 8",
+        "Seek and highlight section 3",
+        "Highlight crosses section boundary on audio clock",
+        "VTT includes every original section",
+        "Flat MP3 export is available",
+        "Browser decoded duration matches frame-count timeline",
+        "Export retains original bytes for section 1",
+        "Export retains original bytes for section 2",
+        "Export retains original bytes for section 3",
+        "Export retains original bytes for section 4",
+        "Export retains original bytes for section 5",
+        "Export retains original bytes for section 6",
+        "Export retains original bytes for section 7",
+        "Export retains original bytes for section 8",
+        "Browser section joins preserve decoded audio",
+        "Playback reaches the real final frame",
+        "Native completed-file duration agrees with captions"
+      ],
+      "events": [
+        {
+          "event": "waiting",
+          "elapsedMs": 1102.199999988079,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 1102.8999999761581,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 1103,
+          "time": 0,
+          "duration": null
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3109.699999988079,
+          "time": 0.2,
+          "duration": 38.952
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3122.300000011921,
+          "time": 18.608,
+          "duration": 38.952
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3152.300000011921,
+          "time": 34.52,
+          "duration": 38.952
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3175.099999964237,
+          "time": 11.96,
+          "duration": 38.952
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3205.899999976158,
+          "time": 16.258,
+          "duration": 38.952
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 3226,
+          "time": 16.258,
+          "duration": 38.952
+        },
+        {
+          "event": "seeked",
+          "elapsedMs": 3943.199999988079,
+          "time": 38.552,
+          "duration": 38.952
+        },
+        {
+          "event": "playing",
+          "elapsedMs": 3969.5,
+          "time": 38.552,
+          "duration": 38.952
+        },
+        {
+          "event": "ended",
+          "elapsedMs": 4480.399999976158,
+          "time": 38.952,
+          "duration": 38.952
+        }
+      ],
+      "firstPlayingMs": 1103,
+      "firstAdvanceMs": 1371.699999988079,
+      "completeMs": 2767.899999976158,
+      "duration": 38.952,
+      "serverReadyMs": 2680.584375999999,
+      "browserDecodedDuration": 38.952,
+      "browserDecodedSamples": 934848,
+      "browserMaxJoinDifference": 3.3432149848522386e-06,
+      "nativeDuration": 38.952,
+      "result": "PASS",
+      "evidenceFile": "work/wavenet-mp3-proof/browser-1790026903479.json"
+    }
+  ],
+  "listening": {
+    "source": "Roger in conversation",
+    "assessment": "sounded fine to my ear",
+    "scope": "initial live US progressive playback; device unspecified"
+  }
+}

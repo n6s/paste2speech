@@ -1,9 +1,14 @@
-import { WORKSTATION, KOKORO_ENABLED } from './config.js';
+import {setupExtensionHandoff} from './extension-handoff.js';
+import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
+import {cloudFetch, setupCloudReader} from './cloud-reader.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
+import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
-import { cleanText, chunkText, defaults } from './text.js?v=20260917-answer-labels-1';
+import { cleanText, chunkText, readingCharacters, defaults } from './text.js?v=20260917-answer-labels-1';
 import { Player } from './player.js';
+import { StagingPlayer } from './staging-player.js';
 import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 const $ = id => document.getElementById(id);
@@ -11,7 +16,7 @@ let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
 const options = { ...defaults };
 for (const key of Object.keys(defaults)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
-$('rate').value = Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
+$('rate').value = CLOUD_READER ? presetRate(saved.rate) : Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
 $('follow-reading').checked = saved.followReading === true;
 $('reading-size').value = Number.isFinite(saved.readingSize) ? Math.min(32, Math.max(14, Math.round(saved.readingSize))) : 20;
 function applyReadingSize() {
@@ -50,10 +55,12 @@ let cleaned = '';
 let chunks = [];
 let paragraphStarts = [];
 let sentenceElements = [];
+let stagingSampleText='';
+let videoDownload;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
-const workstationPlayer = new ProgressivePlayer(render);
+const workstationPlayer = new (MSE_ENABLED?StagingPlayer:ProgressivePlayer)(render, CLOUD_READER ? {fetcher:cloudFetch} : {});
 const localPlayer = new AudioPlayer(render, {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)});
 localPlayer.getSettings = settings;
 workstationPlayer.getSettings = settings;
@@ -69,12 +76,12 @@ let previousState = 'idle';
 let preparationStarted = 0;
 let countNextPlayback = false;
 let browserVoice = selectedVoice;
-let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : 'af_heart';
+let workstationVoice = typeof saved.workstationVoice === 'string' ? saved.workstationVoice : CLOUD_READER ? 'en-US-Wavenet-F' : 'af_heart';
 function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { return isWorkstation() ? workstationVoices.length > 0 : isKokoro() ? localEnabled : supported; }
+function canPlay() { if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   player?.stop();
   workstationPlayer.release();
@@ -103,7 +110,7 @@ async function discoverWorkstation() {
     $('engine').querySelector('[value=workstation]').textContent = 'Workstation - Kokoro · unavailable';
   }
 }
-function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
+function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?(MSE_STAGING?$('mse-delivery').value:(workstationPlayer.capability.mp3?'mse':'complete')):'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   cleaned = cleanText($('text').value, options);
@@ -117,7 +124,7 @@ function preview() {
     group.className = 'reading-paragraph';
     paragraphStarts.push(chunks.length);
     let cursor = 0;
-    for (const chunk of chunkText(paragraph)) {
+    for (const chunk of (MSE_STAGING&&cleaned===stagingSampleText?[paragraph]:chunkText(paragraph))) {
       const start = chunks.length;
       const offset = paragraph.indexOf(chunk, cursor);
       group.append(paragraph.slice(cursor, offset));
@@ -145,8 +152,12 @@ function preview() {
     $('preview').append(group);
   }
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
+  const characters = readingCharacters($('text').value, chunks);
+  $('character-savings').hidden = !characters.before;
+  $('character-savings').textContent = characters.before ? `${characters.before.toLocaleString()} original characters → ${characters.submitted.toLocaleString()} to read${characters.saved ? ` · ${characters.saved.toLocaleString()} saved` : ''}` : '';
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
+  videoDownload?.update();
 }
 function setMode(mode) {
   const reading = mode === 'read';
@@ -162,7 +173,7 @@ function readAndPlay() {
   $('text').blur();
   setMode('read');
   if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
-  if (['paused', 'ready', 'failed'].includes(player.state)) player.resume(settings());
+  if (['paused', 'ready', 'failed', 'disconnected'].includes(player.state)) player.resume(settings());
   else { countNextPlayback=true; player.start(chunks, settings()); }
 }
 $('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
@@ -209,36 +220,52 @@ $('reading-size').addEventListener('input', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
+  if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error},null,2);}
   if (p !== player) return;
   if(p.state!==previousState){
     if(p.state==='preparing') preparationStarted=performance.now();
-    if(p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
-    if(p.state==='failed') event('kokoro_failure','kokoro','generation');
-    if(p.state==='playing' && countNextPlayback){event('playback_start',isKokoro()?'kokoro':'browser');countNextPlayback=false;}
+    if(!CLOUD_READER && p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
+    if(!CLOUD_READER && p.state==='failed') event('kokoro_failure','kokoro','generation');
+    if(p.state==='playing' && countNextPlayback){event('playback_start',isGoogle()?'google':isKokoro()?'kokoro':'browser');countNextPlayback=false;}
     previousState=p.state;
   }
+  const blocked = message === 'Press Play to start';
+  const wasBlocked = $('play').classList.contains('autoplay-blocked');
+  $('play').classList.toggle('autoplay-blocked', blocked);
+  if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
-  $('play').textContent = ['paused', 'failed'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
+  $('play').textContent = ['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
   $('play').disabled = ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
   $('pause').disabled = !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? 'Playback starts as audio arrives. Pause keeps preparation running; Stop cancels unfinished preparation. Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours without use, or sooner when storage fills; Clear removes this recording.'
-    : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.';
+    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
+    : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
-  if(isGoogle() && p.id) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
+  if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   if(isDeepInfra() && p.id) $('recording-progress').textContent += ` · provider-reported estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;
   for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
+    if (!$(id)) continue;
     const href = isWorkstation() && p.download?.(kind);
     $(id).hidden = !href || (kind==='vtt' && !$('include-captions').checked);
     if(href)$(id).href=href;else $(id).removeAttribute('href');
   }
-  $('previous-section').disabled = !p.chunks.length || p.index===0;
-  $('next-section').disabled = !p.chunks.length || p.index>=p.chunks.length-1;
-  const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed'].includes(p.state);
+  if(CLOUD_READER){
+    const available=preparedChunkCount(p);
+    const index=Math.max(0,Math.min(p.chunks.length-1,p.index||0));
+    const seek=$('seek');
+    seek.disabled=!isGoogle()||!available;
+    seek.max=Math.max(0,available-1);
+    if(seek.dataset.dragging!=='true')seek.value=Math.min(index,Math.max(0,available-1));
+    seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${p.chunks.length}`);
+    $('seek-time').textContent=`${p.chunks.length?index+1:0} / ${p.chunks.length}`;
+  }
+  $('previous-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index===0;
+  $('next-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index>=p.chunks.length-1;
+  const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
   for (const [index, button] of sentenceElements.entries()) {
     const current = active && p.index === index;
     if (current) {
@@ -257,18 +284,18 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
-  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice} · ${$('rate').value}×`;
+  const summary = `${isGoogle()?'Google · ':isDeepInfra()?'DeepInfra · ':''}${voice}${CLOUD_READER?'':` · ${$('rate').value}×`}`;
   $('voice-settings-summary').textContent = summary;
   $('voice-settings-summary').title = summary;
 }
 function loadVoices() {
   $('voice').replaceChildren();
   if (isKokoro()) {
-    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'WaveNet F · American English'},{id:'en-GB-Wavenet-F',name:'WaveNet F · British English'}] : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
+    const availableVoices = isGoogle() ? [{id:'en-US-Wavenet-F',name:'US female · WaveNet F'},{id:'en-US-Wavenet-D',name:'US male · WaveNet D'},{id:'en-GB-Wavenet-F',name:'UK female · WaveNet F'},{id:'en-GB-Wavenet-D',name:'UK male · WaveNet D'}].filter(v=>CLOUD_READER||v.id.endsWith('-F')) : isWorkstation() ? workstationVoices.filter(v=>!isDeepInfra() || ['af_heart','bf_emma'].includes(v.id)) : localVoices;
     for (const voice of availableVoices) $('voice').add(new Option(voice.name, voice.id));
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
-    $('voice-note').textContent = isGoogle() ? 'Private test · text is sent to Google Cloud. Up to 20,000 characters per reading. Original pronunciation; shared pause behavior. Costs shown are estimates before the free allowance.' : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    $('voice-note').textContent = isGoogle() ? (LONG_READINGS?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback starts as audio arrives where supported.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));
@@ -296,6 +323,7 @@ $('text').addEventListener('paste', event => {
 });
 // Read first: denied, empty, or unreadable clipboards must not erase a reading.
 let pasteRequest = 0;
+let pdfRequest = 0, activePdfController;
 async function clipboardText() {
   if (navigator.clipboard?.read) {
     const items = await navigator.clipboard.read();
@@ -343,24 +371,36 @@ $('paste-play').addEventListener('click', async () => {
     $('paste-play').disabled = false;
   }
 });
-$('clear').addEventListener('click', () => { pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+$('clear').addEventListener('click', () => { workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('previous-section').addEventListener('click',()=>workstationPlayer.move(-1));
 $('next-section').addEventListener('click',()=>workstationPlayer.move(1));
-$('include-captions').addEventListener('change',()=>render(player));
+$('include-captions')?.addEventListener('change',()=>render(player));
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+if(CLOUD_READER){
+  const button=$('speed-preset');
+  const updateSpeed=()=>{button.textContent=`${$('rate').value}×`;button.setAttribute('aria-label',`Playback speed: ${$('rate').value}×. Activate to change speed.`);};
+  button.addEventListener('click',()=>{
+    $('rate').value=SPEED_PRESETS[(SPEED_PRESETS.indexOf(Number($('rate').value))+1)%SPEED_PRESETS.length];
+    if(isWorkstation())workstationPlayer.setRate(settings().rate);
+    else if(player?.state==='playing'){player.pause();player.resume(settings());}
+    updateSpeed();save();
+  });
+  updateSpeed();save();
+}
 $('rate-value').textContent = `${$('rate').value}×`;
 if (supported) { speechSynthesis.addEventListener('voiceschanged', loadVoices); loadVoices(); }
 else $('status').textContent = 'Speech is unavailable in this browser. Try Chrome on your Pixel.';
 updateVoiceSummary();
 preview();
 
+if (!CLOUD_READER) {
   $('engine').options[1].textContent=KOKORO_ENABLED?'On-device Kokoro · experimental':'Kokoro · temporarily unavailable';
   $('engine').options[1].disabled=!KOKORO_ENABLED;
   $('local-download').hidden=!KOKORO_ENABLED;
@@ -423,6 +463,12 @@ preview();
   else setupControls();
   setupFeedback(()=>player?.state||'idle',()=>({...options}),()=>$('engine').value==='kokoro'?localKokoro.processingMetrics():undefined);
 }
+}
+if (CLOUD_READER) {
+  setupCloudReader({player:workstationPlayer, getEngine:()=> $('engine').value});
+  if(saved.engine==='google'){$('engine').value='google';changeEngine();}
+  setupFeedback(()=>player?.state||'idle',()=>({...options}));
+}
 if (WORKSTATION) {
   const usageLink=document.createElement('a');usageLink.href=new URL('api/billing',location.href).href;
   usageLink.textContent='Speech usage & test purchases';usageLink.target='_blank';usageLink.rel='noopener';
@@ -438,11 +484,12 @@ if (WORKSTATION) {
 $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;
-  if (file.size > 20 * 1024 * 1024) {
+  if (!LONG_READINGS && file.size > 20 * 1024 * 1024) {
     $('pdf-status').textContent = 'Choose a PDF smaller than 20 MB.';
     $('pdf-file').value = '';
     return;
   }
+  const request = ++pdfRequest;
   player?.stop();
   $('pdf-file').disabled = true;
   $('text').readOnly = true;
@@ -450,20 +497,25 @@ $('pdf-file').addEventListener('change', async () => {
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
   const pdfController = new AbortController();
-  const pdfTimer = setTimeout(()=>pdfController.abort(),40000);
+  activePdfController = pdfController;
+  const pdfTimer = LONG_READINGS ? null : setTimeout(()=>pdfController.abort(),40000);
   $('cancel-pdf').hidden=false;$('cancel-pdf').onclick=()=>pdfController.abort();
   try {
     const {extractPdf}=await import('./pdf.js');
-    const data=await extractPdf(file, pdfController.signal);
+    const data=await extractPdf(file, pdfController.signal, {maxCharacters: LONG_READINGS ? Infinity : 1000000});
+    if (request !== pdfRequest) return;
     resetReading();
     $('text').value = data.text;
     preview();
     setMode('edit');
     $('pdf-status').textContent = `Loaded ${file.name} · ${data.pages} pages.${data.emptyPages ? ` ${data.emptyPages} pages had no readable text and were skipped.` : ''} Review the imported text, then choose Read to listen. Columns and tables may read out of order.`;
   } catch (error) {
+    if (request !== pdfRequest) return;
     $('pdf-status').textContent = error.name === 'TimeoutError' ? 'PDF import timed out. Try a smaller PDF.' : (error instanceof TypeError ? 'Could not read this PDF on this device. Try another file.' : error.message);
   } finally {
     clearTimeout(pdfTimer);
+    if (request !== pdfRequest) return;
+    activePdfController = undefined;
     $('cancel-pdf').hidden=true;
     $('pdf-file').disabled = false;
     $('pdf-file').value = '';
@@ -481,3 +533,67 @@ if (WORKSTATION) {
   paragraph.append(link);
   document.querySelector('footer').append(paragraph);
 }
+
+if(MSE_ENABLED){
+ const supported=workstationPlayer.capability.mp3;
+ if(MSE_STAGING&&!supported){$('mse-delivery').value='complete';$('mse-delivery').querySelector('[value=mse]').disabled=true;}
+ $('playback-options').hidden=!MSE_STAGING;
+ $('mse-support').textContent=supported?'Progressive playback is available.':'This browser uses full preparation because MP3 progressive playback is unavailable.';
+ $('mse-fallback').onclick=()=>workstationPlayer.useCompletedFile();
+}
+if(MSE_STAGING){
+ $('staging-checks').hidden=false;
+ window.__stagingReader=workstationPlayer;
+ $('mse-sample').onclick=async()=>{
+  const response=await fetch('/api/staging/fixtures');if(!response.ok){$('status').textContent='Staging samples are unavailable.';return;}
+  const data=await response.json(),voice=settings().voice;
+  const sections=data.voices[voice];if(!sections){$('status').textContent='Select a WaveNet voice first.';return;}
+  resetReading();stagingSampleText=Array.from({length:$('mse-cached').checked&&$('mse-scenario').value==='long'?8:1},()=>sections).flat().join('\n\n');
+  $('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
+ };
+ $('mse-cached').onchange=()=>{if(!$('mse-cached').checked)$('mse-scenario').value='normal';};
+ $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
+}
+
+if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle, onChange:()=>{if(player)render(player);}});
+
+// Logical readings have tab-local IDs. Join their existing exports on demand.
+for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
+ const link=$(id);if(!link)continue;
+ link.addEventListener('click',async event=>{
+  const active=player;
+  if(!active?.getVideoPreparation?.())return;
+  event.preventDefault();
+  const job=active.id;
+  try {
+   $('recording-progress').textContent='Preparing your download…';
+   const href=await active.longReadings.downloadURL(job,kind);
+   if(player!==active||active.id!==job)return;
+   link.href=href;
+   const download=document.createElement('a');download.href=href;download.download=`reading.${kind}`;download.click();
+   $('recording-progress').textContent='Recording ready to download · original speed';
+  }catch(error){$('recording-progress').textContent=error.message;}
+ });
+}
+
+if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
+  pasteRequest++;
+  pdfRequest++;
+  activePdfController?.abort(); activePdfController = undefined;
+  $('cancel-pdf').hidden = true;
+  $('pdf-file').disabled = false; $('pdf-file').value = '';
+  $('text').readOnly = false;
+  $('paste-play').disabled = false; $('clear').disabled = false;
+  $('pdf-status').textContent = '';
+  $('paste-status').hidden = true;
+  resetReading();
+  $('text').value = text;
+  preview();
+  setMode('read');
+  if (autoplay) readAndPlay();
+  else if (cleaned) { $('status').textContent = 'Text restored. Press Play to start'; $('play').focus({preventScroll: true}); }
+  if (!cleaned) {
+    $('paste-status').textContent = 'Text received, but nothing remains after cleanup. Adjust cleanup options to read it.';
+    $('paste-status').hidden = false;
+  }
+}});

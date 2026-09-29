@@ -1,0 +1,8 @@
+// Read-only staging accounting checkpoint. Never reads credentials into output.
+import {execFileSync} from 'node:child_process';
+const ids=process.argv.slice(2);
+if(ids.some(id=>!/^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$/.test(id)))throw Error('Expected reading UUIDs');
+let sql="SELECT characters,maximum FROM speech_budget; SELECT characters,maximum,active FROM mse_campaign; SELECT COUNT(*) AS open_reservations FROM reservations WHERE state='open'; SELECT COUNT(*) AS reservations,COALESCE(SUM(consumed),0) AS consumed FROM reservations; SELECT COUNT(*) AS usage_rows,COALESCE(SUM(characters),0) AS usage_characters FROM usage; SELECT COALESCE(SUM(balance),0) AS balances FROM accounts;";
+for(const id of ids)sql+=`SELECT r.job,r.total,r.remaining,r.state,r.outcome,r.consumed,r.released,r.metered,(SELECT COUNT(*) FROM usage WHERE job=r.job) AS usage_rows,(SELECT COALESCE(SUM(characters),0) FROM usage WHERE job=r.job) AS usage_characters,(SELECT characters FROM speech_admissions WHERE job=r.job) AS lifetime_admission,(SELECT characters FROM mse_campaign_admissions WHERE job=r.job) AS campaign_admission,(SELECT balance FROM accounts WHERE id=r.account) AS account_balance,(SELECT COUNT(*) FROM legacy_pilots WHERE account=r.account) AS unmetered_pilot FROM reservations r WHERE r.job='${id}';`;
+const raw=execFileSync(process.execPath,['node_modules/wrangler/bin/wrangler.js','d1','execute','private-wavenet-reader-staging','--remote','--config','cloudflare/reader/wrangler.staging.jsonc','--command',sql,'--json'],{encoding:'utf8',maxBuffer:2000000});
+console.log(JSON.stringify({at:new Date().toISOString(),results:JSON.parse(raw).map(r=>r.results)},null,2));

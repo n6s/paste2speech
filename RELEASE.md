@@ -1,4 +1,12 @@
-# Public preview operations
+# Current release entry point
+
+Use `main` in `/home/roger/workarea/paste2speech` and follow
+[the staging-to-public release workflow](docs/reader-release.md).
+The public reader runs at `https://pastetospeech.com`.
+The older preview instructions below are historical and must not be used to deploy
+the current public service or apply its database migrations.
+
+# Historical public preview operations
 
 Public URL: https://speak.rogerpbrown.com
 

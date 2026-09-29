@@ -1,0 +1,29 @@
+{
+  "date": "2026-09-22",
+  "scope": "Private implementation; local Cloudflare runtime and synthetic accounts only",
+  "javascriptTests": {"passed": 148, "failed": 0},
+  "offlineMigrationTests": {"passed": 2, "failed": 0},
+  "localD1Migrations": {"applied": 5, "freshDatabase": true},
+  "browser": {
+    "engine": "Installed desktop Google Chrome, headless",
+    "voice": "en-US-Wavenet-F cached sample",
+    "passed": ["full preparation", "pause", "section highlighting", "MP3 download", "VTT download", "browser-bound email confirmation", "Stop after a delayed creation acknowledgement"],
+    "pageErrors": 0,
+    "externalRequests": "blocked"
+  },
+  "api": {
+    "voice": "en-GB-Wavenet-F cached sample",
+    "passed": ["full preparation", "idempotent admission", "owner isolation", "no partial audio", "byte and suffix Range responses", "invalid range rejection", "cancellation", "single-use email links", "wrong-browser rejection", "checkout disabled", "real-recipient rejection"]
+  },
+  "restart": {"accountPreserved": true, "balancePreserved": true, "completedAudioPreserved": true},
+  "paymentEvidence": "Injected sandbox responses; duplicate checkout, background fulfillment, refund/reversal, debt and lost-response handling. No real Paddle calls.",
+  "speechEvidence": "Cached WaveNet frames and synthetic bounded long-file tests. No new paid synthesis or human/device listening claim.",
+  "workerBundle": "Wrangler dry-run passed; nothing uploaded",
+  "runtimePythonSpeechServerRequired": false,
+  "realBalanceChanges": false,
+  "runningCheckoutChanged": false,
+  "credentialsLoaded": false,
+  "cloudflareResourcesCreated": false,
+  "deployed": false,
+  "nextBoundary": "Explicit approval for isolated private Cloudflare staging, owner-controlled credentials and bounded live integration validation"
+}

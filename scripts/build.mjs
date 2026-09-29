@@ -2,7 +2,10 @@ import {build} from 'esbuild';
 import {readFile,writeFile,mkdir,rm,copyFile,readdir} from 'node:fs/promises';
 import {execFileSync} from 'node:child_process';
 const release=process.env.P2S_RELEASE||execFileSync('git',['rev-parse','--short','HEAD'],{encoding:'utf8'}).trim();
-await rm('dist',{recursive:true,force:true});await mkdir('dist',{recursive:true});
+// Chrome loads the unpacked extension directly from this stable directory.
+// Rebuilding the private site must not remove the installed extension.
+await mkdir('dist',{recursive:true});
+for(const name of await readdir('dist'))if(name!=='chrome-extension')await rm(`dist/${name}`,{recursive:true,force:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',minify:true,logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:'dist/app.js',external:['./pdf.js'],plugins:[{name:'deployment',setup(b){b.onLoad({filter:/public\/config\.js$/},async()=>({contents:(await readFile('public/config.js','utf8')).replace("'development'",JSON.stringify(release)).replace('KOKORO_ENABLED = true',`KOKORO_ENABLED = ${process.env.P2S_KOKORO!=='off'}`)}))}}]});
 await build({...common,entryPoints:['browser/kokoro-worker.js'],outfile:'dist/kokoro-worker.js'});
@@ -12,7 +15,7 @@ await copyFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs','dist/pdf.work
 await copyFile('public/style.css','dist/style.css');
 for(const name of ['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'])await copyFile(`public/${name}`,`dist/${name}`);
 let html=await readFile('public/index.html','utf8');
-html=html.replace('<title>Paste to Speech</title>','<title>Paste to Speech — Free Text-to-Speech Reader</title><meta name="description" content="A free text-to-speech reader for pasted text and PDFs. Listen with browser voices or experimental on-device Kokoro. No subscription required."><link rel="canonical" href="https://speak.rogerpbrown.com/">');
+html=html.replace('<title>PasteToSpeech</title>','<title>PasteToSpeech — Free Text-to-Speech Reader</title><meta name="description" content="A free text-to-speech reader for pasted text and PDFs. Listen with browser voices or experimental on-device Kokoro. No subscription required."><link rel="canonical" href="https://pastetospeech.com/">');
 html=html.replace(/style\.css\?[^" ]+/g,`style.css?v=${release}`).replace(/app\.js\?[^" ]+/g,`app.js?v=${release}`);
 html=html.replace('A LITTLE LESS SCREEN TIME','A LITTLE LESS SCREEN TIME · EARLY PREVIEW');
 html=html.replace('PDFs are sent to your workstation for extraction and are not saved.','PDFs are read on this device and are not uploaded.');
@@ -24,8 +27,8 @@ html=html.replace('<details><summary>Clean up before reading</summary>',`<div id
 html=html.replace('prepared audio can play while you use other apps or lock the screen.','prepared audio uses standard media playback. Screen-off behavior varies by browser and is still being tested.');
 const footer=await readFile('browser/footer.html','utf8');html=html.replace('<footer>Made for a quieter kind of reading.</footer>',footer);
 await writeFile('dist/index.html',html);
-await writeFile('dist/robots.txt','User-agent: *\nAllow: /\nSitemap: https://speak.rogerpbrown.com/sitemap.xml\n');
-await writeFile('dist/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://speak.rogerpbrown.com/</loc></url></urlset>');
+await writeFile('dist/robots.txt','User-agent: *\nAllow: /\nSitemap: https://pastetospeech.com/sitemap.xml\n');
+await writeFile('dist/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?><urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"><url><loc>https://pastetospeech.com/</loc></url></urlset>');
 await writeFile('dist/_headers',`/*\n  X-Content-Type-Options: nosniff\n  Referrer-Policy: no-referrer\n  X-Frame-Options: DENY\n  Permissions-Policy: camera=(), microphone=(), geolocation=()\n  Content-Security-Policy: default-src 'self'; script-src 'self' 'wasm-unsafe-eval'; style-src 'self' 'unsafe-inline'; connect-src 'self' https://huggingface.co https://*.huggingface.co https://*.hf.co; worker-src 'self' blob:; media-src 'self' blob:; img-src 'self' data:; object-src 'none'; base-uri 'self'; form-action 'self'; frame-ancestors 'none'\n  Cache-Control: public, max-age=0, must-revalidate\n`);
 await copyFile('vendor/KOKORO-LICENSE','dist/KOKORO-LICENSE.txt');
 console.log(`Built public release ${release}`);

@@ -20,7 +20,7 @@ async function body(request,limit){
 }
 export function validEvent(data){
  if(!data||Array.isArray(data)||Object.keys(data).some(k=>!['event','engine','category','release','duration'].includes(k)))return false;
- return ['page_view','playback_start','kokoro_ready','kokoro_failure'].includes(data.event)&&['none','browser','kokoro'].includes(data.engine)&&['none','download','generation'].includes(data.category)&&/^[a-zA-Z0-9._-]{1,40}$/.test(data.release)&&Number.isInteger(data.duration)&&data.duration>=0&&data.duration<=300000;
+ return ['page_view','playback_start','kokoro_ready','kokoro_failure'].includes(data.event)&&['none','browser','kokoro','google'].includes(data.engine)&&['none','download','generation'].includes(data.category)&&/^[a-zA-Z0-9._-]{1,40}$/.test(data.release)&&Number.isInteger(data.duration)&&data.duration>=0&&data.duration<=300000;
 }
 export function validCleanup(cleanup){
  return cleanup && !Array.isArray(cleanup) && Object.keys(cleanup).length===Object.keys(cleanupDefaults).length &&
@@ -31,7 +31,7 @@ export function validContext(c){
  return c && !Array.isArray(c) && Object.keys(c).every(key=>['environment','browser','device','engine','voice','release','playback','cleanup','processing'].includes(key)) &&
  (c.cleanup===undefined || validCleanup(c.cleanup)) && (c.processing===undefined || (validProcessing(c.processing) && (c.processing.version===1 || c.engine===c.processing.engine))) &&
  ['test','production'].includes(c.environment) && ['Chrome','Edge','Firefox','Safari','Opera','Other'].includes(c.browser) &&
- ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation'].includes(c.engine) &&
+ ['desktop','mobile'].includes(c.device) && ['browser','kokoro','workstation','google'].includes(c.engine) &&
  typeof c.voice==='string' && c.voice.length<=120 && !/[\u0000-\u001f\u007f]/.test(c.voice) &&
  typeof c.release==='string' && /^[a-zA-Z0-9._-]{1,40}$/.test(c.release) &&
  ['idle','preparing','ready','failed','playing','paused','done'].includes(c.playback);
@@ -39,7 +39,7 @@ export function validContext(c){
 export function contextSummary(raw){
  const c=JSON.parse(raw||'{}');
  if(!c.browser)return 'Diagnostics: not supplied (older reader).';
- const engine={browser:'Browser voices',kokoro:'On-device Kokoro',workstation:'Workstation - Kokoro'}[c.engine];
+ const engine={browser:'Browser voices',kokoro:'On-device Kokoro',workstation:'Workstation - Kokoro',google:'Google WaveNet'}[c.engine];
  return `Site: ${c.environment}\nBrowser: ${c.browser} · ${c.device} (approximate)\nEngine: ${engine}\nVoice: ${c.voice}\nRelease: ${c.release}\nPlayback: ${c.playback}${c.cleanup?'\nCleanup: '+Object.entries(c.cleanup).map(([key,value])=>`${key}=${value?'on':'off'}`).join(', '):''}${processingSummary(c.processing)}`;
 }
 export function validFeedback(data){
@@ -51,7 +51,7 @@ export async function deliver(env,id){
  const claim=await env.DB.prepare("UPDATE feedback SET status='sending',attempts=attempts+1,lease_until=? WHERE id=? AND attempts<5 AND (status='pending' OR (status='sending' AND lease_until<?)) RETURNING id,message,email,context").bind(now+120000,id,now).first();
  if(!claim)return;
  try{
-  const response=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:env.TELEGRAM_CHAT_ID,text:`Paste to Speech · new feedback\nReport ${claim.id}\n\n${claim.message}\n\nReply email: ${claim.email||'Not supplied'}\n\n${contextSummary(claim.context)}\n\nVisitor-submitted content. Automated investigation and Telegram replies are not enabled yet. Discuss proposed changes in Codex.`,link_preview_options:{is_disabled:true}}),signal:AbortSignal.timeout(15000)});
+  const response=await fetch(`https://api.telegram.org/bot${env.TELEGRAM_BOT_TOKEN}/sendMessage`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({chat_id:env.TELEGRAM_CHAT_ID,text:`PasteToSpeech · new feedback\nReport ${claim.id}\n\n${claim.message}\n\nReply email: ${claim.email||'Not supplied'}\n\n${contextSummary(claim.context)}\n\nVisitor-submitted content. Automated investigation and Telegram replies are not enabled yet. Discuss proposed changes in Codex.`,link_preview_options:{is_disabled:true}}),signal:AbortSignal.timeout(15000)});
   const result=await response.json();if(!response.ok||!result.ok)throw Error('delivery');
   await env.DB.prepare("UPDATE feedback SET status='sent',telegram_message_id=?,lease_until=0 WHERE id=?").bind(result.result.message_id,id).run();
  }catch{
@@ -96,7 +96,7 @@ export default {
    }
    if(!validFeedback(data)||!await validTicket(data.ticket,env.FEEDBACK_SECRET))return json({error:'Invalid feedback'},400);
    const digest=await hash(new Date().toISOString().slice(0,10)+'\n'+data.message.trim().toLowerCase());
-   await env.DB.prepare('INSERT OR IGNORE INTO feedback(id,created_at,message,email,digest,context) VALUES(?,?,?,?,?,?)').bind(data.ticket.id,Date.now(),data.message.trim(),data.email.trim(),digest,JSON.stringify(data.context?{...data.context,environment:origin==='https://pop-os.tailbd091c.ts.net'?'test':'production'}:{})).run();
+   await env.DB.prepare('INSERT OR IGNORE INTO feedback(id,created_at,message,email,digest,context) VALUES(?,?,?,?,?,?)').bind(data.ticket.id,Date.now(),data.message.trim(),data.email.trim(),digest,JSON.stringify(data.context?{...data.context,environment:env.PRIVATE_READER==='1'||origin==='https://pop-os.tailbd091c.ts.net'?'test':'production'}:{})).run();
    ctx.waitUntil(deliver(env,data.ticket.id));
    return json({saved:true},202);
   }catch{return json({error:'Temporarily unavailable. Please retry or use email.'},503);}

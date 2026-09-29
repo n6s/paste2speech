@@ -170,7 +170,9 @@ function proseAmounts(text) {
 
 function cleanInline(text, options, decode = true) {
   const literal = decode ? inlineLiterals(text, options.markdown) : {text, restore: value => value};
-  text = literal.text;
+  // Discretionary hyphens and stray BOMs are copy artifacts in prose.
+  // Keep joiners, directional marks, and literal code untouched.
+  text = literal.text.replace(/[\u00ad\ufeff]/g, '');
   if (options.citations) text = text
     .replace(/\uE200[\s\S]*?\uE201/g, '')
     .replace(/[^]*/g, '')
@@ -275,4 +277,12 @@ function joinProseLines(input, detectTitles = true) {
     /([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/g,
     (match, line) => /[.!?…]["'”’)}\]]*$/.test(line.trimEnd()) ? match : line.trimEnd() + ' '
   );
+}
+
+// Count Unicode code points, matching the WaveNet credit ledger. Separators
+// between chunks are not submitted and must not inflate the reading count.
+export function readingCharacters(original, chunks) {
+  const before = [...original].length;
+  const submitted = chunks.reduce((total, chunk) => total + [...chunk].length, 0);
+  return {before, submitted, saved: Math.max(0, before - submitted)};
 }

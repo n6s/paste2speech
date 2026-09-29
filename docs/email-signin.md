@@ -23,7 +23,7 @@ Owner-only `~/.config/paste2speech/email-signin.json` (mode 600):
   "port": 465,
   "username": "resend",
   "password_file": "resend-api-key",
-  "sender": "signin@speak.rogerpbrown.com",
+  "sender": "signin@pastetospeech.com",
   "billing_url": "https://pop-os.tailbd091c.ts.net/speak/api/billing"
 }
 ```
@@ -34,7 +34,7 @@ of `password_file`, and port 465 or 587. Never commit credentials. Configuration
 read for each request. The configured link origin must be an allowed HTTPS origin;
 it is never inferred from an untrusted Host header.
 
-In Resend, verify `speak.rogerpbrown.com` with the three exact DNS records supplied
+In Resend, verify `pastetospeech.com` with the exact DNS records supplied
 for that domain. Keep receiving disabled and click/open tracking disabled. Set Resend TLS to
 Enforced so sign-in mail is not delivered over an unencrypted connection. Sending
 authentication does not require changing the website record or the root DMARC policy.
@@ -78,3 +78,10 @@ passing, but landed in Spam. Following it in Chrome linked the existing 6-millio
 character balance successfully. Roger then confirmed that the emailed link works
 on Pixel and recovers the same 6-million-character balance. Consistent inbox
 placement remains an open acceptance check.
+
+September 28 domain move: Resend verified pastetospeech.com. Production and staging
+EMAIL_FROM now use `PasteToSpeech <signin@pastetospeech.com>`. The workstation SMTP
+sender uses the same address, retaining its private Tailscale billing URL. The
+existing sending-only key covers all domains; no key was rotated. Gmail received
+the authorized sign-in test in Inbox with SPF, DKIM and DMARC passing. The original
+verified account was recovered at the new domain without changing its credit.

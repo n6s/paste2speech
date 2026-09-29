@@ -105,3 +105,44 @@ test('a generated live section can seek beyond Chrome prefetch without waiting f
  assert.equal(audio.currentTime,2.046);assert.equal(p.state,'playing');assert.equal(p.index,1);
  assert.equal(p.complete,false);assert.equal(p.seekableFile,false);await p.invalidate();
 });
+
+const fullSettings={...settings,provider:'google',delivery:'complete'};
+test('complete delivery reports preparation but never loads partial audio',async()=>{
+ const {p,audio,calls,setSnapshot}=setup();audio.readyState=0;
+ const messages=[];p.onChange=(_,message)=>messages.push(message);
+ await p.start(['one','two','three'],fullSettings);await tick();
+ assert.equal(audio.src,undefined);assert.equal(audio.paused,true);assert.equal(p.state,'preparing');
+ assert.ok(messages.includes('Preparing the full reading · 1 of 3 sections'));
+ p.resume(fullSettings);await tick();assert.equal(audio.src,undefined);assert.equal(audio.paused,true);
+ setSnapshot({state:'ready',starts:[0,2,4],duration:6});await p.refresh();
+ assert.ok(audio.src.endsWith('/job/audio?complete=1'));assert.equal(audio.paused,true);
+ audio.readyState=1;audio.dispatchEvent(new Event('loadedmetadata'));await tick();
+ assert.equal(p.state,'playing');assert.equal(p.index,0);assert.equal(p.seekableFile,true);
+ p.seekTo(4.5);await tick();assert.equal(p.index,2);assert.equal(audio.currentTime,4.5);
+ assert.equal(calls.filter(([,o])=>o.method==='POST').length,1);await p.invalidate();
+});
+test('pause and selection during full preparation survive completion without autoplay',async()=>{
+ const {p,audio,setSnapshot,calls}=setup();audio.readyState=0;
+ await p.start(['one','two','three'],fullSettings);await tick();p.pause();p.move(1);
+ assert.equal(p.pendingIndex,1);assert.equal(audio.src,undefined);
+ setSnapshot({state:'ready',starts:[0,2,4],duration:6});await p.refresh();
+ audio.readyState=1;audio.dispatchEvent(new Event('loadedmetadata'));await tick();
+ assert.equal(audio.paused,true);assert.equal(p.index,1);assert.equal(audio.currentTime,2);
+ p.resume(fullSettings);await tick();assert.equal(p.state,'playing');
+ p.setRate(1.5);audio.currentTime=4.1;p.sync();assert.equal(p.index,2);
+ assert.equal(calls.filter(([,o])=>o.method==='POST').length,1);await p.invalidate();
+});
+test('failure during full preparation exposes neither partial audio nor exports',async()=>{
+ const {p,audio,setSnapshot}=setup();audio.readyState=0;
+ await p.start(['one','two'],fullSettings);await tick();
+ setSnapshot({state:'failed',starts:[0],duration:2,error:'Preparation failed'});await p.refresh();
+ assert.equal(p.state,'failed');assert.equal(audio.src,undefined);assert.equal(p.download('mp3'),null);
+ assert.equal(audio.paused,true);await p.invalidate();
+});
+test('stop during full preparation cancels once and prevents late audio attachment',async()=>{
+ const {p,audio,calls,setSnapshot}=setup();audio.readyState=0;
+ await p.start(['one','two'],fullSettings);await tick();p.stop();await tick();
+ setSnapshot({state:'ready',starts:[0,2],duration:4});await p.refresh();
+ assert.equal(p.id,null);assert.equal(audio.src,undefined);assert.equal(p.state,'idle');
+ assert.equal(calls.filter(([,o])=>o.method==='DELETE').length,1);
+});

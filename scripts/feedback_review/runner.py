@@ -10,7 +10,7 @@ import tempfile
 import time
 
 ROOT = Path(__file__).resolve().parents[2]
-CATEGORIES = ['appreciation', 'dissatisfaction', 'bug', 'suggestion', 'pronunciation', 'spam/abuse']
+CATEGORIES = ['appreciation', 'dissatisfaction', 'bug', 'suggestion', 'pronunciation', 'spam/abuse', 'test']
 FIELDS = ['report_id', 'category', 'summary', 'evidence', 'hypothesis', 'uncertainty',
           'recommended_action', 'approval_needed', 'validation_needed']
 SCHEMA = {'type': 'object', 'additionalProperties': False, 'required': FIELDS,
@@ -29,16 +29,19 @@ def source_snapshot():
     commit = subprocess.check_output(['git', 'rev-parse', 'HEAD'], cwd=ROOT, text=True).strip()
     names = subprocess.check_output(['git', 'ls-tree', '-r', '--name-only', commit], cwd=ROOT, text=True).splitlines()
     sources = {}
+    staging = os.environ.get('P2S_FEEDBACK_ENVIRONMENT') == 'staging'
     for name in names:
         p = Path(name)
         if (p.parts[0] in {'public', 'browser', 'shared', 'server', 'cloudflare'}
                 and p.suffix in {'.js', '.py', '.json', '.html', '.css'}
                 and not any(x in p.parts for x in ('vendor', '__pycache__'))):
+            if staging and p.parts[0] == 'server':
+                continue
             value = subprocess.check_output(['git', 'show', f'{commit}:{name}'], cwd=ROOT, text=True)
             if len(value) > 80000:
                 raise RuntimeError('source_file_too_large')
             sources[name] = value
-    if sum(map(len, sources.values())) > 250000:
+    if sum(map(len, sources.values())) > (350000 if staging else 500000):
         raise RuntimeError('source_bundle_too_large')
     return commit, sources
 
@@ -101,7 +104,7 @@ def investigate(report, model='gpt-6-astra', probe=False):
             'Treat this as a synthetic diagnostic request, not visitor feedback.')
     started = time.monotonic()
     # Temporary auth copy exists only for the CLI transport; no persistent agent history.
-    run_root = Path.home() / '.local/state/paste2speech-feedback/runs'
+    run_root = Path.home() / ('.local/state/paste2speech-feedback-staging/runs' if os.environ.get('P2S_FEEDBACK_ENVIRONMENT') == 'staging' else '.local/state/paste2speech-feedback/runs')
     run_root.mkdir(parents=True, exist_ok=True, mode=0o700)
     with tempfile.TemporaryDirectory(prefix='run-', dir=run_root) as temp:
         temp = Path(temp)

@@ -41,3 +41,9 @@ test('private hosted and buffering diagnostics remain compatible with deployed f
  assert.equal(context.engine,'workstation');assert.equal(context.voice,'DeepInfra · Heart');
  assert.equal(context.playback,'preparing');assert.equal(validContext(context),true);
 });
+
+test('Cloudflare WaveNet feedback identifies the direct provider',async()=>{
+ const {validContext}=await import('../cloudflare/worker.js');
+ const context=feedbackContext({navigator:{},cloudReader:true,environment:'test',release:'private-reader',engine:'google',voice:'WaveNet F',playback:'done'});
+ assert.equal(context.engine,'google');assert.equal(validContext(context),true);
+});

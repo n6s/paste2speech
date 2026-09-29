@@ -176,6 +176,8 @@ try {
  assert.equal(await page.locator('.pdf-import').evaluate(el => el.open), false);
  await page.locator('.pdf-import summary').focus(); await page.keyboard.press('Enter');
  assert.equal(await page.locator('#pdf-file').isVisible(), true);
+ const cloudReader=process.env.CLOUD_READER==='1';
+ if(cloudReader)await page.route('**/pdf.js',r=>r.fulfill({contentType:'application/javascript',body:"let n=0;export async function extractPdf(){if(n++)throw Error('Invalid PDF');return {text:'PDF success.',pages:1,emptyPages:0}}"}));
  await page.route('**/api/pdf-text', r => r.fulfill({json:{text:'PDF success.',pages:1,emptyPages:0}}));
  const pdf = {name:'sample.pdf',mimeType:'application/pdf',buffer:Buffer.from('%PDF-1.4 mock')};
  await page.locator('#pdf-file').setInputFiles(pdf);

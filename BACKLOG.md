@@ -1,5 +1,19 @@
 Future product ideas are collected in [Future feature ideas](docs/future-feature-ideas.md).
 
+## Worker account and usage boundary — local proof
+
+- Local D1 now reserves credit before a prepared-reading job; successful sections
+  consume it once, and unused credit returns on completion, failure or Stop.
+- Synthetic account checks passed for concurrent spending, duplicate requests,
+  ownership, failure/cancellation and runtime restart. 123 JavaScript tests pass.
+- Test identities, fake credit and cached audio only; live balances and the private
+  reader are untouched. Details: `docs/wavenet-account-proof.md`.
+- Interrupted admission now recovers automatically: persist the job and alarm
+  before reserving; retry the same reservation after a lost response. Local fault
+  injection, pending cancellation and a full restart passed without double charges.
+- Next: connect the existing verified email sign-in and account/payment semantics
+  with local mocks and synthetic accounts.
+
 ## Payment recovery and refund accounting — private sandbox
 
 - Service checks recorded Paddle transactions at startup and every 60 seconds
@@ -85,6 +99,17 @@ hosted infrastructure and production account/billing integration remain future w
 The private sandbox purchase/allowance pilot above is not a public deployment.
 
 # Current private milestone — 2026-09-21
+
+Google WaveNet hosting decision: full preparation first (Roger, September 21).
+The private worktree now selects complete delivery for Google: show preparation
+progress, then open the finished recording with original-text highlighting,
+seeking, playback speed, and MP3/VTT exports. See `docs/wavenet-mp3-proof.md`.
+No deployment accompanies this change. The isolated local Worker pilot now
+performs Google authorization, native MP3 synthesis, durable full preparation,
+and R2 playback/export, using WaveNet defaults without text or pause overrides.
+See `docs/wavenet-worker-proof.md`. Hosted account/usage integration, access and
+secret delivery, longer readings and target-device checks remain; the running
+Python backend still uses its existing LINEAR16/continuous-encoding path.
 
 Progressive workstation Kokoro, media playback speed, section controls, MP3 export,
 and optional WebVTT are implemented privately. Real chapter playback and export

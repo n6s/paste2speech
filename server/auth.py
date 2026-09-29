@@ -35,9 +35,9 @@ def settings():
 
 def send_link(config, email, token):
     msg = EmailMessage()
-    msg['From'] = 'speak.rogerpbrown.com <' + config['sender'] + '>'
+    msg['From'] = 'PasteToSpeech <' + config['sender'] + '>'
     msg['To'] = email
-    msg['Subject'] = 'Sign in to speak.rogerpbrown.com (private test)'
+    msg['Subject'] = 'Sign in to PasteToSpeech (private test)'
     msg.set_content('Open this link in the browser where you requested it, then confirm sign-in. '
                     'It expires in 15 minutes and works once.\n\n' + config['billing_url'].rstrip('/')
                     + '/signin#' + token + '\n\nIf you did not request this, ignore this email.\n')

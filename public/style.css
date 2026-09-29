@@ -46,3 +46,28 @@
 #feedback-form textarea{height:auto;min-height:150px;resize:vertical;margin-top:8px;padding:12px;border:2px solid #879e91;border-radius:10px;background:#fffef8;color:#203d37;font-size:1rem}#feedback-form textarea::placeholder{color:#596d62}#feedback-form textarea:focus-visible{outline:3px solid #c47743;outline-offset:3px;box-shadow:none}#feedback-form label{color:#203d37}#feedback-form input{background:#fffef8;color:#203d37;font-size:1rem}
 
 .download-links{display:flex;gap:1rem;flex-wrap:wrap;margin:.8rem 0}
+
+/* Compact hosted reader: preserve comfortable touch targets. */
+@media(max-width:600px){
+ .compact-reader{padding-top:12px}
+ .compact-reader header{margin-bottom:12px;padding:0}
+ .compact-reader header h1{font-size:1.8rem;margin:6px 0}
+ .compact-reader header .eyebrow,.compact-reader header>p:not(:first-child):not(#account-summary){display:none}
+ .compact-reader header p{margin:4px 0}
+ .compact-reader .card{padding:12px;margin-bottom:10px}
+ .compact-reader .reader-help{font-size:.75rem;margin:8px 0 0}
+ .compact-reader .mode-controls{margin:8px 0}
+ .compact-reader .pdf-import{padding:8px;margin-top:6px}
+}
+
+.download-card>details,.cleanup-card>details{border:0;margin:0;padding:0}
+.download-card,.cleanup-card{padding-top:10px;padding-bottom:10px}
+.download-card>details>summary,.cleanup-card>details>summary{min-height:44px;display:flex;align-items:center}
+
+.download-card>details>summary::before,.cleanup-card>details>summary::before{content:"▸";margin-right:8px}
+.download-card>details[open]>summary::before,.cleanup-card>details[open]>summary::before{content:"▾"}
+.download-card summary::-webkit-details-marker,.cleanup-card summary::-webkit-details-marker{display:none}
+
+.compact-reader .section-controls{grid-template-columns:1fr 1fr auto}.compact-reader .section-controls .quiet{padding:8px 4px}
+
+#play.autoplay-blocked{outline:3px solid currentColor;outline-offset:4px}

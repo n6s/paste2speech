@@ -24,7 +24,7 @@ export class Player {
       if (this.index < this.chunks.length) this.speak();
       else { this.state = 'done'; this.utterance = null; this.emit(); }
     };
-    utterance.onerror = event => { if (valid()) this.fail(`Speech stopped (${event.error || 'voice error'}). Tap Play to retry this part, or choose another voice.`); };
+    utterance.onerror = event => { if (valid()) this.fail(event.error === 'not-allowed' ? 'Press Play to start' : `Speech stopped (${event.error || 'voice error'}). Tap Play to retry this part, or choose another voice.`); };
     // Never silently skip a chunk if the engine stalls or emits no end event.
     this.timer = setTimeout(() => { if (valid()) this.fail('The voice stopped responding. Tap Play to retry this part.'); }, Math.max(30000, utterance.text.length * 250 / utterance.rate));
     this.emit();

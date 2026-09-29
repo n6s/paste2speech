@@ -1,0 +1,86 @@
+{
+  "en-US-Wavenet-F": [
+    {
+      "text": "The first section begins beside a quiet river. Mara opens her notebook.",
+      "delayMs": 1060,
+      "file": "en-US-Wavenet-F-00.mp3"
+    },
+    {
+      "text": "At 9:30 a.m. on September 21, 2026, the next train leaves the station.",
+      "delayMs": 967,
+      "file": "en-US-Wavenet-F-01.mp3"
+    },
+    {
+      "text": "She writes: \"Bring the blue bag, the map, and a bottle of water.\"",
+      "delayMs": 875,
+      "file": "en-US-Wavenet-F-02.mp3"
+    },
+    {
+      "text": "A short pause follows.",
+      "delayMs": 651,
+      "file": "en-US-Wavenet-F-03.mp3"
+    },
+    {
+      "text": "Beyond the bridge, the path climbs gently through the trees. The air feels cool.",
+      "delayMs": 906,
+      "file": "en-US-Wavenet-F-04.mp3"
+    },
+    {
+      "text": "One, two, three. These short sentences should remain clear and separate.",
+      "delayMs": 844,
+      "file": "en-US-Wavenet-F-05.mp3"
+    },
+    {
+      "text": "The final paragraph begins here; the traveler checks the route once more.",
+      "delayMs": 683,
+      "file": "en-US-Wavenet-F-06.mp3"
+    },
+    {
+      "text": "This is the last section. The notebook closes, and the journey ends.",
+      "delayMs": 801,
+      "file": "en-US-Wavenet-F-07.mp3"
+    }
+  ],
+  "en-GB-Wavenet-F": [
+    {
+      "text": "The first section begins beside a quiet river. Mara opens her notebook.",
+      "delayMs": 994,
+      "file": "en-GB-Wavenet-F-00.mp3"
+    },
+    {
+      "text": "At 9:30 a.m. on September 21, 2026, the next train leaves the station.",
+      "delayMs": 719,
+      "file": "en-GB-Wavenet-F-01.mp3"
+    },
+    {
+      "text": "She writes: \"Bring the blue bag, the map, and a bottle of water.\"",
+      "delayMs": 726,
+      "file": "en-GB-Wavenet-F-02.mp3"
+    },
+    {
+      "text": "A short pause follows.",
+      "delayMs": 571,
+      "file": "en-GB-Wavenet-F-03.mp3"
+    },
+    {
+      "text": "Beyond the bridge, the path climbs gently through the trees. The air feels cool.",
+      "delayMs": 859,
+      "file": "en-GB-Wavenet-F-04.mp3"
+    },
+    {
+      "text": "One, two, three. These short sentences should remain clear and separate.",
+      "delayMs": 826,
+      "file": "en-GB-Wavenet-F-05.mp3"
+    },
+    {
+      "text": "The final paragraph begins here; the traveler checks the route once more.",
+      "delayMs": 647,
+      "file": "en-GB-Wavenet-F-06.mp3"
+    },
+    {
+      "text": "This is the last section. The notebook closes, and the journey ends.",
+      "delayMs": 669,
+      "file": "en-GB-Wavenet-F-07.mp3"
+    }
+  ]
+}

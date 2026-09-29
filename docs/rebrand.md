@@ -1,0 +1,184 @@
+# PasteToSpeech domain move
+
+September 28, 2026. Product name: **PasteToSpeech**. Canonical website:
+**https://pastetospeech.com**. Changes are prepared on the current shared release
+branch, not the older main/Tailscale checkout.
+
+## Inventory and changes
+
+The initial case-insensitive search found 193 matching lines outside the lockfile.
+It covered `paste2speech`, `Paste2Speech`, `Paste to Speech`, and the former public
+hostname. The lockfile package identity was separately retained.
+
+- Page titles, main heading, About copy, pricing/terms/account/license pages,
+  sign-in display names and subjects, media-session titles, feedback notifications,
+  and systemd descriptions use PasteToSpeech.
+- Downloaded MP4 artwork and title/album/artist/comment metadata use PasteToSpeech
+  and pastetospeech.com. Download names start with `pastetospeech-`.
+- Both public build paths generate canonical links, robots sitemap references,
+  and sitemap URLs for pastetospeech.com.
+- Production-trial and future public-launch configurations use the new reader
+  and feedback origins while keeping both custom domains on the same Worker.
+- The former hostname uses permanent 301 redirects. A compact expandable move
+  notice now appears on the new homepage, pricing, terms and account pages. Pricing and
+  terms keep their destinations; account/sign-in pages lead to a fresh account
+  sign-in. Other public paths lead home; sitemap.xml keeps its path, and robots.txt allows
+  crawling the redirects. Queries and tokens are never forwarded (including
+  inherited URL fragments). Redirect responses do not carry noindex.
+  Old API calls and writes return 410 rather than replaying across origins.
+- The workstation frontend's hosted feedback origin and the corresponding
+  browser mocks use the new domain. Reader tests and MP4 checks match the brand.
+- Roger's portfolio repository changes its project heading, description metadata,
+  and reader link to PasteToSpeech / pastetospeech.com.
+
+## Intentionally preserved
+
+- Repository directories, npm package and lockfile name, imports, module names,
+  `P2S_*` environment variables, cookies, local/session storage and cache keys.
+- Worker names, D1 databases/IDs, R2 bucket names, Durable Object classes and
+  bindings, migration history, resource IDs, prices, balances and account data.
+- Systemd filenames/unit dependencies, filesystem/config/credential paths,
+  Telegram bot handle, temporary-directory prefixes and historical user-agent.
+- Staging and Tailscale hostnames. The legacy root wrangler.jsonc and its Worker
+  tests/release runbook remain on the old origin for rollback/reference; do not
+  use that legacy deployment path for the new site.
+- Historical deployment, incident, DNS-verification and billing records retain
+  their original facts. Current migration instructions supersede old hostnames.
+- Mail sender credentials and Paddle-controlled receipt/statement wording require
+  verified provider changes; editing display text does not migrate those services.
+
+## Cutover and validation
+
+Use the shared staging-to-production release procedure. Keep owner-only trial
+and disabled checkout settings. Keep all existing data/resources. Attach the new
+custom domain through Cloudflare Workers so Cloudflare manages DNS and TLS.
+Update the portfolio only once the new reader is reachable.
+
+Configure and verify the new sending domain in Resend before switching EMAIL_FROM
+or the workstation sender. Keep tracking and receiving disabled, enforced TLS,
+and existing credentials unless their domain scope requires replacement.
+
+Update Paddle product branding, website approval, default payment link, and live
+webhook destination to the new domain. Do not activate checkout. A new domain may
+need Paddle review. Update receipt wording only after confirming the catalog;
+leave the bank/card descriptor factual until changed at Paddle. Old webhook URLs
+must be updated before enabling payments; the old hostname does not replay APIs.
+
+Cookies, cached models, browser preferences, saved reading IDs, and pending
+sign-in challenges are origin-scoped. Existing verified accounts remain in the
+same database and can be recovered by requesting a fresh sign-in at the new site.
+Finish existing readings before the move; no cross-domain browser-state transfer
+is implemented. No balances are migrated or recreated.
+
+Local checks: 223 Node tests; legacy build; staging/production builds; synthetic
+Chrome playback/parity and Resume/Clear checks; mobile portfolio/redirect layout,
+automatic redirect, generated canonicals/sitemaps; staging and production Wrangler
+dry runs. These do not establish real email delivery or a paid transaction.
+
+## Completed live cutover
+
+- Reader commit `6a718a2` deployed through staging to production. Both deployments
+  verified their served release metadata and asset digests. Existing shared-reader
+  changes since the previous production commit `48899b2` were included: Resume/Clear
+  recovery, chunk seeking, preset speeds, error wording and media metadata.
+- Production Worker version from the code deployment:
+  `5a652c8f-2c28-455b-9898-22d791cd9408`. Later EMAIL_FROM secret updates create
+  newer Worker versions without changing the reader asset commit.
+- Cloudflare attached pastetospeech.com to the existing production Worker, with
+  managed website DNS/TLS. The old hostname remains attached for the move page.
+  Live new-site HTTP 200, old move page, account status and disabled checkout verified.
+- Portfolio commit `f97f35f` pushed to main and its deployed HTML verified with the
+  new project name and destination.
+- Resend domain pastetospeech.com verified; DKIM TXT plus DNS-only `rsend` and
+  `send` CNAMEs installed exactly as supplied. Added initial DMARC `p=none`.
+  Receiving remains off; tracking is unconfigured; TLS is Enforced.
+- Production/staging EMAIL_FROM and private workstation sender now use
+  `PasteToSpeech <signin@pastetospeech.com>` / `signin@pastetospeech.com`.
+  Sending-only key retained (all-domains scope). Old sender domain retained.
+- One authorized sign-in email reached Gmail Inbox with SPF/DKIM/DMARC passing.
+  The browser showed the existing verified owner account and 14,628 available
+  characters. No synthesis, new credit, or purchase was performed.
+- Live Paddle product name is `PasteToSpeech — Speech pack`, with an updated
+  description and the same product ID, $10 price and 1,000,000-character pack.
+- Paddle approved pastetospeech.com and activated the merchant account during this
+  session. Its September 28 activation email explicitly names the new domain.
+- Default payment link saved as `https://pastetospeech.com/api/billing` after domain
+  approval. Statement descriptor saved as `PASTESPEAK` (Paddle allows at most ten
+  characters). Live webhook URL updated to
+  `https://pastetospeech.com/api/billing/webhook`; same ID, secret and 12 events,
+  still Inactive. Site checkout remains disabled in production-trial mode.
+
+## Remaining launch work
+
+This completes the rebrand and domain move, not paid-launch activation. Paddle's
+activation email asks the owner to enter payout details. Verify payout setup and
+complete the existing billing launch checks before enabling checkout/webhooks or
+switching to the future public-launch configuration. No live purchase was tested.
+Sandbox catalog/receipt/card wording and the historical live-setup records were
+not rewritten to imply sandbox settings had changed. Search-console properties
+and old sitemap submissions retain their prior records; new-domain submission is
+separate follow-up work. The staging hostname and internal project identifiers
+remain unchanged. The older main/Tailscale checkout was not overwritten.
+
+## Search migration follow-up
+
+Reader commit `b769c87` changes the former public host to permanent 301 redirects,
+with the informative notice on the new site. The old robots.txt allows crawling
+public redirects; the sitemap redirects to the new sitemap. Account navigation
+strips queries and fragments, and API work still returns 410. Both shared release
+pipelines passed 223 tests, browser playback/parity and Resume/Clear checks;
+staging and production served assets were verified. Production Worker version:
+`b3b94cc5-5583-49ee-815a-b8778f31f8f0`.
+
+On September 28, 2026, pastetospeech.com ownership was verified directly via
+Cloudflare DNS in Google Search Console (TXT) and Bing Webmaster Tools (CNAME).
+Keep both verification records. No Google-to-Bing account import was required.
+Google processed the new sitemap successfully with three discovered pages.
+Bing accepted the sitemap (initial status Processing) and the homepage URL
+submission. Submission/discovery is not proof of search-result inclusion.
+
+Keep the former hostname and redirects for at least one year, through September
+28, 2027, preferably longer for old bookmarks. Keep existing verification records
+for rogerpbrown.com and the old speech property; the portfolio is not moving.
+
+Google Change of Address passed its required homepage-301 and ownership checks.
+Confirmed the move from the URL-prefix property `https://speak.rogerpbrown.com/`
+to the `pastetospeech.com` domain property. Search Console now reports "This site
+is currently moving", started September 28, 2026. The parent rogerpbrown.com
+property was not moved.
+
+## Staging hostname
+
+The new private staging origin is `https://staging.pastetospeech.com`.
+The same Cloudflare Access application protects both this hostname and
+`speak-staging.rogerpbrown.com`, with the existing Roger-only policy, audience,
+identity provider and session duration. Protection is configured before attaching
+the new Worker custom domain. The old staging address redirects safe navigation
+only after Access verification; old API work returns 410, with no cross-origin
+replay or token forwarding. Testing-mode bookmarks keep only `testing=1`.
+
+Worker, sandbox catalog, database, audio storage and account records are unchanged.
+Browser cookies/preferences/saved readings are origin-scoped: request a fresh
+staging email sign-in to recover the same verified account at the new hostname.
+Staging remains noindex, with robots.txt disallowing crawling; it is not included
+in the public sitemap. Historical rehearsal records retain the old hostname.
+Current release/check scripts and staging runbooks use the new hostname.
+
+Staging cutover completed September 28, 2026:
+- Code commit `3572310389ca7fccf5441d0203fb245dd379d4d4`; Worker version
+  `be0c212b-cb47-45e4-ab15-c10a1919c141`.
+- All 225 tests plus both builds, Chrome playback/parity and Resume/Clear checks
+  passed. Initial hosted verification lacked a cloudflared token cached for the
+  new hostname; renewed the normal Access login and independently verified the
+  exact release metadata and every hosted asset digest without redeploying.
+- Both hostnames send unauthenticated requests to Access. Authenticated old-host
+  navigation returns 301 to new staging; arbitrary query strings are removed.
+- New homepage returns noindex; robots.txt disallows crawling. Account status
+  confirms sandbox checkout/email configuration. No purchase or live synthesis
+  was performed.
+- Paddle Sandbox default payment link changed from the legacy Tailscale account
+  URL to `https://staging.pastetospeech.com/api/billing`, saved and verified after
+  reload. This account-wide sandbox setting also affects future payment links
+  created by the legacy workstation; its product IDs and API credentials stay
+  unchanged. Existing sandbox receipt/statement branding is unchanged.
+- Production was not redeployed for this staging-only hostname change.

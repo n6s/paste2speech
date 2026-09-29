@@ -1,0 +1,44 @@
+{
+  "result": "PASS",
+  "scope": "Local D1, Durable Objects and R2; synthetic identities, fake credit, cached audio",
+  "charactersPerReading": 521,
+  "complete": {
+    "job": "318dbd69-bcef-4032-97ae-5b8229b4a8e7",
+    "total": 521,
+    "remaining": 0,
+    "state": "closed",
+    "outcome": "ready",
+    "consumed": 521,
+    "released": 0
+  },
+  "failed": {
+    "job": "5a425408-702f-453a-8ea9-462864eefaf1",
+    "total": 521,
+    "remaining": 0,
+    "state": "closed",
+    "outcome": "failed",
+    "consumed": 136,
+    "released": 385
+  },
+  "cancelled": {
+    "job": "2d148232-45ad-4b08-81a4-d4338c559c02",
+    "total": 521,
+    "remaining": 0,
+    "state": "closed",
+    "outcome": "cancelled",
+    "consumed": 206,
+    "released": 315
+  },
+  "checks": [
+    "Missing and forged sessions rejected",
+    "Concurrent duplicate reserves once; changed input and cross-account access rejected",
+    "Successful preparation charges once despite repeated creates and status reads",
+    "Partial failure charges only successful sections and releases the rest",
+    "Stop records successful in-flight sections before refund; no later batches",
+    "Two simultaneous readings cannot overspend the available credit",
+    "Logout invalidates the stored session"
+  ],
+  "restart": "PASS: balance, stored recording, eight attempts and duplicate-create accounting preserved",
+  "javascriptTests": 118,
+  "existingPlaybackApiChecks": "PASS"
+}

@@ -1,0 +1,46 @@
+{
+  "name": "private-wavenet-account-proof",
+  "main": "worker.js",
+  "compatibility_date": "2026-09-21",
+  "workers_dev": false,
+  "preview_urls": false,
+  "vars": {
+    "LOCAL_PROOF": "1",
+    "ENABLE_LIVE_SYNTHESIS": "0"
+  },
+  "assets": {
+    "directory": "../../work/wavenet-worker-proof/site",
+    "binding": "ASSETS",
+    "run_worker_first": true
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "JOBS",
+        "class_name": "PreparedReading"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": [
+        "PreparedReading"
+      ]
+    }
+  ],
+  "r2_buckets": [
+    {
+      "binding": "AUDIO",
+      "bucket_name": "private-wavenet-proof-local"
+    }
+  ],
+  "d1_databases": [
+    {
+      "binding": "LEDGER",
+      "database_name": "private-wavenet-account-local",
+      "database_id": "00000000-0000-4000-8000-000000000001",
+      "migrations_dir": "migrations"
+    }
+  ]
+}

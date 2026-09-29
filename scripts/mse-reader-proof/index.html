@@ -1,0 +1,15 @@
+<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Progressive reading test</title><link rel="stylesheet" href="/style.css">
+<main><h1>Progressive reading test</h1><p>Cached WaveNet audio, with simulated preparation delays. No speech purchases or live generation.</p><p id="capability"></p>
+<form id="settings"><label>Voice <select id="voice"><option value="en-US-Wavenet-F">American English</option><option value="en-GB-Wavenet-F">British English</option></select></label>
+<label>Playback <select id="mode"><option value="mse">Append audio as it becomes ready (MSE)</option><option value="full">Prepare everything first (comparison)</option></select></label>
+<label>Requests in flight <select id="concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
+<label>Test <select id="scenario"><option value="normal">Normal · about 40 seconds</option><option value="out-of-order">Sections finish out of order</option><option value="stalled">Delayed second section · tests buffering</option><option value="failure">Second section fails</option><option value="long">Long · repeated sections, several minutes</option></select></label>
+<button id="start">Start reading</button></form>
+<p id="state" role="status" aria-live="polite">Ready</p><p id="error" role="alert"></p>
+<div class="controls"><button id="pause">Pause</button><button id="resume">Resume / replay</button><button id="stop">Stop / clear</button></div>
+<label>Speed <select id="rate"><option value="0.75">0.75×</option><option value="1" selected>1×</option><option value="1.5">1.5×</option><option value="2">2×</option></select></label>
+<label>Position <input id="seek" type="range" min="0" max="0" step="0.01" value="0" disabled></label><p id="position">0 seconds</p><p id="buffered"></p>
+<audio id="audio" preload="auto"></audio><div id="text"></div>
+<p><a id="mp3" hidden>Download MP3</a> <a id="vtt" hidden>Download VTT</a></p><button id="diagnostics">Save test results</button>
+<details><summary>Phone checks</summary><ol><li>Listen through preparation and completion: any repeated, missing, or interrupted words?</li><li>Pause, seek within available audio, and change speed. Check highlighting.</li><li>Choose Long, start, and lock the screen before preparation finishes. Listen for several minutes.</li><li>Compare one and three requests; briefly interrupt the connection. Tap Resume if reconnection is needed.</li></ol><p>Long uses repeated synthetic text. Report screen-lock behavior separately; desktop checks cannot establish it.</p></details>
+</main><script type="module" src="/app.js"></script></html>

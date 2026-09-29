@@ -29,7 +29,7 @@ Help free browser-voice users discover the natural paid voices.
 
 Roger especially liked this interaction:
 
-**Select text → right-click → Read in Paste to Speech.**
+**Select text → right-click → Read with PasteToSpeech.**
 
 Open the existing reader with the selected text ready and saved voice/speed
 preferences. Keep playback, downloads, accounts and billing in the web app;
@@ -38,6 +38,10 @@ make the extension small and focused. Only transfer text the user selected.
 Possible later extensions: keyboard shortcut, main-article extraction without
 menus/ads, and playback controls within the source page. These are secondary to
 the selected-text right-click workflow.
+
+The selected-text extension shipped as a personal Chrome trial on September 28,
+2026. See [installation and verification](chrome-extension.md). The additional
+ideas above remain future work.
 
 ## Premium scan-to-speech and image input
 
@@ -135,7 +139,10 @@ Added September 27, 2026, at Roger's request. Revisit these together:
 - Keep the less frequently used voice controls collapsed by default so ordinary
   playback and speed adjustments do not require opening them.
 
-This records requested follow-up work only; no player changes are implemented.
+September 28 status: the released reader now has section seeking, a preset speed
+button beside the playback controls, and collapsed voice settings. These changes
+reuse prepared audio. Keep further seeking improvements as a follow-up to clarify;
+the original request above is retained as planning history.
 
 ## When revisiting
 

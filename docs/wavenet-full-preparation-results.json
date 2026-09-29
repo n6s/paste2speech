@@ -1,0 +1,152 @@
+{
+  "validation": "Complete-delivery shared player, cached synthesis replay; no new paid requests",
+  "evidenceFile": "work/wavenet-mp3-proof/browser-1790027360442.json",
+  "automatedTestsPassed": 103,
+  "buildPassed": true,
+  "browser": {
+    "mode": "full",
+    "voice": "en-US-Wavenet-F",
+    "userAgent": "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/153.0.0.0 Safari/537.36",
+    "checks": [
+      "Full preparation opens only the completed recording",
+      "Pause holds audio clock",
+      "Highlight text matches original sections exactly",
+      "Speed changes without regenerating audio",
+      "Seek and highlight section 1",
+      "Seek and highlight section 5",
+      "Seek and highlight section 8",
+      "Seek and highlight section 3",
+      "Highlight crosses section boundary on audio clock",
+      "VTT includes every original section",
+      "Flat MP3 export is available",
+      "Browser decoded duration matches frame-count timeline",
+      "Export retains original bytes for section 1",
+      "Export retains original bytes for section 2",
+      "Export retains original bytes for section 3",
+      "Export retains original bytes for section 4",
+      "Export retains original bytes for section 5",
+      "Export retains original bytes for section 6",
+      "Export retains original bytes for section 7",
+      "Export retains original bytes for section 8",
+      "Browser section joins preserve decoded audio",
+      "Playback reaches the real final frame",
+      "Native completed-file duration agrees with captions"
+    ],
+    "completeMs": 2788.5,
+    "duration": 38.712,
+    "events": [
+      {
+        "event": "loadstart",
+        "elapsedMs": 2793.300000011921,
+        "time": 0,
+        "duration": null,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "waiting",
+        "elapsedMs": 2808.100000023842,
+        "time": 0,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 2809,
+        "time": 0,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "playing",
+        "elapsedMs": 2809.400000035763,
+        "time": 0,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 3282.199999988079,
+        "time": 0.2,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 3301,
+        "time": 18.439999,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 3328.800000011921,
+        "time": 34.16,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 3351.900000035763,
+        "time": 11.575999,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 3383.5,
+        "time": 16.041999,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "playing",
+        "elapsedMs": 3404.699999988079,
+        "time": 16.041999,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "seeked",
+        "elapsedMs": 4150,
+        "time": 38.312,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "playing",
+        "elapsedMs": 4176.5,
+        "time": 38.312,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      },
+      {
+        "event": "ended",
+        "elapsedMs": 4661.699999988079,
+        "time": 38.712,
+        "duration": 38.712,
+        "complete": true,
+        "source": "http://127.0.0.1:8786/api/readings/2/audio?complete=1"
+      }
+    ],
+    "firstPlayingMs": 2809.400000035763,
+    "firstAdvanceMs": 2960.400000035763,
+    "serverReadyMs": 2739.2326780000003,
+    "browserDecodedDuration": 38.712,
+    "browserDecodedSamples": 929088,
+    "browserMaxJoinDifference": 1.367009417663212e-06,
+    "nativeDuration": 38.712,
+    "result": "PASS"
+  }
+}

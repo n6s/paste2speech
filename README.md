@@ -1,10 +1,26 @@
-# Paste to Speech
+# PasteToSpeech
 
-Public early preview: **https://speak.rogerpbrown.com**. Cloudflare serves a separate
-build with browser voices, experimental on-device Kokoro, local PDF extraction,
-optional support links, and a feedback inbox that notifies Roger through the
-dedicated `@paste2speech_bot`. See [release operations](RELEASE.md) for build,
-deployment, privacy, analytics, rollback, and the planned review workflow.
+The canonical source checkout is **`/home/roger/workarea/paste2speech` on `main`**.
+It contains the current public/staging reader, private workstation reader, and
+Chrome extension source. The previously separate shared release history was merged
+here on September 28, 2026. Older Codex worktree paths in historical reports are
+not the place to start new work.
+
+Public reader: **https://pastetospeech.com**. The former address redirects here.
+Browser voices are free; public WaveNet speech packs are live. See the
+[current release workflow](docs/reader-release.md) and
+[live billing verification record](docs/live-billing-2026-09-28.md).
+
+The Chrome extension source is in `extension/`. Build it with
+`npm run build:extension`; install the production folder at
+`/home/roger/workarea/paste2speech/dist/chrome-extension/production`.
+See [Chrome extension installation](docs/chrome-extension.md).
+The ordinary site build preserves this installation directory.
+
+Use `npm run release:reader:public` for local public-release preparation.
+The `release:reader:production` command is the historical owner-only trial path;
+do not use it for the current public site. The legacy `npm run deploy` path is
+also gated. Deployment remains a separate, explicitly authorized action.
 
 For automated feedback investigations, Telegram summaries, and looking up a report
 by ID, see [feedback reviewer operations](FEEDBACK-REVIEW.md).
@@ -28,7 +44,7 @@ Or paste text, choose **Read** to review the cleaned text without starting or re
 
 ## Use it from your Pixel over Tailscale
 
-Open **https://pop-os.tailbd091c.ts.net/speak/** with Tailscale connected on the Pixel. Immich remains at the hostname's root. Paste to Speech is served directly from `public/` by Tailscale; Python is only needed for local development.
+Open **https://pop-os.tailbd091c.ts.net/speak/** with Tailscale connected on the Pixel. Immich remains at the hostname's root. PasteToSpeech is served directly from `public/` by Tailscale; Python is only needed for local development.
 
 The route is already configured. To recreate it:
 
@@ -44,7 +60,7 @@ To inspect routes:
 tailscale serve status
 ```
 
-To remove only Paste to Speech:
+To remove only PasteToSpeech:
 
 ```sh
 sudo tailscale serve --https=443 --set-path=/speak off

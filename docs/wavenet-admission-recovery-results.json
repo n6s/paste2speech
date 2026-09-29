@@ -1,0 +1,18 @@
+{
+  "result": "PASS",
+  "checks": [
+    "after-intent: automatic recovery without resubmission; eight attempts and one charge",
+    "after-reserve: automatic recovery without resubmission; eight attempts and one charge",
+    "after-intent: cancelling pending admission returns any hold; replay cannot reserve again",
+    "after-reserve: cancelling pending admission returns any hold; replay cannot reserve again"
+  ],
+  "restart": {
+    "result": "PASS",
+    "charged": 521,
+    "attempts": 8
+  },
+  "javascriptTests": 123,
+  "accountRegression": "PASS",
+  "cachedAudioRegression": "PASS",
+  "scope": "Local only, cached audio and fake credit; no paid calls or loaded Google credentials"
+}
