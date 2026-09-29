@@ -28,3 +28,5 @@ https://flatpak.github.io/xdg-desktop-portal/docs/doc-org.freedesktop.portal.Scr
 To omit title bars/tabs, use `grab-wayland --crop-top 100 demo.mkv`.
 The amount is in captured pixels, removed before automatic even-dimension padding.
 Adjust the number after a short test; keep it smaller than the captured height.
+
+Recording uses a fixed 30 fps cadence to normalize irregular portal frame arrival.
