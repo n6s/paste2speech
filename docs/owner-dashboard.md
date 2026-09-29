@@ -1,6 +1,6 @@
 # Private owner dashboard
 
-Prepared September 28, 2026. Not deployed by this implementation.
+Deployed September 28, 2026 (September 29 UTC), with Roger's approval.
 
 After the normal staging/public release, open `/api/owner` on the reader domain.
 Sign in through Account with the email configured in `OWNER_EMAIL`, then return
@@ -57,3 +57,24 @@ Run the normal preparation and staging-to-public promotion in
 After deployment, verify `/api/owner` and `/api/owner/report` deny signed-out
 access, sign in as the owner, and compare the displayed report with the existing
 records. This implementation's validation uses fixtures, not production data.
+
+
+## Deployment verification
+
+Release `49bce5d48957a496513de9dd7e8614ac664efe1a` deployed to staging
+(version `2afffac3-d090-4632-8af3-efb4232cf556`) and then public production
+(version `5bcdff7b-20bf-446c-aac1-6c4743710bfd`). Both release commands
+verified hosted metadata/assets; 238 tests and reader parity/Resume checks passed.
+
+The first staging check exposed Worker bundling helpers inside a serialized
+client function. The corrected release imports the browser script as text;
+the browser check now bundles with name preservation enabled to catch this case.
+Production was promoted only after the corrected staging report loaded.
+
+Existing owner sessions loaded real reports on both hosted environments.
+Signed-out requests to the HTML, JavaScript, and report routes returned 403
+with no-store/noindex headers on both. A transient production 404 during edge
+propagation cleared on the next verification. Read-only production SQL confirmed
+one owner identity and one owner live purchase, with no other verified identities
+or completed customer purchases at verification time. No migrations or financial
+writes were performed. Anonymous event totals include owner/test traffic.
