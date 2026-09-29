@@ -44,6 +44,7 @@ if(videoDownload){
  await writeFile(root+'/video/core.json',JSON.stringify({parts}));
 }
 await copyFile('public/style.css',root+'/style.css');
+await copyFile('public/domain-move.js',root+'/domain-move.js');
 const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
 for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
 let html=await readFile('public/index.html','utf8');
@@ -134,8 +135,8 @@ html=html.replace(download,'');
 html=html.replace('<footer',`<section class="card download-card" aria-label="Recording download">${download}</section><section class="card cleanup-card" aria-label="Text cleanup">${cleanup}</section><footer`);
 if(mse)html=html.replace('</footer>','<p id="testing-mode-link"><a href="/?testing=1">Testing mode</a></p></footer>');
 const origin='https://pastetospeech.com';
-const moveNotice='<details class="domain-move hint"><summary>We have a new home: pastetospeech.com</summary><p>The same PasteToSpeech reader, with an address of its own. Please update your bookmark from speak.rogerpbrown.com.</p><p>You may need to sign in again. Browser preferences and unfinished readings do not move between websites. For an old sign-in link, request a fresh link on the <a href="/api/billing">account page</a>.</p></details>';
-if(production)html=html.replace('</header>',moveNotice+'</header>');
+const moveNotice='<details class="domain-move hint" hidden><summary>We have a new home: pastetospeech.com</summary><p>The same PasteToSpeech reader, with an address of its own. Please update your bookmark from speak.rogerpbrown.com.</p><p>You may need to sign in again. Browser preferences and unfinished readings do not move between websites. For an old sign-in link, request a fresh link on the <a href="/api/billing">account page</a>.</p></details>';
+html=html.replace('</header>',moveNotice+'</header>');
 if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToSpeech — Text and PDF Reader</title><meta name="description" content="Listen to pasted text and PDFs with free browser voices. Read PDFs locally, follow along, and adjust playback speed. '+(publicLaunch?'WaveNet recordings use prepaid speech credit.':'WaveNet is currently an owner-only trial.')+'"><link rel="canonical" href="'+origin+'/">');
 else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
 await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
@@ -144,9 +145,9 @@ await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
 billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').replace(/<p><label><input id="mode"[\s\S]*?<\/label><\/p>/,'').replace('Pronunciation expansions cost no extra allowance.','WaveNet uses its default pronunciation.');
-if(production)billing=billing.replace('</h1>','</h1>'+moveNotice);
+billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
-let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
+let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
 await writeFile(root+'/billing.js',billingJS);
 await mkdir(root+'/voice-previews',{recursive:true});
 for(const name of previewAssets)await copyFile('assets/'+name,root+'/'+name);
@@ -162,4 +163,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

@@ -130,7 +130,7 @@ test('old hostname permanently redirects without touching accounts or forwarding
  const env={READER_MODE:'production-trial',READER_ORIGIN:origin};
  for(const [path,target] of [['/','/'],['/terms','/terms'],['/pricing','/pricing'],['/sitemap.xml','/sitemap.xml'],['/signin#secret','/api/billing'],['/api/billing/signin?token=secret','/api/billing'],['//evil.invalid/?next=https://evil.invalid','/']]){
   const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path),env,{});
-  assert.equal(response.status,301);assert.equal(response.headers.get('location'),`${origin}${target}#`);assert.equal(response.headers.get('x-robots-tag'),null);assert.equal(await response.text(),'');assert.equal(response.headers.get('referrer-policy'),'no-referrer');
+  assert.equal(response.status,301);assert.equal(response.headers.get('location'),`${origin}${target}${['/','/api/billing'].includes(target)?'?from=legacy':''}#`);assert.equal(response.headers.get('x-robots-tag'),null);assert.equal(await response.text(),'');assert.equal(response.headers.get('referrer-policy'),'no-referrer');
  }
  for(const [path,method] of [['/api/readings','POST'],['/api/billing/webhook','POST'],['/api/billing/status','GET']]){
   const response=await worker.fetch(new Request('https://speak.rogerpbrown.com'+path,{method}),env,{});assert.equal(response.status,410);assert.equal(response.headers.get('location'),null);

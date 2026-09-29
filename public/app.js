@@ -1,3 +1,5 @@
+import {setupDomainMoveNotice} from './domain-move.js';
+setupDomainMoveNotice();
 import {setupExtensionHandoff} from './extension-handoff.js';
 import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
 import {WAVENET_VOICES} from './wavenet-voices.js';

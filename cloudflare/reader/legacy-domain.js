@@ -10,7 +10,7 @@ export function legacyDomainResponse(request) {
  const path=account?'/api/billing':['/pricing','/terms','/sitemap.xml'].includes(url.pathname)?url.pathname:'/';
  const target='https://pastetospeech.com'+path;
  // An explicit empty fragment prevents browsers inheriting old sign-in tokens.
- headers.Location=target+'#';
+ headers.Location=target+(path==='/'||account?'?from=legacy':'')+'#';
  delete headers['X-Robots-Tag'];
  return new Response(null,{status:301,headers});
 }
