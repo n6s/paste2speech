@@ -42,6 +42,8 @@ if(videoDownload){
  await writeFile(root+'/video/core.json',JSON.stringify({parts}));
 }
 await copyFile('public/style.css',root+'/style.css');
+const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
+for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
 let html=await readFile('public/index.html','utf8');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
 // Keep the reader next to its controls, with optional settings following playback.
@@ -144,4 +146,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js',...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
