@@ -39,7 +39,7 @@ try{
    }
    await route.fulfill({json:data});
   });
-  await page.goto(origin);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+  await page.goto(origin);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
   assert.equal(await page.locator('#mse-delivery').inputValue(),'mse');
   assert.equal(await page.locator('#playback-options').evaluate(e=>e.open),false);
   assert.equal(await page.locator('#mse-delivery').isVisible(),false);
@@ -51,6 +51,7 @@ try{
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
   await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.ok(Date.now()-started<1700);
   assert.equal(await page.locator('#seek').getAttribute('max'),'0');
+  assert.ok(await page.locator('#next-section').isDisabled());
   const source=await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).src);
   await page.click('#pause');await page.waitForFunction(()=>__appends===3);await page.waitForFunction(()=>__audio.some(a=>Number.isFinite(a.duration)&&a.duration>10));
   const state=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {source:a.src,loads:a.__loads,duration:a.duration,paused:a.paused};});
@@ -90,6 +91,28 @@ try{
    assert.ok(await page.locator('#staging-checks').isVisible());assert.ok(await page.locator('#mse-cached').isChecked());
    await page.goto(origin);assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');assert.equal(await page.locator('#staging-checks').isVisible(),false);
   }else{assert.equal(await page.locator('#staging-checks').count(),0);assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');}
+  // Browser speech uses the same controls without creating audio jobs.
+  await page.addInitScript(()=>{
+   window.__spoken=[];
+   Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[{name:'Fixture',voiceURI:'fixture',lang:'en-US',localService:true}],addEventListener(){},cancel(){},speak(u){window.__spoken.push(u);}}});
+   window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
+  });
+  await page.goto(origin);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','browser');
+  await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');
+  assert.equal(await page.locator('#seek').getAttribute('max'),'2');
+  await page.click('#next-section');assert.equal(await page.locator('#seek-time').textContent(),'2 / 3');
+  await page.click('#pause');await page.locator('#seek').focus();await page.keyboard.press('ArrowRight');
+  assert.equal(await page.locator('#seek-time').textContent(),'3 / 3');assert.ok(await page.locator('#next-section').isDisabled());
+  await page.locator('#seek').evaluate(e=>{e.value=0;e.dispatchEvent(new Event('input',{bubbles:true}));});
+  assert.equal(await page.locator('#seek-time').textContent(),'1 / 3');
+  await page.locator('#seek').dispatchEvent('pointercancel');assert.equal(await page.locator('#seek-time').textContent(),'3 / 3');
+  await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());await page.click('#play');
+  assert.equal(await page.locator('#seek-time').textContent(),'1 / 3');
+  await page.setViewportSize({width:1280,height:900});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-desktop.png`});
+  await page.setViewportSize({width:412,height:915});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-mobile.png`});
+  await page.click('#stop');assert.ok(await page.locator('#seek').isDisabled());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');
+  await page.click('#clear');assert.ok(await page.locator('#previous-section').isDisabled());assert.ok(await page.locator('#next-section').isDisabled());
+  assert.deepEqual(errors,[]);
   await context.close();
   const cleared=await browser.newContext(),fresh=await cleared.newPage();let freshCreates=0;const freshJobs=new Map();
   await fresh.route('**/api/**',async route=>{

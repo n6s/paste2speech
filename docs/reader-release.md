@@ -163,8 +163,15 @@ Chrome against both reader builds, with speech API calls intercepted.
 
 ## Chunk navigation and speed presets
 
-The public reader position slider selects sentence chunks, using the existing
-500-character splitting limit and phrase-boundary fallback. Only consecutively
+The cloud reader uses one position slider for browser voices and WaveNet, with
+shared previous/next section controls. Browser voices can select any loaded
+section; seeking restarts at its beginning and preserves playing or paused state.
+Seeking after completion selects a section while paused. Stop and Clear disable
+navigation until a reading is loaded again. The duplicate upper progress bar
+and counter are omitted from cloud builds.
+
+The position slider selects sentence chunks, using the existing
+500-character splitting limit and phrase-boundary fallback. For WaveNet, only consecutively
 prepared chunks are selectable; the position count retains the whole-reading
 total. Dragging commits on release and preserves playing or paused state.
 

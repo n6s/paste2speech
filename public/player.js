@@ -33,5 +33,14 @@ export class Player {
   fail(message) { this.cancel(); this.state = 'paused'; this.emit(message); }
   pause() { if (this.state !== 'playing') return; this.cancel(); this.state = 'paused'; this.emit(); }
   resume(settings) { if (this.state !== 'paused') return; this.settings = settings; this.state = 'playing'; this.speak(); }
+  seekSection(index) {
+    if (!this.chunks.length || this.state === 'idle' || !Number.isFinite(index)) return;
+    const playing = this.state === 'playing';
+    this.cancel();
+    this.index = Math.max(0, Math.min(this.chunks.length - 1, Math.trunc(index)));
+    this.offset = 0;
+    this.state = playing ? 'playing' : 'paused';
+    if (playing) this.speak(); else this.emit();
+  }
   stop() { this.cancel(); this.state = 'idle'; this.index = 0; this.offset = 0; this.emit(); }
 }

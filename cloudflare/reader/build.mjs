@@ -74,6 +74,7 @@ html=html.replace('<section class="card voice-settings-card"', `<section id="voi
 ${!production?'<p class="hint">Staging uses test purchases only.</p>':''}
 </details></section><section class="card voice-settings-card"`);
 html=html.replace('<p id="voice-note"', '<p id="upgrade-note" class="hint" role="status" hidden></p><p id="voice-note"');
+html=html.replace('<span id="position"></span>','').replace(/<progress id="progress"[^>]*><\/progress>/,'');
 html=html.replace('<div id="recording-controls" hidden>','<div id="recording-controls" hidden><label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label>');
 html=html.replace('Voice &amp; speed','Voice');
 html=html.replace(/<label>Speed <output id="rate-value">[\s\S]*?<\/label>/,'<input id="rate" type="hidden" value="1"><output id="rate-value" hidden></output>');
@@ -82,6 +83,7 @@ const sectionNavigation='<div class="controls"><button id="previous-section" cla
 html=html.replace(sectionNavigation,'');
 html=html.replace('<button id="speed-preset"',sectionNavigation.replace('class="controls"','class="controls section-controls"').replace('</div>','<button id="speed-preset"'));
 html=html.replace('Activate to change speed.">1×</button><div id="recording-controls"','Activate to change speed.">1×</button></div><div id="recording-controls"');
+html=html.replace('<div id="recording-controls" hidden><label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label>','<label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label><div id="recording-controls" hidden>');
 html=html.replace('<div class="settings">','<div class="settings" style="grid-template-columns:1fr">');
 html=html.replace(/<p id="playback-note"[^>]*>.*?<\/p>/,'<p id="playback-note" class="hint">Browser voices are free. WaveNet starts playback as audio becomes ready.</p>');
 let footer=await readFile('browser/footer.html','utf8');

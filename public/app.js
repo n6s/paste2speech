@@ -259,8 +259,8 @@ function render(p, message) {
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
-  $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
-  $('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;
+  if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
+  if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
   $('play').textContent = ['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
   $('play').disabled = ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
   $('pause').disabled = !['playing', 'preparing', 'buffering'].includes(p.state);
@@ -279,17 +279,21 @@ function render(p, message) {
     if(href)$(id).href=href;else $(id).removeAttribute('href');
   }
   if(CLOUD_READER){
-    const available=preparedChunkCount(p);
+    const available=navigableSections(p);
     const index=Math.max(0,Math.min(p.chunks.length-1,p.index||0));
     const seek=$('seek');
-    seek.disabled=!isGoogle()||!available;
+    seek.disabled=!available;
     seek.max=Math.max(0,available-1);
     if(seek.dataset.dragging!=='true')seek.value=Math.min(index,Math.max(0,available-1));
-    seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${p.chunks.length}`);
-    $('seek-time').textContent=`${p.chunks.length?index+1:0} / ${p.chunks.length}`;
+    const total=p.state==='idle'?0:p.chunks.length;
+    seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${total}`);
+    const selected=seek.dataset.dragging==='true'?Number(seek.value):index;
+    $('seek-time').textContent=`${total?selected+1:0} / ${total}`;
+    $('previous-section').disabled=!available||index===0;
+    $('next-section').disabled=!available||index>=available-1;
   }
-  $('previous-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index===0;
-  $('next-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index>=p.chunks.length-1;
+  if(!CLOUD_READER) $('previous-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index===0;
+  if(!CLOUD_READER) $('next-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index>=p.chunks.length-1;
   const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
   for (const [index, button] of sentenceElements.entries()) {
     const current = active && p.index === index;
@@ -405,8 +409,15 @@ $('paste-play').addEventListener('click', async () => {
 $('clear').addEventListener('click', () => { workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
-$('previous-section').addEventListener('click',()=>workstationPlayer.move(-1));
-$('next-section').addEventListener('click',()=>workstationPlayer.move(1));
+function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
+function seekSection(index){
+  const available=navigableSections(player);
+  if(!available)return;
+  const target=Math.max(0,Math.min(available-1,index));
+  if(player===browserPlayer)player.seekSection(target);else player.seekTo(player.starts[target]);
+}
+$('previous-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index-1):workstationPlayer.move(-1));
+$('next-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index+1):workstationPlayer.move(1));
 $('include-captions')?.addEventListener('change',()=>render(player));
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
@@ -415,6 +426,10 @@ window.addEventListener('pagehide', () => { if (player === browserPlayer) player
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){
+  const seek=$('seek');
+  seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
+  seek.addEventListener('change',()=>{const target=Number(seek.value);delete seek.dataset.dragging;seekSection(target);render(player);});
+  seek.addEventListener('pointercancel',()=>{delete seek.dataset.dragging;render(player);});
   const button=$('speed-preset');
   const updateSpeed=()=>{button.textContent=`${$('rate').value}×`;button.setAttribute('aria-label',`Playback speed: ${$('rate').value}×. Activate to change speed.`);};
   button.addEventListener('click',()=>{
@@ -496,7 +511,7 @@ if (!CLOUD_READER) {
 }
 }
 if (CLOUD_READER) {
-  setupCloudReader({player:workstationPlayer, getEngine:()=> $('engine').value});
+  setupCloudReader({getEngine:()=> $('engine').value});
   if(saved.engine==='google'){$('engine').value='google';changeEngine();}
   voicePreviews=setupVoicePreviews({pauseReading:()=>{if(['playing','preparing','buffering'].includes(player?.state))player.pause();}});
   setupFeedback(()=>player?.state||'idle',()=>({...options}));

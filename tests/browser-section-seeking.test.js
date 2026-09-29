@@ -1,0 +1,6 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import {Player} from '../public/player.js';
+function fixture(){const spoken=[];const p=new Player({cancel(){},speak(u){spoken.push(u);}},class{constructor(text){this.text=text;}});p.start(['One.','Two.','Three.'],{rate:1});return {p,spoken};}
+test('playing seeks reset offset and ignore cancelled utterance callbacks',()=>{const {p,spoken}=fixture();const stale=spoken[0];p.offset=2;p.seekSection(1);assert.equal(p.state,'playing');assert.equal(p.offset,0);assert.equal(spoken.at(-1).text,'Two.');stale.onend();stale.onerror({error:'failed'});stale.onboundary({name:'word',charIndex:3});assert.equal(p.index,1);assert.equal(p.offset,0);assert.equal(p.state,'playing');p.stop();});
+test('paused and completed seeks stay paused, clamp boundaries, and resume selected section',()=>{const {p,spoken}=fixture();p.pause();p.seekSection(99);assert.equal(p.index,2);assert.equal(spoken.length,1);p.resume({rate:1});spoken.at(-1).onend();assert.equal(p.state,'done');p.seekSection(-1);assert.equal(p.index,0);assert.equal(p.state,'paused');p.resume({rate:1});assert.equal(spoken.at(-1).text,'One.');p.stop();p.seekSection(2);assert.equal(p.state,'idle');assert.equal(p.index,0);});
