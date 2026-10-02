@@ -1,8 +1,21 @@
 import {WAVENET_VOICE_IDS} from '../../public/wavenet-voices.js';
-// Server-side only. Default Google speech: plain text, no SSML or rewrites.
+// Server-side only. Google speech uses plain text with conservative prose rewrites.
 const TOKEN_URL='https://oauth2.googleapis.com/token';
 const SPEECH_URL='https://texttospeech.googleapis.com/v1/text:synthesize';
 const encoder=new TextEncoder();
+export function googleSpeechText(text){
+  // Only standalone, spaced prose chains. Leave URLs, clocks, code, formulas,
+  // single arrows and single-letter notation untouched. Display text stays original.
+  const spoken=text.replace(/[^\r\n]+/g,line=>{
+    const parts=line.trim().split(/[ \t]+→[ \t]+/);
+    if(parts.length<3 || !parts.some(part=>/[A-Za-z]+[ \t]+[A-Za-z]+/.test(part)) ||
+       parts.some(part=>! /^[A-Za-z][A-Za-z '\u2019-]*[.!?]?$/.test(part) ||
+         part.replace(/[.!?]$/,'').length<2))return line;
+    return line.replace(/[ \t]+→[ \t]+/g,', then ');
+  });
+  // A near-limit chunk must still fit Google's request budget after expansion.
+  return encoder.encode(spoken).length<=5000?spoken:text;
+}
 const b64url=bytes=>btoa(String.fromCharCode(...bytes)).replaceAll('+','-').replaceAll('/','_').replace(/=+$/,'');
 export async function readBounded(response, maximum){
   const reader=response.body?.getReader();if(!reader)throw Error('Empty response');
@@ -44,10 +57,11 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
 export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis.fetch(...args)}={}){
   if(!WAVENET_VOICE_IDS.includes(voice) || typeof text!=='string' ||
      !text.trim() || encoder.encode(text).length>5000)throw Error('Unsupported speech input');
+  const speechText=googleSpeechText(text);
   try {
     const response=await fetcher(SPEECH_URL,{method:'POST',redirect:'manual',signal:AbortSignal.timeout(60000),
       headers:{'Authorization':`Bearer ${token}`,'Content-Type':'application/json'},
-      body:JSON.stringify({input:{text},voice:{languageCode:voice.slice(0,5),name:voice},
+      body:JSON.stringify({input:{text:speechText},voice:{languageCode:voice.slice(0,5),name:voice},
         audioConfig:{audioEncoding:'MP3',sampleRateHertz:24000}})});
     if(!response.ok)throw Error();
     const result=JSON.parse(new TextDecoder().decode(await readBounded(response,8*1024*1024)));
