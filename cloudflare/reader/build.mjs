@@ -65,6 +65,11 @@ html=html.replace('<header>', `<header><div class="reader-header-links"><a href=
 html=html.replace('<section class="card voice-settings-card"', `<section id="voice-discovery" class="card voice-discovery" aria-label="Natural voice samples" hidden>
 <p class="voice-discovery-prompt">Want more natural speech and recordings with subtitles?</p>
 <p class="hint">Free browser voices may pause when you leave this tab. WaveNet prepares audio for background listening where your browser and device support it. Start playback before switching tabs or locking your screen.</p>
+<details id="voice-info-panel"><summary>Tell me more</summary>
+<p>Free browser voices use the text-to-speech service built into your browser or device. PasteToSpeech asks it to speak directly; it does not receive an audio recording. Voice quality and playback when you switch tabs or lock the screen vary by browser and device.</p>
+<p>WaveNet uses Google Cloud to create speech audio, which PasteToSpeech delivers to an audio player as it is prepared. It offers more natural voices and background listening where supported. Start playback before leaving the tab or locking the screen, and keep this page open. Background playback and lock-screen controls are not guaranteed on every device.</p>
+<p>Speech packs pay for new WaveNet speech generation, counted by characters of text. Browser voices and voice samples remain free. You can also download an MP4 recording with built-in subtitles, handy for longer material you want to finish later or replay without using more speech credits. Reusing audio that is still prepared also avoids generating speech again. Subtitle display depends on your player. Temporary prepared text and audio expire after 24 hours.</p>
+</details>
 <details id="voice-preview-panel"><summary>Hear free samples</summary>
 <p>Google WaveNet voices offer more natural-sounding speech and downloadable MP4 recordings with built-in subtitles.</p>
 <p class="hint">Free previews. No sign-in or speech credit needed.</p>

@@ -36,6 +36,14 @@ try{
   assert.equal(await page.locator('#voice-settings').evaluate(e=>e.open),false);
   assert.equal(await page.locator('.voice-discovery').isVisible(),true);
   assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
+  const info=page.locator('#voice-info-panel'),infoSummary=info.locator('summary');
+  assert.equal(await info.evaluate(e=>e.open),false);assert.equal(await info.locator('p').first().isVisible(),false);
+  assert.equal(await infoSummary.textContent(),'Tell me more');await infoSummary.focus();await page.keyboard.press('Enter');
+  assert.equal(await info.evaluate(e=>e.open),true);assert.equal(await info.locator('p').first().isVisible(),true);
+  assert.match(await info.textContent(),/text-to-speech/);assert.match(await info.textContent(),/not guaranteed on every device/);
+  assert.match(await info.textContent(),/download an MP4 recording with built-in subtitles/);assert.match(await info.textContent(),/replay without using more speech credits/);
+  await page.keyboard.press('Space');assert.equal(await info.evaluate(e=>e.open),false);
+  await infoSummary.click();assert.equal(await info.evaluate(e=>e.open),true);
   await page.locator('#voice-preview-panel summary').click();
   const buttons=page.locator('[data-preview-src]');assert.equal(await buttons.count(),4);
   await page.fill('#text','My own text must survive a voice preview.');
@@ -65,6 +73,9 @@ try{
   await buttons.nth(0).click();await page.waitForFunction(()=>document.querySelector('#voice-preview-status').textContent.startsWith('Playing'));
   await page.locator('#voice-settings summary').first().click();await page.selectOption('#engine','google');
   assert.equal(await page.locator('.voice-discovery').isVisible(),false);
+  assert.equal(await infoSummary.isVisible(),false);
+  await page.selectOption('#engine','browser');assert.equal(await infoSummary.isVisible(),true);assert.equal(await info.evaluate(e=>e.open),true);
+  await page.selectOption('#engine','google');assert.equal(await infoSummary.isVisible(),false);
   assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
   assert.equal(await page.evaluate(()=>__audio.some(a=>a.src.includes('/voice-previews/')&&!a.paused)),false);
   assert.equal(await page.locator('#voice').inputValue(),'en-US-Wavenet-F');
@@ -75,6 +86,7 @@ try{
    await page.selectOption('#voice',voice.id);assert.match(await page.locator('#voice-settings-summary').textContent(),new RegExp(voice.name));
    await page.reload();assert.equal(await page.locator('#voice').inputValue(),voice.id);
    assert.equal(await page.locator('.voice-discovery').isVisible(),false);
+   assert.equal(await infoSummary.isVisible(),false);
   }
   assert.equal(mutations,0,'Changing/restoring paid voices must not create paid readings');
   await page.locator('#voice-settings').evaluate(e=>e.open=true);
@@ -84,10 +96,12 @@ try{
   config={account:{balance:0,verified:true},accessAllowed:true,eligible:false};await page.evaluate(()=>window.dispatchEvent(new Event('speech-credit-change')));await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('speech pack'));
   config={account:{balance:10000,verified:true},accessAllowed:true,eligible:true};await page.evaluate(()=>window.dispatchEvent(new Event('speech-credit-change')));await page.waitForFunction(()=>document.querySelector('#upgrade-note').textContent.includes('10,000'));
   await page.selectOption('#engine','browser');
+  assert.equal(await infoSummary.isVisible(),true);assert.equal(await info.evaluate(e=>e.open),false);
   assert.equal(await page.locator('.voice-discovery').isVisible(),true);
   assert.equal(await page.locator('#voice-preview-panel').evaluate(e=>e.open),false);
   await page.locator('#voice-settings').evaluate(e=>e.open=false);
   await page.screenshot({path:`work/voice-previews/${environment}-mobile.png`,fullPage:true});
+  await infoSummary.click();await page.screenshot({path:`work/voice-previews/${environment}-mobile-info.png`,fullPage:true});
   assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth>innerWidth),false,'Mobile layout must not overflow');
   await page.setViewportSize({width:1280,height:900});await page.screenshot({path:`work/voice-previews/${environment}-desktop.png`,fullPage:true});
   assert.deepEqual(errors,[]);await context.close();console.log(`${environment}: voice preview and account states passed`);
