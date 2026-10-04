@@ -19,7 +19,10 @@ export class MsePlayer {
       if(name==='error'&&this.job)this.fail(Error(`Media decoding error ${audio.error?.code}: ${audio.error?.message||''}`));
       if(name==='loadeddata'&&this.mode==='mse'){this.capability.decoded=true;this.log('decode-verified');}
       if(name==='playing')this.state='playing';
-      if(name==='waiting'&&this.wantPlay)this.state='buffering';
+      if(name==='waiting'&&this.wantPlay){
+        if(this.status?.state==='credit-paused'&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.wantPlay=false;this.audio.pause();this.state='paused';}
+        else this.state='buffering';
+      }
       if(name==='ended'&&this.finalized){this.state='done';this.wantPlay=false;}
       this.emit();
     });
@@ -109,7 +112,13 @@ export class MsePlayer {
       while(serial===this.serial&&!signal.aborted){
         const status=await this.request(`/api/readings/${this.job}`);
         if(serial!==this.serial)return;
-        this.status=status;this.log('status',{state:status.state,completed:status.completed,total:status.total,starts:status.starts});
+        this.status=status;
+        if(status.state==='credit-paused'){
+          this.error=status.error;
+          if(!status.completed){this.wantPlay=false;this.audio.pause();}
+          if(!this.wantPlay)this.state='paused';
+        }
+        this.log('status',{state:status.state,completed:status.completed,total:status.total,starts:status.starts});
         if(status.state==='failed'){
           const message=(status.error||'Preparation interrupted').trim();
           throw Error(status.canResumePreparation?`${message}${/[.!?]$/.test(message)?'':'.'} Tap Resume to check the saved parts.`:'Preparation failed. Partial audio is not a complete reading.');

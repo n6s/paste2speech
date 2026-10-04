@@ -40,6 +40,9 @@ export class StagingPlayer extends MsePlayer {
   if(group?.error){
    if(this.resuming)return;
    this.resuming=true;
+   // Credit pauses leave the pump alive while paid audio drains. Retire that
+   // loop before starting recovery, without discarding the audio source.
+   if(group.error.creditPaused){this.serial++;this.controller.abort();}
    const serial=this.serial,time=this.audio.currentTime,index=this.index;
    const sectionOffset=time-(this.starts[index]||0);
    try{

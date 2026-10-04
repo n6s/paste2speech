@@ -19,7 +19,7 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 try{
- for(const failure of ['failed','network','within-failed','cancel-buffer']){
+ for(const failure of ['failed','network','within-failed','cancel-buffer','credit']){
   const context=await browser.newContext(),page=await context.newPage();
   const jobs=new Map(),posts=[];let interruptedAt,failedId,allowRecovery=false,dialogs=0;
   await page.route('**/api/**',async route=>{
@@ -27,7 +27,9 @@ try{
    if(path==='/api/billing/session')return route.fulfill({json:{}});
    if(path==='/api/readings'){
     const input=r.postDataJSON(),id=r.headers()['idempotency-key'],part=input.chunks[0][0]==='A'?0:1;
-    jobs.set(id,{part,created:Date.now()});posts.push({id,part});if(part===1&&!failedId)failedId=id;
+    posts.push({id,part});if(part===1&&!failedId)failedId=id;
+    if(failure==='credit'&&part===1&&!allowRecovery){interruptedAt??=Date.now();return route.fulfill({status:402,json:{detail:'Insufficient credit'}});}
+    jobs.set(id,{part,created:Date.now()});
     return route.fulfill({json:{id}});
    }
    const [,id,section]=path.match(/^\/api\/readings\/([^/]+)(?:\/sections\/(\d+))?$/)||[];
@@ -52,10 +54,14 @@ try{
    await player.start(['A'.repeat(100),'B'.repeat(50),'C'.repeat(50)],{voice:'en-US-Wavenet-F',rate:1,delivery:'mse'});
   });
   await page.waitForFunction(()=>player.audio.currentTime>.1);
-  await page.waitForFunction(()=>player.state==='failed');
+  if(failure==='credit'){
+   await page.waitForFunction(()=>player.state==='paused'&&player.status?.state==='credit-paused');
+   const drained=await page.evaluate(()=>({time:player.audio.currentTime,end:player.ranges().at(-1)[1],error:player.error}));
+   assert.ok(drained.time>=drained.end-.25,'Paid audio must play to its buffered end');assert.match(drained.error,/insufficient speech credit/);
+  }else await page.waitForFunction(()=>player.state==='failed');
   const before=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job}));
   assert.equal(posts.length,2);assert.ok(interruptedAt);
-  if(failure!=='network'){
+  if(!['network','credit'].includes(failure)){
    page.once('dialog',async d=>{dialogs++;assert.match(d.message(),/may use credit/);await d.dismiss();});
    await page.click('#resume');await page.waitForFunction(()=>!player.resuming);
    assert.equal(posts.length,2);assert.equal(await page.evaluate(()=>player.audio.currentTime),before.time);
@@ -73,7 +79,8 @@ try{
   const after=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job,error:player.error,state:player.state,duration:player.audio.duration}));
   assert.equal(after.src,before.src);assert.equal(after.job,before.job);assert.ok(after.time>=before.time);assert.ok(after.time<before.time+2);
   assert.equal(after.error,'');assert.equal(posts.filter(p=>p.part===0).length,1);
-  assert.equal(posts.length,failure!=='network'?3:2);assert.equal(dialogs,failure!=='network'?2:0);
+  assert.equal(posts.length,failure!=='network'?3:2);assert.equal(dialogs,['network','credit'].includes(failure)?0:2);
+  if(failure==='credit')assert.equal(posts[1].id,posts[2].id);
   const expected=failure==='within-failed'?(metadata[0].samples+2*metadata[2].samples)/24000:metadata.reduce((n,m)=>n+m.samples/24000,0);
   assert.ok(Math.abs(after.duration-expected)<1/24000);
   if(failure==='within-failed')assert.ok(before.time>metadata[0].samples/24000,'Test must be listening inside the replaced part');

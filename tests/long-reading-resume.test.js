@@ -85,3 +85,34 @@ test('Clear forgets saved parts before network cleanup and late saves cannot res
 test('Clear after reload forgets records even without an active logical reading',async()=>{
  await fixture();const fresh=new LongReadingTransport();fresh.clearSavedReadings();assert.equal(storage.size,0);
 });
+
+test('credit refusal pauses with paid sections intact and top-up retries the same ID exactly once',async()=>{
+ storage.clear();let credit=100;const posts=[],jobs=new Map();
+ const rawFetch=async(url,options={})=>{
+  const path=new URL(url,location).pathname;
+  if(path==='/api/billing/session')return Response.json({});
+  if(path==='/api/readings'){
+   const id=options.headers['Idempotency-Key'];posts.push(id);
+   if(!jobs.has(id)){
+    if(credit<100)return Response.json({detail:'Not enough credit'},{status:402});
+    credit-=100;jobs.set(id,{id,state:'ready',completed:1,total:1,duration:1,starts:[0],sections:[{index:0,start:0,samples:24000,bytes:100}]});
+   }
+   return Response.json({id});
+  }
+  const job=jobs.get(path.split('/').at(-1));return job?Response.json(job):new Response('',{status:404});
+ };
+ const transport=new LongReadingTransport(null,{limit:()=>100,rawFetch});
+ const input={voice:'en-US-Wavenet-D',chunks:['A'.repeat(100),'B'.repeat(100)]};
+ const created=await (await transport.fetch('/api/readings',{method:'POST',body:JSON.stringify(input)})).json();
+ const group=transport.groups.get(created.id);await group.finished;
+ assert.equal(transport.status(group).state,'credit-paused');assert.equal(transport.status(group).completed,1);
+ assert.match(group.error.message,/insufficient speech credit/);const ids=group.session.records.map(r=>r.id);
+ await transport.resume(group.id);await group.finished;assert.equal(group.session.records[1].id,ids[1]);assert.equal(jobs.size,1);
+ // Reload reuses the refused ID, rather than polling a nonexistent job.
+ credit=100;
+ const fresh=new LongReadingTransport(null,{limit:()=>100,rawFetch});
+ const reloaded=await (await fresh.fetch('/api/readings',{method:'POST',body:JSON.stringify(input)})).json();
+ const resumed=fresh.groups.get(reloaded.id);await resumed.finished;
+ assert.equal(fresh.status(resumed).state,'ready');assert.equal(credit,0);assert.equal(jobs.size,2);
+ assert.deepEqual(resumed.session.records.map(r=>r.id),ids);assert.equal(posts.filter(id=>id===ids[0]).length,1);
+});

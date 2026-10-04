@@ -179,3 +179,19 @@ The speed button near the playback controls cycles through 0.75, 1, 1.25, 1.5,
 and 2 times normal speed, without regenerating audio. Preferences persist in
 the browser; earlier custom rates map to the nearest preset (lower on ties).
 The original Tailscale UI remains unchanged.
+
+
+## Credit exhaustion during long readings
+
+An explicit credit refusal pauses preparation while MSE playback drains already
+paid sections. Resume replays admission with the saved idempotency key, including
+legacy refused records; it does not replace the ID or discard buffered audio.
+After a top-up, refresh the balance and use Resume. A durable credit rejection
+can retry only when its owner and request match, it is unexpired and failed,
+all sections are untouched, and no reservation exists. Cancelled jobs and actual
+missing/expired prepared audio keep their existing recovery safeguards.
+
+The resume browser check includes credit exhaustion, paid-audio drain, top-up,
+unchanged audio source/listening position, and reuse of the refused ID. Unit tests
+also cover reload reuse, repeated insufficient-credit resumes, durable admission
+replay with exactly one debit, and cancellation before top-up.

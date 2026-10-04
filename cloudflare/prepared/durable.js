@@ -193,6 +193,12 @@ export class PreparedReading {
         if(this.job.owner!==owner)return json({detail:'Reading not found'},404);
         if(this.job.voice!==input.voice||this.job.mode!==input.mode||(this.job.proofScenario||'')!==(input.proofScenario||'')||JSON.stringify(this.job.chunks)!==JSON.stringify(input.chunks)||JSON.stringify(this.job.mseOptions||null)!==JSON.stringify(input.mseOptions||null))return json({detail:'Request does not match existing reading'},409);
         if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
+        // Only an unpaid, untouched credit rejection may re-enter admission.
+        // Matching owner/body and expiry were checked above; the same ID is reused.
+        if(this.env.LEDGER&&this.job.state==='failed'&&this.job.admission==='rejected'&&this.job.errorStatus===402&&!this.job.attempts&&!this.job.submittedCharacters&&this.job.parts.every(part=>part.state==='pending')&&!await new UsageLedger(this.env.LEDGER).receipt(this.job.id,owner)){
+          this.job.admission='pending';this.job.state='preparing';this.job.error='';this.job.settlementDone=false;
+          await this.save(this.job,Date.now()+1);
+        }
         try{await this.admit();}catch(error){await this.recover(error);return json({detail:'Admission will recover automatically'},503);}
         if(this.job.admission==='rejected')return json({detail:this.job.error},this.job.errorStatus||402);
         // An explicit new create may retry authorization once, but only if the

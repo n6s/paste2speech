@@ -78,3 +78,30 @@ test('retired legacy jobs cannot resume after maintenance, even with missing pag
  await object.alarm();assert.equal(await ctx.storage.getAlarm(),null);assert.equal(ctx.values.has('recovery'),false);
  assert.equal((await object.fetch(new Request('https://job/status'))).status,410);
 });
+
+
+test('durably rejected credit admission resumes the same ID after top-up without duplicate debit',async()=>{
+ const {sql,ledger}=database(),ctx=context();const account=(await ledger.session(await ledger.newAccount())).id;
+ const object=new PreparedReading(ctx,{LEDGER:ledger.db,AUDIO:{list:async()=>({objects:[],truncated:false}),delete:async()=>{}}});
+ const input={id:'credit-retry',voice:'en-US-Wavenet-F',mode:'live',chunks:['hello']};
+ const create=()=>object.fetch(new Request('https://durable/create',{method:'POST',headers:{'X-Proof-Owner':account},body:JSON.stringify(input)}));
+ assert.equal((await create()).status,402);assert.equal(object.job.admission,'rejected');
+ sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('top-up',account,100);
+ assert.equal((await create()).status,200);assert.equal(object.job.admission,'accepted');
+ assert.equal((await ledger.account(account)).balance,95);
+ assert.equal((await create()).status,200);assert.equal((await ledger.account(account)).balance,95);
+ sql.close();
+});
+
+
+test('cancelled credit rejection cannot restart admission after top-up',async()=>{
+ const {sql,ledger}=database(),ctx=context();const account=(await ledger.session(await ledger.newAccount())).id;
+ const object=new PreparedReading(ctx,{LEDGER:ledger.db,AUDIO:{list:async()=>({objects:[],truncated:false}),delete:async()=>{}}});
+ const input={id:'cancelled-credit',voice:'en-US-Wavenet-F',mode:'live',chunks:['hello']};
+ const create=()=>object.fetch(new Request('https://durable/create',{method:'POST',headers:{'X-Proof-Owner':account},body:JSON.stringify(input)}));
+ assert.equal((await create()).status,402);
+ await object.fetch(new Request('https://durable/status',{method:'DELETE',headers:{'X-Proof-Owner':account}}));
+ sql.prepare('INSERT INTO grants VALUES(?,?,?)').run('top-up',account,100);
+ assert.equal((await create()).status,402);assert.equal(object.job.state,'cancelled');
+ assert.equal(await ledger.receipt(input.id,account),null);assert.equal((await ledger.account(account)).balance,100);sql.close();
+});

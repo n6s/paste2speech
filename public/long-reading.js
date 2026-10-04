@@ -77,7 +77,7 @@ export class LongReadingTransport {
       if(!group.error)return {resumed:true};
       const index=group.session.active||0,record=group.session.records[index];
       let replacedFrom=null;
-      if(record.id) {
+      if(record.id && !['refused','credit-paused'].includes(record.state)) {
         // A failed GET or lost POST acknowledgement never authorizes new speech.
         const status=await group.session.status(record.id);
         if(group.cancelled)throw Error('This reading was cleared.');
@@ -111,7 +111,7 @@ export class LongReadingTransport {
       if(status.state!=='ready')break;
     }
     const total=group.parts.reduce((n,p)=>n+p.chunks.length,0);
-    const state=group.cancelled?'cancelled':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
+    const state=group.cancelled?'cancelled':group.error?.creditPaused?'credit-paused':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
     return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',canResumePreparation:!!group.error&&!group.cancelled,
       providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0)+group.session.records.reduce((n,r)=>n+(r.previousCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)||group.session.records.some(r=>r.previousCostIncomplete)};
   }

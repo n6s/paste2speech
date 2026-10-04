@@ -16,11 +16,11 @@ export class PlaylistSession {
     this.stopped = false;
     for (let i = 0; i < this.parts.length && !this.stopped; i++) {
       const record = this.records[i]; this.active = i;
-      if (!record.id) {
+      if (!record.id || record.state === 'refused' || record.state === 'credit-paused') {
         const session = await this.fetcher('/api/billing/session', {method: 'POST', headers: {'Content-Type': 'application/json'}, body: '{}'});
         if (!session.ok) throw Error('Sign in to your account before preparing playlist audio.');
         if (this.stopped) break;
-        record.id = crypto.randomUUID(); record.state = 'checking'; this.persist();
+        record.id ||= crypto.randomUUID(); record.state = 'checking'; this.persist();
         let response;
         try {
           response = await this.fetcher('/api/readings', {method: 'POST', signal: AbortSignal.timeout(20000),
@@ -30,7 +30,9 @@ export class PlaylistSession {
         if (response && !response.ok && response.status < 500) {
           const message = (await response.json()).detail || `Preparation refused (${response.status}).`;
           // Retain the ID even on refusal: admission might already be recorded.
-          record.state = 'refused'; this.persist(); throw Error(message);
+          record.state = response.status === 402 ? 'credit-paused' : 'refused'; this.persist();
+          const error = Error(response.status === 402 ? 'Preparation paused: insufficient speech credit. Already prepared audio remains available. Add credit, refresh your balance, then tap Resume.' : message);
+          error.creditPaused = response.status === 402; throw error;
         }
       }
       while (!this.stopped) {
