@@ -5,12 +5,13 @@ const SPEECH_URL='https://texttospeech.googleapis.com/v1/text:synthesize';
 const encoder=new TextEncoder();
 export function googleSpeechText(text){
   // Only standalone, spaced prose chains. Leave URLs, clocks, code, formulas,
-  // single arrows and single-letter notation untouched. Display text stays original.
+  // single arrows and single-letter notation untouched. A spaced slash may join
+  // prose alternatives; each side must independently be prose. Display stays original.
   const spoken=text.replace(/[^\r\n]+/g,line=>{
     const parts=line.trim().split(/[ \t]+→[ \t]+/);
     if(parts.length<3 || !parts.some(part=>/[A-Za-z]+[ \t]+[A-Za-z]+/.test(part)) ||
-       parts.some(part=>! /^[A-Za-z][A-Za-z '\u2019-]*[.!?]?$/.test(part) ||
-         part.replace(/[.!?]$/,'').length<2))return line;
+       parts.some(part=>part.replace(/[.!?]$/,'').split(/[ \t]+\/[ \t]+/).some(prose=>
+         ! /^[A-Za-z][A-Za-z '\u2019-]*$/.test(prose) || prose.trim().length<2)))return line;
     return line.replace(/[ \t]+→[ \t]+/g,', then ');
   });
   // A near-limit chunk must still fit Google's request budget after expansion.
