@@ -195,3 +195,21 @@ The resume browser check includes credit exhaustion, paid-audio drain, top-up,
 unchanged audio source/listening position, and reuse of the refused ID. Unit tests
 also cover reload reuse, repeated insufficient-credit resumes, durable admission
 replay with exactly one debit, and cancellation before top-up.
+
+## Whole-reading credit preflight
+
+Before new paid speech, the reader and recording download check fresh credit for
+all unpaid parts of the cleaned reading. A shortage starts no speech and shows
+needed and available credits, top-up, Refresh credit & Resume, and free browser
+voices. Single-part readings now use the same tab-saved IDs and recovery as long
+readings. Admission retains the exact request options on retry. Existing admitted
+parts are checked and reused rather than included in the new-credit requirement.
+
+This browser check is advisory: concurrent tabs, refunds, or account changes can
+still cause a later server-side refusal. The server keeps its atomic per-part
+checks and reservations. Both MSE and full-file preparation then pause with
+Resume enabled; MSE can drain paid audio. Ordinary credit retries keep the same
+IDs. Confirmed provider failures still require confirmation before replacement.
+Clear, Stop of an unfinished reading, a changed reading/voice/split, expiration,
+or closing the tab can require new speech and credit again. Reload reuse requires
+identical text/voice/split in the same tab; listening position is not persisted.

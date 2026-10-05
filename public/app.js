@@ -106,7 +106,7 @@ function isWorkstation() { return ['workstation','deepinfra','google'].includes(
 function isKokoro() { return $('engine').value !== 'browser'; }
 function canPlay() { if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
-  player?.stop();
+  if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
   workstationPlayer.release();
   localPlayer.release();
   if (localKokoro.pending) localKokoro.cancel();
@@ -200,6 +200,8 @@ function readAndPlay() {
   if (['paused', 'ready', 'failed', 'disconnected'].includes(player.state)) player.resume(settings());
   else { countNextPlayback=true; player.start(chunks, settings()); }
 }
+$('credit-resume').onclick=()=>{window.dispatchEvent(new Event('speech-credit-change'));if(videoDownload?.creditPaused&&!workstationPlayer.getVideoPreparation?.()?.error)void videoDownload.resume();else void player?.resume(settings());};
+$('credit-browser').onclick=()=>{$('engine').value='browser';changeEngine();};
 $('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
 function followParagraph(button) {
   const pane = $('preview');
@@ -258,6 +260,7 @@ function render(p, message) {
   const wasBlocked = $('play').classList.contains('autoplay-blocked');
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
+  $('credit-actions').hidden = !isGoogle() || !(p.getVideoPreparation?.()?.error?.creditPaused || videoDownload?.creditPaused);
   $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
@@ -267,7 +270,7 @@ function render(p, message) {
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours; Clear removes this recording.`
+    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours. Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
   if(isGoogle() && p.id && !CLOUD_READER) $('recording-progress').textContent += ` · list-price estimate $${(p.providerCost||0).toFixed(5)}${p.costIncomplete?' (incomplete)':''}`;

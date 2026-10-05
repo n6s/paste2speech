@@ -72,7 +72,7 @@ export class StagingPlayer extends MsePlayer {
  stop(){if(this.complete&&this.finalized){this.pause();this.seek(0);this.state='idle';this.emit();}else this.invalidate();}
  invalidate(){this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;return super.invalidate();}
  release(){if(navigator.mediaSession){for(const name of ['play','pause','stop','seekto','seekforward','seekbackward'])try{navigator.mediaSession.setActionHandler(name,null);}catch{}navigator.mediaSession.playbackState='none';}}
- download(kind){if(this.complete&&this.getVideoPreparation())return '#';return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
+ download(kind){if(this.complete&&this.getVideoPreparation()){const group=this.getVideoPreparation();return group.parts.length===1?`/api/readings/${group.session.records[0].id}/download/${kind}`:'#';}return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
  getVideoPreparation(){return this.longReadings?.groups.get(this.job);}
  completedAudioURL(){return this.longReadings?.audioURL(this.job)||super.completedAudioURL();}
  useCompletedFile(){

@@ -107,7 +107,7 @@ export default {
     if(!mseStaging(env))return json({},404);
     return json({voices:Object.fromEntries(Object.keys(fixtures).map(voice=>[voice,fixtureChunks(voice)]))});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,verified:verifiedCustomer(account),shortfall:!!account.shortfall}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
+   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,creditRequired:!account.legacyPilot,verified:verifiedCustomer(account),shortfall:!!account.shortfall}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
     if(trialMode(env)&&!approved(env,account))return json({detail:'WaveNet is available only to the verified trial owner. Browser voices remain free.'},403);

@@ -29,7 +29,7 @@ try{
    if(path==='/api/reader')return route.fulfill({json:config});
    if(path==='/api/readings'&&r.method()==='POST')return route.fulfill({json:{id:'preview-check'}});
    if(path.endsWith('/sections/0')||path.endsWith('/audio'))return route.fulfill({contentType:'audio/mpeg',body:reading});
-   if(path==='/api/readings/preview-check')return route.fulfill({json:{id:'preview-check',state:'ready',starts:[0],duration:mp3.samples/24000,completed:1,total:1,sections:[{index:0,start:0,samples:mp3.samples,bytes:mp3.bytes}],delivery:'mse'}});
+   if(/^\/api\/readings\/[^/]+$/.test(path)&&r.method()==='GET')return route.fulfill({json:{id:'preview-check',state:'ready',starts:[0],duration:mp3.samples/24000,completed:1,total:1,sections:[{index:0,start:0,samples:mp3.samples,bytes:mp3.bytes}],delivery:'mse'}});
    return route.fulfill({json:{}});
   });
   await page.goto(origin);

@@ -21,12 +21,13 @@ export class LongReadingTransport {
       const input=JSON.parse(options.body);
       if(input.mseOptions?.cached)return this.upstream(url,options);
       const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
-      if(parts.length<2)return this.upstream(url,options);
+
       const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
       const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
       const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
-      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,
+      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,
+        createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
         save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
         statusChanged:(index,status)=>{group.statuses[index]=status;}});
       this.groups.set(id,group);
@@ -118,6 +119,7 @@ export class LongReadingTransport {
   async downloadURL(id,kind) {
     const group=this.groups.get(id);
     if(!group||group.cancelled||this.status(group).state!=='ready')throw Error('The full reading is not ready.');
+    if(group.parts.length===1)return `/api/readings/${group.session.records[0].id}/download/${kind}`;
     if(kind==='mp3')return this.audioURL(id);
     if(kind!=='vtt')throw Error('Unsupported download format.');
     if(!group.captionURL) {
@@ -135,6 +137,7 @@ export class LongReadingTransport {
   async audioURL(id) {
     const group=this.groups.get(id);if(!group)return `/api/readings/${id}/audio`;
     if(this.status(group).state!=='ready')throw Error('The full reading is not ready.');
+    if(group.parts.length===1)return `/api/readings/${group.session.records[0].id}/audio`;
     if(!group.audioURL) {
       const blobs=[];
       for(const record of group.session.records) {

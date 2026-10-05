@@ -24,6 +24,7 @@ try{
   const jobs=new Map(),posts=[];let interruptedAt,failedId,allowRecovery=false,dialogs=0;
   await page.route('**/api/**',async route=>{
    const r=route.request(),path=new URL(r.url()).pathname;
+   if(path==='/api/reader')return route.fulfill({json:{account:{balance:1000000}}});
    if(path==='/api/billing/session')return route.fulfill({json:{}});
    if(path==='/api/readings'){
     const input=r.postDataJSON(),id=r.headers()['idempotency-key'],part=input.chunks[0][0]==='A'?0:1;
@@ -85,5 +86,53 @@ try{
   assert.ok(Math.abs(after.duration-expected)<1/24000);
   if(failure==='within-failed')assert.ok(before.time>metadata[0].samples/24000,'Test must be listening inside the replaced part');
   await context.close();console.log(`PASS Resume ${failure}: completed parts reused, position/source retained, ${posts.length} total job creations`);
+ }
+ // Whole-reading preflight, single-part 402, full preparation, and file fallback.
+ for(const scenario of ['single','multipart','single-race','full-race','fallback-race']){
+  const context=await browser.newContext(),page=await context.newPage(),jobs=new Map(),posts=[];
+  const multipart=!scenario.startsWith('single'),race=scenario.endsWith('race');
+  let balance=race?200:1,recovered=false;
+  await page.route('**/api/**',async route=>{
+   const request=route.request(),path=new URL(request.url()).pathname;
+   if(path==='/api/reader')return route.fulfill({json:{account:{balance}}});
+   if(path==='/api/billing/session')return route.fulfill({json:{}});
+   if(path==='/api/readings'){
+    const id=request.headers()['idempotency-key'],input=request.postDataJSON(),part=input.chunks[0][0]==='A'?0:1;posts.push({id,part});
+    if(race&&!recovered&&(!multipart||part===1))return route.fulfill({status:402,json:{detail:'Balance changed after preflight'}});
+    if(!jobs.has(id)){balance-=input.chunks.reduce((n,t)=>n+[...t].length,0);jobs.set(id,part);}
+    return route.fulfill({json:{id}});
+   }
+   const match=path.match(/^\/api\/readings\/([^/]+)(?:\/sections\/(\d+))?$/),part=match&&jobs.get(match[1]);assert.notEqual(part,undefined);
+   if(match[2]!=null)return route.fulfill({contentType:'audio/mpeg',body:bytes[part]});
+   if(path.endsWith('/audio'))throw Error('unreachable');
+   return route.fulfill({json:{state:'ready',completed:1,total:1,duration:metadata[part].samples/24000,starts:[0],sections:[{index:0,start:0,samples:metadata[part].samples,bytes:bytes[part].length}]}});
+  });
+  // Full files use cached fixture bytes; never call a provider.
+  await page.route('**/api/readings/*/download/mp3',route=>route.fulfill({contentType:'audio/mpeg',body:bytes[jobs.get(new URL(route.request().url()).pathname.split('/')[3])]}));
+  await page.route('**/api/readings/*/audio',route=>route.fulfill({contentType:'audio/mpeg',body:bytes[0]}));
+  await page.goto(origin);
+  await page.evaluate(async({multipart,scenario})=>{
+   const {StagingPlayer}=await import('/public/staging-player.js');window.player=new StagingPlayer(()=>{});
+   player.longReadings.limit=()=>multipart?100:20000;
+   document.getElementById('resume').onclick=()=>player.resume();
+   await player.start(multipart?['A'.repeat(100),'B'.repeat(100)]:['A'.repeat(100)],{voice:'en-US-Wavenet-F',rate:1,delivery:scenario==='full-race'?'complete':'mse'});
+  },{multipart,scenario});
+  await page.waitForFunction(()=>player.status?.state==='credit-paused');
+  if(scenario==='fallback-race')await page.evaluate(()=>player.useCompletedFile());
+  if(scenario==='full-race'||scenario==='fallback-race')await page.waitForFunction(()=>player.state==='paused');
+  if(!race){await page.waitForFunction(()=>player.state==='paused');assert.equal(posts.length,0);assert.equal(balance,1);const message=await page.evaluate(()=>player.error);assert.match(message,/credits; 1 available/);}
+  const before=await page.evaluate(()=>({job:player.job,src:player.audio.src,time:player.audio.currentTime}));
+  await page.evaluate(async()=>{await Promise.all([player.resume(),player.resume()]);});
+  await page.waitForFunction(()=>player.status?.state==='credit-paused');
+  const refused=posts.at(-1)?.id,count=posts.length;
+  balance=multipart?(race?100:200):100;recovered=true;
+  await page.evaluate(async()=>{await Promise.all([player.resume(),player.resume()]);});
+  await page.waitForFunction(()=>player.finalized);
+  assert.equal(await page.evaluate(()=>player.job),before.job);
+  if(!scenario.includes('full')&&!scenario.includes('fallback'))assert.equal(await page.evaluate(()=>player.audio.src),before.src);
+  if(race)assert.equal(posts.at(-1).id,refused);
+  assert.equal(posts.length-count,race?1:multipart?2:1);assert.equal(balance,0);
+  const finalPosts=posts.length;await page.evaluate(()=>player.resume());await page.waitForTimeout(100);assert.equal(posts.length,finalPosts);
+  await context.close();console.log(`PASS Credit ${scenario}: preflight/repeated Resume/top-up reuse without duplicate billing`);
  }
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

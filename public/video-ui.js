@@ -5,6 +5,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   const $ = id => document.getElementById(id);
   const panel = $('video-download'), status = $('video-status');
   let preparedText, preparedVoice, session, signature;
+  let creditPaused = false;
   let busy = false, stopRequested = false, borrowedPreparation = false, controller, videoURL, captionURL;
   const message = text => { status.textContent = text; };
   const matchesEditor = () => preparedText === getText() && preparedVoice === getVoice();
@@ -64,7 +65,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       let records = [];
       try { records = JSON.parse(sessionStorage.getItem(key) || '[]'); } catch {}
       if (reuse) records = [{id: prepared.id, state: prepared.complete ? 'ready' : 'preparing', borrowed: true}];
-      session = new PlaylistSession(parts, voice, {records,
+      session = new PlaylistSession(parts, voice, {records,preflight:true,
         save: value => sessionStorage.setItem(key, JSON.stringify(value)),
         changed: () => {
           render();
@@ -81,7 +82,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   }
   $('download-video').onclick = async () => {
     if (busy) return;
-    busy = true; stopRequested = false; borrowedPreparation = false; releaseVideo(); message('Preparing complete audio…'); render();
+    busy = true; creditPaused = false; stopRequested = false; borrowedPreparation = false; releaseVideo(); message('Preparing complete audio…'); render();
     try {
       if (!await prepare()) return;
       if (stopRequested) return;
@@ -96,6 +97,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       link.hidden = false;
       message('Ready. Open the recording, or right-click the link and choose Save link as.');
     } catch (error) {
+      creditPaused = !!error.creditPaused && !stopRequested;
       message(stopRequested ? 'Processing cancelled. Prepared audio is kept for another attempt.' : error.message || String(error));
     } finally {
       // A borrowed job also serves the reader: cancelling this download must
@@ -121,7 +123,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   function update() { panel.hidden = !isGoogle(); panel.closest('.download-card').hidden = !isGoogle(); render(); }
   $('clear').addEventListener('click', async () => {
     if (busy) return;
-    busy = true; releaseVideo(); render();
+    busy = true; creditPaused = false; releaseVideo(); render();
     try {
       for (const record of session?.records || []) if (record.id) {
         const response = await fetch(`/api/readings/${record.id}`, {method:'DELETE', signal:AbortSignal.timeout(15000)});
@@ -137,5 +139,5 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   panel.addEventListener('toggle', update);
   window.addEventListener('beforeunload', event => { if (busy) { event.preventDefault(); event.returnValue = ''; } });
   $('video-split-settings').hidden = new URLSearchParams(location.search).get('testing') !== '1';
-  update(); return {update, get preparingAudio(){return busy && !borrowedPreparation && !controller;}};
+  update(); return {update, resume:()=>$('download-video').onclick(), get creditPaused(){return creditPaused;}, get preparingAudio(){return busy && !borrowedPreparation && !controller;}};
 }

@@ -9,6 +9,7 @@ async function fixture({failure='failed'}={}){
  const posts=[],jobs=new Map();let fail=failure;
  const transport=new LongReadingTransport(null,{limit:()=>100,rawFetch:async(url,options={})=>{
   const path=new URL(url,location).pathname;
+  if(path==='/api/reader')return Response.json({account:{balance:1000000}});
   if(path==='/api/billing/session')return Response.json({});
   if(path==='/api/readings'){
    const input=JSON.parse(options.body),id=options.headers['Idempotency-Key'];
@@ -90,6 +91,7 @@ test('credit refusal pauses with paid sections intact and top-up retries the sam
  storage.clear();let credit=100;const posts=[],jobs=new Map();
  const rawFetch=async(url,options={})=>{
   const path=new URL(url,location).pathname;
+  if(path==='/api/reader')return Response.json({account:{balance:posts.length?credit:200}});
   if(path==='/api/billing/session')return Response.json({});
   if(path==='/api/readings'){
    const id=options.headers['Idempotency-Key'];posts.push(id);
@@ -115,4 +117,54 @@ test('credit refusal pauses with paid sections intact and top-up retries the sam
  const resumed=fresh.groups.get(reloaded.id);await resumed.finished;
  assert.equal(fresh.status(resumed).state,'ready');assert.equal(credit,0);assert.equal(jobs.size,2);
  assert.deepEqual(resumed.session.records.map(r=>r.id),ids);assert.equal(posts.filter(id=>id===ids[0]).length,1);
+});
+
+for (const limit of [100, 20000]) test(`whole-reading shortage starts no parts (limit ${limit}); repeated top-up recovery debits once`, async()=>{
+ storage.clear();let balance=1,posts=0;const jobs=new Map();
+ const rawFetch=async(url,options={})=>{
+  const path=new URL(url,location).pathname;
+  if(path==='/api/reader')return Response.json({account:{balance}});
+  if(path==='/api/billing/session')return Response.json({});
+  if(path==='/api/readings'){
+   posts++;const id=options.headers['Idempotency-Key'],input=JSON.parse(options.body);
+   if(!jobs.has(id)){
+    const cost=input.chunks.reduce((n,t)=>n+[...t].length,0);assert.ok(balance>=cost);balance-=cost;
+    jobs.set(id,{id,state:'ready',completed:input.chunks.length,total:input.chunks.length,starts:input.chunks.map((_,i)=>i),duration:input.chunks.length,sections:input.chunks.map((_,index)=>({index,start:index,samples:24000,bytes:100}))});
+   }
+   return Response.json({id});
+  }
+  return Response.json(jobs.get(path.split('/').at(-1)));
+ };
+ const transport=new LongReadingTransport(null,{limit:()=>limit,rawFetch});
+ const input={voice:'en-US-Wavenet-D',delivery:'mse',chunks:['A'.repeat(100),'😀'.repeat(50)]};
+ const created=await(await transport.fetch('/api/readings',{method:'POST',body:JSON.stringify(input)})).json(),group=transport.groups.get(created.id);
+ await group.finished;assert.equal(posts,0);assert.equal(balance,1);assert.equal(group.error.needed,150);assert.equal(group.error.available,1);
+ await Promise.all([transport.resume(group.id),transport.resume(group.id)]);await group.finished;assert.equal(posts,0);
+ balance=150;await Promise.all([transport.resume(group.id),transport.resume(group.id)]);await group.finished;
+ assert.equal(transport.status(group).state,'ready');assert.equal(balance,0);const expected=limit===100?2:1;assert.equal(posts,expected);
+ await transport.resume(group.id);await group.finished;assert.equal(posts,expected);
+ const fresh=new LongReadingTransport(null,{limit:()=>limit,rawFetch});const reloaded=await(await fresh.fetch('/api/readings',{method:'POST',body:JSON.stringify(input)})).json();await fresh.groups.get(reloaded.id).finished;
+ assert.equal(posts,expected);assert.equal(balance,0);
+});
+test('clearing while the fresh balance check is pending starts no speech',async()=>{
+ storage.clear();let reply,posts=0;
+ const transport=new LongReadingTransport(null,{limit:()=>100,rawFetch:async url=>{
+  if(url==='/api/reader')return new Promise(r=>{reply=r;});if(url==='/api/readings')posts++;
+  return Response.json({});
+ }});
+ const created=await(await transport.fetch('/api/readings',{method:'POST',body:JSON.stringify({voice:'en-US-Wavenet-D',chunks:['A'.repeat(100),'B'.repeat(100)]})})).json(),group=transport.groups.get(created.id);
+ while(!reply)await new Promise(r=>setTimeout(r,0));group.cancelled=true;group.session.stop();reply(Response.json({account:{balance:1000}}));await group.finished;
+ assert.equal(posts,0);assert.equal(storage.size,0);
+});
+test('an interrupted credit lookup is recoverable without admitting any part',async()=>{
+ storage.clear();let unavailable=true,posts=0;
+ const transport=new LongReadingTransport(null,{limit:()=>20000,rawFetch:async(url,options={})=>{
+  if(url==='/api/reader')return unavailable?new Response('',{status:503}):Response.json({account:{balance:5}});
+  if(url==='/api/billing/session')return Response.json({});
+  if(url==='/api/readings'){posts++;return Response.json({id:options.headers['Idempotency-Key']});}
+  return Response.json({state:'ready',completed:1,total:1,starts:[0],duration:1,sections:[{index:0,start:0,samples:24000,bytes:100}]});
+ }});
+ const created=await(await transport.fetch('/api/readings',{method:'POST',body:JSON.stringify({voice:'en-US-Wavenet-D',chunks:['hello']})})).json(),group=transport.groups.get(created.id);
+ await group.finished;assert.equal(posts,0);assert.match(group.error.message,/Could not check/);
+ unavailable=false;await transport.resume(group.id);await group.finished;assert.equal(posts,1);assert.equal(transport.status(group).state,'ready');
 });

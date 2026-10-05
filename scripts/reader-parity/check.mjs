@@ -20,21 +20,21 @@ try{
  for(const [environment,path] of Object.entries(sites)){
   assets=path;
   const context=await browser.newContext({viewport:{width:412,height:915}});
-  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let started,creates=0,reject=false;
+  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let started,creates=0,reject=false,readingId;
   await page.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.Audio=function(...args){const a=new Original(...args);window.__audio.push(a);a.__loads=0;a.addEventListener('loadstart',()=>a.__loads++);return a;};window.__appends=0;const append=SourceBuffer.prototype.appendBuffer;SourceBuffer.prototype.appendBuffer=function(b){window.__appends++;return append.call(this,b);};});
   await page.route('**/api/**',async route=>{
    const r=route.request(),p=new URL(r.url()).pathname;let data={};
    if(p==='/api/reader')data={eligible:true,account:{balance:62100}};
    else if(p==='/api/readings'&&r.method()==='POST'){
     if(reject)return route.fulfill({status:403,json:{detail:'A clear server explanation.'}});
-    const submitted=r.postDataJSON();started=Date.now();creates++;assert.equal(submitted.delivery,'mse');assert.equal(submitted.mseOptions,undefined);assert.equal(submitted.chunks.length,3);data={id:'synthetic'};
+    const submitted=r.postDataJSON();started=Date.now();creates++;assert.equal(submitted.delivery,'mse');assert.equal(submitted.mseOptions,undefined);assert.equal(submitted.chunks.length,3);readingId=r.headers()['idempotency-key'];data={id:readingId};
    }else if(/\/sections\/[0-2]$/.test(p))return route.fulfill({contentType:'audio/mpeg',body:bytes[Number(p.at(-1))]});
    else if(p.endsWith('/audio')){
     const audio=Buffer.concat(bytes),range=r.headers().range?.match(/^bytes=(\d+)-(\d*)$/);
     const start=range?Number(range[1]):0,end=range&&range[2]?Number(range[2]):audio.length-1;
     return route.fulfill({status:range?206:200,contentType:'audio/mpeg',headers:{'Accept-Ranges':'bytes','Content-Length':String(end-start+1),...(range?{'Content-Range':`bytes ${start}-${end}/${audio.length}`}:{})},body:audio.subarray(start,end+1)});
    }
-   else if(p==='/api/readings/synthetic'){
+   else if(p===`/api/readings/${readingId}`){
     const done=Date.now()-started>1700;data={id:'synthetic',state:done?'ready':'preparing',starts:sections.slice(0,done?3:1).map(s=>s.start),duration:done?duration:sections[1].start,completed:done?3:1,total:3,sections:sections.slice(0,done?3:1),delivery:'mse'};
    }
    await route.fulfill({json:data});
@@ -84,7 +84,7 @@ try{
   await page.screenshot({path:`work/shared-reader/${environment}-playback-controls.png`});
   assert.deepEqual(errors,[]);
   // Both readers retain server explanations instead of reducing them to a code.
-  reject=true;await page.reload();assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
+  reject=true;await page.evaluate(()=>sessionStorage.clear());await page.reload();assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
   await page.goto(origin+'/?testing=1');
   if(environment==='staging'){
    await page.waitForFunction(()=>window.__stagingReader);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
@@ -114,6 +114,38 @@ try{
   await page.click('#clear');assert.ok(await page.locator('#previous-section').isDisabled());assert.ok(await page.locator('#next-section').isDisabled());
   assert.deepEqual(errors,[]);
   await context.close();
+  const creditContext=await browser.newContext({viewport:{width:412,height:915}}),creditPage=await creditContext.newPage();
+  let balance=1,creditPosts=0;const creditJobs=new Map();
+  await creditPage.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.Audio=function(...args){const a=new Original(...args);window.__audio.push(a);return a;};});
+  await creditPage.route('**/api/**',async route=>{
+   const request=route.request(),path=new URL(request.url()).pathname;
+   if(path==='/api/reader')return route.fulfill({json:{eligible:balance>0,account:{balance}}});
+   if(path==='/api/readings'&&request.method()==='POST'){
+    creditPosts++;const id=request.headers()['idempotency-key'],input=request.postDataJSON();
+    if(!creditJobs.has(id)){balance-=input.chunks.reduce((n,t)=>n+[...t].length,0);creditJobs.set(id,true);}
+    return route.fulfill({json:{id}});
+   }
+   if(/\/sections\/0$/.test(path))return route.fulfill({contentType:'audio/mpeg',body:bytes[0]});
+   if(/^\/api\/readings\/[^/]+$/.test(path)&&request.method()==='GET')return route.fulfill({json:{state:'ready',total:1,completed:1,starts:[0],sections:[sections[0]],duration:sections[0].samples/24000}});
+   return route.fulfill({json:{}});
+  });
+  await creditPage.goto(origin);await creditPage.locator('#voice-settings').evaluate(e=>e.open=true);await creditPage.selectOption('#engine','google');
+  await creditPage.fill('#text','Hello.');await creditPage.click('#play');
+  await creditPage.waitForFunction(()=>document.querySelector('#status').textContent.includes('6 credits; 1 available'));
+  assert.equal(creditPosts,0);assert.equal(balance,1);assert.ok(await creditPage.locator('#play').isEnabled());
+  assert.equal(await creditPage.locator('#credit-actions a').getAttribute('href'),'/api/billing');
+  await creditPage.click('#credit-resume');await creditPage.waitForFunction(()=>!document.querySelector('#play').disabled);
+  assert.equal(creditPosts,0);await creditPage.screenshot({path:`work/shared-reader/${environment}-credit-shortage-mobile.png`});
+  await creditPage.click('#credit-browser');assert.equal(await creditPage.locator('#engine').inputValue(),'browser');assert.equal(creditPosts,0);
+  await creditPage.selectOption('#engine','google');balance=6;await creditPage.click('#credit-resume');
+  await creditPage.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.equal(creditPosts,1);assert.equal(balance,0);
+  await creditPage.click('#pause');await creditPage.click('#play');assert.equal(creditPosts,1);
+  await creditPage.click('#clear');await creditPage.fill('#text','Hello.');await creditPage.click('#play');
+  await creditPage.waitForFunction(()=>document.querySelector('#status').textContent.includes('6 credits; 0 available'));assert.equal(creditPosts,1);
+  // The recording button performs the same full-reading check even without a player job.
+  await creditPage.click('#clear');await creditPage.fill('#text','Hello.');await creditPage.locator('#video-download').evaluate(e=>e.open=true);await creditPage.click('#download-video');
+  await creditPage.waitForFunction(()=>document.querySelector('#video-status').textContent.includes('6 credits; 0 available'));assert.equal(creditPosts,1);assert.ok(await creditPage.locator('#credit-actions').isVisible());
+  await creditContext.close();console.log(`PASS ${environment}: shortage UI, free browser choice, top-up Resume, Clear and recording preflight`);
   const cleared=await browser.newContext(),fresh=await cleared.newPage();let freshCreates=0;const freshJobs=new Map();
   await fresh.route('**/api/**',async route=>{
    const request=route.request(),path=new URL(request.url()).pathname;

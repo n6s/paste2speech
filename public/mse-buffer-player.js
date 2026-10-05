@@ -115,7 +115,7 @@ export class MsePlayer {
         this.status=status;
         if(status.state==='credit-paused'){
           this.error=status.error;
-          if(!status.completed){this.wantPlay=false;this.audio.pause();}
+          if(!status.completed||this.mode==='full'){this.wantPlay=false;this.audio.pause();}
           if(!this.wantPlay)this.state='paused';
         }
         this.log('status',{state:status.state,completed:status.completed,total:status.total,starts:status.starts});
@@ -183,7 +183,9 @@ export class MsePlayer {
           if(this.objectURL)URL.revokeObjectURL(this.objectURL);this.objectURL=null;this.source=null;this.buffer=null;this.setRate(this.rate);this.finalized=true;
           this.log('complete-file-loaded');if(this.wantPlay&&this.pendingIndex==null)void this.play();this.emit();return;
         }
-        this.emit();await sleep(300,signal);
+        this.emit();
+        if(status.state==='credit-paused'&&(this.mode==='full'||this.next===status.completed))return;
+        await sleep(300,signal);
       }
     }catch(error){if(serial===this.serial)this.fail(error);}
     finally{if(serial===this.serial){this.pumping=false;if(this.windowSeek&&!signal.aborted)void this.pump();}}
@@ -194,7 +196,7 @@ export class MsePlayer {
   }
   async play(){
     const serial=this.serial;this.wantPlay=true;
-    try{await this.audio.play();if(serial===this.serial)this.error='';}
+    try{await this.audio.play();if(serial===this.serial&&this.status?.state!=='credit-paused')this.error='';}
     catch(error){if(serial===this.serial&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
   pause(){this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
