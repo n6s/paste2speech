@@ -20,7 +20,8 @@
     "build:extension": "node scripts/chrome-extension/build.mjs",
     "check:extension": "node scripts/chrome-extension/check.mjs",
     "package:extension": "npm run build:extension && python3 scripts/chrome-extension/package.py",
-    "check:reader:previews": "node scripts/reader-parity/check-previews.mjs"
+    "check:reader:previews": "node scripts/reader-parity/check-previews.mjs",
+    "check:reader:documents": "node scripts/reader-parity/check-documents.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",

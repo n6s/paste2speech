@@ -5,6 +5,7 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
+    "ENABLE_DOCUMENT_OCR": "0",
     "OWNER_EMAIL": "rogerpbrown@gmail.com",
     "BACKGROUND_WORK_PAUSED": "0",
     "MAINTENANCE_QUEUE_ENABLED": "1",

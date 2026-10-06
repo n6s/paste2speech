@@ -15,3 +15,5 @@ export const MSE_ENABLED = false;
 export const VIDEO_DOWNLOAD = false;
 
 export const LONG_READINGS = false;
+
+export const DOCUMENT_IMPORT = false;

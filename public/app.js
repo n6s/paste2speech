@@ -1,3 +1,4 @@
+import {setupDocumentImport} from './document-import.js';
 import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
@@ -6,7 +7,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -82,6 +83,7 @@ let paragraphStarts = [];
 let sentenceElements = [];
 let stagingSampleText='';
 let videoDownload;
+let documentImport;
 let voicePreviews;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
@@ -107,7 +109,7 @@ function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
+function canPlay() { if(documentImport?.busy)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
   workstationPlayer.release();
@@ -551,7 +553,12 @@ if (WORKSTATION) {
   discoverWorkstation();
 }
 
-$('pdf-file').addEventListener('change', async () => {
+if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
+ accept(data){resetReading();$('text').value=data.text;preview();setMode('edit');},
+ pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
+ onBusy(value){$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=value;if(!value)preview();if(player)render(player);}
+});
+else $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;
   if (!LONG_READINGS && file.size > 20 * 1024 * 1024) {

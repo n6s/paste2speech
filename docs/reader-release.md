@@ -226,3 +226,43 @@ saved paid IDs in the same tab. Missing/expired parts retain their safeguards.
 Normal in-session Pause/Resume preserves the live position across background
 return. Stop and Clear keep their intentional behavior. `check:reader:reload`
 exercises these paths with isolated Chrome profiles and intercepted APIs.
+
+
+## Staging document import
+
+Staging exposes **Open document** for PDFs and PNG/JPEG/WebP images. PDFs are
+extracted locally first. The per-page gate checks corrupt embedded characters,
+fragmented words, image-only pages and likely multiple-column reading order;
+nonempty text alone is insufficient. One unsuitable page routes the document to
+OCR. This is conservative routing, not a guarantee of transcription accuracy.
+Imports are limited to 20 MB; local PDF evaluation is limited to 100 pages and
+one million extracted characters. Unsupported, malformed, cancelled or failed
+imports preserve the existing reading. A successful import fills the text box
+and waits for explicit Play. TXT and Markdown downloads use current text;
+unchanged OCR text retains reconstructed Markdown headings. Diagnostics remain
+separate from the reading.
+
+**Paid OCR is deliberately disabled.** `GET /api/ocr/config` returns disabled;
+`POST /api/ocr` rejects before reading a body. No provider fetch is wired, and
+neither a flag nor a secret can enable it. The provider payload contract is
+pinned to `mistral-ocr-4-1`; deterministic reconstruction is adapted from the
+isolated OCR prototype. The browser upload/consent/reconstruction path is tested
+against mock responses only. Production retains its existing local PDF UI.
+
+Activation needs separate approval of the OCR price, page/cost limits and who
+may use it, plus secure Worker secret configuration. A future enabled backend
+must validate account and explicit consent, byte type/size and page admission;
+reserve a durable bounded OCR budget and idempotency receipt before provider
+submission; reconcile uncertain calls without automatic paid retries; enforce
+rate limits and timeouts; avoid recording document bodies or credentials; and
+return safe actionable errors. Speech character credit is separate from OCR
+cost. Do not add a key to browser code or copy credentials from prototype files.
+PDF/image handlers form the first document routes; other formats require their
+own validated extraction adapters.
+
+`npm run check:reader:documents` uses an isolated headless browser, local assets,
+synthetic files and intercepted APIs. It checks local PDF success, production
+regression, disabled OCR, consent, text/Markdown exports, cached result reuse,
+failed/empty/cancelled OCR and zero speech creation. It runs in both release
+gates alongside parity, resume, reload and preview checks. Cached real document
+responses are private verification inputs, never deployment assets.

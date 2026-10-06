@@ -1,3 +1,4 @@
+import {documentOcrResponse} from './document-ocr.js';
 import {WAVENET_VOICE_IDS} from '../../public/wavenet-voices.js';
 import {ownerResponse} from './owner-dashboard.js';
 import {legacyDomainResponse,legacyStagingResponse} from './legacy-domain.js';
@@ -52,6 +53,7 @@ export default {
   if(url.pathname==='/api/billing/webhook'&&request.method==='POST'&&publicMode(env))return receiveWebhook(request,env,ctx);
   if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
+   if(['/api/ocr','/api/ocr/config'].includes(url.pathname))return documentOcrResponse(request,env);
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
