@@ -332,3 +332,25 @@ result, and never submits paid OCR. A receipt older than 120 seconds without a
 confirmed result is presented as uncertain rather than implying background
 progress. This does not mutate, release or retry the original receipt. The
 original October 6 stranded admission remains preserved for investigation.
+
+
+### Explicit bounded OCR retry
+
+The original receipt and its possible charge are never reset or refunded.
+`staging-migrations/0002_document_ocr_retry.sql` adds a separate linked retry
+table, a unique child per parent, the same $1 atomic budget reservation trigger,
+and durable provider-dispatch checkpoints. Apply this SQL only to staging D1
+before releasing the retry backend. The prior allowance plus all original and
+retry reservations cannot exceed $5; uncertain reservations are never released.
+
+A verified owner must reselect the exact approved newsletter and explicitly
+approve **Retry OCR · reserve another $1** and its new charge checkbox.
+`POST /api/ocr/retry` independently verifies that consent, document fingerprint,
+latest parent, five-minute admission cooldown and expired dispatch lease.
+An existing child is only checked/replayed, never dispatched again. A stale
+reservation or expired cache cannot itself authorize a paid call. There are no
+automatic retries. A successful saved result is preferred, including on a
+repeat request or after reload. Every new dispatch is marked durably before
+provider submission; an ambiguous checkpoint acknowledgement blocks submission.
+The native base64 encoder is used where available, with the validated portable
+fallback. The original stranded October 6 record stays preserved as evidence.
