@@ -1,5 +1,4 @@
 import {splitReadingChunks,joinCaptions} from './playlist-plan.js';
-import {readPosition} from './reading-position.js';
 import {PlaylistSession} from './playlist-session.js';
 
 // A tab-local logical reading presents bounded durable jobs as one timeline to
@@ -8,25 +7,12 @@ export class LongReadingTransport {
   constructor(fetcher, {rawFetch=(...args)=>fetch(...args), limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
     this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.groups=new Map();
   }
-  async plan(input) {
-    const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
-    const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
-    return {parts,key:'paste2speech.video.'+hash};
-  }
-  async savedPosition(input) {
-    const {key}=await this.plan(input);
-    const position=readPosition(key,input.chunks.length);
-    if(!position)return null;
-    // A cursor is never permission to replace missing paid references.
-    let records;try{records=JSON.parse(sessionStorage.getItem(key)||'null');}catch{}
-    return {...position,unavailable:!Array.isArray(records)||!records.some(r=>r?.id)};
-  }
   clearSavedReadings() {
     // Clear is synchronous: a reload must not retain IDs awaiting network cleanup.
     for(const group of this.groups.values())group.forgotten=true;
     for(let i=sessionStorage.length-1;i>=0;i--){
       const key=sessionStorage.key(i);
-      if(key?.startsWith('paste2speech.video.')||key?.startsWith('paste2speech.position.'))sessionStorage.removeItem(key);
+      if(key?.startsWith('paste2speech.video.'))sessionStorage.removeItem(key);
     }
   }
   async fetch(url, options={}) {
@@ -34,7 +20,10 @@ export class LongReadingTransport {
     if(path==='/api/readings' && options.method==='POST') {
       const input=JSON.parse(options.body);
       if(input.mseOptions?.cached)return this.upstream(url,options);
-      const {parts,key}=await this.plan(input);let records=[];
+      const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
+
+      const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
+      const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
       const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,

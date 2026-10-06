@@ -215,17 +215,14 @@ or closing the tab can require new speech and credit again. Reload reuse require
 identical text/voice/split in the same tab; listening position is not persisted.
 
 
-## Saved listening position
+## Reload behavior
 
-The cloud reader saves a tab-local section and within-section offset for the
-same cleaned reading, voice and actual part layout. It checkpoints about every
-five seconds while listening, and on Pause, seeking and background/page exit.
-After text is restored or reimported in that tab, Resume checks the existing
-paid IDs and restores the offset without autoplay. Missing/expired audio is not
-silently regenerated; unfinished unpaid parts keep the existing credit checks.
-Stop forgets the cursor; Clear forgets both cursor and saved parts. Completion
-forgets the cursor so Replay starts at the beginning. Cursor storage failures do
-not break live playback. Neither article text nor an offline audio cache is
-added by this change; tab closure, storage loss, or audio expiry can prevent
-recovery. Position records expire after 24 hours. `check:reader:position` uses
-isolated Chrome profiles and intercepted fixture APIs in both release gates.
+A real reload starts an idle local player at the beginning and requires Play.
+Experimental listening-position cursors are discarded without clearing paid
+part references or sending cancellation/speech requests. Browser-restored text
+is reconciled by the existing page-return readiness check; otherwise paste the
+text again. Identical cleaned text, voice and actual part layout reuse valid
+saved paid IDs in the same tab. Missing/expired parts retain their safeguards.
+Normal in-session Pause/Resume preserves the live position across background
+return. Stop and Clear keep their intentional behavior. `check:reader:reload`
+exercises these paths with isolated Chrome profiles and intercepted APIs.

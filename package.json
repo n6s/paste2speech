@@ -16,7 +16,7 @@
     "release:reader:staging": "node scripts/release-reader.mjs --staging",
     "check:reader:parity": "node scripts/reader-parity/check.mjs",
     "check:reader:resume": "node scripts/reader-parity/check-resume.mjs",
-    "check:reader:position": "node scripts/reader-parity/check-position.mjs",
+    "check:reader:reload": "node scripts/reader-parity/check-reload.mjs",
     "build:extension": "node scripts/chrome-extension/build.mjs",
     "check:extension": "node scripts/chrome-extension/check.mjs",
     "package:extension": "npm run build:extension && python3 scripts/chrome-extension/package.py",

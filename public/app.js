@@ -1,3 +1,4 @@
+import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
 import {setupExtensionHandoff} from './extension-handoff.js';
@@ -15,6 +16,7 @@ import { Player } from './player.js';
 import { StagingPlayer } from './staging-player.js';
 import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
+if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
@@ -75,7 +77,6 @@ let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
 let previewedText;
-let savedResume,positionLookup=0;
 let chunks = [];
 let paragraphStarts = [];
 let sentenceElements = [];
@@ -184,15 +185,6 @@ function preview() {
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
   videoDownload?.update();
-  updateSavedPosition();
-}
-function updateSavedPosition(){
-  const serial=++positionLookup;savedResume=null;
-  if(!CLOUD_READER||!isGoogle()||!cleaned||player?.state!=='idle')return;
-  void workstationPlayer.savedPosition(chunks,settings()).then(position=>{
-    if(serial!==positionLookup||player!==workstationPlayer||player.state!=='idle')return;
-    savedResume=position;render(player);
-  }).catch(()=>{});
 }
 function setMode(mode) {
   const reading = mode === 'read';
@@ -210,7 +202,7 @@ function readAndPlay() {
   setMode('read');
   if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
   if (['paused', 'ready', 'failed', 'disconnected'].includes(player.state)) player.resume(settings());
-  else { countNextPlayback=true; player.start(chunks, settings(),0,{restorePosition:isGoogle()}); }
+  else { countNextPlayback=true; player.start(chunks, settings()); }
 }
 $('credit-resume').onclick=()=>{window.dispatchEvent(new Event('speech-credit-change'));if(videoDownload?.creditPaused&&!workstationPlayer.getVideoPreparation?.()?.error)void videoDownload.resume();else void player?.resume(settings());};
 $('credit-browser').onclick=()=>{$('engine').value='browser';changeEngine();};
@@ -273,13 +265,13 @@ function render(p, message) {
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('credit-actions').hidden = !isGoogle() || !(p.getVideoPreparation?.()?.error?.creditPaused || videoDownload?.creditPaused);
-  $('status').textContent = message || (p.state==='idle'&&savedResume ? `Saved place · section ${savedResume.index+1}. Tap Resume to check existing audio.` : null) || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
-  $('play').textContent = (['paused', 'failed', 'disconnected'].includes(p.state)||p.state==='idle'&&savedResume) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
+  $('play').textContent = ['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
   $('play').disabled = ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
   $('pause').disabled = !['playing', 'preparing', 'buffering'].includes(p.state);
-  $('stop').disabled = p.state === 'idle'&&!savedResume;
+  $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
     ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours. Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
@@ -436,8 +428,8 @@ $('next-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.i
 $('include-captions')?.addEventListener('change',()=>render(player));
 $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
-$('stop').addEventListener('click', () => {workstationPlayer.forgetSavedPosition(savedResume?.key);savedResume=null;positionLookup++;player?.stop();});
-window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause();else workstationPlayer.persistPosition(true); });
+$('stop').addEventListener('click', () => player?.stop());
+window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 // Chrome may restore form values after startup without firing input. Reconcile
 // after returning to the page, preserving live audio and tab-saved preparation.
 let restorationFrame;
@@ -445,14 +437,14 @@ function reconcileRestoredText() {
   if (restorationFrame !== undefined) return;
   restorationFrame = requestAnimationFrame(() => {
     restorationFrame = undefined;
-    if ($('text').value === previewedText) {updateSavedPosition();return;}
+    if ($('text').value === previewedText) return;
     preview();
     if (player) render(player);
   });
 }
 window.addEventListener('pageshow', reconcileRestoredText);
 window.addEventListener('focus', reconcileRestoredText);
-document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText();else workstationPlayer.persistPosition(true); });
+document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
@@ -634,8 +626,6 @@ if(MSE_STAGING){
 }
 
 if (VIDEO_DOWNLOAD) videoDownload = setupVideoDownload({getText:()=>cleaned, getVoice:()=>$('voice').value, getPrepared:()=>workstationPlayer, isGoogle, onChange:()=>{if(player)render(player);}});
-if(CLOUD_READER)$('voice').addEventListener('change',()=>{updateSavedPosition();if(player)render(player);});
-if(CLOUD_READER)$('video-split-limit')?.addEventListener('change',()=>{updateSavedPosition();if(player)render(player);});
 
 // Logical readings have tab-local IDs. Join their existing exports on demand.
 for (const [id,kind] of [['download-audio','mp3'],['download-captions','vtt']]) {
