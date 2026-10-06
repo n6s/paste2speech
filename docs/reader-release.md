@@ -398,3 +398,16 @@ provider cancellation. Clear remains available during document processing.
 Validation uses synthetic PDFs/images and mocked provider calls; desktop
 keyboard, 390-pixel responsive layout and ARIA state checks are included.
 Actual Pixel and screen-reader testing are not represented by those checks.
+
+
+Staging OCR timing guidance uses only two observed small-document completions
+(JPEG about 3.2 seconds, four-page PDF about 7.4 seconds). It is explicitly
+provisional: allow around 30 seconds, with elapsed time rather than a countdown
+or percentage. A still-pending local POST gets one longer-wait announcement at
+30 seconds; failures, cancellation and Clear stop it. No timing telemetry or
+content is collected. Status checks remain explicit read-only requests.
+The recovery hint explains identical-file/account cache lookup and the 24-hour
+TTL from completion. Owner imports always consult server readiness and read the
+private saved result before budget admission, including at the exhausted cap;
+in-memory data cannot bypass server expiry. Expired or uncertain receipts never
+authorize a new paid retry. Production remains on its separate deployed version.
