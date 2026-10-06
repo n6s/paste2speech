@@ -74,6 +74,7 @@ document.addEventListener('keydown', event => {
 let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
+let previewedText;
 let chunks = [];
 let paragraphStarts = [];
 let sentenceElements = [];
@@ -136,7 +137,8 @@ async function discoverWorkstation() {
 function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?(MSE_STAGING?$('mse-delivery').value:(workstationPlayer.capability.mp3?'mse':'complete')):'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
-  cleaned = cleanText($('text').value, options);
+  previewedText = $('text').value;
+  cleaned = cleanText(previewedText, options);
   chunks = [];
   paragraphStarts = [];
   sentenceElements = [];
@@ -426,6 +428,22 @@ $('play').addEventListener('click', readAndPlay);
 $('pause').addEventListener('click', () => player?.pause());
 $('stop').addEventListener('click', () => player?.stop());
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
+// Chrome may restore form values after startup without firing input. Reconcile
+// after returning to the page, preserving live audio and tab-saved preparation.
+let restorationFrame;
+function reconcileRestoredText() {
+  if (restorationFrame !== undefined) return;
+  restorationFrame = requestAnimationFrame(() => {
+    restorationFrame = undefined;
+    if ($('text').value === previewedText) return;
+    preview();
+    if (player) render(player);
+  });
+}
+window.addEventListener('pageshow', reconcileRestoredText);
+window.addEventListener('focus', reconcileRestoredText);
+document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
+
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
 function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){

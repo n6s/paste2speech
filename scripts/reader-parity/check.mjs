@@ -20,10 +20,10 @@ try{
  for(const [environment,path] of Object.entries(sites)){
   assets=path;
   const context=await browser.newContext({viewport:{width:412,height:915}});
-  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let started,creates=0,reject=false,readingId;
+  const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let started,creates=0,deletes=0,reject=false,readingId;
   await page.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.Audio=function(...args){const a=new Original(...args);window.__audio.push(a);a.__loads=0;a.addEventListener('loadstart',()=>a.__loads++);return a;};window.__appends=0;const append=SourceBuffer.prototype.appendBuffer;SourceBuffer.prototype.appendBuffer=function(b){window.__appends++;return append.call(this,b);};});
   await page.route('**/api/**',async route=>{
-   const r=route.request(),p=new URL(r.url()).pathname;let data={};
+   const r=route.request(),p=new URL(r.url()).pathname;let data={};if(r.method()==='DELETE')deletes++;
    if(p==='/api/reader')data={eligible:true,account:{balance:62100}};
    else if(p==='/api/readings'&&r.method()==='POST'){
     if(reject)return route.fulfill({status:403,json:{detail:'A clear server explanation.'}});
@@ -56,6 +56,21 @@ try{
   await page.click('#pause');await page.waitForFunction(()=>__appends===3);await page.waitForFunction(()=>__audio.some(a=>Number.isFinite(a.duration)&&a.duration>10));
   const state=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {source:a.src,loads:a.__loads,duration:a.duration,paused:a.paused};});
   assert.equal(state.source,source);assert.equal(state.loads,1);assert.ok(state.paused);assert.ok(Math.abs(state.duration-duration)<1/24000);
+  const pausedBefore=await page.evaluate(()=>({text:document.querySelector('#text').value,time:__audio.find(a=>a.src.startsWith('blob:')).currentTime,saved:JSON.stringify(sessionStorage)}));
+  await page.evaluate(async()=>{
+   document.querySelector('#text').value+='\nRestored extra text.';
+   window.dispatchEvent(new PageTransitionEvent('pageshow',{persisted:true}));
+   window.dispatchEvent(new Event('focus'));
+   document.dispatchEvent(new Event('visibilitychange'));
+   await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+  });
+  assert.ok(await page.locator('#status').textContent().then(t=>t.includes('Paused')));
+  assert.ok(await page.locator('#play').isEnabled());assert.equal(creates,1);assert.equal(deletes,0);
+  const pausedAfter=await page.evaluate(()=>{const a=__audio.find(a=>a.src.startsWith('blob:'));return {source:a.src,time:a.currentTime,paused:a.paused,saved:JSON.stringify(sessionStorage)};});
+  assert.equal(pausedAfter.source,source);assert.equal(pausedAfter.time,pausedBefore.time);assert.equal(pausedAfter.saved,pausedBefore.saved);assert.ok(pausedAfter.paused);
+  await page.evaluate(async text=>{document.querySelector('#text').value=text;window.dispatchEvent(new Event('focus'));await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));},pausedBefore.text);
+  console.log(`PASS ${environment}: foreground/restoration preserves paused source, position and saved IDs`);
+
   assert.equal(await page.locator('#rate').getAttribute('type'),'hidden');
   assert.equal(await page.locator('#speed-preset').textContent(),'1×');
   await page.click('#speed-preset');await page.click('#speed-preset');
@@ -165,6 +180,38 @@ try{
   await fresh.waitForFunction(()=>Object.keys(sessionStorage).some(k=>k.startsWith('paste2speech.video.')&&JSON.parse(sessionStorage.getItem(k)).filter(r=>r.id).length===2));
   assert.equal(freshCreates,2);await cleared.close();
   console.log(`PASS ${environment}: Clear, refresh, and fresh long-reading preparation in Chrome`);
+
+  const restored=await browser.newContext({viewport:{width:412,height:915}}),restorePage=await restored.newPage();let restoreCreates=0,restoreDeletes=0;
+  await restored.addInitScript(()=>localStorage.setItem('paste2speech.settings',JSON.stringify({engine:'google',workstationVoice:'en-US-Wavenet-F'})));
+  await restorePage.route('**/api/**',async route=>{
+   const r=route.request();if(new URL(r.url()).pathname==='/api/readings'&&r.method()==='POST')restoreCreates++;
+   if(r.method()==='DELETE')restoreDeletes++;
+   await route.fulfill({json:{account:null,eligible:false,accessAllowed:false}});
+  });
+  await restorePage.goto(origin);assert.ok(await restorePage.locator('#play').isDisabled());
+  await restorePage.evaluate(()=>sessionStorage.setItem('paste2speech.video.preserved',JSON.stringify([{id:'saved-part'}])));
+  const checkRestoration=async(text,eventName)=>{
+   await restorePage.evaluate(async({text,eventName})=>{
+    document.querySelector('#text').value=text;
+    if(eventName==='visibilitychange'){
+     Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));
+     Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));
+    }else window.dispatchEvent(eventName==='pageshow'?new PageTransitionEvent('pageshow',{persisted:false}):new Event(eventName));
+    await new Promise(r=>requestAnimationFrame(()=>requestAnimationFrame(r)));
+   },{text,eventName});
+   assert.equal(await restorePage.locator('#play').isEnabled(),!!text.trim());
+   assert.equal(await restorePage.locator('#text').inputValue(),text);
+   assert.equal(await restorePage.locator('#count').textContent(),text.trim()?`${text.trim().split(/\s+/).length} words`:'');
+   assert.equal(await restorePage.evaluate(()=>sessionStorage.getItem('paste2speech.video.preserved')),JSON.stringify([{id:'saved-part'}]));
+   assert.equal(restoreCreates,0);assert.equal(restoreDeletes,0);
+  };
+  await checkRestoration('Restored synthetic morning brief.','pageshow');
+  await checkRestoration('Restored synthetic morning brief.','focus');
+  await checkRestoration('A changed restored brief.','visibilitychange');
+  await checkRestoration('','pageshow');await checkRestoration('   ','focus');
+  await checkRestoration('Text restored again.','pageshow');
+  assert.equal(await restorePage.locator('#status').textContent(),'Ready when you are');
+  await restored.close();console.log(`PASS ${environment}: late form restoration, changed/empty text, repeated returns and signed-out readiness without speech or cancellation`);
   const unsupported=await browser.newContext();await unsupported.addInitScript(()=>{window.MediaSource=undefined;});
   const fallback=await unsupported.newPage();await fallback.route('**/api/**',r=>r.fulfill({json:{eligible:true}}));await fallback.goto(origin);await fallback.locator('#voice-settings').evaluate(e=>e.open=true);await fallback.selectOption('#engine','google');assert.equal(await fallback.locator('#playback-options').isVisible(),false);await unsupported.close();
   console.log(`PASS ${environment}: default controls, early playback, pause, speed, seek, same-job fallback, errors, testing-mode isolation, unsupported browser`);
