@@ -363,3 +363,10 @@ headers, document contents or key values. A one-time scheduled GET `/v1/models`,
 scoped to the named uncertain receipt, checks current access without OCR, document
 uploads or budget changes. Its durable claim prevents automatic probe retries.
 Historical discarded OCR error details cannot be recovered from this probe.
+
+Local workerd reproduced `TypeError: Invalid redirect value` for `redirect:error`
+with the staging compatibility date. OCR and diagnostic requests now use
+`redirect:manual`; non-2xx responses are rejected, so credentials are never
+forwarded to a redirect. The corrected read-only access probe uses a revision
+suffix in its diagnostic identifier, retaining the first failed probe unchanged.
+Paid OCR remains paused pending owner approval of another live attempt.

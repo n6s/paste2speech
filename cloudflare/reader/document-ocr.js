@@ -80,7 +80,7 @@ export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=D
   const payload={...mistralOcrPayload(bytes,'application/pdf'),pages:[0,1,2,3]},dispatch=clock();
   // Durable checkpoint before the one provider call; ambiguity never dispatches.
   phase='dispatch-checkpoint';acknowledged(await env.LEDGER.prepare('INSERT INTO ocr_experiment_dispatch VALUES(?,?,?)').bind(id,dispatch,dispatch+300000).run());
-  phase='provider-fetch';const response=await fetcher('https://api.mistral.ai/v1/ocr',{method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),headers:{Authorization:'Bearer '+env.MISTRAL_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  phase='provider-fetch';const response=await fetcher('https://api.mistral.ai/v1/ocr',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(90000),headers:{Authorization:'Bearer '+env.MISTRAL_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(payload)});
   providerStatus=response.status;phase='provider-response';if(!response.ok){await response.body?.cancel();throw Error('provider');}
   phase='response-decode';const raw=JSON.parse(new TextDecoder().decode(await readBounded(response,16*1024*1024)));
   phase='response-schema';if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length!==4||raw.usage_info?.pages_processed!==4||raw.pages.some((p,i)=>p.index!==i)||!raw.pages.some(p=>p.blocks?.some(b=>String(b.content||'').trim())||String(p.markdown||'').trim()))throw Error('result');
@@ -105,17 +105,18 @@ export async function purgeOcrCache(env,now=Date.now()){
 export async function probeOcrAccess(env,{fetcher=fetch,now=Date.now}={}){
  const id=env.OCR_DIAGNOSTIC_ATTEMPT;if(env.READER_MODE!=='staging'||!uuid(id)||!env.MISTRAL_API_KEY)return;
  const attempt=await byId(env,id);if(attempt?.state!=='uncertain')return;
+ const probeId=env.OCR_DIAGNOSTIC_REVISION==='manual-redirect'?id+':manual-redirect':id;
  let phase='key-format',httpStatus=null,errorKind=null,available=null;const key=env.MISTRAL_API_KEY;
  const edgeWhitespace=key!==key.trim(),controlCharacters=/[\x00-\x1f\x7f]/.test(key);
  try{
-  const claim=await env.LEDGER.prepare("INSERT OR IGNORE INTO ocr_experiment_diagnostics(attempt_id,kind,phase,key_edge_whitespace,key_control_characters,created,updated) VALUES(?,'access-check','claimed',?,?,?,?)").bind(id,Number(edgeWhitespace),Number(controlCharacters),now(),now()).run();
+  const claim=await env.LEDGER.prepare("INSERT OR IGNORE INTO ocr_experiment_diagnostics(attempt_id,kind,phase,key_edge_whitespace,key_control_characters,created,updated) VALUES(?,'access-check','claimed',?,?,?,?)").bind(probeId,Number(edgeWhitespace),Number(controlCharacters),now(),now()).run();
   if(claim.success!==true||claim.meta?.changes!==1)return;
  }catch{return;}
  try{
   const headers=new Headers({Authorization:'Bearer '+key});
-  phase='model-access';const response=await fetcher('https://api.mistral.ai/v1/models',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers});httpStatus=response.status;
+  phase='model-access';const response=await fetcher('https://api.mistral.ai/v1/models',{method:'GET',redirect:'manual',signal:AbortSignal.timeout(15000),headers});httpStatus=response.status;
   if(response.ok){phase='model-list';const data=JSON.parse(new TextDecoder().decode(await readBounded(response,1024*1024)));available=Number(Array.isArray(data.data)&&data.data.some(model=>model.id===OCR_MODEL));phase='complete';}
   else{await response.body?.cancel();phase='provider-rejected';}
  }catch(error){errorKind=['TypeError','SyntaxError','AbortError','TimeoutError','RangeError'].includes(error?.name)?error.name:'Error';}
- await env.LEDGER.prepare("UPDATE ocr_experiment_diagnostics SET phase=?,http_status=?,error_kind=?,model_available=?,updated=? WHERE attempt_id=? AND kind='access-check'").bind(phase,httpStatus,errorKind,available,now(),id).run();
+ await env.LEDGER.prepare("UPDATE ocr_experiment_diagnostics SET phase=?,http_status=?,error_kind=?,model_available=?,updated=? WHERE attempt_id=? AND kind='access-check'").bind(phase,httpStatus,errorKind,available,now(),probeId).run();
 }

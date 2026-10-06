@@ -7,6 +7,7 @@
   "vars": {
     "ENABLE_DOCUMENT_OCR": "1",
     "OCR_LIVE_APPROVED": "0",
+    "OCR_DIAGNOSTIC_REVISION": "manual-redirect",
     "OCR_DIAGNOSTIC_ATTEMPT": "95eed1f1-626f-4dd2-8a6f-c9b0705af07a",
     "OWNER_EMAIL": "rogerpbrown@gmail.com",
     "BACKGROUND_WORK_PAUSED": "0",
