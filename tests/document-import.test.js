@@ -20,9 +20,9 @@ test('Mistral contract is pinned and accepts validated bytes rather than arbitra
 });
 test('staging OCR remains disabled before body consumption even with flags or fake credentials; production route absent',async()=>{
  const r=new Request('https://reader.test/api/ocr',{method:'POST',body:'private document'});
- const response=documentOcrResponse(r,{READER_MODE:'staging',ENABLE_DOCUMENT_OCR:'1',MISTRAL_API_KEY:'fake-test-only'});assert.equal(response.status,503);assert.equal(r.bodyUsed,false);
- const config=await documentOcrResponse(new Request('https://reader.test/api/ocr/config'),{READER_MODE:'staging'}).json();assert.equal(config.enabled,false);assert.equal(config.model,OCR_MODEL);
- assert.equal(documentOcrResponse(r,{READER_MODE:'production-public'}).status,404);
+ const response=await documentOcrResponse(r,{READER_MODE:'staging',ENABLE_DOCUMENT_OCR:'1',MISTRAL_API_KEY:'fake-test-only'},{verifyOwner:async()=>true});assert.equal(response.status,503);assert.equal(r.bodyUsed,false);
+ const config=await (await documentOcrResponse(new Request('https://reader.test/api/ocr/config'),{READER_MODE:'staging'},{verifyOwner:async()=>true})).json();assert.equal(config.enabled,false);assert.equal(config.model,OCR_MODEL);
+ assert.equal((await documentOcrResponse(r,{READER_MODE:'production-public'})).status,404);
 });
 test('ordered source prose, asides and labeled tables export without uncertainty narration or source mutation',()=>{
  const raw={model:OCR_MODEL,pages:[{index:0,footer:'Page 1',tables:[{id:'t',content:'| Event | Date |\n| --- | --- |\n| Picnic | 10/8 |'}],blocks:[{type:'title',content:'Community news'},{type:'text',content:'The source sentence continues'},{type:'text',content:'on its next line.'},{type:'aside_text',content:'Keep this sidebar.'},{type:'table',table_id:'t',content:'table',confidence_scores:{minimum_content_confidence_score:.5}}]}]};

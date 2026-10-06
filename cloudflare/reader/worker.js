@@ -1,4 +1,4 @@
-import {documentOcrResponse} from './document-ocr.js';
+import {documentOcrResponse,purgeOcrCache} from './document-ocr.js';
 import {WAVENET_VOICE_IDS} from '../../public/wavenet-voices.js';
 import {ownerResponse} from './owner-dashboard.js';
 import {legacyDomainResponse,legacyStagingResponse} from './legacy-domain.js';
@@ -38,7 +38,7 @@ async function asset(request,env,path){
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){await runMaintenance(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){await runMaintenance(env);await purgeOcrCache(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
   if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
    if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
@@ -53,9 +53,9 @@ export default {
   if(url.pathname==='/api/billing/webhook'&&request.method==='POST'&&publicMode(env))return receiveWebhook(request,env,ctx);
   if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
-   if(['/api/ocr','/api/ocr/config'].includes(url.pathname))return documentOcrResponse(request,env);
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
+   if(['/api/ocr','/api/ocr/config'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;

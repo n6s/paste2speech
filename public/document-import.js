@@ -37,10 +37,11 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
    const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await file.arrayBuffer()))].map(b=>b.toString(16).padStart(2,'0')).join('');
    if(controller.signal.aborted)throw new DOMException('Cancelled','AbortError');
    if(cache.has(hash)){if(request===sequence&&getText()===previous)load(cache.get(hash),file);return;}
-   const response=await fetcher('/api/ocr/config',{signal:controller.signal});if(!response.ok)throw Error('Cloud OCR availability could not be checked. Nothing was uploaded.');
+   const response=await fetcher('/api/ocr/config',{signal:controller.signal});if(!response.ok){const detail=await response.json().catch(()=>null);throw Error((detail?.detail||'Cloud OCR availability could not be checked.')+' Nothing was uploaded.');}
    const config=await response.json();if(request!==sequence||getText()!==previous)return;
    if(!config.enabled){status.textContent='This document needs OCR. Cloud OCR is not enabled yet. Nothing was uploaded; your existing text is unchanged.';return;}
    if(config.model!==OCR_MODEL||typeof config.costNotice!=='string'||!config.costNotice.trim())throw Error('Cloud OCR is unavailable until its cost and privacy setup is confirmed. Nothing was uploaded.');
+   if(config.approvedDocument&&(type.kind!=='pdf'||config.approvedDocument.sha256!==hash||config.approvedDocument.bytes!==file.size))throw Error('This private OCR trial accepts only the approved October 2026 Spanish Fork newsletter PDF. Nothing was uploaded.');
    pending={file,type,hash,previous};notice.textContent=`Cloud OCR sends this file to Mistral (${OCR_MODEL}). ${config.costNotice} Speech playback is a separate action.`;cloud.hidden=false;status.textContent='Cloud OCR is needed. Agree to the upload and cost notice, then choose Use cloud OCR.';
   }catch(error){if(request===sequence)status.textContent=error.name==='AbortError'?'Import cancelled. Your existing text is unchanged.':error.message;}
   finally{if(request===sequence){setBusy(false);input.value='';}}

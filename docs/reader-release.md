@@ -242,27 +242,76 @@ and waits for explicit Play. TXT and Markdown downloads use current text;
 unchanged OCR text retains reconstructed Markdown headings. Diagnostics remain
 separate from the reading.
 
-**Paid OCR is deliberately disabled.** `GET /api/ocr/config` returns disabled;
-`POST /api/ocr` rejects before reading a body. No provider fetch is wired, and
-neither a flag nor a secret can enable it. The provider payload contract is
-pinned to `mistral-ocr-4-1`; deterministic reconstruction is adapted from the
-isolated OCR prototype. The browser upload/consent/reconstruction path is tested
-against mock responses only. Production retains its existing local PDF UI.
+**Staging has an approved bounded owner-only OCR experiment.** Roger confirmed
+secure Wrangler key upload on October 6. `OCR_LIVE_APPROVED=1` and a configured
+Worker secret activate only the exact approved newsletter trial; setting that
+flag to `0` pauses it without resetting budget or receipts. Production always returns 404 for OCR.
+After separate activation, existing Cloudflare Access/origin checks plus a
+current verified billing session for `OWNER_EMAIL` are required on both config
+and upload routes. Anonymous, legacy, expired, disabled and other accounts are
+rejected before file bytes are read.
 
-Activation needs separate approval of the OCR price, page/cost limits and who
-may use it, plus secure Worker secret configuration. A future enabled backend
-must validate account and explicit consent, byte type/size and page admission;
-reserve a durable bounded OCR budget and idempotency receipt before provider
-submission; reconcile uncertain calls without automatic paid retries; enforce
-rate limits and timeouts; avoid recording document bodies or credentials; and
-return safe actionable errors. Speech character credit is separate from OCR
-cost. Do not add a key to browser code or copy credentials from prototype files.
-PDF/image handlers form the first document routes; other formats require their
-own validated extraction adapters.
+Only the exact approved four-page October 2026 Spanish Fork newsletter may be
+submitted: SHA-256 `f23892d03f3b807089e1af35df8175acf87f3cc12c2df786d1ec8b17c2909c80`,
+5,814,537 bytes, PDF only. Client routing also checks the approved fingerprint;
+the server checks independently. Explicit multipart consent and the pinned
+`mistral-ocr-4-1` model are mandatory. Provider dispatch selects pages 0–3,
+disallows redirects, times out at 90 seconds, limits results to 16 MB, and
+requires exactly four processed/result pages and the pinned model. Provider
+errors and credentials never enter user-facing details. No model fallback,
+annotations, automatic paid retries, paid speech, or other documents are enabled.
+
+The staging-only SQL in `cloudflare/reader/staging-migrations/0001_document_ocr_trial.sql`
+creates durable experiment receipts and atomic reservation triggers in the
+existing staging D1 database. It is deliberately outside public migrations.
+The $5 admission ceiling includes a $1 historical allowance (the private
+prototype ledger establishes 2 cents reserved for one prior attempt) and $1
+reserved before each new attempt. Those allowances are conservative bounds,
+not claims of actual charges. The verified October 6 list rate is $4/1,000 pages
+([official pricing](https://docs.mistral.ai/inference/pricing)), estimating
+$0.016 for four pages. Invoice minimums, taxes, account billing and usage outside
+this experiment remain unverified; the app ceiling cannot control other keys.
+
+A unique experiment/document/model receipt permits one dispatch. Concurrent
+uploads, lost insert acknowledgements, failures, provider rejections and
+uncertain settlement cannot authorize another call. All reservations stay
+consumed. Successful raw OCR results are privately cached in existing staging
+R2 for 24 hours and reused across requests/restarts; the minute maintenance job
+deletes expired source results, retaining numeric receipts. Missing/expired
+cache and uncertain attempts require explicit investigation and fresh approval,
+not deletion of receipts to force a retry. No source document is persisted.
+
+Apply only to the staging database before deploying this backend:
+
+```bash
+npx wrangler d1 execute private-wavenet-reader-staging --remote \
+  --config cloudflare/reader/wrangler.staging.jsonc \
+  --file cloudflare/reader/staging-migrations/0001_document_ocr_trial.sql
+```
+
+Roger must enter the Mistral key himself through Wrangler's protected prompt:
+
+```bash
+cd ~/workarea/paste2speech
+npx wrangler secret put MISTRAL_API_KEY \
+  --config cloudflare/reader/wrangler.staging.jsonc
+```
+
+Do not put the value in chat, browser code, a command argument, shell history,
+a repository file or an assistant-readable credential file. The assistant must
+not read `/tmp/api.txt` or existing keys. User confirmation that secure setup
+completed was received before activating `OCR_LIVE_APPROVED`. A live call still
+requires the verified owner session and explicit consent in the staged UI.
+Activation is a clean staging commit and verified staging-only release. Broader documents/accounts and public production require new approval.
+PDF/image handlers form the first routes; new formats require separate adapters.
 
 `npm run check:reader:documents` uses an isolated headless browser, local assets,
 synthetic files and intercepted APIs. It checks local PDF success, production
 regression, disabled OCR, consent, text/Markdown exports, cached result reuse,
-failed/empty/cancelled OCR and zero speech creation. It runs in both release
+failed/empty/cancelled OCR and zero speech creation.
+`tests/document-ocr-trial.test.js` additionally checks real SQLite owner sessions,
+concurrent durable reservations, exact-file admission, lost acknowledgements,
+bounded/pinned mock provider dispatch, cached reuse, all uncertain failure paths
+and source-cache retirement. It runs in both release
 gates alongside parity, resume, reload and preview checks. Cached real document
 responses are private verification inputs, never deployment assets.
