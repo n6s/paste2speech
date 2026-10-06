@@ -411,3 +411,24 @@ TTL from completion. Owner imports always consult server readiness and read the
 private saved result before budget admission, including at the exhausted cap;
 in-memory data cannot bypass server expiry. Expired or uncertain receipts never
 authorize a new paid retry. Production remains on its separate deployed version.
+
+
+Approved October 6 cumulative OCR allowance change: apply staging-only
+`0005_owner_ocr_page_budget.sql` before deploying this owner backend. It creates
+a versioned $10 owner budget, carrying the entire original ledger balance as an
+immutable baseline; the original budget and all receipts remain intact. Existing
+owner receipts gain their original 100-cent reservation metadata. No successful,
+failed, uncertain or historical reservation is released or reconciled.
+Future admissions reserve `max(1, ceil(pages * 0.8))` cents: twice the pinned
+$0.004/page published price, rounded upward. Examples: image 1 cent, four-page
+PDF 4 cents, ten-page PDF 8 cents. The server bounds the page list independently
+and accepts results only when returned page count and usage match that list.
+The UI shows this reservation separately from the published-price estimate.
+Neither is a verified invoice charge; minimums, taxes and unrelated usage remain
+unverified. Each admission and its audit journal row update the cumulative
+counter atomically in SQL triggers. Duplicate, uncertain and expired requests
+cannot initiate paid retries. Cache recovery still precedes budget admission.
+With the observed original 500-cent balance carried forward, the new 1000-cent
+ceiling leaves 500 cents of reservation room. This supersedes the earlier
+$5/flat-$1 trial policy for owner documents only; historical trial routes remain
+preserved for audit and are unreachable under `OCR_OWNER_DOCUMENTS=1`.

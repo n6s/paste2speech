@@ -1,4 +1,6 @@
 export const OCR_MODEL='mistral-ocr-4-1';
+// Pinned published OCR price with a 2x safety margin, rounded upward in cents.
+export function ocrReservationCents(pages){if(!Number.isInteger(pages)||pages<1||pages>10)throw Error('Invalid OCR page count.');return Math.max(1,Math.ceil(pages*8/10));}
 export const DOCUMENT_LIMIT=20*1024*1024;
 export function documentType(file) {
  const mime=String(file.type||'').toLowerCase(),name=String(file.name||'').toLowerCase();
