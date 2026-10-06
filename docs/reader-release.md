@@ -315,3 +315,20 @@ bounded/pinned mock provider dispatch, cached reuse, all uncertain failure paths
 and source-cache retirement. It runs in both release
 gates alongside parity, resume, reload and preview checks. Cached real document
 responses are private verification inputs, never deployment assets.
+
+
+### OCR admission and read-only recovery
+
+D1 mutation metadata counts trigger effects. A successful receipt insert changes
+two rows (receipt plus budget); admission requires an acknowledged successful
+positive mutation, rather than exactly one changed row. Local regression tests
+use `total_changes()` to match the installed D1 runtime. A lost acknowledgement
+still blocks dispatch and retains its reservation.
+
+The importer displays elapsed time while its single POST is active, without
+inventing a progress percentage. **Check OCR status** calls only owner-protected
+GET routes (`/api/ocr/status`, `/api/ocr/result`), can load an existing ready
+result, and never submits paid OCR. A receipt older than 120 seconds without a
+confirmed result is presented as uncertain rather than implying background
+progress. This does not mutate, release or retry the original receipt. The
+original October 6 stranded admission remains preserved for investigation.

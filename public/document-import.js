@@ -10,7 +10,11 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
  const exports=document.createElement('div');exports.hidden=true;exports.id='document-exports';
  const notes=document.createElement('details'),summary=document.createElement('summary'),noteText=document.createElement('p');summary.textContent='Extraction details';noteText.id='document-notes';notes.append(summary,noteText);root.append(exports,notes);notes.hidden=true;
  let sequence=0,controller,busy=false,pending,imported;const cache=new Map();
- const setBusy=value=>{busy=value;root.setAttribute('aria-busy',String(value));root.setAttribute('aria-busy',String(value));root.setAttribute('aria-busy',String(value));input.disabled=value;cancel.hidden=!value;onBusy(value);run.disabled=value||!pending||!consent.checked;};
+ const check=document.createElement('button');check.type='button';check.id='document-check';check.textContent='Check OCR status';root.append(check);
+ const elapsed=document.createElement('span');elapsed.id='document-elapsed';elapsed.setAttribute('aria-live','off');root.insertBefore(elapsed,status.nextSibling);
+ const reconstructed=raw=>{if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length>100)throw Error('Cloud OCR returned an unsupported result. Your existing text is unchanged.');const result=reconstruct(raw);if(!result.articles.length)throw Error('No readable text was returned. Your existing text is unchanged.');return {result,data:{text:exportText(result.articles).trim(),markdown:exportText(result.articles,true),pages:raw.pages.length}};};
+ check.onclick=async()=>{const previous=getText(),request=sequence;check.disabled=true;try{const response=await fetcher('/api/ocr/status');const state=await response.json();if(!response.ok)throw Error(state.detail||'OCR status could not be checked.');status.textContent=state.detail+(state.elapsedSeconds!=null?` ${state.elapsedSeconds} seconds since admission.`:'');if(state.state==='ready'){const response=await fetcher('/api/ocr/result');if(!response.ok)throw Error((await response.json()).detail||'The saved result could not be loaded.');const {result,data}=reconstructed(await response.json());if(request===sequence&&getText()===previous){diagnostics(result.notes);load(data,{name:'October 2026 Spanish Fork newsletter.pdf'});}}}catch(error){status.textContent=error.message;}finally{check.disabled=false;}};
+ const setBusy=value=>{busy=value;root.setAttribute('aria-busy',String(value));root.setAttribute('aria-busy',String(value));root.setAttribute('aria-busy',String(value));input.disabled=value;cancel.hidden=!value;check.disabled=value;onBusy(value);run.disabled=value||!pending||!consent.checked;};
  const diagnostics=value=>{notes.hidden=false;noteText.textContent=value.join(' ');};
  const load=(data,file)=>{if(!data.text.trim())throw Error('No readable text was returned. Your existing text is unchanged.');accept(data);imported={...data,name:file.name};exports.hidden=false;status.textContent=`Loaded ${file.name}${data.pages?` · ${data.pages} pages`:''}. Press Play when ready.`;cloud.hidden=true;pending=null;};
  const download=markdown=>{
@@ -47,18 +51,16 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
   finally{if(request===sequence){setBusy(false);input.value='';}}
  });
  run.onclick=async()=>{
-  if(busy||!pending||!consent.checked)return;const attempt=pending,request=sequence;pending=null;controller=new AbortController();setBusy(true);status.textContent='Extracting document text…';
+  if(busy||!pending||!consent.checked)return;const attempt=pending,request=sequence;pending=null;controller=new AbortController();setBusy(true);status.textContent='Extracting document text. This may take up to 90 seconds; no exact progress percentage is available.';const started=performance.now();elapsed.textContent=' 0 seconds elapsed.';const ticker=setInterval(()=>{elapsed.textContent=` ${Math.floor((performance.now()-started)/1000)} seconds elapsed.`;},1000);
   try{
    const form=new FormData();form.append('file',attempt.file);form.append('consent','true');form.append('model',OCR_MODEL);
    const response=await fetcher('/api/ocr',{method:'POST',body:form,signal:controller.signal});
    if(!response.ok){const detail=await response.json().catch(()=>null);throw Error(detail?.detail||'Cloud OCR failed. No automatic retry; your existing text is unchanged.');}
-   const raw=await response.json();if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length>100)throw Error('Cloud OCR returned an unsupported result. Your existing text is unchanged.');
-   const result=reconstruct(raw),data={text:exportText(result.articles).trim(),markdown:exportText(result.articles,true),pages:raw.pages.length};
-   if(!result.articles.length)throw Error('No readable text was returned. Your existing text is unchanged.');
+   const {result,data}=reconstructed(await response.json());
    cache.set(attempt.hash,data);if(request!==sequence||controller.signal.aborted||getText()!==attempt.previous)return;
    diagnostics(result.notes);load(data,attempt.file);
   }catch(error){if(request===sequence)status.textContent=error.name==='AbortError'?'Import cancelled. Your existing text is unchanged.':error.message;}
-  finally{if(request===sequence){cloud.hidden=true;setBusy(false);}}
+  finally{clearInterval(ticker);elapsed.textContent='';if(request===sequence){cloud.hidden=true;setBusy(false);}}
  };
  return {get busy(){return busy;}};
 }

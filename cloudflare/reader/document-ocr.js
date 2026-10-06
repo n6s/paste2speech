@@ -13,7 +13,8 @@ export async function reserveOcrAttempt(db,hash,now=Date.now()) {
  // A unique durable insert is the only permission to make one paid call.
  // A committed insert with a lost acknowledgement never authorizes dispatch.
  const result=await db.prepare('INSERT INTO ocr_experiment_attempts(id,experiment,document_hash,model,reservation_cents,state,created,updated) VALUES(?,?,?,?,?,\'reserved\',?,?)').bind(id,OCR_TRIAL.id,hash,OCR_MODEL,OCR_TRIAL.reserveCents,now,now).run();
- if(result.meta?.changes!==1)throw Error('OCR reservation could not be confirmed.');
+ // D1 counts the budget trigger's update too: this insert changes two rows.
+ if(result.success!==true||!Number.isSafeInteger(result.meta?.changes)||result.meta.changes<1)throw Error('OCR reservation could not be confirmed.');
  return id;
 }
 async function receipt(env,hash) {return env.LEDGER.prepare('SELECT * FROM ocr_experiment_attempts WHERE experiment=? AND document_hash=? AND model=?').bind(OCR_TRIAL.id,hash,OCR_MODEL).first();}
@@ -27,6 +28,15 @@ export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=D
  // Access JWT/origin are checked by the Worker before this handler. This is an
  // additional verified billing-session owner check, never a client assertion.
  if(!await verifyOwner(env.LEDGER,token,env.OWNER_EMAIL))return json({detail:'Sign in with the verified owner account to use this private OCR trial.'},403);
+ if(['/api/ocr/status','/api/ocr/result'].includes(path)&&request.method==='GET'){
+  const clock=typeof now==='function'?now():now;let row;
+  try{row=await receipt(env,OCR_TRIAL.hash);}catch{return json({detail:'OCR status could not be checked. No paid retry was made.'},503);}
+  if(!row)return path.endsWith('/result')?json({detail:'No OCR result exists.'},404):json({state:'idle',detail:'No OCR attempt has been recorded.'});
+  if(path.endsWith('/result'))return replay(env,row,clock);
+  const elapsedSeconds=Math.max(0,Math.floor((clock-row.created)/1000));
+  const state=row.state==='reserved'?(elapsedSeconds>120?'uncertain':'pending'):row.state==='ready'&&row.expires<=clock?'expired':row.state;
+  return json({state,elapsedSeconds,reservationCents:row.reservation_cents,resultUrl:state==='ready'?'/api/ocr/result':null,detail:state==='ready'?'OCR is ready. Load the existing result without another paid request.':state==='pending'?'The OCR reservation is recorded; completion is not confirmed yet. Checking status never starts OCR.':state==='expired'?'The OCR result expired. No paid retry was made.':'OCR completion is unconfirmed. No automatic paid retry was made. The existing reservation is retained; investigate the original attempt before another paid call.'});
+ }
  const enabled=env.ENABLE_DOCUMENT_OCR==='1'&&env.OCR_LIVE_APPROVED==='1'&&!!env.MISTRAL_API_KEY;
  if(path==='/api/ocr/config'&&request.method==='GET'){
   if(!enabled)return json({enabled:false,model:OCR_MODEL,reason:'Private OCR awaits confirmed secure key setup and activation.'});

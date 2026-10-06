@@ -4,7 +4,7 @@ import {documentOcrResponse,reserveOcrAttempt,OCR_TRIAL,purgeOcrCache} from '../
 import {digest} from '../cloudflare/prepared/ledger.js';
 const time=Date.now(),raw={model:'mistral-ocr-4-1',usage_info:{pages_processed:4},pages:Array.from({length:4},(_,index)=>({index,blocks:[{type:'text',content:`Source page ${index+1}.`}]}))};
 async function setup(){const sql=new DatabaseSync(':memory:');sql.exec(readFileSync('cloudflare/reader/staging-migrations/0001_document_ocr_trial.sql','utf8'));sql.exec('CREATE TABLE accounts(id TEXT PRIMARY KEY,enabled INTEGER); CREATE TABLE identities(email TEXT,account TEXT); CREATE TABLE sessions(token_hash TEXT,account TEXT,expires INTEGER,kind TEXT);');sql.exec("INSERT INTO accounts VALUES('owner',1),('other',1); INSERT INTO identities VALUES('owner@example.invalid','owner'),('other@example.invalid','other');");for(const [token,account,kind,expires] of [['owner','owner','verified',time+3600000],['other','other','verified',time+3600000],['anonymous','owner','anonymous',time+3600000],['expired','owner','verified',0]])sql.prepare('INSERT INTO sessions VALUES(?,?,?,?)').run(await digest(token),account,expires,kind);
- let lostAck=false;const db={prepare(s){let params=[];const q={bind(...args){params=args;return q;},async first(){return sql.prepare(s).get(...params)||null;},async all(){return {results:sql.prepare(s).all(...params)};},async run(){const result=sql.prepare(s).run(...params);if(lostAck&&s.startsWith('INSERT INTO ocr_experiment_attempts'))throw Error('Lost acknowledgement');return {meta:{changes:Number(result.changes)}};}};return q;}};
+ let lostAck=false;const db={prepare(s){let params=[];const q={bind(...args){params=args;return q;},async first(){return sql.prepare(s).get(...params)||null;},async all(){return {results:sql.prepare(s).all(...params)};},async run(){const before=sql.prepare('SELECT total_changes() AS n').get().n;const result=sql.prepare(s).run(...params);const changes=sql.prepare('SELECT total_changes() AS n').get().n-before;if(lostAck&&s.startsWith('INSERT INTO ocr_experiment_attempts'))throw Error('Lost acknowledgement');return {success:true,meta:{changes:Number(changes)}};}};return q;}};
  const cache=new Map(),env={READER_MODE:'staging',ENABLE_DOCUMENT_OCR:'1',OCR_LIVE_APPROVED:'1',MISTRAL_API_KEY:'fake-test-key',OWNER_EMAIL:'owner@example.invalid',LEDGER:db,AUDIO:{async get(k){return cache.has(k)?{json:async()=>JSON.parse(cache.get(k))}:null;},async put(k,v){cache.set(k,v);},async delete(k){cache.delete(k);}}};
  return {sql,db,env,cache,lostAcknowledgement(){lostAck=true;},options:{token:'owner',now:()=>time,hashBytes:async()=>OCR_TRIAL.hash}};
 }
@@ -32,4 +32,17 @@ test('actual Worker routes enforce owner and origin before the OCR backend; clie
   assert.equal((await send('owner')).status,422);assert.equal(outbound,0);
   const req=new Request('https://stage.test/api/ocr/config',{headers:{Cookie:'p2s_private_reader=owner'}});const config=await(await worker.fetch(req,env,{})).json();assert.equal(config.enabled,true);assert.equal(config.approvedDocument.sha256,OCR_TRIAL.hash);
  }finally{globalThis.fetch=original;}
+});
+
+test('read-only status distinguishes pending and stale uncertainty, returns cached results without admitting or retrying',async()=>{
+ const f=await setup(),get=path=>new Request('https://stage.test/api/ocr/'+path);
+ assert.equal((await(await documentOcrResponse(get('status'),f.env,f.options)).json()).state,'idle');
+ await reserveOcrAttempt(f.db,OCR_TRIAL.hash,time);
+ assert.equal((await(await documentOcrResponse(get('status'),f.env,f.options)).json()).state,'pending');
+ const stale={...f.options,now:()=>time+121000};assert.equal((await(await documentOcrResponse(get('status'),f.env,stale)).json()).state,'uncertain');
+ assert.equal((await documentOcrResponse(get('result'),f.env,stale)).status,409);
+ assert.equal(f.sql.prepare('SELECT reserved_cents FROM ocr_experiment_budget').get().reserved_cents,200);
+ f.cache.set('cached',JSON.stringify(raw));f.sql.prepare("UPDATE ocr_experiment_attempts SET state='ready',expires=?,cache_key='cached'").run(time+86400000);
+ assert.deepEqual(await(await documentOcrResponse(get('result'),f.env,f.options)).json(),raw);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) AS n FROM ocr_experiment_attempts').get().n,1);
 });

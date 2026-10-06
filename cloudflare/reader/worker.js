@@ -55,7 +55,7 @@ export default {
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
-   if(['/api/ocr','/api/ocr/config'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
+   if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
