@@ -75,24 +75,47 @@ export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=D
   try{const prior=await latest(env);if(prior)return replay(env,prior,clock());}catch{}
   return json({detail:'OCR budget or admission could not be confirmed. No provider request was made.'},429);
  }
+ let phase='payload',providerStatus=null;
  try{
   const payload={...mistralOcrPayload(bytes,'application/pdf'),pages:[0,1,2,3]},dispatch=clock();
   // Durable checkpoint before the one provider call; ambiguity never dispatches.
-  acknowledged(await env.LEDGER.prepare('INSERT INTO ocr_experiment_dispatch VALUES(?,?,?)').bind(id,dispatch,dispatch+300000).run());
-  const response=await fetcher('https://api.mistral.ai/v1/ocr',{method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),headers:{Authorization:'Bearer '+env.MISTRAL_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(payload)});
-  if(!response.ok){await response.body?.cancel();throw Error('provider');}
-  const raw=JSON.parse(new TextDecoder().decode(await readBounded(response,16*1024*1024)));
-  if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length!==4||raw.usage_info?.pages_processed!==4||raw.pages.some((p,i)=>p.index!==i)||!raw.pages.some(p=>p.blocks?.some(b=>String(b.content||'').trim())||String(p.markdown||'').trim()))throw Error('result');
+  phase='dispatch-checkpoint';acknowledged(await env.LEDGER.prepare('INSERT INTO ocr_experiment_dispatch VALUES(?,?,?)').bind(id,dispatch,dispatch+300000).run());
+  phase='provider-fetch';const response=await fetcher('https://api.mistral.ai/v1/ocr',{method:'POST',redirect:'error',signal:AbortSignal.timeout(90000),headers:{Authorization:'Bearer '+env.MISTRAL_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(payload)});
+  providerStatus=response.status;phase='provider-response';if(!response.ok){await response.body?.cancel();throw Error('provider');}
+  phase='response-decode';const raw=JSON.parse(new TextDecoder().decode(await readBounded(response,16*1024*1024)));
+  phase='response-schema';if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length!==4||raw.usage_info?.pages_processed!==4||raw.pages.some((p,i)=>p.index!==i)||!raw.pages.some(p=>p.blocks?.some(b=>String(b.content||'').trim())||String(p.markdown||'').trim()))throw Error('result');
   const cacheKey=`ocr-trial/${OCR_TRIAL.id}/${id}.json`,expires=clock()+86400000;
-  await env.AUDIO.put(cacheKey,JSON.stringify(raw),{httpMetadata:{contentType:'application/json'},customMetadata:{expires:String(expires)}});
-  acknowledged(await env.LEDGER.prepare(`UPDATE ${table} SET state='ready',updated=?,expires=?,cache_key=? WHERE id=? AND state='reserved'`).bind(clock(),expires,cacheKey,id).run());
+  phase='cache-write';await env.AUDIO.put(cacheKey,JSON.stringify(raw),{httpMetadata:{contentType:'application/json'},customMetadata:{expires:String(expires)}});
+  phase='receipt-completion';acknowledged(await env.LEDGER.prepare(`UPDATE ${table} SET state='ready',updated=?,expires=?,cache_key=? WHERE id=? AND state='reserved'`).bind(clock(),expires,cacheKey,id).run());
   return json(raw);
- }catch{
+ }catch(error){
+  const errorKind=['TypeError','SyntaxError','AbortError','TimeoutError','RangeError'].includes(error?.name)?error.name:'Error';
+  try{await env.LEDGER.prepare("INSERT OR IGNORE INTO ocr_experiment_diagnostics(attempt_id,kind,phase,http_status,error_kind,created,updated) VALUES(?,'ocr',?,?,?,?,?)").bind(id,phase,providerStatus,errorKind,clock(),clock()).run();}catch{}
   try{await env.LEDGER.prepare(`UPDATE ${table} SET state='uncertain',updated=? WHERE id=? AND state='reserved'`).bind(clock(),id).run();}catch{}
-  return json({detail:'OCR could not be confirmed. The $1 reservation is retained; no automatic retry was made. Your existing text is unchanged. Check OCR status before an explicitly approved retry.'},502);
+  return json({attemptId:id,failure:{phase,httpStatus:providerStatus,errorKind},detail:'OCR could not be confirmed. The $1 reservation is retained; no automatic retry was made. Your existing text is unchanged. Check OCR status before an explicitly approved retry.'},502);
  }
 }
 export async function purgeOcrCache(env,now=Date.now()){
  if(env.READER_MODE!=='staging'||env.ENABLE_DOCUMENT_OCR!=='1')return;
  for(const table of ['ocr_experiment_attempts','ocr_experiment_retries']){const rows=await env.LEDGER.prepare(`SELECT id,cache_key FROM ${table} WHERE state='ready' AND cache_key IS NOT NULL AND expires<=? LIMIT 5`).bind(now).all();for(const row of rows.results){await env.AUDIO.delete(row.cache_key);await env.LEDGER.prepare(`UPDATE ${table} SET cache_key=NULL WHERE id=?`).bind(row.id).run();}}
+}
+
+// One read-only model-access check for the explicitly investigated failed receipt.
+// No document, OCR POST, reservation, provider response body or key is stored.
+export async function probeOcrAccess(env,{fetcher=fetch,now=Date.now}={}){
+ const id=env.OCR_DIAGNOSTIC_ATTEMPT;if(env.READER_MODE!=='staging'||!uuid(id)||!env.MISTRAL_API_KEY)return;
+ const attempt=await byId(env,id);if(attempt?.state!=='uncertain')return;
+ let phase='key-format',httpStatus=null,errorKind=null,available=null;const key=env.MISTRAL_API_KEY;
+ const edgeWhitespace=key!==key.trim(),controlCharacters=/[\x00-\x1f\x7f]/.test(key);
+ try{
+  const claim=await env.LEDGER.prepare("INSERT OR IGNORE INTO ocr_experiment_diagnostics(attempt_id,kind,phase,key_edge_whitespace,key_control_characters,created,updated) VALUES(?,'access-check','claimed',?,?,?,?)").bind(id,Number(edgeWhitespace),Number(controlCharacters),now(),now()).run();
+  if(claim.success!==true||claim.meta?.changes!==1)return;
+ }catch{return;}
+ try{
+  const headers=new Headers({Authorization:'Bearer '+key});
+  phase='model-access';const response=await fetcher('https://api.mistral.ai/v1/models',{method:'GET',redirect:'error',signal:AbortSignal.timeout(15000),headers});httpStatus=response.status;
+  if(response.ok){phase='model-list';const data=JSON.parse(new TextDecoder().decode(await readBounded(response,1024*1024)));available=Number(Array.isArray(data.data)&&data.data.some(model=>model.id===OCR_MODEL));phase='complete';}
+  else{await response.body?.cancel();phase='provider-rejected';}
+ }catch(error){errorKind=['TypeError','SyntaxError','AbortError','TimeoutError','RangeError'].includes(error?.name)?error.name:'Error';}
+ await env.LEDGER.prepare("UPDATE ocr_experiment_diagnostics SET phase=?,http_status=?,error_kind=?,model_available=?,updated=? WHERE attempt_id=? AND kind='access-check'").bind(phase,httpStatus,errorKind,available,now(),id).run();
 }

@@ -354,3 +354,12 @@ repeat request or after reload. Every new dispatch is marked durably before
 provider submission; an ambiguous checkpoint acknowledgement blocks submission.
 The native base64 encoder is used where available, with the validated portable
 fallback. The original stranded October 6 record stays preserved as evidence.
+
+OCR diagnosis after the first real retry: staging paid submissions are temporarily
+paused (`OCR_LIVE_APPROVED=0`). Apply staging migration
+`0003_document_ocr_diagnostics.sql` before this release. Diagnostics retain only
+failure phase, HTTP status and an allowlisted error class; never provider bodies,
+headers, document contents or key values. A one-time scheduled GET `/v1/models`,
+scoped to the named uncertain receipt, checks current access without OCR, document
+uploads or budget changes. Its durable claim prevents automatic probe retries.
+Historical discarded OCR error details cannot be recovered from this probe.
