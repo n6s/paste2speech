@@ -39,8 +39,9 @@ if (extensionRecommendation) {
 
 let saved = {};
 try { saved = JSON.parse(localStorage.getItem('paste2speech.settings')) || {}; } catch {}
-const options = { ...defaults };
-for (const key of Object.keys(defaults)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
+const options = { ...defaults, math:false };
+for (const key of Object.keys(options)) if (typeof saved[key] === 'boolean') options[key] = saved[key];
+if(!DOCUMENT_IMPORT)options.math=false;
 $('rate').value = CLOUD_READER ? presetRate(saved.rate) : Number.isFinite(saved.rate) ? Math.min(2, Math.max(.5, saved.rate)) : 1;
 $('follow-reading').checked = saved.followReading === true;
 $('reading-size').value = Number.isFinite(saved.readingSize) ? Math.min(32, Math.max(14, Math.round(saved.readingSize))) : 20;
@@ -314,11 +315,13 @@ function render(p, message) {
     else button.removeAttribute('aria-current');
   }
 }
-for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji', joinLines: 'Join wrapped lines' })) {
+for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji', joinLines: 'Join wrapped lines', math:'Skip math notation' })) {
+  if(key==='math'&&!DOCUMENT_IMPORT)continue;
   const wrapper = document.createElement('label'); const input = document.createElement('input');
-  input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;
-  input.addEventListener('change', () => { resetReading(); options[key] = input.checked; save(); preview(); });
+  input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;if(key==='math'){input.title='Skip balanced LaTeX delimiters and math environments in playback. Original document exports are kept.';}
+  input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; save(); preview(); });
   wrapper.append(input, label); $('options').append(wrapper);
+  if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);$('options').append(note);}
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
@@ -449,7 +452,7 @@ window.addEventListener('focus', reconcileRestoredText);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
-function resetReading() { browserPlayer?.stop(); workstationPlayer.invalidate(); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+function resetReading(preserveReady=false) { browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){
   const seek=$('seek');
   seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
@@ -553,7 +556,7 @@ if (WORKSTATION) {
   discoverWorkstation();
 }
 
-if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
+if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  accept(data){resetReading();$('text').value=data.text;preview();setMode('edit');},
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}

@@ -1,3 +1,4 @@
+import {transformMath} from './math-notation.js';
 export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: true };
 
 // Split structure before any destructive cleanup. Code is always opaque.
@@ -77,7 +78,8 @@ function blocks(text) {
 export function cleanText(input, options = defaults) {
   const text = input.replace(/\r\n?/g, '\n');
   if (!Object.values(options).some(Boolean)) return text;
-  const rendered = blocks(text).flatMap(block => {
+  const math=transformMath(text,options.math===true);
+  const rendered = blocks(math.text).flatMap(block => {
     const separate = value => options.markdown || options.joinLines ? '\n' + value + '\n' : value;
     if (block.type === 'code') return options.code ? '\n' : ['\n', {literal: options.markdown ? block.body : block.text}, '\n'];
     if (block.type === 'table') {
@@ -104,7 +106,7 @@ export function cleanText(input, options = defaults) {
     }
   }
   const tail = pending.replace(/\n{3,}/g, '\n\n').replace(/\n+$/, '');
-  return output + (output ? tail : tail.replace(/^\n+/, ''));
+  return math.restore(output + (output ? tail : tail.replace(/^\n+/, '')));
 }
 
 const entityPattern = /&(?:#x[0-9a-f]+|#[0-9]+|nbsp|amp|quot|apos|lt|gt);/gi;

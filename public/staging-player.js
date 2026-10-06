@@ -70,7 +70,7 @@ export class StagingPlayer extends MsePlayer {
  seekTo(time){return this.seek(time);}
  move(delta){if(!this.chunks.length)return;this.pendingIndex=Math.max(0,Math.min(this.chunks.length-1,this.index+delta));this.applyPending();}
  stop(){if(this.complete&&this.finalized){this.pause();this.seek(0);this.state='idle';this.emit();}else this.invalidate();}
- invalidate(){this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;return super.invalidate();}
+ invalidate(options){this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;return super.invalidate(options);}
  release(){if(navigator.mediaSession){for(const name of ['play','pause','stop','seekto','seekforward','seekbackward'])try{navigator.mediaSession.setActionHandler(name,null);}catch{}navigator.mediaSession.playbackState='none';}}
  download(kind){if(this.complete&&this.getVideoPreparation()){const group=this.getVideoPreparation();return group.parts.length===1?`/api/readings/${group.session.records[0].id}/download/${kind}`:'#';}return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
  getVideoPreparation(){return this.longReadings?.groups.get(this.job);}

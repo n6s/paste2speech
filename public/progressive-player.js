@@ -170,9 +170,9 @@ export class ProgressivePlayer {
     this.wantPlay=false;this.audio.pause();this.pendingIndex=null;this.audio.currentTime=0;this.index=0;this.state='idle';this.emit();
   }
   async deleteJob(id) {if(id)try{await this.fetcher(this.endpoint(`/${id}`),{method:'DELETE',keepalive:true});}catch{}}
-  invalidate() {
+  invalidate({preserveReady=false}={}) {
     this.generation++;clearTimeout(this.timer);this.createController?.abort();this.wantPlay=false;
-    this.audio.pause();const deleted=this.id?this.deleteJob(this.id):(this.deleting||Promise.resolve());this.deleting=deleted;this.id=null;this.url=null;this.audio.removeAttribute('src');this.audio.load();
+    this.audio.pause();const deleted=this.id&&!(preserveReady&&this.complete)?this.deleteJob(this.id):(this.deleting||Promise.resolve());this.deleting=deleted;this.id=null;this.url=null;this.audio.removeAttribute('src');this.audio.load();
     this.pendingIndex=null;this.starts=[];this.chunks=[];this.duration=0;this.index=0;this.providerCost=0;this.costIncomplete=false;this.complete=false;this.seekableFile=false;this.serverFailed=false;this.state='idle';
     this.release();this.emit();return deleted;
   }

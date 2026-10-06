@@ -1,6 +1,7 @@
+import {setupClipboardImage} from './clipboard-image.js';
 import {documentType,DOCUMENT_LIMIT,validateDocumentBytes,OCR_MODEL} from './document-format.js';
 import {reconstruct,exportText} from './document-reconstruct.js';
-export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,pauseReading,fetcher=fetch}) {
+export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,pauseReading,pasteTarget,fetcher=fetch}) {
  const root=input.closest('details');root.querySelector('summary').textContent='Open document';root.querySelector('label[for="pdf-file"]').textContent='Choose PDF or image';input.accept='.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp';
  status.textContent='PDFs are checked on this device first. Images and unsuitable PDFs need cloud OCR. Nothing is uploaded without your agreement.';
  const cloud=document.createElement('div');cloud.hidden=true;cloud.id='document-cloud';
@@ -9,13 +10,13 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
  const run=document.createElement('button');run.type='button';run.id='document-ocr';run.textContent='Use cloud OCR';run.disabled=true;cloud.append(notice,label,run);root.append(cloud);
  const exports=document.createElement('div');exports.hidden=true;exports.id='document-exports';
  const notes=document.createElement('details'),summary=document.createElement('summary'),noteText=document.createElement('p');summary.textContent='Extraction details';noteText.id='document-notes';notes.append(summary,noteText);root.append(exports,notes);notes.hidden=true;
- let sequence=0,controller,busy=false,pending,imported,selectedHash=null,selectedName=null,cleared=false,activeTimer;const cache=new Map();
+ let clipboard;let sequence=0,controller,busy=false,pending,imported,selectedHash=null,selectedName=null,cleared=false,activeTimer;const cache=new Map();
  const check=document.createElement('button');check.type='button';check.id='document-check';check.textContent='Check OCR status';root.append(check);
  const recovery=document.createElement('p');recovery.id='document-recovery';recovery.textContent='If you return later, open the same file again. We’ll check for a saved result before processing it again. Saved results are private to this account and expire 24 hours after completion. An unfinished or expired attempt may have no reusable result; paid OCR is never retried automatically.';root.append(recovery);
  const elapsed=document.createElement('span');elapsed.id='document-elapsed';elapsed.setAttribute('aria-live','off');root.insertBefore(elapsed,status.nextSibling);
  const reconstructed=raw=>{if(raw.model!==OCR_MODEL||!Array.isArray(raw.pages)||raw.pages.length>100)throw Error('Cloud OCR returned an unsupported result. Your existing text is unchanged.');const result=reconstruct(raw);if(!result.articles.length)throw Error('No readable text was returned. Your existing text is unchanged.');return {result,data:{text:exportText(result.articles).trim(),markdown:exportText(result.articles,true),pages:raw.pages.length}};};
  check.onclick=async()=>{const previous=getText(),request=sequence;check.disabled=true;try{const response=await fetcher('/api/ocr/status'+(selectedHash?'?document_hash='+selectedHash:''));const state=await response.json();if(!response.ok)throw Error(state.detail||'OCR status could not be checked.');if(request!==sequence)return;status.textContent=state.detail+(state.elapsedSeconds!=null?` ${state.elapsedSeconds} seconds since admission.`:'');if(state.state==='ready'){const response=await fetcher('/api/ocr/result'+(selectedHash?'?document_hash='+selectedHash:''));if(!response.ok)throw Error((await response.json()).detail||'The saved result could not be loaded.');const {result,data}=reconstructed(await response.json());if(request===sequence&&getText()===previous){diagnostics(result.notes);load(data,{name:selectedName||state.fileName||'Saved document.pdf'});}}}catch(error){if(request===sequence)status.textContent=error.message;}finally{if(request===sequence)check.disabled=false;}};
- const setBusy=value=>{busy=value;root.setAttribute('aria-busy',String(value));input.disabled=value;cancel.hidden=!value;check.disabled=value||(cleared&&!selectedHash)||(!!imported&&!selectedHash);onBusy(value);run.disabled=value||!pending||!consent.checked;};
+ const setBusy=value=>{busy=value;root.setAttribute('aria-busy',String(value));input.disabled=value;cancel.hidden=!value;check.disabled=value||(cleared&&!selectedHash)||(!!imported&&!selectedHash);onBusy(value);clipboard?.setBusy();run.disabled=value||!pending||!consent.checked;};
  const diagnostics=value=>{notes.hidden=false;noteText.textContent=value.join(' ');};
  const load=(data,file)=>{if(!data.text.trim())throw Error('No readable text was returned. Your existing text is unchanged.');accept(data);imported={...data,name:file.name};exports.hidden=false;status.textContent=`Loaded ${file.name}${data.pages?` · ${data.pages} pages`:''}. Press Play when ready.`;cloud.hidden=true;pending=null;};
  const download=markdown=>{
@@ -26,8 +27,8 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
  for(const markdown of [false,true]){const b=document.createElement('button');b.type='button';b.textContent=markdown?'Download Markdown (.md)':'Download text (.txt)';b.onclick=()=>download(markdown);exports.append(b);}
  consent.onchange=()=>{run.disabled=busy||!pending||!consent.checked;};
  cancel.onclick=()=>{controller?.abort();pending=null;cloud.hidden=true;};
- input.addEventListener('change',async()=>{
-  const file=input.files[0];if(!file)return;cleared=false;selectedHash=null;selectedName=file.name;const request=++sequence,previous=getText();pending=null;cloud.hidden=true;consent.checked=false;
+ async function importFile(file){
+  if(!file)return;clipboard?.clear();cleared=false;selectedHash=null;selectedName=file.name;const request=++sequence,previous=getText();pending=null;cloud.hidden=true;consent.checked=false;
   controller?.abort();controller=new AbortController();pauseReading();setBusy(true);status.textContent=`Checking ${file.name} on this device…`;
   try{
    const type=documentType(file);if(file.size>DOCUMENT_LIMIT)throw Error('Choose a document smaller than 20 MB.');
@@ -58,7 +59,8 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
    pending={file,type,hash,previous,retryOf,ownerDocuments:config.ownerDocuments,pages};notice.textContent=`Cloud OCR sends this file to Mistral (${OCR_MODEL}). ${config.costNotice} This ${pages}-page request reserves ${allowance}; its published-price processing estimate is $${(pages*0.004).toFixed(3)}, not a confirmed charge. Speech playback is a separate action.`;cloud.hidden=false;status.textContent='Cloud OCR is needed. Agree to the upload and cost notice, then choose Use cloud OCR.';
   }catch(error){if(request===sequence)status.textContent=error.name==='AbortError'?'Import cancelled. Your existing text is unchanged.':error.message;}
   finally{if(request===sequence){setBusy(false);input.value='';}}
- });
+ }
+ input.addEventListener('change',()=>void importFile(input.files[0]));
  run.onclick=async()=>{
   if(busy||!pending||!consent.checked)return;const attempt=pending,request=sequence;pending=null;controller=new AbortController();setBusy(true);const small=attempt.type.kind==='image'||attempt.pages<=4;status.textContent=small?'Extracting document text. Two recent small scans took a few seconds; allow around 30 seconds. This is provisional guidance, not a prediction.':'Extracting document text. Larger documents may take longer; no exact completion time is available.';const started=performance.now();let slowNotice=false;elapsed.textContent=' 0 seconds elapsed.';const ticker=activeTimer=setInterval(()=>{if(request!==sequence)return;const seconds=Math.floor((performance.now()-started)/1000);elapsed.textContent=` ${seconds} seconds elapsed.`;if(seconds>=30&&!slowNotice){slowNotice=true;status.textContent=small?'This request is taking longer than the two recent small scans. Keep this page open while we wait for a response. Completion is not yet confirmed.':'We are still waiting for a response. Keep this page open. Completion is not yet confirmed.';}},1000);
   try{
@@ -73,5 +75,6 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
   }catch(error){if(request===sequence)status.textContent=error.name==='AbortError'?'Import cancelled. Your existing text is unchanged.':error.message;}
   finally{clearInterval(ticker);if(activeTimer===ticker)activeTimer=null;if(request===sequence){elapsed.textContent='';cloud.hidden=true;setBusy(false);}}
  };
- return {get busy(){return busy;},clear(){const interrupted=!!activeTimer;++sequence;controller?.abort();clearInterval(activeTimer);activeTimer=null;elapsed.textContent='';pending=null;imported=null;selectedHash=null;selectedName=null;cleared=true;cache.clear();input.value='';cloud.hidden=true;exports.hidden=true;notes.hidden=true;noteText.textContent='';notice.textContent='';consent.checked=false;run.textContent='Use cloud OCR';status.textContent=interrupted?'Document cleared. Cloud processing may still finish; its reservation and saved result are kept.':'Document cleared. Saved OCR results are kept.';setBusy(false);}};
+ clipboard=setupClipboardImage({root,target:pasteTarget,importFile,getBusy:()=>busy,status});
+ return {get busy(){return busy;},clear(){clipboard.clear();const interrupted=!!activeTimer;++sequence;controller?.abort();clearInterval(activeTimer);activeTimer=null;elapsed.textContent='';pending=null;imported=null;selectedHash=null;selectedName=null;cleared=true;cache.clear();input.value='';cloud.hidden=true;exports.hidden=true;notes.hidden=true;noteText.textContent='';notice.textContent='';consent.checked=false;run.textContent='Use cloud OCR';status.textContent=interrupted?'Document cleared. Cloud processing may still finish; its reservation and saved result are kept.':'Document cleared. Saved OCR results are kept.';setBusy(false);}};
 }

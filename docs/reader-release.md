@@ -432,3 +432,51 @@ With the observed original 500-cent balance carried forward, the new 1000-cent
 ceiling leaves 500 cents of reservation room. This supersedes the earlier
 $5/flat-$1 trial policy for owner documents only; historical trial routes remain
 preserved for audit and are unreachable under `OCR_OWNER_DOCUMENTS=1`.
+
+
+Staging interim math cleanup: **Skip math notation** is unchecked on first use
+and its preference is saved with the other cleanup controls. It is exposed only
+on the document-import/staging reader. Shared speech chunks and cleaned preview
+omit recognized math when selected, so browser speech, cloud request bodies,
+caption text and successful-section character allowance agree. Toggling it
+detaches the old player without starting synthesis; completed audio identifiers
+remain cached, and returning to the earlier chunks can reuse them. Incomplete
+preparation is cancelled through the existing path. Clear retains its intentional
+cleanup behavior; original document text/Markdown exports ignore this playback
+option. Existing feedback's cleanup schema remains compatible.
+
+Recognition is intentionally conservative: balanced `\(...\)`, `\[...\]`,
+`$$...$$`, single-line `$...$` containing a recognizable math signal, and balanced
+named LaTeX math environments (including array/aligned and common matrices).
+Single-dollar prose/currency and multi-letter plain-word spans are kept; bare
+numbers are not treated as dollar math. Code fences, inline backticks, indented
+code, URLs, escaped delimiters, unmatched delimiters/braces/environments, bare
+`x^2`/`x_{1}` and unwrapped `\frac` are not math-skipped. An unmatched non-dollar
+opener conservatively leaves the remaining source alone. Supported environments
+are listed in `public/math-notation.js`; this is syntax recognition, not semantic
+validation or math narration. Explicit math is protected from Markdown cleanup
+and prose line joining so exports preserve subscripts and array row separators;
+unmarked `x_{1}+y_{2}` no longer loses underscores as false Markdown emphasis.
+Tests use synthetic algebra, currency/code/malformed inputs and mocked audio/OCR
+only. No MathJax/SRE dependency, new paid call or private upload is needed.
+
+
+Staging clipboard images: native paste events on the editor route actual image
+files/items to the same document importer; ordinary text/HTML paste keeps its
+existing behavior. **Paste screenshot** calls `navigator.clipboard.read()` only
+from its foreground click/keyboard gesture, after HTTPS/focus/API checks. No
+background clipboard read, remote image fetch or permission polling is added.
+PNG/JPEG/WebP representations use the same file signature, size, OCR page count,
+owner/cache/budget and explicit upload-consent checks as Choose file. Empty,
+text-only, multiple-image, unsupported/denied clipboard cases explain the file
+fallback. A saved screenshot may not have been copied to the clipboard; a visible
+hint explains that distinction. Clear and a newer file selection invalidate
+pending clipboard reads, so late bytes cannot restore a cleared selection.
+The image-paste handler opens the document panel to expose status and consent.
+PWA Share Target and math narration remain future features.
+
+Validation injects synthetic clipboard items and paste events into isolated
+headless Chrome; it does not read or replace Roger's desktop clipboard. Actual
+desktop/Pixel clipboard permissions remain untested in this tool context.
+Browser capability guidance follows [image paste](https://web.dev/articles/clipboard/paste-images)
+and [Async Clipboard](https://web.dev/articles/async-clipboard) official docs.

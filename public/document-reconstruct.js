@@ -1,18 +1,20 @@
+import {transformMath} from './math-notation.js';
 // Deterministic transcription formatting. No generative rewriting or summaries.
 export function plain(markdown) {
-  return String(markdown || '').replace(/!\[[^\]]*\]\([^)]*\)/g, '')
+  const math=transformMath(String(markdown||''));
+  return math.restore(math.text.replace(/!\[[^\]]*\]\([^)]*\)/g, '')
     .replace(/^[ \t]*(?:(?:[-_*][ \t]*){3,}|[=─━—]{3,})[ \t]*$/gm, '')
     .replace(/\[([^\]]+)\]\(([^)]+)\)/g, (_, label, url) => label === url ? url : `${label} (${url})`)
     .replace(/<br\s*\/?\s*>/gi, '\n').replace(/<[^>]+>/g, '')
     .replace(/&amp;/g, '&').replace(/&lt;/g, '<').replace(/&gt;/g, '>').replace(/&nbsp;/g, ' ')
     .replace(/^\s{0,3}#{1,6}\s+/gm, '').replace(/\*\*([^*]+)\*\*/g, '$1').replace(/__([^_]+)__/g, '$1')
-    .replace(/[*_]([^\n*_]+)[*_]/g, '$1').replace(/`([^`]+)`/g, '$1').trim();
+    .replace(/(^|[^\p{L}\p{N}\\])([*_])([^\n*_]+)\2(?=$|[^\p{L}\p{N}])/gu, '$1$3').replace(/`([^`]+)`/g, '$1').trim());
 }
 
 function prose(value, verse=false) {
-  const text = plain(value);
-  if (verse) return text;
-  return text.split(/\n\s*\n/).map(part => part.replace(/(\p{L})-\s*\n\s*(\p{Ll})/gu, '$1$2').replace(/\s*\n\s*/g, ' ').replace(/[ \t]+/g, ' ').trim()).join('\n\n');
+  const math=transformMath(plain(value)),text=math.text;
+  if (verse) return math.restore(text);
+  return math.restore(text.split(/\n\s*\n/).map(part => part.replace(/(\p{L})-\s*\n\s*(\p{Ll})/gu, '$1$2').replace(/\s*\n\s*/g, ' ').replace(/[ \t]+/g, ' ').trim()).join('\n\n'));
 }
 
 export function tableText(markdown) {
