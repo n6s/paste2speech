@@ -376,3 +376,25 @@ Roger approved one further live newsletter attempt after the redirect fix.
 receipt. Once its child is admitted, no subsequent new paid retry is enabled,
 even if the global experiment budget has room. Repeated requests for that same
 parent replay the child status/cache without another provider request.
+
+Owner document trial expansion (staging only): apply
+`0004_owner_document_ocr.sql` before enabling `OCR_OWNER_DOCUMENTS=1`.
+The verified owner gate remains before every route. Cloud files are at most
+6 MiB: PDF requests specify 1–10 page indices; PNG/JPEG/WebP requests specify
+one image. The UI counts PDF pages locally and rejects over-limit cloud PDFs;
+the backend bounds every requested page list independently. Maximum listed
+processing cost is 10 × $0.004 = $0.04 under the pinned model, excluding any
+account-level invoice terms. All admissions use the original experiment budget
+and atomic $1 reservations; the existing $4 is never reset. Only $1 remains.
+New owner/document/model receipts are unique, cache paths include the owner
+hash, and all cache/config/status/result reads require verified owner access.
+The completed newsletter's existing private cache remains available. There
+are no automatic retries, including expired or uncertain results.
+
+Clear now resets the loaded document, consent, exports, diagnostics and local
+request context. It aborts the local request and invalidates every late
+completion; it does not delete server receipts/cache or claim confirmed
+provider cancellation. Clear remains available during document processing.
+Validation uses synthetic PDFs/images and mocked provider calls; desktop
+keyboard, 390-pixel responsive layout and ARIA state checks are included.
+Actual Pixel and screen-reader testing are not represented by those checks.

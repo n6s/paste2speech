@@ -415,7 +415,7 @@ $('paste-play').addEventListener('click', async () => {
     $('paste-play').disabled = false;
   }
 });
-$('clear').addEventListener('click', () => { workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+$('clear').addEventListener('click', () => { documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
@@ -556,7 +556,7 @@ if (WORKSTATION) {
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  accept(data){resetReading();$('text').value=data.text;preview();setMode('edit');},
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
- onBusy(value){$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=value;if(!value)preview();if(player)render(player);}
+ onBusy(value){$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
 else $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];

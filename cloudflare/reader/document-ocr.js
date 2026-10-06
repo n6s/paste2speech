@@ -1,3 +1,4 @@
+import {ownerDocumentOcr} from './document-ocr-owner.js';
 import {OCR_MODEL,validateDocumentBytes} from '../../public/document-format.js';
 import {readBounded} from '../prepared/google.js';
 import {ownerAccess} from './owner-access.js';
@@ -36,6 +37,7 @@ async function status(env,row,clock){
 export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=Date.now,verifyOwner=ownerAccess,hashBytes=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('')}={}){
  if(env.READER_MODE!=='staging')return json({},404);
  if(!await verifyOwner(env.LEDGER,token,env.OWNER_EMAIL))return json({detail:'Sign in with the verified owner account to use this private OCR trial.'},403);
+ if(env.OCR_OWNER_DOCUMENTS==='1')return ownerDocumentOcr(request,env,{fetcher,now,hashBytes,payload:mistralOcrPayload,legacy:async hash=>!hash||hash===OCR_TRIAL.hash?latest(env):null});
  const path=new URL(request.url).pathname,clock=()=>typeof now==='function'?now():now;
  const enabled=env.ENABLE_DOCUMENT_OCR==='1'&&env.OCR_LIVE_APPROVED==='1'&&!!env.MISTRAL_API_KEY;
  if(path==='/api/ocr/config'&&request.method==='GET'&&!enabled)return json({enabled:false,model:OCR_MODEL,reason:'Private OCR awaits confirmed secure key setup and activation.'});
@@ -98,7 +100,7 @@ export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=D
 }
 export async function purgeOcrCache(env,now=Date.now()){
  if(env.READER_MODE!=='staging'||env.ENABLE_DOCUMENT_OCR!=='1')return;
- for(const table of ['ocr_experiment_attempts','ocr_experiment_retries']){const rows=await env.LEDGER.prepare(`SELECT id,cache_key FROM ${table} WHERE state='ready' AND cache_key IS NOT NULL AND expires<=? LIMIT 5`).bind(now).all();for(const row of rows.results){await env.AUDIO.delete(row.cache_key);await env.LEDGER.prepare(`UPDATE ${table} SET cache_key=NULL WHERE id=?`).bind(row.id).run();}}
+ for(const table of ['ocr_experiment_attempts','ocr_experiment_retries',...(env.OCR_OWNER_DOCUMENTS==='1'?['owner_document_ocr']:[])]){const rows=await env.LEDGER.prepare(`SELECT id,cache_key FROM ${table} WHERE state='ready' AND cache_key IS NOT NULL AND expires<=? LIMIT 5`).bind(now).all();for(const row of rows.results){await env.AUDIO.delete(row.cache_key);await env.LEDGER.prepare(`UPDATE ${table} SET cache_key=NULL WHERE id=?`).bind(row.id).run();}}
 }
 
 // One read-only model-access check for the explicitly investigated failed receipt.
