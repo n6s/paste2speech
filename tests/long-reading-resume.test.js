@@ -168,3 +168,17 @@ test('an interrupted credit lookup is recoverable without admitting any part',as
  await group.finished;assert.equal(posts,0);assert.match(group.error.message,/Could not check/);
  unavailable=false;await transport.resume(group.id);await group.finished;assert.equal(posts,1);assert.equal(transport.status(group).state,'ready');
 });
+
+test('saved cursor is identity-bound and cannot replace lost paid references',async()=>{
+ storage.clear();const transport=new LongReadingTransport(null,{limit:()=>100});
+ const input={voice:'en-US-Wavenet-F',chunks:['A'.repeat(100),'B'.repeat(100)]};
+ const {key}=await transport.plan(input);
+ storage.set(key,JSON.stringify([{id:'paid-a'},{id:'paid-b'}]));
+ storage.set('paste2speech.position.'+key,JSON.stringify({version:1,index:1,offset:.75,updated:Date.now()}));
+ const cursor=await transport.savedPosition(input);assert.equal(cursor.index,1);assert.equal(cursor.offset,.75);assert.equal(cursor.unavailable,false);
+ assert.equal(await transport.savedPosition({...input,voice:'en-US-Wavenet-D'}),null);
+ assert.equal(await transport.savedPosition({...input,chunks:['different']}),null);
+ transport.limit=()=>20000;assert.equal(await transport.savedPosition(input),null);transport.limit=()=>100;
+ storage.delete(key);assert.equal((await transport.savedPosition(input)).unavailable,true);
+ transport.clearSavedReadings();assert.equal(await transport.savedPosition(input),null);
+});

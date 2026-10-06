@@ -99,7 +99,7 @@ try{
   await page.screenshot({path:`work/shared-reader/${environment}-playback-controls.png`});
   assert.deepEqual(errors,[]);
   // Both readers retain server explanations instead of reducing them to a code.
-  reject=true;await page.evaluate(()=>sessionStorage.clear());await page.reload();assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
+  reject=true;await page.reload();await page.evaluate(()=>sessionStorage.clear());assert.equal(await page.locator('#speed-preset').textContent(),'1.5×');await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>document.body.textContent.includes('A clear server explanation.'));
   await page.goto(origin+'/?testing=1');
   if(environment==='staging'){
    await page.waitForFunction(()=>window.__stagingReader);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');

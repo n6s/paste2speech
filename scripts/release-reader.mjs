@@ -15,7 +15,7 @@ if(deploy){
  if(environment==='production'&&!args.includes('--production-approved'))throw Error('Production approval is required. Prepare with the default dry run first.');
  if(execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim())throw Error('Commit the release before deployment.');
 }
-for(const command of [['test'],['run','build:reader:staging'],['run','build:reader:production'],['run','check:reader:parity'],['run','check:reader:resume'],['run','check:reader:previews']])execFileSync('npm',command,{stdio:'inherit'});
+for(const command of [['test'],['run','build:reader:staging'],['run','build:reader:production'],['run','check:reader:parity'],['run','check:reader:resume'],['run','check:reader:position'],['run','check:reader:previews']])execFileSync('npm',command,{stdio:'inherit'});
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
 for(const file of ['index.html','billing.html','billing.js'])if(/paddle|sandbox|staging|test purchases|Upgrade with a speech pack/i.test(readFileSync(sites.production+'/'+file,'utf8')))throw Error('Staging or checkout content in production assets: '+file);
 assert.equal(readdirSync(sites.production+'/samples').length,0,'Test audio must not ship in production assets');
