@@ -30,7 +30,7 @@ async function status(env,row,clock){
  if(!row)return {state:'idle',detail:'No OCR attempt has been recorded.',budget:{capCents:budget?.cap_cents,reservedCents:budget?.reserved_cents}};
  const elapsedSeconds=Math.max(0,Math.floor((clock-row.created)/1000));
  const state=row.state==='reserved'?(elapsedSeconds>120?'uncertain':'pending'):row.state==='ready'&&row.expires<=clock?'expired':row.state;
- const retryAllowed=retryable(row,clock)&&budget?.cap_cents===500&&budget.reserved_cents+100<=500;
+ const retryAllowed=(!env.OCR_APPROVED_RETRY_PARENT||row.id===env.OCR_APPROVED_RETRY_PARENT)&&retryable(row,clock)&&budget?.cap_cents===500&&budget.reserved_cents+100<=500;
  return {state,attemptId:row.id,parentId:row.parent_id,elapsedSeconds,reservationCents:100,dispatchStarted:!!row.dispatch_started,retryAllowed,nextReservationCents:100,budget:{capCents:budget?.cap_cents,reservedCents:budget?.reserved_cents},detail:state==='ready'?'OCR is ready. Load the saved result without another paid request.':state==='pending'?'The OCR reservation is recorded; completion is not confirmed yet. Checking status never starts OCR.':retryAllowed?'OCR completion is unconfirmed. The original reservation is kept. Re-select the same newsletter and explicitly approve a new $1 reservation to retry within the $5 ceiling.':'OCR completion is unconfirmed or the result expired. No paid retry was made; the original reservation is kept. Retry needs a five-minute cooldown and at least $1 remaining in the experiment budget.'};
 }
 export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=Date.now,verifyOwner=ownerAccess,hashBytes=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('')}={}){
@@ -67,6 +67,7 @@ export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=D
  try{
   if(retry){
    const child=await env.LEDGER.prepare('SELECT id FROM ocr_experiment_retries WHERE parent_id=?').bind(parent).first();if(child)return replay(env,await byId(env,child.id),clock());
+   if(env.OCR_APPROVED_RETRY_PARENT&&parent!==env.OCR_APPROVED_RETRY_PARENT)return json({detail:'Only the specifically approved newsletter retry is enabled. No further attempt was submitted.'},403);
    const old=await byId(env,parent),current=await latest(env);if(!old||current?.id!==old.id||!retryable(old,clock()))return json({detail:'The previous attempt may still be active, already succeeded, or is not the latest attempt. No retry was submitted.'},409);
    id=crypto.randomUUID();table='ocr_experiment_retries';
    acknowledged(await env.LEDGER.prepare("INSERT INTO ocr_experiment_retries(id,parent_id,experiment,document_hash,model,reservation_cents,state,created,updated) VALUES(?,?,?,?,?,?,'reserved',?,?)").bind(id,parent,OCR_TRIAL.id,OCR_TRIAL.hash,OCR_MODEL,100,clock(),clock()).run());

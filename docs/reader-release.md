@@ -370,3 +370,9 @@ with the staging compatibility date. OCR and diagnostic requests now use
 forwarded to a redirect. The corrected read-only access probe uses a revision
 suffix in its diagnostic identifier, retaining the first failed probe unchanged.
 Paid OCR remains paused pending owner approval of another live attempt.
+
+Roger approved one further live newsletter attempt after the redirect fix.
+`OCR_APPROVED_RETRY_PARENT` pins admission to the specifically approved failed
+receipt. Once its child is admitted, no subsequent new paid retry is enabled,
+even if the global experiment budget has room. Repeated requests for that same
+parent replay the child status/cache without another provider request.
