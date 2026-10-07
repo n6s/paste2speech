@@ -499,3 +499,25 @@ financial migration, permission change or provider request is part of the fix.
 Verify HTTP root/pricing/terms/robots/sitemap, HTTPS public pages, protected API
 responses and unchanged staging metadata after deployment. Rollback restores
 production Worker version `73d121ce-8202-422f-98bc-d8771eb87b3e`.
+
+### October 7 staging OCR region boundaries
+
+OCR reconstruction preserves separate layout blocks and page regions instead of
+joining them based on missing sentence punctuation. Wrapped lines inside ordinary
+prose still join. Within a single prose block, consecutive line-start month/day
+entries (at least two) retain separate paragraphs; a following short multiword
+all-caps heading retains its boundary. A single date or ordinary acronym is not
+sufficient to split prose. This covers the UCAS October 7 newsletter's five
+Important Dates rows followed by UCAS COLLEGE FAIR & FAFSA NIGHT. Recognition
+requires the original line boundaries; previously flattened text cannot recover
+layout reliably. Source wording remains intact, and uncertainty diagnostics stay
+in Extraction details, outside spoken/exported prose.
+
+Tests cover one-block and separate-block/page examples, text/Markdown exports,
+Join wrapped lines on/off, normal wraps, acronyms and diagnostics. No explicit
+silence, speech policy, billing or production promotion is included. Reopening the
+same file on staging reconstructs a still-valid cached raw OCR response with the
+new code without a paid rescan; Clear first if the old text is loaded. Cache expires
+24 hours after completion. If no valid result is available, stop before upload or
+Use cloud OCR; a fresh paid attempt requires separate approval. An existing text
+or Markdown export has already lost the original boundaries.

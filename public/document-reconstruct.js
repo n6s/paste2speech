@@ -11,10 +11,28 @@ export function plain(markdown) {
     .replace(/(^|[^\p{L}\p{N}\\])([*_])([^\n*_]+)\2(?=$|[^\p{L}\p{N}])/gu, '$1$3').replace(/`([^`]+)`/g, '$1').trim());
 }
 
+// A consecutive date list is structure, even when OCR labels it as prose.
+// Only line-start month/day entries qualify; ordinary dates in sentences do not.
+function preserveDateListLines(text) {
+  const lines=text.split('\n');
+  const date=line=>/^(?:Jan(?:uary)?|Feb(?:ruary)?|Mar(?:ch)?|Apr(?:il)?|May|Jun(?:e)?|Jul(?:y)?|Aug(?:ust)?|Sep(?:t(?:ember)?)?|Oct(?:ober)?|Nov(?:ember)?|Dec(?:ember)?)\.?[ \t]+\d{1,2}(?:[–-]\d{1,2})?[ \t]*[–-][ \t]*\S/i.test(line.trim());
+  const heading=line=>{const title=line.trim(),words=title.match(/\p{L}+/gu)||[];return title.length<=100&&words.length>=2&&words.length<=12&&/\p{Lu}/u.test(title)&&!/\p{Ll}/u.test(title)&&!/[.!?…]["'”’)]?$/.test(title);};
+  for(let start=0;start<lines.length;start++){
+    if(!date(lines[start]))continue;
+    let end=start+1;while(end<lines.length&&date(lines[end]))end++;
+    if(end-start>=2){
+      for(let i=start+1;i<end;i++)lines[i]='\n'+lines[i];
+      if(end<lines.length&&heading(lines[end]))lines[end]='\n'+lines[end];
+    }
+    start=end-1;
+  }
+  return lines.join('\n');
+}
+
 function prose(value, verse=false) {
   const math=transformMath(plain(value)),text=math.text;
   if (verse) return math.restore(text);
-  return math.restore(text.split(/\n\s*\n/).map(part => part.replace(/(\p{L})-\s*\n\s*(\p{Ll})/gu, '$1$2').replace(/\s*\n\s*/g, ' ').replace(/[ \t]+/g, ' ').trim()).join('\n\n'));
+  return math.restore(preserveDateListLines(text).split(/\n\s*\n/).map(part => part.replace(/(\p{L})-\s*\n\s*(\p{Ll})/gu, '$1$2').replace(/\s*\n\s*/g, ' ').replace(/[ \t]+/g, ' ').trim()).join('\n\n'));
 }
 
 export function tableText(markdown) {
@@ -79,11 +97,9 @@ export function reconstruct(raw) {
       const score = block.confidence_scores?.minimum_content_confidence_score;
       if(typeof score === 'number' && score < 0.9)current.uncertain.push(`Page ${number}: OCR marked this ${type} block as uncertain (minimum score ${score.toFixed(2)}).`);
       if (type === 'aside_text')notes.push(`Page ${number}: sidebar text retained in OCR reading order.`);
-      const previous = current.parts.at(-1);
-      // Join interrupted prose without changing its wording. Tables/lists/verse stay distinct.
-      if (type === 'text' && previous && current.lastType==='text' && !/[.!?…:]["'”’)]?$/.test(previous) && !/haiku|poem|poetry/i.test(current.title) && !previous.includes('\n')) current.parts[current.parts.length-1] += ' ' + content;
-      else current.parts.push(content);
-      current.lastType=type;
+      // OCR blocks are explicit regions. Missing punctuation is not evidence
+      // that separate regions (or pages) continue the same sentence.
+      current.parts.push(content);
     }
   }
   flush();
