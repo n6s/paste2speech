@@ -46,6 +46,16 @@ export default {
   }
   const moved=production(env)&&legacyDomainResponse(request);
   if(moved)return moved;
+  // Upgrade public navigation before the HTTPS-only gate. API requests, writes,
+  // private/trial modes and other hosts retain their existing access checks.
+  const navigation=new URL(request.url);
+  if(publicMode(env)&&env.LOCAL_READER!=='1'&&['GET','HEAD'].includes(request.method)&&
+     navigation.protocol==='http:'&&env.READER_ORIGIN?.startsWith('https://')&&
+     navigation.origin===env.READER_ORIGIN.replace(/^https:/,'http:')&&
+     navigation.pathname!=='/api'&&!navigation.pathname.startsWith('/api/')){
+   navigation.protocol='https:';
+   return new Response(null,{status:308,headers:{Location:navigation.href,'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
+  }
   if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(env.BACKGROUND_WORK_PAUSED==='1'&&url.pathname.startsWith('/api/'))return json({detail:'The reader is temporarily paused for maintenance. Please try again later.'},503);

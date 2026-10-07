@@ -138,3 +138,19 @@ test('closed public launch admits progressive playback only for tester and exclu
  assert.equal((await s.request('/api/readings',{token:a.token,data:{...data,cached:true},headers})).status,422);
  assert.equal((await s.request('/api/staging/fixtures',{token:a.token})).status,404);s.sql.close();
 });
+
+
+test('canonical public HTTP navigation redirects without asset/state access and preserves escaped path/query',async()=>{
+ const s=setup(),env={...s.env,ASSETS:{fetch(){throw Error('Redirect must not serve an asset');}},LEDGER:{prepare(){throw Error('Redirect must not read state');}}};
+ for(const method of ['GET','HEAD'])for(const path of ['/','/pricing','/terms','/robots.txt','/sitemap.xml','/favicon.ico','/a%2Fb?from=http&x=a%2Bb&x=2']){
+  const response=await worker.fetch(new Request('http://pastetospeech.com'+path,{method}),env,{});assert.equal(response.status,308);assert.equal(response.headers.get('Location'),'https://pastetospeech.com'+path);assert.equal(await response.text(),'');assert.equal(response.headers.get('Cache-Control'),'no-store');
+ }
+});
+test('HTTP redirect does not relax API, mutation, noncanonical host, local, trial or staging restrictions',async()=>{
+ const s=setup();
+ for(const path of ['/api','/api/owner','/api/readings','/api/billing/webhook'])assert.equal((await worker.fetch(new Request('http://pastetospeech.com'+path),s.env,{})).status,403);
+ for(const method of ['POST','DELETE','PUT','OPTIONS'])assert.equal((await worker.fetch(new Request('http://pastetospeech.com/',{method}),s.env,{})).status,403);
+ for(const host of ['other.example.invalid','pastetospeech.com.evil.invalid','pastetospeech.com:8080','staging.pastetospeech.com'])assert.equal((await worker.fetch(new Request('http://'+host+'/'),s.env,{})).status,403);
+ for(const patch of [{READER_MODE:'production-trial'},{LOCAL_READER:'1'},{READER_MODE:'staging',PRIVATE_READER:'1',READER_ORIGIN:'https://staging.pastetospeech.com'}])assert.equal((await worker.fetch(new Request('http://pastetospeech.com/'),{...s.env,...patch},{})).status,403);
+ assert.equal((await s.request('/')).status,200);assert.equal((await s.request('/api/owner')).status,403);assert.equal((await s.request('/api/readings',{data:{chunks:['Do not synthesize.']}})).status,401);assert.equal((await s.request('/api/billing/order',{data:{}})).status,401);
+});

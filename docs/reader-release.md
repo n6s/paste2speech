@@ -480,3 +480,22 @@ headless Chrome; it does not read or replace Roger's desktop clipboard. Actual
 desktop/Pixel clipboard permissions remain untested in this tool context.
 Browser capability guidance follows [image paste](https://web.dev/articles/clipboard/paste-images)
 and [Async Clipboard](https://web.dev/articles/async-clipboard) official docs.
+
+
+### October 7 public HTTP hotfix exception
+
+Roger explicitly approved a narrow production HTTP navigation redirect without
+promoting the unrelated current staging OCR/math/clipboard/budget work. Prepare
+an isolated checkout from the live production commit `0040136`, with only the
+Worker redirect, its regression tests and this record. Run the public release
+preparation/full checks, compare every public asset hash against the live
+baseline (only release metadata changes), then deploy that exact public Worker
+configuration. The usual same-commit staging promotion prerequisite cannot be
+used for this approved exception; do not deploy this old baseline over staging.
+The canonical public host redirects GET/HEAD non-API HTTP navigation with 308,
+preserving encoded path/query. API HTTP, mutations, trial/private/staging,
+unconfigured origins and other hosts retain the existing access gate. No
+financial migration, permission change or provider request is part of the fix.
+Verify HTTP root/pricing/terms/robots/sitemap, HTTPS public pages, protected API
+responses and unchanged staging metadata after deployment. Rollback restores
+production Worker version `73d121ce-8202-422f-98bc-d8771eb87b3e`.
