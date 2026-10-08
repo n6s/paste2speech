@@ -1,3 +1,3 @@
 // Fixed, synthetic, one-page fixture. Never accepts arbitrary uploads in proof mode.
-export const OCR_PROOF_HASH='f5e0a56614b0d7ddd7384bf367bf658f4dc20d3cb71e16be82b6cd8d4333850e';
+export const OCR_PROOF_HASH='89d350f1375f503173ed61fc341d95ec319d6f483d6a57c702a09469bcef72f2';
 export const syntheticOcr=()=>({model:'mistral-ocr-4-1',usage_info:{pages_processed:1},pages:[{index:0,markdown:'Synthetic OCR billing proof. No file was sent to Mistral.'}],p2s_synthetic:true});
