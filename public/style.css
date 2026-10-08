@@ -81,3 +81,5 @@
 .reader-header-links a:focus-visible{outline:2px solid #4f806b;outline-offset:3px;border-radius:3px}
 .extension-recommendation{position:relative;margin-left:auto}
 #extension-tooltip{position:absolute;right:0;top:100%;z-index:20;width:320px;max-width:calc(100vw - 40px);padding:12px 14px;background:#fffef8;color:#203d37;border:1px solid #c8d3c8;border-radius:10px;box-shadow:0 4px 18px #203d3726;font-size:.8rem;line-height:1.5;font-weight:400}
+
+.document-sources{display:grid;grid-template-columns:minmax(0,1fr) auto minmax(0,1fr);align-items:stretch;gap:10px;margin-top:8px}.document-sources button{min-width:0;padding:10px 8px}.document-source-or{align-self:center;font-size:.85rem;color:#63746a}@media(max-width:360px){.document-sources{display:grid;grid-template-columns:1fr auto 1fr;gap:6px}.document-sources button{min-width:0;padding:10px 6px;font-size:.85rem}}

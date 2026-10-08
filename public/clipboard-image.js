@@ -7,7 +7,7 @@ export function pastedImages(data){
 // validation and explicit paid-upload consent stay in the existing importer.
 export function setupClipboardImage({root,target,importFile,getBusy,status,read=()=>navigator.clipboard.read(),canRead=()=>globalThis.isSecureContext&&document.hasFocus()&&typeof navigator.clipboard?.read==='function'}){
  const button=document.createElement('button');button.type='button';button.id='document-paste-image';button.textContent='Paste screenshot';
- const hint=document.createElement('p');hint.id='document-clipboard-hint';hint.textContent='A saved screenshot must also be copied before it can be pasted. Choose file works for saved images.';button.setAttribute('aria-describedby',hint.id);root.append(button,hint);
+ const hint=document.createElement('p');hint.id='document-clipboard-hint';hint.textContent='A saved screenshot must also be copied before it can be pasted. Choose file works for saved images.';button.setAttribute('aria-describedby',hint.id);const sources=root.querySelector('.document-sources');if(sources){sources.prepend(button);root.insertBefore(hint,status);}else root.append(button,hint);
  let sequence=0,reading=false;const render=()=>{button.disabled=reading||getBusy();};
  const load=async files=>{
   root.open=true;

@@ -3,8 +3,10 @@
 Roger approved local implementation and a Paddle sandbox catalog for a one-time
 $10 USD pack of 500 OCR page credits. No automatic refill or renewal and no
 scheduled purchased-credit expiry. Failed/incomplete extraction uses zero
-customer credits. Live catalog, migrations, deployment, real payment, paid OCR
-and expanded credentials remain outside this approval.
+customer credits. Roger subsequently approved staging migration/deployment, the signed webhook and
+narrow Access exception, and one hosted synthetic sandbox purchase/refund proof.
+Live catalog, production migration/deployment and paid provider OCR remain outside
+this approval.
 
 ## Catalog created and visibly verified
 
@@ -18,7 +20,8 @@ Paddle sandbox, Roger Brown account:
   require verification; this sandbox category does not settle live tax policy.
 
 Catalog proof: `/home/roger/Documents/Codex/2026-10-08/task-2/ocr-sandbox-catalog.jpg`.
-No sandbox transaction or customer charge was submitted through the dashboard.
+One official-test-card sandbox transaction was completed during the hosted proof;
+no real payment was made.
 
 ## Local implementation
 
@@ -37,8 +40,8 @@ Verified completion grants once; paid/pending snapshots grant nothing. OCR
 purchase admission uses OCR service/business capacity independently of speech.
 Webhook events enter two independently processed queues; signed sandbox intake
 can bypass the application's Access-cookie check only at the configured origin.
-Cloudflare edge Access still needs a narrowly configured webhook bypass before
-actual Paddle delivery can reach that endpoint. No Access change was made.
+The approved exact-path Access exception and signed webhook are installed.
+Sibling routes and the alias remain protected; Worker rejects descendants.
 
 The account UI shows separate OCR pages and checkout. The importer uses local
 PDF text first, displays requested page holds before explicit consent, validates
@@ -55,9 +58,9 @@ Sandbox business cost control has a separate cumulative $10 ceiling and reserves
 alter or replenish the owner experiment's existing ledger/ceiling. This is a
 safety allowance, not measured provider spend or guaranteed maximum invoice.
 
-Normal staging config records the sandbox IDs and new Durable Object binding,
-but `OCR_RETAIL_SANDBOX=0` and `ENABLE_OCR_PAYMENTS=0`. Production configs,
-production migrations and public UI are unchanged. No deployment happened.
+Staging now runs with both retail/payment flags enabled and synthetic provider
+mode. Deployed code is commit `50edfd8`, Worker version
+`dad16bbc-8f7e-46ce-8a11-b2df99f0dabc`. Production remains unchanged.
 
 ## Draft policies, pending live approval
 
@@ -98,47 +101,49 @@ production migrations and public UI are unchanged. No deployment happened.
 - Existing document browser regressions compare local staging/public readers.
   Both staging and public checks passed: existing owner OCR flows, Clear/late-response, clipboard, expiry, keyboard/mobile/ARIA and the unchanged public local-PDF flow.
 
-## Proof gaps and exact next scope
+## Hosted sandbox proof
 
-**The local simulations are not a completed hosted Paddle sandbox checkout.**
-The catalog was created in real Paddle sandbox, but no hosted Worker runs this
-branch and no real sandbox event was delivered to its new handler. A hosted proof needs bundled approval for precisely these changes:
+Applied staging-only SQL migration and deployed the OCR coordinator. New sandbox
+notification destination `ntfset_01m4e4xm2j7sxgt9aapmexq4x1` subscribes to the four
+transaction/adjustment events at the canonical webhook URL. Roger installed its
+signing secret directly; it was never read or disclosed. Access app
+`456b52d7-0fc2-49bd-a0ba-b4f2b099509d` covers the webhook path only; existing staging
+app/policy are unchanged. Unsigned exact POST returns401; siblings and homepage
+remain Access protected; descendants are rejected by Worker.
 
-1. Apply `staging-migrations/0006_ocr_retail.sql` only to staging D1
-   `private-wavenet-reader-staging` (`74f0d55c-b7ab-4d6b-aa26-cf06bfa9036f`).
-   Add the OCR coordinator binding and `v2-ocr-sandbox` Durable Object migration.
-2. Deploy this branch to existing Worker `private-wavenet-reader-staging`,
-   `https://staging.pastetospeech.com`, using its existing staging R2 bucket.
-   Enable `OCR_RETAIL_SANDBOX=1`, `ENABLE_OCR_PAYMENTS=1`, and
-   `ENABLE_DOCUMENT_OCR=1`; retain `OCR_RETAIL_PROVIDER_MODE=synthetic`.
-   Existing speech configuration and owner business ledgers stay separate.
-3. Create a Paddle **sandbox** notification destination at
-   `https://staging.pastetospeech.com/api/billing/webhook`, subscribing to
-   `transaction.completed`, `transaction.updated`, `adjustment.created` and
-   `adjustment.updated`. Install its
-   generated destination-specific secret directly as staging
-   `PADDLE_WEBHOOK_SECRET`, without printing it. Existing sandbox API/client
-   credentials are available; the sandbox notification-settings API returned
-   an empty list and staging has no webhook-secret binding. A new destination
-   therefore generates a new webhook credential, requiring this approval.
-   No new API key, user, token scope, or other persistent access is necessary.
-4. Create a more-specific Cloudflare Access self-hosted application for only
-   `staging.pastetospeech.com/api/billing/webhook`, with Bypass/Everyone.
-   Preserve existing **PasteToSpeech staging** application
-   `9c39a68a-5733-4663-87a3-8cabc94e7cc5` and **Roger only** policy
-   `24aecd07-62eb-4cb0-8ced-80a6493a4513`. Path rules also cover descendants;
-   the Worker accepts only the exact canonical HTTPS endpoint and validates
-   Paddle HMAC, timestamp, size and event identity. This is an explicit narrow
-   Access exception; all other staging routes retain Roger-only protection.
-5. As Roger, run one sandbox checkout, duplicate-delivery/reconciliation proof,
-   one fixed synthetic PDF extraction, free replay, and a sandbox refund.
-   No real money or Mistral call is involved. Synthetic mode admits only the
-   verified owner and `tests/fixtures/ocr/billing-proof.pdf`; arbitrary inputs
-   fail before reservation. Its visible consent says no file goes to Mistral.
-   Staging gains test transaction/event/credit/receipt records and a private
-   synthetic output, with existing cache/receipt retention rules. Retail mode
-   temporarily replaces the old owner trial route; disabling both flags
-   restores that route while retaining accounting records.
+- Transaction `txn_01m4e5da2qw2vr2ggsexne5vsy` completed; exactly one grant of500.
+  Sandbox total $10.75 includes $0.75 test tax. Live tax/fee policy is unverified.
+- Official signed replay `ntf_01m4e5k6qsyak5t0v7e6j3r0bv` delivered. No second grant.
+- Fixed image-only PDF, SHA256
+  `89d350f1375f503173ed61fc341d95ec319d6f483d6a57c702a09469bcef72f2`,
+  consumed one page after explicit synthetic consent. No Mistral call.
+- Attempt `89392250-6973-4ce0-b5be-8b21f59ec383` ready, one usage row and settlement.
+  Reopening the same file loaded saved output with zero further credits/provider
+  calls. OCR balance499/debt0; speech607047 unchanged throughout.
+- Full refund `adj_01m4e67m6v2hht6fqh2mrx3kt2` submitted once. Pending approval
+  event processed; credits correctly remain499 until approval. Final outcome
+  will be recorded below when Paddle's automatic sandbox approval completes.
+
+Full staging release verification passed: unit suite345 checks across38 files,
+local browser parity/resume/reload/document checks, served metadata and hashes.
+Owner OCR reservation row count remained6. Synthetic business allowance reserved
+8 cents; actual provider spend0.
+
+## Sandbox branding and independent local UI refinement
+
+Sandbox descriptor now `PASTESPEAK`, matching live; speech product name now
+`PasteToSpeech — Speech pack`. Staging receipt copy matches. IDs, prices and
+entitlements remain unchanged. Default checkout link stays staging-isolated.
+Live settings were read only. Both account websites still show
+`speak.rogerpbrown.com`; Paddle makes this field read-only and requires contacting
+sellers@paddle.com to change it. No support message was sent.
+
+Roger requested peer screenshot/file entry actions. The local branch now shows
+[Paste screenshot] or [Choose file] at the top of Open document, without a bottom
+duplicate. Native chooser behavior and paid consent are preserved. Browser tests
+cover both input paths, busy/unsupported clipboard states, keyboard access and
+aligned equal-height buttons at320/390px. This refinement is **not deployed**.
+Screenshot: `/home/roger/Documents/Codex/2026-10-08/task-2/ocr-source-actions.png`.
 
 **Independent server PDF admission is now implemented.** Before any hold or
 provider reservation, the server independently parses the page tree and requires
