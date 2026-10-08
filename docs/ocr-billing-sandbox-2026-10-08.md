@@ -235,3 +235,11 @@ Proof: /home/roger/Documents/Codex/2026-10-08/task-2/ocr-real-provider-success.p
 Final local coverage36 OCR tests and352 total; full release checks are required
 before the final refinement deploys. Live customer policies/catalog and public
 activation remain pending separately.
+
+## Pixel7 screenshot clipboard fallback
+
+Roger reported that Paste screenshot returned “No image was found” after a screenshot action on Pixel7 Android. That exact branch means clipboard.read resolved without an image/* item; it does not establish an empty native clipboard. API absence/focus and read rejection have separate messages. The foreground click calls read immediately, and native image paste into the text box already uses the same validated importer.
+
+Updated the hint and empty/image-unexposed message to explain browser exposure and direct the reader to Choose file for the saved screenshot. No Android user-agent block or native URI fetch was added. Chromium supports Android PNG/bitmap reading, subject to MIME and URI access; Android native clips can hold content-provider URIs. References: https://raw.githubusercontent.com/chromium/chromium/main/ui/android/java/src/org/chromium/ui/base/ClipboardImpl.java (getImageUri, getPng, hasImageMimeType); https://developer.android.com/develop/ui/views/touch-and-input/copy-paste . These sources do not identify the exact cause on Roger’s installed browser.
+
+Mock browser validation covers PNG/JPEG/WebP, empty/text/URI types, permission denial, absent API, focus, multiple images, stale reads, native paste, and 390/320px saved-file fallback with zero OCR POSTs before consent. Desktop Chromium emulation verifies layout/logic only. Pixel7 browser/version and a real device retest remain needed to confirm clipboard behavior. Debugging made no real provider requests or private uploads; production remains untouched.
