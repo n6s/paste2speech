@@ -355,6 +355,7 @@ function loadVoices() {
 $('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { resetReading(); preview(); });
 $('text').addEventListener('paste', event => {
+  if ($('text').readOnly) return;
   let markdown;
   try { markdown = clipboardMarkdown(event.clipboardData?.getData('text/html')); } catch { return; }
   if (!markdown) return;
