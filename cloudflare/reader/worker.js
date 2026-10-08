@@ -1,3 +1,4 @@
+import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {documentOcrResponse,purgeOcrCache,probeOcrAccess} from './document-ocr.js';
 import {OcrLedger} from './ocr-ledger.js';
 import {ocrPaymentConfig} from './ocr-payments.js';
@@ -41,7 +42,7 @@ async function asset(request,env,path){
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){await runMaintenance(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(env.READER_MODE==='staging'&&env.OCR_RETAIL_SANDBOX==='1'&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){await runMaintenance(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
   if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
    if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
@@ -62,12 +63,12 @@ export default {
   // Paddle cannot supply Cloudflare Access cookies. The sandbox endpoint is
   // admitted only at its configured origin and authenticates every body by HMAC.
   const webhookURL=new URL(request.url);
-  if(env.READER_MODE==='staging'&&env.OCR_RETAIL_SANDBOX==='1'&&webhookURL.pathname==='/api/billing/webhook'&&request.method==='POST'&&webhookURL.origin===env.READER_ORIGIN&&(webhookURL.protocol==='https:'||env.LOCAL_READER==='1'))return receiveWebhook(request,env,ctx);
+  if(ocrRetailEnabled(env)&&webhookURL.pathname==='/api/billing/webhook'&&request.method==='POST'&&webhookURL.origin===env.READER_ORIGIN&&(webhookURL.protocol==='https:'||env.LOCAL_READER==='1'))return receiveWebhook(request,env,ctx);
   if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(env.BACKGROUND_WORK_PAUSED==='1'&&url.pathname.startsWith('/api/'))return json({detail:'The reader is temporarily paused for maintenance. Please try again later.'},503);
   if(!['GET','HEAD','POST','DELETE'].includes(request.method))return json({},405);
-  if(url.pathname==='/api/billing/webhook'&&request.method==='POST'&&(publicMode(env)||env.READER_MODE==='staging'&&env.OCR_RETAIL_SANDBOX==='1'))return receiveWebhook(request,env,ctx);
+  if(url.pathname==='/api/billing/webhook'&&request.method==='POST'&&(publicMode(env)||ocrRetailEnabled(env)))return receiveWebhook(request,env,ctx);
   if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
@@ -85,7 +86,7 @@ export default {
     const serviceCapacity=publicMode(env)?await capacity(env.LEDGER):null;
     if(publicMode(env))configured=configured&&customerAllowed(env,account)&&serviceCapacity.available&&env.ENABLE_LIVE_SYNTHESIS==='1';
     const rows=await ledger.query("SELECT COALESCE(SUM(u.characters),0) AS characters FROM usage u JOIN reservations r ON r.job=u.job WHERE r.account=?",owner||'').first();
-    let ocr=null;if(env.READER_MODE==='staging'&&env.OCR_RETAIL_SANDBOX==='1'){const ol=new OcrLedger(env.LEDGER);let configured=false;try{ocrPaymentConfig(env);configured=env.ENABLE_OCR_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&env.ENABLE_DOCUMENT_OCR==='1'&&(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||env.OCR_RETAIL_PROVIDER_MODE==='live'&&!!env.MISTRAL_API_KEY)&&!!account?.email&&account.enabled===1&&(env.OCR_RETAIL_PROVIDER_MODE!=='synthetic'||account.email===env.OWNER_EMAIL);}catch{}const budget=await ol.query("SELECT * FROM ocr_business_budget WHERE id='sandbox-retail'").first();configured=configured&&!!budget&&budget.reserved_cents+8<=budget.cap_cents;ocr={configured,packPages:500,priceUSD:10,balance:owner?await ol.balance(owner):null,pendingOrder:owner?await ol.pendingOrder(owner):null,paymentStatus:owner?await ol.paymentStatus(owner):null,policyDraft:true};}
+    let ocr=null;if(ocrRetailEnabled(env)){const ol=new OcrLedger(env.LEDGER);let configured=false;try{ocrPaymentConfig(env);configured=env.ENABLE_OCR_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&env.ENABLE_DOCUMENT_OCR==='1'&&(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||env.OCR_RETAIL_PROVIDER_MODE==='live'&&!!env.MISTRAL_API_KEY)&&!!account?.email&&account.enabled===1&&(!(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||ocrOwnerOnly(env))||account.email===env.OWNER_EMAIL);}catch{}const budget=await ocrCapacity(ol);configured=configured&&(budget.available||!!(owner&&await ol.pendingOrder(owner))); ocr={configured,packPages:500,priceUSD:10,balance:owner?await ol.balance(owner):null,pendingOrder:owner?await ol.pendingOrder(owner):null,paymentStatus:owner?await ol.paymentStatus(owner):null,policyDraft:true};}
     return json({ocr,emailConfigured:local||env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:!production(env),trial:trialMode(env),serviceCapacity,checkoutAvailable:configured,configured,clientToken:configured||ocr?.configured?env.PADDLE_CLIENT_TOKEN:'',packCharacters:1000000,priceUSD:10,account,pendingOrder:owner?await ledger.pendingOrder(owner):null,paymentStatus:owner?await ledger.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],successfulCharacters:rows.characters,local});
    }
    if(path==='/api/billing/login/request'&&request.method==='POST'){
@@ -121,7 +122,7 @@ export default {
      if(path.endsWith('/order')&&!customerAllowed(env,account))throw new CreditError('Purchases are not available for this account yet. Verify your email before purchasing.',403);
     }
     if(path.endsWith('/order')&&(env.ENABLE_PAYMENTS!=='1'||publicMode(env)&&env.ENABLE_LIVE_SYNTHESIS!=='1'))throw new CreditError('New purchases are temporarily paused.',503);
-    const input=await body(request,2048);if(input.offer!==undefined&&!['speech','ocr'].includes(input.offer))throw new CreditError('Unknown offer.',422);const ocr=input.offer==='ocr';if(ocr&&(env.READER_MODE!=='staging'||env.OCR_RETAIL_SANDBOX!=='1'||!env.OCR_PAYMENTS))throw new CreditError('OCR checkout is unavailable.',503);const coordinator=ocr?env.OCR_PAYMENTS:env.PAYMENTS;return coordinator.get(coordinator.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
+    const input=await body(request,2048);if(input.offer!==undefined&&!['speech','ocr'].includes(input.offer))throw new CreditError('Unknown offer.',422);const ocr=input.offer==='ocr';if(ocr&&(!ocrRetailEnabled(env)||!env.OCR_PAYMENTS))throw new CreditError('OCR checkout is unavailable.',503);const coordinator=ocr?env.OCR_PAYMENTS:env.PAYMENTS;return coordinator.get(coordinator.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
    }
    if(path==='/api/staging/fixtures'&&request.method==='GET'){
     if(!mseStaging(env))return json({},404);

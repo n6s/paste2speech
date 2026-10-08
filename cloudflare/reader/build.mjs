@@ -17,12 +17,13 @@ const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&
 const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const configVars=JSON.parse(await readFile(configPath,'utf8')).vars;
 const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READER==='1');
+const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
 const videoDownload=configVars.VIDEO_DOWNLOAD==='1';
 const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const DOCUMENT_IMPORT=${!production},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
  // Excluded engines have no implementation or model dependency in this build.
@@ -157,7 +158,7 @@ if(!production)billing=billing.replace('speak.rogerpbrown.com — Speech pack','
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
-if(!production){
+if(retailBuild){
  await copyFile('public/ocr-account.js',root+'/ocr-account.js');
  billingJS="import {refreshOcr,reconcileOcr,confirmOcrPurchase} from '/ocr-account.js';\n"+billingJS;
 billingJS=billingJS.replace('return s;}','await refreshOcr(s,api);return s;}').replace("if(s.configured&&window.Paddle&&!initialized)","if((s.configured||s.ocr?.configured)&&window.Paddle&&!initialized)").replace("if(event.name==='checkout.completed'){","if(event.name==='checkout.completed'){confirmOcrPurchase(api);").replace("if(!s.configured)$('message')","if(!s.configured&&!s.ocr?.configured)$('message')").replace('async function reconcile(){','async function reconcile(){await reconcileOcr(api);').replace("await api('logout',{});","await api('logout',{});sessionStorage.removeItem('p2s.ocr.order');");
@@ -177,4 +178,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js',...(!production?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js',...(retailBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

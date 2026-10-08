@@ -6,7 +6,7 @@
   "preview_urls": false,
   "vars": {
     "OCR_RETAIL_SANDBOX": "1",
-    "OCR_RETAIL_PROVIDER_MODE": "synthetic",
+    "OCR_RETAIL_PROVIDER_MODE": "live",
     "ENABLE_OCR_PAYMENTS": "1",
     "PADDLE_OCR_PRODUCT_ID": "pro_01m4dzha8772sp5eezdtz2c0cz",
     "PADDLE_OCR_PRICE_ID": "pri_01m4dzmjgsjt3feew9j7maj8w5",
@@ -33,7 +33,8 @@
     "PADDLE_PRICE_ID": "pri_01m32vvy2sptegx6arebyvxh37",
     "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b",
     "MSE_STAGING": "1",
-    "VIDEO_DOWNLOAD": "1"
+    "VIDEO_DOWNLOAD": "1",
+    "OCR_STAGE_OWNER_ONLY": "1"
   },
   "assets": {
     "directory": "../../work/private-reader/site",

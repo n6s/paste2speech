@@ -172,3 +172,41 @@ After hosted sandbox proof and policy review, separately approve a live catalog,
 verified live tax/fee/refund presentation, provider credential availability,
 production schema/business budget, customer admission, updated terms and staged
 then public deployment. This branch deliberately rejects production OCR retail.
+
+## Approved owner testing support (October 8, later checkpoint)
+
+Roger approved local production-capable accounting and staging owner testing,
+plus one exact nonprivate one-page Mistral request with an $0.08 maximum and a
+separate cumulative $1 personal provider allowance. Production is untouched.
+No live product or customer policies were approved.
+
+Staging migration0007 preserves old credit, refunds and reservations. Capacity
+reserves at least one conservative cent per outstanding page and each pending
+500-page purchase; concurrent checkout cannot oversell that allowance. New
+provider reservations use ceil(0.8*pages) cents (1–8), retained on failure or
+uncertainty. Two durable owner permits separately enforce the exact one-call
+proof and $1 personal allowance; there are no resets, refills or automatic retries.
+The owner must choose personal files and agree to Mistral upload consent.
+
+The reader displays available/held/spent OCR pages and the personal provider
+allowance, updates after settlement/failure/replay, and only polls read-only
+balance during pending work. Speech accounting remains separate.
+
+Production schema0015 accepts sandbox/live catalogs and includes capacity
+constraints but seeds no production budget. Public OCR approval/processing/payment
+flags remain0. Local public configuration contains the future OCR binding only;
+it was not deployed. Live activation still needs catalog IDs, secure Mistral
+setup, approved policy copy, customer rollout and verified provider/webhook checks.
+
+Local tests35 OCR cases/351 total and browser balance checks cover capacity,
+concurrent provider limits, retained failure costs, cross-account isolation,
+paused purchases with refund reconciliation, replay and separate speech state.
+
+The exact proof fixture is tests/fixtures/ocr/live-provider-proof.pdf,12328bytes,
+SHA25644b9cf5850e50b3f63ea7ad32fed772f680dd8b44c28d316d99905432209f81b.
+It contains only: Synthetic OCR billing proof. No private document content.
+
+Before new deployment, the account already had499 pages/debt0 from a second
+Paddle sandbox transaction txn_01m4e80bhmqbr7mkd1ynnbq8jt; no additional purchase
+is needed. Speech606985 at this checkpoint (Roger's own intervening usage);
+the capacity migration preserved that value. Provider permits initially reserved0.

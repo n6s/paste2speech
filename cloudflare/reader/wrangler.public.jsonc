@@ -27,7 +27,10 @@
     "RETIRE_BEFORE": "1790389200000",
     "PROGRESSIVE_READER": "1",
     "LONG_READINGS": "1",
-    "VIDEO_DOWNLOAD": "1"
+    "VIDEO_DOWNLOAD": "1",
+    "OCR_RETAIL_LIVE_APPROVED": "0",
+    "ENABLE_DOCUMENT_OCR": "0",
+    "ENABLE_OCR_PAYMENTS": "0"
   },
   "assets": {
     "directory": "../../work/production-reader/site",
@@ -43,6 +46,10 @@
       {
         "name": "PAYMENTS",
         "class_name": "PaymentCoordinator"
+      },
+      {
+        "name": "OCR_PAYMENTS",
+        "class_name": "OcrPaymentCoordinator"
       }
     ]
   },
@@ -52,6 +59,12 @@
       "new_sqlite_classes": [
         "PreparedReading",
         "PaymentCoordinator"
+      ]
+    },
+    {
+      "tag": "v2-ocr-retail",
+      "new_sqlite_classes": [
+        "OcrPaymentCoordinator"
       ]
     }
   ],

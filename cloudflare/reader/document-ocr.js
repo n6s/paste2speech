@@ -1,3 +1,4 @@
+import {ocrRetailEnabled} from './ocr-policy.js';
 import {retailDocumentOcr} from './document-ocr-retail.js';
 import {ownerDocumentOcr} from './document-ocr-owner.js';
 import {OCR_MODEL,validateDocumentBytes} from '../../public/document-format.js';
@@ -36,7 +37,7 @@ async function status(env,row,clock){
  return {state,attemptId:row.id,parentId:row.parent_id,elapsedSeconds,reservationCents:100,dispatchStarted:!!row.dispatch_started,retryAllowed,nextReservationCents:100,budget:{capCents:budget?.cap_cents,reservedCents:budget?.reserved_cents},detail:state==='ready'?'OCR is ready. Load the saved result without another paid request.':state==='pending'?'The OCR reservation is recorded; completion is not confirmed yet. Checking status never starts OCR.':retryAllowed?'OCR completion is unconfirmed. The original reservation is kept. Re-select the same newsletter and explicitly approve a new $1 reservation to retry within the $5 ceiling.':'OCR completion is unconfirmed or the result expired. No paid retry was made; the original reservation is kept. Retry needs a five-minute cooldown and at least $1 remaining in the experiment budget.'};
 }
 export async function documentOcrResponse(request,env,{token,fetcher=fetch,now=Date.now,verifyOwner=ownerAccess,hashBytes=async bytes=>[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(b=>b.toString(16).padStart(2,'0')).join('')}={}){
- if(env.OCR_RETAIL_SANDBOX==='1')return retailDocumentOcr(request,env,{token,fetcher,now,payload:mistralOcrPayload});
+ if(ocrRetailEnabled(env))return retailDocumentOcr(request,env,{token,fetcher,now,payload:mistralOcrPayload});
  if(env.READER_MODE!=='staging')return json({},404);
  if(!await verifyOwner(env.LEDGER,token,env.OWNER_EMAIL))return json({detail:'Sign in with the verified owner account to use this private OCR trial.'},403);
  if(env.OCR_OWNER_DOCUMENTS==='1')return ownerDocumentOcr(request,env,{fetcher,now,hashBytes,payload:mistralOcrPayload,legacy:async hash=>!hash||hash===OCR_TRIAL.hash?latest(env):null});

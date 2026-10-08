@@ -1,3 +1,4 @@
+import {ocrRetailEnabled} from './ocr-policy.js';
 import {readBounded} from '../prepared/google.js';
 export async function verifyWebhook(request,secret,now=Date.now()){
  if(!secret)throw Error('Webhook unavailable');
@@ -20,7 +21,7 @@ export async function receiveWebhook(request,env,ctx){
  if(event){
   try{await env.LEDGER.prepare('INSERT OR IGNORE INTO webhook_events(id,transaction_id,received) VALUES(?,?,?)').bind(event.id,event.transaction,Date.now()).run();}
   catch{return Response.json({detail:'Retry delivery'},{status:503});}
-  if(env.READER_MODE==='staging'&&env.OCR_RETAIL_SANDBOX==='1'&&env.OCR_PAYMENTS){
+  if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS){
    try{await env.LEDGER.prepare('INSERT OR IGNORE INTO ocr_webhook_events(id,transaction_id,received) VALUES(?,?,?)').bind(event.id,event.transaction,Date.now()).run();}catch{return Response.json({detail:'Retry delivery'},{status:503});}
    ctx.waitUntil(env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})}));
   }
