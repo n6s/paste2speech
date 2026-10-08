@@ -5,9 +5,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
-    "OCR_RETAIL_SANDBOX": "0",
+    "OCR_RETAIL_SANDBOX": "1",
     "OCR_RETAIL_PROVIDER_MODE": "synthetic",
-    "ENABLE_OCR_PAYMENTS": "0",
+    "ENABLE_OCR_PAYMENTS": "1",
     "PADDLE_OCR_PRODUCT_ID": "pro_01m4dzha8772sp5eezdtz2c0cz",
     "PADDLE_OCR_PRICE_ID": "pri_01m4dzmjgsjt3feew9j7maj8w5",
     "ENABLE_DOCUMENT_OCR": "1",
