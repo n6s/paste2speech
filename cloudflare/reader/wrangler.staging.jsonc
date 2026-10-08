@@ -5,6 +5,9 @@
   "workers_dev": false,
   "preview_urls": false,
   "vars": {
+    "ENABLE_SUMMARY_UI": "1",
+    "SUMMARY_LIVE_APPROVED": "0",
+    "SUMMARY_BUDGET_CENTS": "0",
     "OCR_RETAIL_SANDBOX": "1",
     "OCR_RETAIL_PROVIDER_MODE": "live",
     "ENABLE_OCR_PAYMENTS": "1",

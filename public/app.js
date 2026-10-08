@@ -1,4 +1,5 @@
 import {clipboardPayload} from './clipboard-payload.js';
+import {setupSummary} from './summary-ui.js';
 import {setupDocumentImport} from './document-import.js';
 import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
@@ -8,7 +9,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -20,6 +21,7 @@ import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
+let summaryMode=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
   const tooltip = $('extension-tooltip');
@@ -143,6 +145,7 @@ async function discoverWorkstation() {
 function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?(MSE_STAGING?$('mse-delivery').value:(workstationPlayer.capability.mp3?'mse':'complete')):'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
+  summaryMode?.sourceChanged();
   previewedText = $('text').value;
   cleaned = cleanText(previewedText, options);
   chunks = [];
@@ -192,10 +195,12 @@ function preview() {
 }
 function setMode(mode) {
   const reading = mode === 'read';
+  const summarizing=mode==='summary';
+  summaryMode?.setVisible(summarizing);
   if (!reading) closeReadingSize();
-  $('edit-view').hidden = reading;
+  $('edit-view').hidden = reading||summarizing;
   $('read-view').hidden = !reading;
-  $('edit-mode').setAttribute('aria-pressed', String(!reading));
+  $('edit-mode').setAttribute('aria-pressed', String(!reading&&!summarizing));
   $('read-mode').setAttribute('aria-pressed', String(reading));
   if (reading) followParagraph($('preview').querySelector('[aria-current=true]'));
 }
@@ -374,7 +379,7 @@ $('text').addEventListener('paste', event => {
 let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
 $('text').addEventListener('input',()=>{pasteRequest++;});
-$('text').addEventListener('paste',()=>{pasteRequest++;},{capture:true});
+$('text').addEventListener('paste',()=>{summaryMode?.clearSource();pasteRequest++;},{capture:true});
 $('paste-play').addEventListener('click', async () => {
   if(documentImport?.busy)return;
   const request = ++pasteRequest;activePasteRequest=request;
@@ -394,6 +399,7 @@ $('paste-play').addEventListener('click', async () => {
     if (!text.trim()) throw new Error('empty');
     documentImport?.clear();
     resetReading();
+    summaryMode?.clearSource();
     $('text').value = text;
     preview();
     readAndPlay();
@@ -417,7 +423,7 @@ $('paste-play').addEventListener('click', async () => {
     if(activePasteRequest===request){activePasteRequest=0;$('paste-play').disabled=!!documentImport?.busy;}
   }
 });
-$('clear').addEventListener('click', () => { documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+$('clear').addEventListener('click', () => { summaryMode?.clearSource(); documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
@@ -556,9 +562,9 @@ if (WORKSTATION) {
 }
 
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
- accept(data){resetReading();$('text').value=data.text;preview();setMode('edit');},
+ accept(data){summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');},
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
- onBusy(value){if(value)pasteRequest++;$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
+ onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
 else $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
@@ -584,6 +590,7 @@ else $('pdf-file').addEventListener('change', async () => {
     const data=await extractPdf(file, pdfController.signal, {maxCharacters: LONG_READINGS ? Infinity : 1000000});
     if (request !== pdfRequest) return;
     resetReading();
+    summaryMode?.clearSource();
     $('text').value = data.text;
     preview();
     setMode('edit');
@@ -628,7 +635,7 @@ if(MSE_STAGING){
   const data=await response.json(),voice=settings().voice;
   const sections=data.voices[voice];if(!sections){$('status').textContent='Select a WaveNet voice first.';return;}
   resetReading();stagingSampleText=Array.from({length:$('mse-cached').checked&&$('mse-scenario').value==='long'?8:1},()=>sections).flat().join('\n\n');
-  $('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
+  summaryMode?.clearSource();$('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
  };
  $('mse-cached').onchange=()=>{if(!$('mse-cached').checked)$('mse-scenario').value='normal';};
  $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
@@ -666,6 +673,7 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
   $('pdf-status').textContent = '';
   $('paste-status').hidden = true;
   resetReading();
+  summaryMode?.clearSource();
   $('text').value = text;
   preview();
   setMode('read');
@@ -676,3 +684,5 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
     $('paste-status').hidden = false;
   }
 }});
+
+if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});

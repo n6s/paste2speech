@@ -1,3 +1,4 @@
+import {summaryResponse} from './summary.js';
 import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {documentOcrResponse,purgeOcrCache,probeOcrAccess} from './document-ocr.js';
 import {OcrLedger} from './ocr-ledger.js';
@@ -76,6 +77,7 @@ export default {
    if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
+   if(url.pathname==='/api/summary'||url.pathname==='/api/summary/config'){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null);}
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
     if(production(env)&&!owner)await rateLimit(env,'ACCOUNT_LIMIT',request);
