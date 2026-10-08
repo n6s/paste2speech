@@ -1,7 +1,7 @@
 import {publicMode,customerAllowed} from './modes.js';
 import {ocrRetailEnabled,ocrOwnerOnly,providerPermit} from './ocr-policy.js';
 import {OCR_PROOF_HASH,syntheticOcr} from './ocr-proof-fixture.js';
-import {verifiedPdfPages} from './pdf-admission.js';
+import {verifiedPdfPages,pdfAdmissionMessage} from './pdf-admission.js';
 import {OCR_MODEL,validateDocumentBytes} from '../../public/document-format.js';
 import {readBounded} from '../prepared/google.js';
 import {digest} from '../prepared/ledger.js';
@@ -42,7 +42,7 @@ export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Dat
   if([...form.keys()].some(k=>!fields.includes(k))||fields.some(k=>form.getAll(k).length!==1)||form.get('model')!==OCR_MODEL||form.get('consent')!=='true')throw Error();
   const file=form.get('file');mime=file?.type;pages=Number(form.get('pages'));if(!file||file.size>6*1024*1024||!Number.isInteger(pages)||pages<1||pages>10||!['application/pdf','image/png','image/jpeg','image/webp'].includes(mime)||mime!=='application/pdf'&&pages!==1)throw Error();
   bytes=new Uint8Array(await file.arrayBuffer());validateDocumentBytes(bytes,mime);const actualPages=mime==='application/pdf'?await verifiedPdfPages(bytes):1;if(pages!==actualPages)throw Error('PDF page count mismatch');pages=actualPages;h=await hashBytes(bytes);name=String(file.name||'document').replace(/[\x00-\x1f\x7f]/g,'').slice(0,255);
- }catch{return reply({detail:'Choose an unencrypted, structurally valid PDF of 1–10 pages up to 6 MB or one supported image, and explicitly consent. The consented page count must match the whole document. Complex or unsupported PDF structures are rejected safely. Nothing was submitted.'},422);}
+ }catch(error){const specific=pdfAdmissionMessage(error)||(error.message==='PDF page count mismatch'?'The file’s verified page count does not match the consent notice. Choose the file again to refresh the page count.':null);if(specific)return reply({detail:specific+' Nothing was submitted; no OCR credits were used.'},422);return reply({detail:'Choose an unencrypted, structurally valid PDF of 1–10 pages up to 6 MB or one supported image, and explicitly consent. The consented page count must match the whole document. Complex or unsupported PDF structures are rejected safely. Nothing was submitted.'},422);}
  if(synthetic&&h!==OCR_PROOF_HASH)return reply({detail:'Synthetic billing proof accepts only the supplied one-page billing-proof.pdf. Nothing was sent to Mistral.'},422);
  let id,savedKey;
  try{

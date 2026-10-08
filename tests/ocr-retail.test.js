@@ -1,7 +1,8 @@
+import {outlinePdf} from './ocr-pdf-outline-fixture.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
 import {deflateSync} from 'node:zlib';
-import {verifiedPdfPages} from '../cloudflare/reader/pdf-admission.js';
+import {verifiedPdfPages,pdfAdmissionMessage} from '../cloudflare/reader/pdf-admission.js';
 import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';
 import {OcrLedger} from '../cloudflare/reader/ocr-ledger.js';
 import {UsageLedger,digest} from '../cloudflare/prepared/ledger.js';
@@ -101,4 +102,10 @@ test('additive staging capacity migration preserves historical fixed reservation
 });
 test('future public OCR obeys the approved customer rollout even when the account already owns pages',async()=>{
  const f=await fixture();await purchase(f);Object.assign(f.env,{READER_MODE:'production-public',OCR_RETAIL_LIVE_APPROVED:'1',PUBLIC_LAUNCH_OPEN:'0',LAUNCH_TEST_EMAIL:'other@example.invalid'});let calls=0;const opts={...options,fetcher:async()=>{calls++;return Response.json(raw(1));}};assert.equal((await retailDocumentOcr(request({pages:1}),f.env,opts)).status,403);assert.equal(calls,0);f.env.LAUNCH_TEST_EMAIL='a@example.invalid';assert.equal((await retailDocumentOcr(request({pages:1}),f.env,opts)).status,200);assert.equal(calls,1);
+});
+
+test('outline-rich five-page PDFs are fully counted; excessive metadata remains bounded and actionable',async()=>{
+ const bytes=await outlinePdf();assert.equal(await verifiedPdfPages(bytes),5);const f=await fixture();await purchase(f);let calls=0;
+ const result=await retailDocumentOcr(request({pages:5,dataBytes:bytes}),f.env,{...options,fetcher:async(_u,init)=>{calls++;assert.deepEqual(JSON.parse(init.body).pages,[0,1,2,3,4]);return Response.json(raw(5));}});assert.equal(result.status,200);assert.equal(calls,1);assert.equal((await f.ledger.balance('a')).balance,495);
+ const excessive=await outlinePdf(1200);await assert.rejects(verifiedPdfPages(excessive),e=>/too much structural metadata.*Export/.test(pdfAdmissionMessage(e)));const before=(await f.ledger.balance('a')).balance;const blocked=await retailDocumentOcr(request({pages:5,dataBytes:excessive}),f.env,{...options,fetcher:async()=>{calls++;throw Error('Must not dispatch');}});assert.equal(blocked.status,422);assert.match((await blocked.json()).detail,/structural metadata.*Nothing was submitted; no OCR credits/);assert.equal(calls,1);assert.equal((await f.ledger.balance('a')).balance,before);
 });

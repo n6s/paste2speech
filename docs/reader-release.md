@@ -555,3 +555,33 @@ restore a whole database over newer transactions or reset provider reservations.
 The initial conservative capacity can back two 500-page packs; failed/uncertain
 provider attempts retain business reserves and can pause later processing without
 removing customer credits. No automatic reserve top-up is allowed.
+
+### October 8 OCR purchase navigation review
+
+Insufficient OCR page credit now displays a keyboard-accessible Buy OCR pages
+link to /api/billing#ocr-account in a new tab with noopener/noreferrer. Opening
+it does not buy or upload. The reader retains its text and selected document
+reference; the file chooser is cleared as before so choosing the same file again
+works. The message explicitly tells the reader to return and choose the file
+again after buying. Consent remains unchecked and extraction remains blocked.
+
+The reader header says Account & credits. Retail account pages include On this
+page navigation with descriptions for OCR pages, speech credit, sign-in, and
+monthly speech usage. OCR deep links focus the dynamically inserted OCR section;
+contents links focus their targets. Local mocked browser checks cover keyboard
+opening/closing, repeated imports, dismiss/reopen/Clear, unchanged reading text,
+no automatic purchase/upload, all contents targets, and 390px mobile overflow.
+Roger authorized staging deployment for review; production publication of this
+change requires separate approval.
+
+The reported five-page, unencrypted PDF (657335 bytes, PDF1.4) failed before
+provider dispatch because ordinary outline metadata exceeded the 8192 parser-
+operation ceiling. The independently walked page tree and local client both count
+five pages. Raise the bounded operation ceiling to16384; retain the 6MB, ten-page,
+two-second, nesting, structural inflation, duplicate-object and independent page-
+tree protections. Rejections now distinguish structural metadata, encryption,
+incomplete PDF, page limit and consent-count mismatch without exposing parser
+internals. A synthetic five-page PDF with600 linked outline entries verifies and
+mock-dispatches exactly five pages;1200 entries remain rejected with no additional
+credit/provider reservation. Node and local workerd tests pass. The reported
+personal PDF was inspected locally only, left unchanged and never submitted.
