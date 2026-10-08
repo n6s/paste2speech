@@ -153,6 +153,7 @@ await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
 billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').replace(/<p><label><input id="mode"[\s\S]*?<\/label><\/p>/,'').replace('Pronunciation expansions cost no extra allowance.','WaveNet uses its default pronunciation.');
+if(!production)billing=billing.replace('speak.rogerpbrown.com — Speech pack','PasteToSpeech — Speech pack').replace('PADDLE.NET* SPEAKRPB','PADDLE.NET* PASTESPEAK');
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
