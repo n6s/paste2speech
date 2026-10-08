@@ -156,6 +156,11 @@ billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').repl
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
+if(!production){
+ await copyFile('public/ocr-account.js',root+'/ocr-account.js');
+ billingJS="import {refreshOcr,reconcileOcr,confirmOcrPurchase} from '/ocr-account.js';\n"+billingJS;
+billingJS=billingJS.replace('return s;}','await refreshOcr(s,api);return s;}').replace("if(s.configured&&window.Paddle&&!initialized)","if((s.configured||s.ocr?.configured)&&window.Paddle&&!initialized)").replace("if(event.name==='checkout.completed'){","if(event.name==='checkout.completed'){confirmOcrPurchase(api);").replace("if(!s.configured)$('message')","if(!s.configured&&!s.ocr?.configured)$('message')").replace('async function reconcile(){','async function reconcile(){await reconcileOcr(api);').replace("await api('logout',{});","await api('logout',{});sessionStorage.removeItem('p2s.ocr.order');");
+}
 await writeFile(root+'/billing.js',billingJS);
 await mkdir(root+'/voice-previews',{recursive:true});
 for(const name of previewAssets)await copyFile('assets/'+name,root+'/'+name);
@@ -171,4 +176,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js','pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js',...(!production?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
