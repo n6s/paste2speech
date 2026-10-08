@@ -1,9 +1,12 @@
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
+import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {reconstruct,exportText} from '../../public/document-reconstruct.js';
-const publicRetail=JSON.parse(await readFile('cloudflare/reader/wrangler.public.jsonc','utf8')).vars.OCR_RETAIL_LIVE_APPROVED==='1';
+const publicConfig=await readFile('cloudflare/reader/wrangler.public.jsonc','utf8');
+const builtRelease=JSON.parse(await readFile('work/production-reader/site/release.json','utf8'));
+const publicRetail=builtRelease.configSHA256===createHash('sha256').update(publicConfig).digest('hex')&&JSON.parse(publicConfig).vars.OCR_RETAIL_LIVE_APPROVED==='1';
 const root=process.cwd();let assets='work/private-reader/site';
 const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;res.setHeader('Content-Type',/\.(js|mjs)$/.test(path)?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(await readFile(`${root}/${assets}/${path==='/'?'index.html':path.slice(1)}`));}catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
