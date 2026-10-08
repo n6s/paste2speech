@@ -1,3 +1,4 @@
+import {clipboardPayload} from './clipboard-payload.js';
 import {setupDocumentImport} from './document-import.js';
 import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
@@ -370,41 +371,36 @@ $('text').addEventListener('paste', event => {
   }
 });
 // Read first: denied, empty, or unreadable clipboards must not erase a reading.
-let pasteRequest = 0;
+let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
-async function clipboardText() {
-  if (navigator.clipboard?.read) {
-    const items = await navigator.clipboard.read();
-    for (const item of items) {
-      if (item.types.includes('text/html')) {
-        try {
-          const markdown = clipboardMarkdown(await (await item.getType('text/html')).text());
-          if (markdown?.trim()) return markdown;
-        } catch { /* Try the plain-text representation of this item. */ }
-      }
-      if (item.types.includes('text/plain')) {
-        const text = await (await item.getType('text/plain')).text();
-        if (text.trim()) return text;
-      }
-    }
-    return '';
-  }
-  if (navigator.clipboard?.readText) return navigator.clipboard.readText();
-  throw new Error('Clipboard access unavailable');
-}
+$('text').addEventListener('input',()=>{pasteRequest++;});
+$('text').addEventListener('paste',()=>{pasteRequest++;},{capture:true});
 $('paste-play').addEventListener('click', async () => {
-  const request = ++pasteRequest;
+  if(documentImport?.busy)return;
+  const request = ++pasteRequest;activePasteRequest=request;
   const previousText = $('text').value;
   $('paste-play').disabled = true;
   $('paste-status').hidden = true;
+  documentImport?.cancelClipboardRead();
   try {
-    const text = await clipboardText();
-    if (request !== pasteRequest || $('text').value !== previousText) return;
+    const payload = await clipboardPayload(navigator.clipboard);
+    if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy) return;
+    if(payload.image){
+      if(!documentImport)throw Error('image-unavailable');
+      await documentImport.openImage(payload.image);
+      return;
+    }
+    const text=payload.text;
     if (!text.trim()) throw new Error('empty');
+    documentImport?.clear();
     resetReading();
     $('text').value = text;
     preview();
     readAndPlay();
+    if(payload.hasImage){
+      $('paste-status').textContent=documentImport?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
+      $('paste-status').hidden=false;
+    }
     if (!cleaned) {
       $('paste-status').textContent = 'Pasted, but nothing remains after cleanup. Adjust cleanup options to read it.';
       $('paste-status').hidden = false;
@@ -412,11 +408,13 @@ $('paste-play').addEventListener('click', async () => {
   } catch (error) {
     if (request !== pasteRequest) return;
     $('paste-status').textContent = error.message === 'empty'
-      ? 'The clipboard has no text to read. Your current text is unchanged.'
-      : 'Clipboard access was unavailable. Paste into Edit, then press Play. Your current text is unchanged.';
+      ? 'Your browser did not provide text or an image to paste. Your current text is unchanged. Use Choose file for a saved screenshot.'
+      : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Choose file. Your current text is unchanged.'
+      : error.message==='image-unavailable' ? 'Image OCR is unavailable here. Your current text is unchanged.'
+      : 'Clipboard access was unavailable. Your current text is unchanged. Use Choose file for a saved screenshot, or paste text into Edit.';
     $('paste-status').hidden = false;
   } finally {
-    $('paste-play').disabled = false;
+    if(activePasteRequest===request){activePasteRequest=0;$('paste-play').disabled=!!documentImport?.busy;}
   }
 });
 $('clear').addEventListener('click', () => { documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
@@ -560,7 +558,7 @@ if (WORKSTATION) {
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  accept(data){resetReading();$('text').value=data.text;preview();setMode('edit');},
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
- onBusy(value){$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
+ onBusy(value){if(value)pasteRequest++;$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
 else $('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];

@@ -1,0 +1,13 @@
+import test from 'node:test';import assert from 'node:assert/strict';import {clipboardPayload} from '../public/clipboard-payload.js';
+const item=(type,bytes)=>({types:[type],getType:async mime=>new Blob([bytes],{type:mime})});
+test('clipboard payload reads once and returns PNG/JPEG/WebP files without provider work',async()=>{
+ for(const mime of ['image/png','image/jpeg','image/webp']){let reads=0;const result=await clipboardPayload({read:async()=>{reads++;return [item(mime,new Uint8Array([1,2,3]))];}});assert.equal(reads,1);assert.equal(result.image.type,mime);assert.equal(result.image.size,3);assert.equal(result.text,'');}
+});
+test('mixed clipboard prefers text without fetching image bytes, regardless of item order',async()=>{
+ const image={types:['image/png'],getType(){throw Error('image bytes must not be fetched for mixed text');}};
+ for(const items of [[image,item('text/plain','Text stays')],[item('text/plain','Text stays'),image]])assert.deepEqual(await clipboardPayload({read:async()=>items}),{text:'Text stays',image:null,hasImage:true});
+});
+test('empty clipboard, text fallback, multiple images and denied reads remain distinct',async()=>{
+ assert.deepEqual(await clipboardPayload({read:async()=>[]}),{text:'',image:null,hasImage:false});assert.equal((await clipboardPayload({readText:async()=>'Fallback'})).text,'Fallback');
+ await assert.rejects(clipboardPayload({read:async()=>[item('image/png','a'),item('image/jpeg','b')]}),/multiple-images/);await assert.rejects(clipboardPayload({read:async()=>{throw Error('denied');}}),/denied/);await assert.rejects(clipboardPayload({}),/unavailable/);
+});
