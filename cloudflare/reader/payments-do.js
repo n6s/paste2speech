@@ -113,8 +113,8 @@ export class OcrPaymentCoordinator extends PaymentCoordinator {
  query(ledger,sql,...args){return ledger.query(sql.replace(/\b(orders|payment_sync|webhook_events)\b/g,table=>'ocr_'+table),...args);}
  async admit(ledger,account){
   const session=await ledger.account(account);
-  if(!session?.email||session.enabled!==1)return json({detail:'Verify your email before purchasing OCR pages.'},403);
-  if(this.env.ENABLE_OCR_PAYMENTS!=='1'||this.env.ENABLE_DOCUMENT_OCR!=='1'||!this.env.MISTRAL_API_KEY)return json({detail:'OCR purchases are paused.'},503);
+  if(!session?.email||session.enabled!==1||this.env.OCR_RETAIL_PROVIDER_MODE==='synthetic'&&session.email!==this.env.OWNER_EMAIL)return json({detail:'Verify your email before purchasing OCR pages.'},403);
+  if(this.env.ENABLE_OCR_PAYMENTS!=='1'||this.env.ENABLE_DOCUMENT_OCR!=='1'||!(this.env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||this.env.OCR_RETAIL_PROVIDER_MODE==='live'&&this.env.MISTRAL_API_KEY))return json({detail:'OCR purchases are paused.'},503);
   const b=await ledger.query("SELECT * FROM ocr_business_budget WHERE id='sandbox-retail'").first();if(!b||b.reserved_cents+8>b.cap_cents)return json({detail:'OCR capacity is temporarily full.'},429);
  }
 }

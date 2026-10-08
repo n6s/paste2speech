@@ -77,7 +77,7 @@ production migrations and public UI are unchanged. No deployment happened.
 ## Verification
 
 - `npm test`: all 38 test files passed, including the new OCR test file.
-- `node tests/ocr-retail.test.js`: 23/23 cases passed with actual SQLite SQL
+- `node tests/ocr-retail.test.js`: 29/29 cases passed with actual SQLite SQL
   and mocked Paddle/OCR. Purchase -> 500 pages -> two held/saved/used pages ->
   free replay -> full approved refund -> two pages of OCR debt -> later grant
   covering debt is proven; speech remains 12,345 throughout.
@@ -86,6 +86,9 @@ production migrations and public UI are unchanged. No deployment happened.
   malformed/partial/failed OCR; private cache at zero balance; expired receipts;
   lost admission/completion acknowledgements; refund during dispatch; proportional
   rounding and reversed adjustments; serialized checkout/recovery.
+- Final aggregate checks after PDF/synthetic changes: 38 test files passed;
+  OCR tests 29/29, OCR browser proof, staging/public document regressions, local
+  workerd PDF proof and staging Worker deploy **dry run** passed.
 - Local staging and public builds passed. Encoder sources were copied from the
   existing verified local cache; no source downloads were needed.
 - `node tests/ocr-retail-browser.mjs`: passed keyboard checkout, separate balances,
@@ -99,30 +102,60 @@ production migrations and public UI are unchanged. No deployment happened.
 
 **The local simulations are not a completed hosted Paddle sandbox checkout.**
 The catalog was created in real Paddle sandbox, but no hosted Worker runs this
-branch and no real sandbox event was delivered to its new handler. A hosted proof
-needs approval to apply the new staging-only SQL and Durable Object migration,
-release this branch to private staging, enable its OCR sandbox flags, configure
-an authenticated sandbox webhook using existing securely managed credentials,
-and configure a narrow Cloudflare Access bypass for that signed endpoint. No new
-credentials/access were created. If the existing sandbox notification secret is
-not already held securely by staging, Roger must securely supply/configure it;
-do not display it in chat. A sandbox test checkout/refund costs no real money.
+branch and no real sandbox event was delivered to its new handler. A hosted proof needs bundled approval for precisely these changes:
 
-For the safest next proof, add a staging-only synthetic OCR fixture mode and use
-synthetic input; do not enable real Mistral dispatch merely to prove payments.
-That staging fixture would require its own reviewed deployment scope but zero
-provider spend. An actual Mistral call remains separately approval-gated; propose
-one synthetic 1-page call only with explicit consent, retaining the 8-cent
-business reservation and cumulative $10 sandbox ceiling. Its actual invoice
-cost/tax is not established by the published estimate.
+1. Apply `staging-migrations/0006_ocr_retail.sql` only to staging D1
+   `private-wavenet-reader-staging` (`74f0d55c-b7ab-4d6b-aa26-cf06bfa9036f`).
+   Add the OCR coordinator binding and `v2-ocr-sandbox` Durable Object migration.
+2. Deploy this branch to existing Worker `private-wavenet-reader-staging`,
+   `https://staging.pastetospeech.com`, using its existing staging R2 bucket.
+   Enable `OCR_RETAIL_SANDBOX=1`, `ENABLE_OCR_PAYMENTS=1`, and
+   `ENABLE_DOCUMENT_OCR=1`; retain `OCR_RETAIL_PROVIDER_MODE=synthetic`.
+   Existing speech configuration and owner business ledgers stay separate.
+3. Create a Paddle **sandbox** notification destination at
+   `https://staging.pastetospeech.com/api/billing/webhook`, subscribing to
+   `transaction.completed`, `transaction.updated`, `adjustment.created` and
+   `adjustment.updated`. Install its
+   generated destination-specific secret directly as staging
+   `PADDLE_WEBHOOK_SECRET`, without printing it. Existing sandbox API/client
+   credentials are available; the sandbox notification-settings API returned
+   an empty list and staging has no webhook-secret binding. A new destination
+   therefore generates a new webhook credential, requiring this approval.
+   No new API key, user, token scope, or other persistent access is necessary.
+4. Create a more-specific Cloudflare Access self-hosted application for only
+   `staging.pastetospeech.com/api/billing/webhook`, with Bypass/Everyone.
+   Preserve existing **PasteToSpeech staging** application
+   `9c39a68a-5733-4663-87a3-8cabc94e7cc5` and **Roger only** policy
+   `24aecd07-62eb-4cb0-8ced-80a6493a4513`. Path rules also cover descendants;
+   the Worker accepts only the exact canonical HTTPS endpoint and validates
+   Paddle HMAC, timestamp, size and event identity. This is an explicit narrow
+   Access exception; all other staging routes retain Roger-only protection.
+5. As Roger, run one sandbox checkout, duplicate-delivery/reconciliation proof,
+   one fixed synthetic PDF extraction, free replay, and a sandbox refund.
+   No real money or Mistral call is involved. Synthetic mode admits only the
+   verified owner and `tests/fixtures/ocr/billing-proof.pdf`; arbitrary inputs
+   fail before reservation. Its visible consent says no file goes to Mistral.
+   Staging gains test transaction/event/credit/receipt records and a private
+   synthetic output, with existing cache/receipt retention rules. Retail mode
+   temporarily replaces the old owner trial route; disabling both flags
+   restores that route while retaining accounting records.
 
-**PDF admission needs independent server page counting before live launch.**
-The reader currently obtains the whole-file count with PDF.js locally and sends
-that count. The sandbox backend bounds dispatch to 1–10 requested pages and
-verifies matching saved provider output; it does not independently establish
-that those are all pages in the submitted PDF. A forged count can select a
-prefix. Do not claim whole-file server enforcement until a bounded server PDF
-parser is added/tested. The first retail image flow does not have this PDF gap.
+**Independent server PDF admission is now implemented.** Before any hold or
+provider reservation, the server independently parses the page tree and requires
+client/server count agreement, 1–10 whole-file pages and at most 6 MiB. Parsing
+bounds objects, numeric/xref entries, nesting, page-tree visits, time and structural
+stream expansion. It rejects encrypted, truncated, malformed, cyclic, duplicate
+or inconsistent structures. Incremental object redefinitions and unsupported
+structural filters/predictors fail closed; complex valid PDFs may require a
+future supported parser enhancement. Content/image streams are not rendered or
+inflated for admission. Adversarial tests prove rejection leaves balances,
+business reservations and provider call count unchanged. A local actual workerd
+proof covers plain and compressed ten-page PDFs, the fixed one-page fixture and
+malformed/over-limit rejection, without remote bindings or provider calls.
+
+The isolated worktree shares Git history with `/home/roger/workarea/paste2speech`;
+it is the same repository on `feature/ocr-page-billing-sandbox`, not a separate
+source fork. Its changes have not been merged into canonical `main`.
 
 After hosted sandbox proof and policy review, separately approve a live catalog,
 verified live tax/fee/refund presentation, provider credential availability,
