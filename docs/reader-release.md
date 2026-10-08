@@ -585,3 +585,12 @@ internals. A synthetic five-page PDF with600 linked outline entries verifies and
 mock-dispatches exactly five pages;1200 entries remain rejected with no additional
 credit/provider reservation. Node and local workerd tests pass. The reported
 personal PDF was inspected locally only, left unchanged and never submitted.
+
+Selectable text alone did not bypass OCR suitability routing: local PDF.js found
+4367characters but flagged repeated single-letter text on four pages and possible
+column order on page1. Retail import now offers Use local text · no credits when
+text exists but quality checks flag it. This explicit choice loads existing text
+locally, warns about spacing/order/missing image content, and never uploads or
+auto-plays. Cloud OCR remains optional behind consent and whole-document billing.
+Synthetic column-layout browser coverage checks local use with zero credits and
+Clear reset. No wedding content was included in test fixtures.
