@@ -1,3 +1,4 @@
+import {publicMode,customerAllowed} from './modes.js';
 import {ocrRetailEnabled,ocrOwnerOnly,providerPermit} from './ocr-policy.js';
 import {OCR_PROOF_HASH,syntheticOcr} from './ocr-proof-fixture.js';
 import {verifiedPdfPages} from './pdf-admission.js';
@@ -13,8 +14,8 @@ export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Dat
  if(!ocrRetailEnabled(env))return reply({},404);
  const synthetic=env.OCR_RETAIL_PROVIDER_MODE==='synthetic';
  const clock=()=>typeof now==='function'?now():now,ledger=new OcrLedger(env.LEDGER);
- const account=await ledger.query("SELECT a.id,i.email FROM sessions s JOIN accounts a ON a.id=s.account JOIN identities i ON i.account=a.id WHERE s.token_hash=? AND s.kind='verified' AND s.expires>? AND a.enabled=1",await digest(token||''),clock()).first();
- if(!account||(synthetic||ocrOwnerOnly(env))&&account.email!==env.OWNER_EMAIL)return reply({detail:'Sign in with a verified email to use OCR pages.'},403);
+ const account=await ledger.query("SELECT a.id,a.enabled,i.email FROM sessions s JOIN accounts a ON a.id=s.account JOIN identities i ON i.account=a.id WHERE s.token_hash=? AND s.kind='verified' AND s.expires>? AND a.enabled=1",await digest(token||''),clock()).first();
+ if(!account||publicMode(env)&&!customerAllowed(env,account)||(synthetic||ocrOwnerOnly(env))&&account.email!==env.OWNER_EMAIL)return reply({detail:'Sign in with a verified email to use OCR pages.'},403);
  const url=new URL(request.url),path=url.pathname,hash=url.searchParams.get('document_hash');if(hash&&!/^[a-f0-9]{64}$/.test(hash))return reply({detail:'Invalid document reference.'},422);
  const find=h=>ledger.find(account.id,h,OCR_MODEL),receipt=row=>({attemptId:row.id,pagesUsed:row.consumed,pagesReleased:row.released,state:row.state});
  const cached=async row=>{

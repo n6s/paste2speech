@@ -210,3 +210,28 @@ Before new deployment, the account already had499 pages/debt0 from a second
 Paddle sandbox transaction txn_01m4e80bhmqbr7mkd1ynnbq8jt; no additional purchase
 is needed. Speech606985 at this checkpoint (Roger's own intervening usage);
 the capacity migration preserved that value. Provider permits initially reserved0.
+
+## Real provider proof completed
+
+Owner staging release547cd89, Worker0560ef8b-bb33-42c5-9f91-ee35ea9d8bf0,
+served metadata/assets verified. Exactly one approved real Mistral request for
+the pinned nonprivate fixture succeeded. Attempt79f16e0f-16c5-4186-9aed-b504156b4086
+is ready, pages1/consumed1/released0. OCR balance499→498; cumulative spent2
+includes the earlier synthetic page. Speech606985 was unchanged by this proof.
+
+One conservative cent was reserved from the separate8-cent proof permit,
+max_calls1/calls1. Its enabled flag is now0. This is not a measured invoice;
+current list estimate for the page was$0.004. The personal100-cent permit remains
+enabled with reserved0/calls0 at completion. No personal document was uploaded
+by the assistant. No new sandbox checkout was needed.
+
+Clear/reopen of the same fixture loaded the saved real result with no new debit
+or provider call; balance498 and both counters were unchanged. Raw text matched
+the test image. Visible available/held/spent countdown is verified; replay now
+preserves the provider-allowance label. This final refinement gets a staging-only
+release. The production customer rollout gate is tested but remains disabled.
+
+Proof: /home/roger/Documents/Codex/2026-10-08/task-2/ocr-real-provider-success.png.
+Final local coverage36 OCR tests and352 total; full release checks are required
+before the final refinement deploys. Live customer policies/catalog and public
+activation remain pending separately.
