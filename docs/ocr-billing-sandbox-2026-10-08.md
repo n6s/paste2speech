@@ -120,9 +120,15 @@ remain Access protected; descendants are rejected by Worker.
 - Attempt `89392250-6973-4ce0-b5be-8b21f59ec383` ready, one usage row and settlement.
   Reopening the same file loaded saved output with zero further credits/provider
   calls. OCR balance499/debt0; speech607047 unchanged throughout.
-- Full refund `adj_01m4e67m6v2hht6fqh2mrx3kt2` submitted once. Pending approval
-  event processed; credits correctly remain499 until approval. Final outcome
-  will be recorded below when Paddle's automatic sandbox approval completes.
+- Full refund `adj_01m4e67m6v2hht6fqh2mrx3kt2` submitted once and approved
+  automatically at16:50 UTC. Pending event left499 credits unchanged; approved
+  signed event `evt_01m4e6r0325cdygdhv02gsek5m` processed and revoked500.
+  Final OCR balance0/debt1, one grant, one usage, one refund journal delta-500.
+  Speech balance607047 unchanged. No real payment or provider call occurred.
+  Browser attachment to prior result tabs was interrupted after this proof;
+  approved refund and final ledger were verified through read-only APIs.
+  Free replay was verified before refund; post-refund hosted UI replay was not
+  repeated. Local tests cover replay with exhausted/refunded allowance.
 
 Full staging release verification passed: unit suite345 checks across38 files,
 local browser parity/resume/reload/document checks, served metadata and hashes.
