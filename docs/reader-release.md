@@ -521,3 +521,37 @@ new code without a paid rescan; Clear first if the old text is loaded. Cache exp
 24 hours after completion. If no valid result is available, stop before upload or
 Use cloud OCR; a fresh paid attempt requires separate approval. An existing text
 or Markdown export has already lost the original boundaries.
+
+### October 8 approved live OCR launch preparation
+
+Roger approved $10 USD plus applicable tax for 500 OCR pages, one-time, no
+automatic renewal or scheduled credit expiry, and a $10 hard provider reserve
+cap with no automatic refill. Live Paddle catalog is saved and API-verified:
+product `pro_01m4ehjj41jz5zvrn1mkaxxkb8` (SaaS); price
+`pri_01m4ehnebc7mqj8ymdynbm5b4k` (1000 USD cents, external tax, quantity 1,
+no billing cycle/trial/country overrides). Speech SKU is unchanged. Existing
+canonical live webhook subscribes to transaction.completed, transaction.updated,
+adjustment.created and adjustment.updated; all four are required for OCR.
+
+Customer copy now discloses complete-success charging, blank pages within a
+successful document, zero credits for failed/incomplete/entirely blank output,
+24-hour saved replay, blocked same-file reprocessing after expiry, Mistral whole-
+file consent, and proportional refunds rounded up to a whole page. Used refunded
+pages become a shortfall covered by future purchases; speech remains separate.
+
+Production is not deployed at this preparation checkpoint. Roger must enter
+MISTRAL_API_KEY himself as an encrypted production Worker secret. Do not copy
+the staging key or inspect its value. After metadata-only secret verification:
+refresh and verify a private production LEDGER backup; check pending migrations;
+apply 0015; execute ocr-live-launch-budget.sql once; verify cap=1000 and reserved=0
+and unchanged speech aggregates. Then deploy staging and public from the same
+clean validated commit using the normal release gates. No live payment or
+provider smoke test is authorized; mock checkout verification makes no purchase.
+
+Rollback disables ENABLE_OCR_PAYMENTS and ENABLE_DOCUMENT_OCR. Retain
+OCR_RETAIL_LIVE_APPROVED=1, live IDs, credentials, OCRPAYMENTS binding, schema,
+and ledger records so existing purchases/refunds can still reconcile. Never
+restore a whole database over newer transactions or reset provider reservations.
+The initial conservative capacity can back two 500-page packs; failed/uncertain
+provider attempts retain business reserves and can pause later processing without
+removing customer credits. No automatic reserve top-up is allowed.
