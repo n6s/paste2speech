@@ -615,3 +615,19 @@ malformed inputs. `tests/named-links-browser.mjs` exercises the complete built U
 original source, preview, speech chunks with mocked browser speech, normal rich
 HTML paste and 390/320px layouts. It blocks external/provider requests. This
 change has staging deployment approval only; production is unchanged.
+
+Roger's original retest did not resolve the labels: his stored Edit sentence
+already reads “the and the”. The named-token cleanup test therefore does not
+confirm his source clipboard format. Ordinary text paste keeps the supplied
+plain text; rich paste prefers inert HTML conversion. The original clipboard's
+plain/HTML payloads are still needed to distinguish source omission from HTML
+import filtering. No source labels are reconstructed from guessed URLs.
+
+The delay investigation found an independent existing quadratic wrapped-line
+scan, unchanged by the named-token patch. Anchoring at each line keeps behavior
+but avoids retrying a whole unwrapped paragraph at every character. On this
+machine 30,075 characters took about 280ms before and 1.4ms after; doubling length
+previously took about 1,057ms. `tests/cleanup-performance.mjs` checks a 120,300
+character line and wrapping semantics. The mocked built-browser test now checks
+30,075-character plain and HTML paste through input/preview (about 2/4ms here).
+These synthetic measurements do not establish the full 37-second phone delay.

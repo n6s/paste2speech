@@ -284,8 +284,10 @@ function joinProseLines(input, detectTitles = true) {
       return heading ? '\n' + line + '\n' : line;
     }).join('\n').replace(/^\n+|\n+$/g, '');
   }
+  // Start once per line: an unanchored scan retries the whole remaining line
+  // at every character when a long clipboard paragraph has no newline.
   return input.replace(/\r\n?/g, '\n').replace(
-    /([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/g,
+    /^([^\n]*\S)[ \t]*\n[ \t]*(?=\S)/gm,
     (match, line) => /[.!?…]["'”’)}\]]*$/.test(line.trimEnd()) ? match : line.trimEnd() + ' '
   );
 }

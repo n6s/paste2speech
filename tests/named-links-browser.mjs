@@ -28,6 +28,18 @@ try{
  const html=`<p>${prefix}<a href="https://example.invalid/a">${first}</a> and the <a href="https://example.invalid/b">${second}</a>.</p>`;
  await page.locator('#text').fill('');await page.locator('#text').focus();await page.evaluate(html=>{const data=new DataTransfer();data.setData('text/html',html);document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},html);
  assert.equal(await page.locator('#preview').textContent(),prefix+first+' and the '+second+'.');assert.match(await page.locator('#text').inputValue(),/\[National Weather/);
+ // Full paste/input path at the reported size, with a single unwrapped line.
+ // Plain text and HTML are separate sources; missing clipboard words cannot
+ // be recovered by later cleanup.
+ for(const format of ['plain','html']){
+  const plain='a'.repeat(30075),html='<p>'+plain+'</p>';
+  await page.locator('#text').fill('');await page.locator('#text').focus();
+  const ms=await page.evaluate(({format,plain,html})=>{
+   const input=document.querySelector('#text'),data=new DataTransfer();data.setData('text/plain',plain);if(format==='html')data.setData('text/html',html);
+   const start=performance.now();if(input.dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}))){input.setRangeText(plain,0,0,'end');input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertFromPaste',data:plain}));}return performance.now()-start;
+  },{format,plain,html});
+  assert.equal(await page.locator('#text').inputValue(),plain);assert.equal(await page.locator('#preview').textContent(),plain);assert.ok(ms<1500,format+' paste stalled: '+ms+'ms');console.log(format+' 30,075-character paste/input: '+ms.toFixed(2)+'ms');
+ }
  for(const width of [390,320]){await page.setViewportSize({width,height:844});assert.equal(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth),true);}
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(paid,[]);
  console.log('PASS named-link labels: URL/reference combinations, original source, preview and speech chunks, mocked browser speech, normal rich HTML paste, 390/320px; zero external/provider calls.');
