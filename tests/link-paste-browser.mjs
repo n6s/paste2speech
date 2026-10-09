@@ -62,6 +62,18 @@ try{
  },{empty,html,sentence});
  for(const test of checks.output){if(['missing-label','multiline-context','full-30k-context'].includes(test.name)){assert.ok(test.result.includes(first));assert.ok(test.result.includes(second));}else if(test.name==='valid-rich'){assert.ok(test.result.startsWith('## Weather'));assert.ok(test.result.includes(first));}else assert.ok(!test.result.includes(first));assert.ok(test.ms<1500);console.log(JSON.stringify({name:test.name,characters:test.result.length,ms:test.ms}));}
  assert.equal(checks.payload.text,sentence);assert.equal(checks.payload.image,null);
+ await page.locator('#engine').evaluate(el=>{for(let node=el.parentElement;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;});await page.locator('#engine').selectOption('browser');
+ for(const order of ['same-item','html-first','plain-first']){
+  await page.locator('#edit-mode').click();
+  await page.evaluate(({html,plain,order})=>{
+   const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});
+   const items=order==='same-item'?[make(['text/html','text/plain'])]:order==='html-first'?[make(['text/html']),make(['text/plain'])]:[make(['text/plain']),make(['text/html'])];
+   Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});
+  },{html:empty,plain:full,order});
+  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);
+  assert.equal(await page.locator('#text').inputValue(),full);const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));console.log('PASS Clear, Paste & Play: '+order+' retains exact 30,075-character source and both labels; mocked browser speech only.');
+ }
+
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(paid,[]);
  console.log('PASS: exact supplied Markdown survives Chrome native insertText and normal dual-format paste; empty-label HTML preserves intact Markdown plain text for the same destinations. Zero provider calls. This does not establish Android keyboard payload.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

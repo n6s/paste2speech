@@ -8,13 +8,22 @@ export async function clipboardPayload(clipboard){
  }
  const items=Array.from(await clipboard.read());
  const images=items.map(item=>({item,mime:['image/png','image/jpeg','image/webp'].find(type=>item.types.includes(type))||item.types.find(type=>type.startsWith('image/'))})).filter(entry=>entry.mime);
+ const plainReads=new Map();
+ const readPlain=item=>{if(!plainReads.has(item))plainReads.set(item,(async()=>await (await item.getType('text/plain')).text())());return plainReads.get(item);};
  for(const item of items){
   let plain;
   if(item.types.includes('text/plain')){
-   try{plain=await (await item.getType('text/plain')).text();}catch(error){if(!item.types.includes('text/html'))throw error;}
+   try{plain=await readPlain(item);}catch(error){if(!item.types.includes('text/html'))throw error;}
   }
   if(item.types.includes('text/html')){
-   try{const text=clipboardMarkdown(await (await item.getType('text/html')).text(),plain);if(text?.trim())return {text,image:null,hasImage:images.length>0};}catch{}
+   // A single clipboard read can return HTML and plain text as separate items.
+   // Pair representations before accepting HTML that may have empty link labels.
+   let companion=plain;
+   if(!companion?.trim())for(const candidate of items){
+    if(!candidate.types.includes('text/plain'))continue;
+    try{const text=await readPlain(candidate);if(text.trim()){companion=text;break;}}catch{}
+   }
+   try{const text=clipboardMarkdown(await (await item.getType('text/html')).text(),companion);if(text?.trim())return {text,image:null,hasImage:images.length>0};}catch{}
   }
   if(plain?.trim()){
    return {text:plain,image:null,hasImage:images.length>0};

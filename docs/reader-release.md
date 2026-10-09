@@ -649,3 +649,13 @@ Existing rich-paste selection, undo, inert HTML and formatting checks also pass.
 Roger's Android Chrome Beta keyboard payload and original cause remain
 unconfirmed; this correction does not reconstruct labels absent from all supplied
 clipboard representations. Staging approval only; no production or provider calls.
+
+Roger's later device test confirms native soft-keyboard preview paste preserves
+the original Markdown, while Clear, Paste & Play still drops labels. The async
+clipboard route now pairs plain and HTML representations across separate
+ClipboardItems as well as within a single item. Each plain representation is read
+at most once. The same destination/empty-anchor guard applies; this does not
+blanket prefer plain text over valid rich HTML. The actual button handler is
+covered with same-item, HTML-first and plain-first item sequences, exact
+30,075-character source and mocked browser speech. No diagnostic UI was shipped.
+The reproduced split-item case remains to be confirmed on Roger's actual phone.

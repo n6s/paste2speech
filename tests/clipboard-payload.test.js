@@ -16,3 +16,12 @@ test('plain clipboard representation is read once and a failed plain-only read s
  assert.equal((await clipboardPayload({read:async()=>[plain]})).text,'Keep source');assert.equal(reads,1);
  await assert.rejects(clipboardPayload({read:async()=>[{types:['text/plain'],getType:async()=>{throw Error('denied representation');}}]}),/denied representation/);
 });
+test('separate HTML/plain clipboard items reuse the companion plain read during fallback',async()=>{
+ let plainReads=0,htmlReads=0;
+ const html={types:['text/html'],getType:async()=>{htmlReads++;return new Blob(['<p>Text</p>']);}};
+ const plain={types:['text/plain'],getType:async()=>{plainReads++;return new Blob(['Keep companion source']);}};
+ // Without a DOM the inert HTML converter declines conversion; plain fallback
+ // must reuse the read made while examining the preceding HTML item.
+ assert.equal((await clipboardPayload({read:async()=>[html,plain]})).text,'Keep companion source');
+ assert.equal(plainReads,1);assert.equal(htmlReads,1);
+});
