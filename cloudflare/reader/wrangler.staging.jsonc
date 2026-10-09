@@ -7,7 +7,8 @@
   "vars": {
     "ENABLE_SUMMARY_UI": "1",
     "SUMMARY_LIVE_APPROVED": "1",
-    "SUMMARY_BUDGET_CENTS": "5",
+    "SUMMARY_ALLOWANCE_MODE": "upstream-free-daily",
+    "SUMMARY_WORKERS_PLAN": "free",
     "OCR_RETAIL_SANDBOX": "1",
     "OCR_RETAIL_PROVIDER_MODE": "live",
     "ENABLE_OCR_PAYMENTS": "1",

@@ -87,3 +87,5 @@
 #summary-view {padding-top:1rem} #summary-view h2 {font-size:1.15rem} #summary-view textarea {display:block;width:100%;box-sizing:border-box;min-height:12rem;margin:.75rem 0;font:inherit} .summary-consent {display:flex;align-items:flex-start;gap:.6rem;margin:1rem 0} .summary-consent input {flex:none;margin-top:.25rem} #summary-view button {margin:.25rem .25rem .25rem 0} #summary-status {min-height:1.5em} #summary-source {font-size:.9rem}
 
 .mode-controls.has-summary {max-width:100%;box-sizing:border-box}.mode-controls.has-summary button {min-width:0;padding-left:12px;padding-right:12px;flex:1}
+
+.summary-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:.75rem 0}.summary-options label {display:flex;flex-direction:column;gap:6px;min-width:0}.summary-options select {width:100%;min-width:0;box-sizing:border-box;font:inherit}
