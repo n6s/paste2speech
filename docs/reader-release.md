@@ -639,7 +639,8 @@ separate reproduced importer bug prefers empty-label HTML anchors over intact
 plain Markdown. Rich paste now keeps the exact supplied plain source only when a
 rendered empty HTML anchor matches a complete, named HTTP(S) Markdown link in
 that plain source. Valid rich formatting remains preferred; malformed, escaped,
-image, empty-label and unmatched-destination links do not trigger this fallback.
+image and empty-label Markdown links do not trigger this fallback. Later phone
+evidence below broadens the check to links omitted from HTML altogether.
 The shared conversion covers native rich paste and Clear, Paste & Play.
 
 `tests/link-paste-browser.mjs` verifies this failure and correction, exact source
@@ -694,3 +695,31 @@ equal 30,075-character source/preview, privacy, no automatic clipboard reads or
 diagnostic POST content, explicit copy/discard/reload and 390/320px layout. It
 asserts zero external/provider calls; normal off-mode text/button tests still
 pass. Phone evidence is the next step; this release does not claim a root cause.
+
+### Confirmed phone HTML omission
+
+Roger's opt-in report verifies running/served build `ea552f5`, Android Chrome 156,
+and one ClipboardItem with both text/plain and text/html. Plain text has 29,294
+characters and both complete named Markdown links. HTML has 31,346 characters
+but neither label, destination nor weather anchor; its converted text is the
+30,075-character version containing “the  and the .”. Clear, Paste & Play selected
+that incomplete HTML. Cleanup left the editor unchanged. The measured button
+import/preview took about 120ms; this does not diagnose the separate 20-second
+keyboard delay.
+
+The shared HTML converter now verifies that meaningful named Markdown link text
+from the supplied plain representation survives in its readable output, even
+when HTML omits anchors entirely. It compares normalized word sequences and
+occurrence counts, excluding URL destinations from readable content. Any missing
+named text selects the exact plain source. Matching work is bounded; unusually
+expensive verification conservatively retains supplied plain source. This policy
+contains no weather-specific names or domains and does not guess missing text.
+Valid rich formatting remains preferred when those labels survive.
+
+The regression uses synthetic surrounding content with the observed exact sizes
+and no-anchor HTML shape, verifies 30,075-character HTML conversion without a
+plain alternative, then identical preserved source/Read output across keyboard,
+native rich paste and the actual button. It covers same-item MIME orders, split
+item orders, generic and repeated labels, malformed/excluded links, normal rich
+formatting, privacy and performance. The existing diagnostic remains available
+to confirm the result on the phone and investigate keyboard timing separately.

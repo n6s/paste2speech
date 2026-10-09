@@ -60,7 +60,7 @@ try{
   const item={types:['text/html','text/plain'],getType:async type=>new Blob([type==='text/html'?empty:sentence],{type})};
   const payload=await clipboardPayload({read:async()=>[item]});return {output,payload};
  },{empty,html,sentence});
- for(const test of checks.output){if(['missing-label','multiline-context','full-30k-context'].includes(test.name)){assert.ok(test.result.includes(first));assert.ok(test.result.includes(second));}else if(test.name==='valid-rich'){assert.ok(test.result.startsWith('## Weather'));assert.ok(test.result.includes(first));}else assert.ok(!test.result.includes(first));assert.ok(test.ms<1500);console.log(JSON.stringify({name:test.name,characters:test.result.length,ms:test.ms}));}
+ for(const test of checks.output){if(['missing-label','multiline-context','full-30k-context','other-destination'].includes(test.name)){assert.ok(test.result.includes(first));assert.ok(test.result.includes(second));}else if(test.name==='valid-rich'){assert.ok(test.result.startsWith('## Weather'));assert.ok(test.result.includes(first));}else assert.ok(!test.result.includes(first));assert.ok(test.ms<1500);console.log(JSON.stringify({name:test.name,characters:test.result.length,ms:test.ms}));}
  assert.equal(checks.payload.text,sentence);assert.equal(checks.payload.image,null);
  await page.locator('#engine').evaluate(el=>{for(let node=el.parentElement;node;node=node.parentElement)if(node.tagName==='DETAILS')node.open=true;});await page.locator('#engine').selectOption('browser');
  for(const order of ['same-item','html-first','plain-first']){
@@ -74,6 +74,33 @@ try{
   assert.equal(await page.locator('#text').inputValue(),full);const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));console.log('PASS Clear, Paste & Play: '+order+' retains exact 30,075-character source and both labels; mocked browser speech only.');
  }
 
+
+ // Actual phone shape: one item; larger HTML omits both anchors, not only labels.
+ const missing='For updated conditions, the most useful resources are the  and the .';
+ const fillTo=(text,length)=>text+'\n\n'+('Ordinary briefing context. '.repeat(1300)).slice(0,length-text.length-2).trimEnd().padEnd(length-text.length-2,'x');
+ const phonePlain=fillTo(sentence,29294),display=fillTo(missing,30076);
+ const paragraphs=display.split('\n\n').map(text=>'<p>'+text+'</p>').join('');
+ const phoneHTML='<div data-padding="'+'x'.repeat(31346-('<div data-padding="">'+paragraphs+'</div>').length)+'">'+paragraphs+'</div>';
+ assert.equal(phonePlain.length,29294);assert.equal(phoneHTML.length,31346);assert.ok(!phoneHTML.includes(first));assert.ok(!phoneHTML.includes('weather.gov'));
+ const renderedPhoneHTML=await page.evaluate(async html=>(await import('/paste.js')).clipboardMarkdown(html),phoneHTML);assert.equal(renderedPhoneHTML.length,30075);assert.ok(!renderedPhoneHTML.includes(first));
+ await page.locator('#clean-urls').check();await page.locator('#clean-citations').check();
+ await page.locator('#edit-mode').click();await page.locator('#text').fill('');await page.locator('#text').focus();await page.keyboard.insertText(phonePlain);const nativePreview=await page.locator('#preview').textContent();
+ for(const order of ['same-plain-first','same-html-first','split-html-first','split-plain-first']){
+  await page.locator('#edit-mode').click();
+  await page.evaluate(({html,plain,order})=>{const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});const items=order==='same-plain-first'?[make(['text/plain','text/html'])]:order==='same-html-first'?[make(['text/html','text/plain'])]:order==='split-html-first'?[make(['text/html']),make(['text/plain'])]:[make(['text/plain']),make(['text/html'])];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});},{html:phoneHTML,plain:phonePlain,order});
+  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);assert.equal(await page.locator('#text').inputValue(),phonePlain);assert.equal(await page.locator('#preview').textContent(),nativePreview);console.log('PASS observed no-anchor phone shape: '+order+', intact 29,294-character source, 31,346-character HTML and keyboard-equivalent preview.');
+ }
+ await page.locator('#edit-mode').click();await page.locator('#text').fill('');await page.locator('#text').focus();
+ await page.evaluate(({html,plain})=>{const data=new DataTransfer();data.setData('text/html',html);data.setData('text/plain',plain);document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},{html:phoneHTML,plain:phonePlain});assert.equal(await page.locator('#text').inputValue(),phonePlain);assert.equal(await page.locator('#preview').textContent(),nativePreview);
+ const generic=await page.evaluate(async()=>{
+  const {clipboardMarkdown}=await import('/paste.js');
+  const plain='Read [Harbor reading archive](https://example.invalid/archive) and [Ada Lovelace biography](https://example.invalid/ada).';
+  const dropped='<h2>Sources</h2><p>Read  and .</p>';
+  const intact='<h2>Sources</h2><p>Read <b>Harbor reading archive</b> and <em>Ada Lovelace biography</em>.</p>';
+  const repeated='[Harbor archive](https://example.invalid/a) and [Harbor archive](https://example.invalid/b)';
+  const start=performance.now();const selected=clipboardMarkdown(dropped,plain);const rich=clipboardMarkdown(intact,plain);const repeat=clipboardMarkdown('<p>Harbor archive and .</p>',repeated);
+  return {plain,selected,rich,repeated,repeat,ms:performance.now()-start};
+ });assert.equal(generic.selected,generic.plain);assert.ok(generic.rich.startsWith('## Sources'));assert.equal(generic.repeat,generic.repeated);assert.ok(generic.ms<1500);console.log('PASS generic named labels and occurrence loss; intact rich formatting retained.');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);assert.deepEqual(paid,[]);
- console.log('PASS: exact supplied Markdown survives Chrome native insertText and normal dual-format paste; empty-label HTML preserves intact Markdown plain text for the same destinations. Zero provider calls. This does not establish Android keyboard payload.');
+ console.log('PASS: exact supplied Markdown survives Chrome native insertText and normal dual-format paste; incomplete HTML preserves intact named Markdown source, including the confirmed no-anchor phone shape. Zero provider calls. Keyboard delay remains separate.');
 }finally{await browser.close();await new Promise(resolve=>server.close(resolve));}

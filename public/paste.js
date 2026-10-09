@@ -1,16 +1,49 @@
 // Parse in an inert template that is never attached to the page. Only the
 // resulting Markdown enters the textarea; clipboard HTML never becomes live UI.
+const readableWords = text => (text.replace(/\]\((?:https?:\/\/|mailto:)[^)]*\)/gi, ']')
+  .replace(/https?:\/\/[^\s<>]+/gi, '').replace(/&(?:nbsp|amp|quot|apos|lt|gt);/gi, ' ')
+  .normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}\p{M}]+/gu) || []);
+function losesNamedLabels(plain, markdown, labels) {
+  const indexed = text => {
+    const words=readableWords(text),starts=new Map();
+    words.forEach((word,index)=>{if(!starts.has(word))starts.set(word,[]);starts.get(word).push(index);});
+    return {words,starts};
+  };
+  const source=indexed(plain),output=indexed(markdown);
+  let comparisons=0;
+  function count(index,phrase) {
+    let total=0;
+    for(const start of index.starts.get(phrase[0])||[]){
+      let matches=true;
+      for(let i=0;i<phrase.length;i++){
+        // Keep verification bounded even for adversarial repeated phrases.
+        // The exact supplied plain source is the conservative fallback.
+        if(++comparisons>200_000)return null;
+        if(index.words[start+i]!==phrase[i]){matches=false;break;}
+      }
+      if(matches)total++;
+    }
+    return total;
+  }
+  for(const label of labels){
+    const phrase=readableWords(label);if(!phrase.length)continue;
+    const before=count(source,phrase),after=count(output,phrase);
+    if(before===null||after===null||after<before)return true;
+  }
+  return false;
+}
 export function clipboardMarkdown(html, plain = '') {
   if (!html?.trim() || html.length > 2_000_000) return null;
   try {
     const template = document.createElement('template');
     template.innerHTML = html;
     // Match only simple, complete named Markdown links supplied by the source.
-    // An empty HTML anchor for that same destination must not erase its label.
-    const plainLinks = new Set();
+    // HTML can omit links entirely, so matching HTML anchors is insufficient.
+    // Verify that the supplied named link text survives the converted content.
+    const plainLinks = new Set(),plainLabels=new Set();
     if (typeof plain === 'string' && plain.length <= 1_000_000) {
       for (const match of plain.matchAll(/(?<![\\!])\[([^\\\[\]\r\n]+)\]\((https?:\/\/[^\s()<>]+)\)/gi)) {
-        if (/\p{L}|\p{N}/u.test(match[1])) plainLinks.add(match[2]);
+        if (/\p{L}|\p{N}/u.test(match[1])) {plainLinks.add(match[2]);plainLabels.add(match[1]);}
       }
     }
     let missingLinkLabel = false;
@@ -85,7 +118,7 @@ export function clipboardMarkdown(html, plain = '') {
     }
     const markdown = render(template.content).replace(/\n{3,}/g, '\n\n').trim()
       .replace(new RegExp(codeMarker + '(\\d+)\uE101', 'g'), (_, index) => codeBlocks[Number(index)]);
-    if (missingLinkLabel) return plain;
+    if (missingLinkLabel || (plainLabels.size && losesNamedLabels(plain,markdown,plainLabels))) return plain;
     return markdown && markdown.length <= 1_000_000 ? markdown : null;
   } catch {
     return null; // Let the browser perform its ordinary plain-text paste.
