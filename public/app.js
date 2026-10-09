@@ -364,7 +364,15 @@ function loadVoices() {
   updateVoiceSummary();
 }
 $('engine').addEventListener('change', changeEngine);
-$('text').addEventListener('input', () => { resetReading(); preview(); });
+$('text').addEventListener('input', () => {
+  // Some mobile keyboards emit many input events without changing the value.
+  // Keep the existing reading and DOM until there is an actual source edit.
+  if ($('text').value === previewedText) {
+    pasteDiagnostics?.record('input-unchanged-editor', $('text').value);
+    return;
+  }
+  resetReading(); preview();
+});
 if(RELEASE==='private-reader')pasteDiagnostics=setupPasteDiagnostics({target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
 $('text').addEventListener('paste', event => {
   if ($('text').readOnly) return;

@@ -723,3 +723,40 @@ native rich paste and the actual button. It covers same-item MIME orders, split
 item orders, generic and repeated labels, malformed/excluded links, normal rich
 formatting, privacy and performance. The existing diagnostic remains available
 to confirm the result on the phone and investigate keyboard timing separately.
+
+### Keyboard input burst and capped report
+
+Roger's next build-matched report on `906e5fd` records native, trusted
+`beforeinput insertText` with exactly 20,000 data characters, then an editor of
+20,000 characters. `pasteSignature` uses exact `text.length`; the editor has no
+`maxlength`. The visible later events repeatedly leave the editor unchanged.
+This is not a diagnostic character clamp or evidence that the HTML importer ran.
+The report's visible timestamps cover about 583ms from first beforeinput to its
+last entry, not a measured 20-second interval from a user tap. Its capped tail
+cannot establish the final editor length or total event count.
+
+The diagnostic stops adding detailed entries at 120. Its old copy/stop path
+added `final` in memory after the last serialization, so capped copied reports
+could omit both truncation metadata and the terminal summary. This reproduces
+without any omitted tail from Roger. The report now always serializes the final
+editor/Read signatures when stopped or copied, and retains per-stage totals,
+omitted-entry count, maximum editor length and first/last input timestamps even
+past the detail cap. It keeps the same bounded, private metadata model and never
+reads the native clipboard automatically.
+
+The actual input handler also reset reading and rebuilt the preview for every
+unchanged value. It now retains the reading DOM and state for unchanged input;
+real edits still reset and render immediately. Async clipboard invalidation and
+image/import event handlers remain active on input events.
+
+`tests/input-burst-browser.mjs` reproduces the old cap and 100 unchanged-event
+rebuilds on the previous built UI, then checks native insertion of 20,000 followed
+by 29,294 characters, deletion, retained DOM, exact capped maximum/final counts,
+independently counted input totals, immediate changed-source previews and zero
+clipboard/provider reads. One isolated desktop run reduced the 100-event burst
+from 348.2ms/400 DOM mutations to 0.3ms/no mutations with diagnostics off, and
+from 374.1ms to 63.7ms with diagnostics on. The fixed run counted 106 inputs,
+103 unchanged and only three changed-source previews; the copied report retained
+maximum/final lengths 29,294/29,293 after 433 omitted detailed entries. These
+synthetic timings identify avoidable app work; they do not prove that the phone's
+previous delay is resolved or why its initial native payload was 20,000.

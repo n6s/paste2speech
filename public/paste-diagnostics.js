@@ -29,20 +29,28 @@ export function setupPasteDiagnostics({target,preview,getOptions,build,onStateCh
  function record(stage,text,details={}){
   if(!active||!report)return;
   const now=performance.now();
-  if(report.events.length>=120){report.truncated=true;return;}
+  const elapsed=Math.round(now-started);
+  report.eventCounts[stage]=(report.eventCounts[stage]||0)+1;
+  if(stage==='input-data'){
+   report.nativeInput.count++;
+   report.nativeInput.firstMs??=elapsed;
+   report.nativeInput.lastMs=elapsed;
+  }
+  if(stage.includes('editor')&&typeof text==='string')report.maximumEditorCharacters=Math.max(report.maximumEditorCharacters,text.length);
+  if(report.events.length>=120){report.truncated=true;report.omittedEvents++;if(report.omittedEvents===1)render();return;}
   const entry={stage,sinceStartMs:Math.round(now-started),sincePreviousMs:Math.round(now-lastTime),...details,text:pasteSignature(text)};
   if(['paste-event-html','clipboard-html-result'].includes(stage))entry.weatherAnchors=weatherAnchorSignature(text);
   report.events.push(entry);lastTime=now;render();
  }
  function stop(){active=false;el('start').textContent='Start paste check';onStateChange?.();}
  el('start').onclick=async()=>{
-  if(active){record('stop-editor',target.value);record('stop-preview',preview.textContent);report.final={editor:pasteSignature(target.value),preview:pasteSignature(preview.textContent)};stop();el('status').textContent='Stopped. Copy or discard the local report.';return;}
+  if(active){record('stop-editor',target.value);record('stop-preview',preview.textContent);report.final={editor:pasteSignature(target.value),preview:pasteSignature(preview.textContent)};stop();render();el('status').textContent='Stopped. Copy or discard the local report.';return;}
   const run=++generation;started=lastTime=performance.now();
-  report={format:'paste-evidence-1',runningBuild:build,servedBuild:null,versionCheck:'pending',environment:{android:/Android/.test(navigator.userAgent),chromeMajor:/Chrome\/(\d+)/.exec(navigator.userAgent)?.[1]||null,clipboardRead:typeof navigator.clipboard?.read==='function',clipboardReadText:typeof navigator.clipboard?.readText==='function'},cleanup:{...getOptions()},events:[]};active=true;el('start').textContent='Stop paste check';el('status').textContent='Checking locally. Playback is paused for this check. Paste into Edit, or use Clear, Paste & Play.';onStateChange?.();record('start-editor',target.value);record('start-preview',preview.textContent);
+  report={format:'paste-evidence-1',runningBuild:build,servedBuild:null,versionCheck:'pending',environment:{android:/Android/.test(navigator.userAgent),chromeMajor:/Chrome\/(\d+)/.exec(navigator.userAgent)?.[1]||null,clipboardRead:typeof navigator.clipboard?.read==='function',clipboardReadText:typeof navigator.clipboard?.readText==='function'},cleanup:{...getOptions()},events:[],eventCounts:{},nativeInput:{count:0,firstMs:null,lastMs:null},maximumEditorCharacters:target.value.length,omittedEvents:0};active=true;el('start').textContent='Stop paste check';el('status').textContent='Checking locally. Playback is paused for this check. Paste into Edit, or use Clear, Paste & Play.';onStateChange?.();record('start-editor',target.value);record('start-preview',preview.textContent);
   try{const response=await fetchRelease();if(!response.ok)throw Error();const release=await response.json();if(generation!==run||!report)return;report.servedBuild=/^[a-f0-9]{40}$/.test(release.commit)?release.commit:null;report.versionCheck=report.servedBuild===build?'match':'mismatch';if(report.versionCheck==='mismatch')el('status').textContent='This tab runs a different build from the current release. Copy this report before reloading; reloading may discard your editor text.';}catch{if(generation===run&&report)report.versionCheck='unavailable';}render();
  };
  el('copy').onclick=async()=>{
-  if(active){record('copy-editor',target.value);record('copy-preview',preview.textContent);report.final={editor:pasteSignature(target.value),preview:pasteSignature(preview.textContent)};stop();}
+  if(active){record('copy-editor',target.value);record('copy-preview',preview.textContent);report.final={editor:pasteSignature(target.value),preview:pasteSignature(preview.textContent)};stop();render();}
   try{await navigator.clipboard.writeText(el('report').value);el('status').textContent='Report copied. Share it only if you want to. No document or clipboard HTML is included.';}catch{el('status').textContent='Copy unavailable. Select and copy the report below.';}
  };
  el('discard').onclick=()=>{++generation;stop();report=null;render();el('status').textContent='Report discarded. Nothing is being recorded.';};
