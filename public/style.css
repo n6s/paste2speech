@@ -88,4 +88,4 @@
 
 .mode-controls.has-summary {max-width:100%;box-sizing:border-box}.mode-controls.has-summary button {min-width:0;padding-left:12px;padding-right:12px;flex:1}
 
-.summary-options {display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:.75rem 0}.summary-options label {display:flex;flex-direction:column;gap:6px;min-width:0}.summary-options select {width:100%;min-width:0;box-sizing:border-box;font:inherit}
+.summary-options {display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:.75rem 0}.summary-options label {display:flex;flex-direction:column;gap:6px;min-width:0}.summary-options select {width:100%;min-width:0;box-sizing:border-box;font:inherit}

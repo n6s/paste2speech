@@ -33,11 +33,13 @@ https://github.com/cloudflare/workerd/blob/main/src/cloudflare/internal/ai-api.t
 - Summarize is the explicit source-specific consent action, with a concise visible Cloudflare AI disclosure beside it. There is no separate checkbox; typing never invokes inference.
 - Original retained in the tab, editable result, explicit load into existing reader.
   Ordinary result edits preserve original restoration. Clear, new paste and document
-  import retire that saved source. A language/length change cancels stale results
+  import retire that saved source. A length change cancels stale results
   without clearing the original or an existing edited summary.
-- Language: General audience, Plain language, Technical. Length: Brief, Standard,
-  Detailed. Defaults: General audience / Brief. These are validated enums selecting
-  trusted instructions, not arbitrary prompt text. No ASD-STE100 compliance claim.
+- General audience is built into every new UI request; there is no audience/style
+  selector. More settings contains only Length: Brief, Standard or Detailed, with
+  Standard selected initially. The backend retains its validated legacy style
+  enums for compatibility; existing trusted prompts and model limits are unchanged.
+  No ASD-STE100 compliance claim.
 - `@cf/meta/llama-3.2-3b-instruct`; source at most 24,000 UTF-8 bytes; request JSON
   at most 150,000 bytes; output at most 512 tokens and 8,000 characters; response
   timeout 30 seconds. Detailed adds detail within the same output limit.
@@ -105,9 +107,13 @@ truncation, section submission or retry is introduced.
 
 ## Minimal default flow
 
-Language and length live in a native, initially collapsed More settings disclosure.
-General audience / Brief remain the defaults. Opening or closing settings does not
-submit anything and retains selections. Changes during a request still cancel and
+Only length lives in the native, initially collapsed More settings disclosure.
+General audience is automatic and Standard is the initial length. Opening or
+closing settings or switching reader modes retains the chosen length without
+submitting anything. Summary settings were not persisted in localStorage; no
+storage migration or changes to unrelated reader preferences are needed. New
+requests explicitly send General audience and cannot restore a legacy audience.
+Changes during a request still cancel and
 invalidate its result while keeping the original and existing edited summary.
 The explicit Summarize button sends `consent: true` with the current source;
 backend validation still requires consent. No dialog, automatic inference or

@@ -760,3 +760,23 @@ from 374.1ms to 63.7ms with diagnostics on. The fixed run counted 106 inputs,
 maximum/final lengths 29,294/29,293 after 433 omitted detailed entries. These
 synthetic timings identify avoidable app work; they do not prove that the phone's
 previous delay is resolved or why its initial native payload was 20,000.
+
+### Summary length-only settings
+
+Roger approved General audience as the built-in audience and removal of the
+audience/style choice after comparing all nine settings. Summary now has only
+Brief, Standard and Detailed under the initially collapsed More settings, with
+Standard selected on a fresh load. In-tab length choices survive mode/disclosure
+changes. The current UI had no persisted Summary settings; no unrelated storage
+is changed. Every new UI request sends `language: general` explicitly, regardless
+of any stored legacy values. The backend prompts, model, limits and compatible
+legacy API enums are unchanged.
+
+Changing length still cancels stale work while keeping the existing editable
+summary and original restoration. The result identifies its length and exposes
+that description to the textarea's accessible description. The settings layout
+is a single column. Browser checks verify Standard, all three length payloads,
+General audience on every request, no audience control, native keyboard
+disclosure, preservation of the selected length, cancellation/restoration and
+390/320px layouts. Synthetic Summary responses only; no live inference is needed
+for this UI change. Deployment is authorized for staging review only.
