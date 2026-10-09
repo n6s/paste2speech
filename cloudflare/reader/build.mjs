@@ -3,6 +3,7 @@ import {copyEncoderSources} from '../../scripts/video-download/sources.mjs';
 import {createHash} from 'node:crypto';
 import {execFileSync} from 'node:child_process';
 import {mkdir,copyFile,readFile,writeFile,rm,cp} from 'node:fs/promises';
+const buildCommit=execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim();
 const publicLaunch=process.argv.includes('--public');
 const production=publicLaunch||process.argv.includes('--production');
 const previewManifest=JSON.parse(await readFile('assets/voice-previews/manifest.json'));
@@ -23,7 +24,7 @@ const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));

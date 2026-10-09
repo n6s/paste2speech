@@ -1,15 +1,18 @@
 import {clipboardMarkdown} from './paste.js';
 // Read once during the click gesture. Prefer actual text for mixed contents;
 // image bytes are needed only when no text representation was supplied.
-export async function clipboardPayload(clipboard){
+export async function clipboardPayload(clipboard,observe){
+ const note=(stage,text,details={})=>{try{observe?.(stage,text,details);}catch{}};
  if(!clipboard?.read){
-  if(clipboard?.readText)return {text:await clipboard.readText(),image:null,hasImage:false};
+  if(clipboard?.readText){note('clipboard-readText-start');const text=await clipboard.readText();note('clipboard-readText-result',text);return {text,image:null,hasImage:false};}
   throw Error('Clipboard access unavailable');
  }
+ note('clipboard-read-start');
  const items=Array.from(await clipboard.read());
+ note('clipboard-read-result',null,{items:items.map((item,index)=>({index,formats:item.types.filter(type=>['text/plain','text/html','image/png','image/jpeg','image/webp'].includes(type))}))});
  const images=items.map(item=>({item,mime:['image/png','image/jpeg','image/webp'].find(type=>item.types.includes(type))||item.types.find(type=>type.startsWith('image/'))})).filter(entry=>entry.mime);
  const plainReads=new Map();
- const readPlain=item=>{if(!plainReads.has(item))plainReads.set(item,(async()=>await (await item.getType('text/plain')).text())());return plainReads.get(item);};
+ const readPlain=item=>{if(!plainReads.has(item))plainReads.set(item,(async()=>{const index=items.indexOf(item);note('clipboard-plain-start',null,{item:index});const text=await (await item.getType('text/plain')).text();note('clipboard-plain-result',text,{item:index});return text;})());return plainReads.get(item);};
  for(const item of items){
   let plain;
   if(item.types.includes('text/plain')){
@@ -23,9 +26,10 @@ export async function clipboardPayload(clipboard){
     if(!candidate.types.includes('text/plain'))continue;
     try{const text=await readPlain(candidate);if(text.trim()){companion=text;break;}}catch{}
    }
-   try{const text=clipboardMarkdown(await (await item.getType('text/html')).text(),companion);if(text?.trim())return {text,image:null,hasImage:images.length>0};}catch{}
+   try{const index=items.indexOf(item);note('clipboard-html-start',null,{item:index});const html=await (await item.getType('text/html')).text();note('clipboard-html-result',html,{item:index});const text=clipboardMarkdown(html,companion);note('clipboard-html-import',text,{item:index});if(text?.trim()){note('clipboard-selected-html-import',text);return {text,image:null,hasImage:images.length>0};}}catch(error){note('clipboard-html-error',null,{name:['Error','TypeError','NotAllowedError','AbortError','NotFoundError','SecurityError'].includes(error.name)?error.name:'OtherError'});}
   }
   if(plain?.trim()){
+   note('clipboard-selected-plain',plain);
    return {text:plain,image:null,hasImage:images.length>0};
   }
  }

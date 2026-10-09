@@ -1,4 +1,5 @@
 import {clipboardPayload} from './clipboard-payload.js';
+import {setupPasteDiagnostics} from './paste-diagnostics.js';
 import {setupSummary} from './summary-ui.js';
 import {setupDocumentImport} from './document-import.js';
 import {discardLegacyPositions} from './reader-reload.js';
@@ -9,7 +10,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -22,6 +23,7 @@ import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 let summaryMode=null;
+let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
   const tooltip = $('extension-tooltip');
@@ -113,7 +115,7 @@ function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { if(documentImport?.busy)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
+function canPlay() { if(pasteDiagnostics?.active)return false; if(documentImport?.busy)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
   workstationPlayer.release();
@@ -145,9 +147,11 @@ async function discoverWorkstation() {
 function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepinfra':'workstation', delivery:isGoogle()?(MSE_ENABLED?(MSE_STAGING?$('mse-delivery').value:(workstationPlayer.capability.mp3?'mse':'complete')):'complete'):'progressive', ...(MSE_STAGING?{cached:$('mse-cached').checked,scenario:$('mse-scenario').value,concurrency:Number($('mse-concurrency').value)}:{}), paragraphStarts: [...paragraphStarts], rate: Number($('rate').value), voice: isKokoro() ? $('voice').value : voices.find(v => v.voiceURI === $('voice').value) }; }
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
+  const diagnosticStarted=pasteDiagnostics?.mark('preview-editor', $('text').value);
   summaryMode?.sourceChanged();
   previewedText = $('text').value;
   cleaned = cleanText(previewedText, options);
+  if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
   chunks = [];
   paragraphStarts = [];
   sentenceElements = [];
@@ -192,6 +196,7 @@ function preview() {
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
   videoDownload?.update();
+  if(diagnosticStarted!=null)pasteDiagnostics.record('preview-complete',$('preview').textContent,{elapsedMs:Math.round(performance.now()-diagnosticStarted),sections:chunks.length,editorUnchanged:$('text').value===previewedText});
 }
 function setMode(mode) {
   const reading = mode === 'read';
@@ -360,10 +365,12 @@ function loadVoices() {
 }
 $('engine').addEventListener('change', changeEngine);
 $('text').addEventListener('input', () => { resetReading(); preview(); });
+if(RELEASE==='private-reader')pasteDiagnostics=setupPasteDiagnostics({target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
 $('text').addEventListener('paste', event => {
   if ($('text').readOnly) return;
   let markdown;
   try { markdown = clipboardMarkdown(event.clipboardData?.getData('text/html'), event.clipboardData?.getData('text/plain')); } catch { return; }
+  pasteDiagnostics?.record('paste-event-html-import',markdown);
   if (!markdown) return;
   event.preventDefault();
   // Native insertion preserves the browser's undo history when available.
@@ -388,7 +395,9 @@ $('paste-play').addEventListener('click', async () => {
   $('paste-status').hidden = true;
   documentImport?.cancelClipboardRead();
   try {
-    const payload = await clipboardPayload(navigator.clipboard);
+    pasteDiagnostics?.record('paste-button-start',$('text').value);
+    const payload = await clipboardPayload(navigator.clipboard, (stage,text,details)=>pasteDiagnostics?.record(stage,text,details));
+    pasteDiagnostics?.record('paste-button-payload',payload.text);
     if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy) return;
     if(payload.image){
       if(!documentImport)throw Error('image-unavailable');
@@ -401,6 +410,7 @@ $('paste-play').addEventListener('click', async () => {
     resetReading();
     summaryMode?.clearSource();
     $('text').value = text;
+    pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
     preview();
     readAndPlay();
     if(payload.hasImage){

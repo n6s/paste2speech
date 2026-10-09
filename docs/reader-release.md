@@ -659,3 +659,38 @@ blanket prefer plain text over valid rich HTML. The actual button handler is
 covered with same-item, HTML-first and plain-first item sequences, exact
 30,075-character source and mocked browser speech. No diagnostic UI was shipped.
 The reproduced split-item case remains to be confirmed on Roger's actual phone.
+
+### October 9 opt-in phone paste evidence
+
+The original phone issue remains unresolved. Desktop fixtures verify independent
+fixes, but do not establish Roger's Android clipboard representation. Earlier
+device reports mixed ordinary Clear, Paste & Play listening with keyboard-only
+inspection, so those reports must not be assigned a route without explicit
+evidence. The acceptance target is identical preserved text and Read output for
+the same clipboard across text paste routes; only deliberate autoplay differs.
+Screenshot changes are deferred.
+
+Staging now has a collapsed “Troubleshoot this paste” panel under Your text.
+Start paste check preserves the existing editor, pauses active playback and skips
+automatic playback during the check. It observes the actual keyboard/native paste
+events and the existing Clear, Paste & Play clipboard/import/assignment path.
+Cleanup and preview timing, read/readText availability, clipboard item formats,
+known weather label/destination presence and bounded weather-anchor structure are
+recorded in memory. The report embeds the running JavaScript commit and compares
+it with a no-store release metadata read, displaying a mismatch warning.
+
+No arbitrary text, raw HTML, private URLs, account details or full documents are
+retained in the report. The only verbatim sentence classifications come from the
+fixed public weather fixture already supplied. No diagnostic clipboard read is
+initiated by Start; clipboard reads happen only through the user's existing paste
+actions. Copy report is explicit. Discard and reload erase the in-page report;
+no report is written to storage, analytics, feedback or a provider. The panel is
+absent from public builds, which have not been deployed.
+
+`tests/paste-diagnostics-browser.mjs` checks source preservation and pause of
+active mocked playback, version match/mismatch, native insertText and HTML paste,
+the actual button with same/split items and readText fallback, stage timings and
+equal 30,075-character source/preview, privacy, no automatic clipboard reads or
+diagnostic POST content, explicit copy/discard/reload and 390/320px layout. It
+asserts zero external/provider calls; normal off-mode text/button tests still
+pass. Phone evidence is the next step; this release does not claim a root cause.
