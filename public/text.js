@@ -175,6 +175,15 @@ function cleanInline(text, options, decode = true) {
   // Discretionary hyphens and stray BOMs are copy artifacts in prose.
   // Keep joiners, directional marks, and literal code untouched.
   text = literal.text.replace(/[\u00ad\ufeff]/g, '');
+  // Named ChatGPT links carry prose, unlike citation-only reference tokens.
+  // Extract their display text before generic reference/URL removal can erase it.
+  if (options.markdown || options.citations || options.urls) text = text.replace(
+    /\uE200(?:link|cite)\uE202([^\uE200-\uE202]*)\uE202([^\uE200-\uE202]*)\uE201/g,
+    (token, url, label) => {
+      if (!/^(?:https?:\/\/|www\.)[^\s<>]+$/i.test(url) || !label.trim()) return token;
+      return options.urls ? label : `${label} (${url})`;
+    }
+  );
   if (options.citations) text = text
     .replace(/\uE200[\s\S]*?\uE201/g, '')
     .replace(/[^]*/g, '')
@@ -183,7 +192,7 @@ function cleanInline(text, options, decode = true) {
     .replace(/\b(?:turn\d+(?:search|view|fetch|file|news)\d+)\b/g, '');
   if (options.markdown || options.urls) text = text.replace(/!?\[([^\]]*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
     (_, label, url) => options.urls ? label : `${label} (${url})`);
-  if (options.urls) text = text.replace(/(?:https?:\/\/|www\.)[^\s<>]+/gi, '').replace(/<\s*>/g, '');
+  if (options.urls) text = text.replace(/(?:https?:\/\/|www\.)[^\s<>\uE200-\uE202]+/gi, '').replace(/<\s*>/g, '');
   if (options.markdown) text = text
     .replace(/^ {0,3}>[ \t]?/gm, '')
     .replace(/^\s*(?:[-*_]\s*){3,}$/gm, '')

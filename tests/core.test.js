@@ -393,3 +393,24 @@ test('answer labels become separate paragraphs without losing their letters', ()
  const unchanged=Object.fromEntries(Object.keys(defaults).map(k=>[k,false]));
  assert.equal(cleanText('A) First\nB) Second',unchanged),'A) First\nB) Second');
 });
+
+test('named ChatGPT links preserve prose labels independently of URL/reference toggles',()=>{
+ const a='National Weather Service Grand Junction office',b='Salt Lake City forecast office',start='For updated conditions, the most useful resources are the ';
+ for(const kind of ['link','cite'])for(const markdown of [true,false])for(const citations of [true,false])for(const urls of [true,false]){
+  const input=start+`${kind}https://example.invalid/a${a} and the ${kind}https://example.invalid/b${b}.`;
+  const options={...defaults,markdown,citations,urls},output=cleanText(input,options);
+  const expected=markdown||citations||urls?start+a+(urls?'':' (https://example.invalid/a)')+' and the '+b+(urls?'':' (https://example.invalid/b)')+'.':input;
+  assert.equal(output,expected);assert.ok(chunkText(output).join(' ').includes(a));assert.ok(chunkText(output).join(' ').includes(b));
+ }
+ assert.equal(cleanText('[Office](https://example.invalid/a)'),'Office');
+ assert.equal(cleanText('[Office](https://example.invalid/a)',{...defaults,urls:false}),'Office (https://example.invalid/a)');
+ assert.equal(cleanText('Fact citeturn0search0.'),'Fact .');
+ assert.equal(cleanText('Before linknot-a-urlName after',{...defaults,citations:false}),'Before linknot-a-urlName after');
+ assert.equal(cleanText('Before linkhttps://example.invalid/aName',{...defaults,citations:false}),'Before linkName');
+});
+test('named link labels retain Unicode, punctuation and literal code without becoming live markup',()=>{
+ const input='See linkhttps://example.invalid/forecast?q=a&b=2Grand Junction &amp; Salt Lake — café [office].';
+ assert.equal(cleanText(input),'See Grand Junction & Salt Lake — café [office].');
+ assert.equal(cleanText(input,{...defaults,urls:false}),'See Grand Junction & Salt Lake — café [office] (https://example.invalid/forecast?q=a&b=2).');
+ const literal='linkhttps://example.invalid/aLabel';assert.equal(cleanText('`'+literal+'`'),literal);assert.equal(cleanText('```\n'+literal+'\n```',{...defaults,code:false}),literal);
+});

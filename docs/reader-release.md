@@ -594,3 +594,24 @@ locally, warns about spacing/order/missing image content, and never uploads or
 auto-plays. Cloud OCR remains optional behind consent and whole-document billing.
 Synthetic column-layout browser coverage checks local use with zero credits and
 Clear reset. No wedding content was included in test fixtures.
+
+### October 9 named-link label staging review
+
+Roger approved a narrow cleanup fix and staging review, with his original daily
+briefing input still needed to confirm the reported encoding. A synthetic named
+ChatGPT link reproduces the exact missing-label sentence. Ordinary Markdown and
+rich HTML paste already retain their friendly labels.
+
+Cleanup now extracts display labels from well-formed `link`/`cite` tokens carrying
+an HTTP(S) or www destination plus a label, before generic reference removal.
+Web addresses controls the destination independently of ChatGPT references;
+URL scanning stops at private token separators. Citation-only references retain
+existing cleanup behavior, and literal code remains opaque. Unknown/malformed
+payloads are not treated as well-formed named links.
+
+Core regressions cover URL/reference/Markdown toggle combinations, both reported
+labels, citation-only markers, Unicode/punctuation/entities, literal code and
+malformed inputs. `tests/named-links-browser.mjs` exercises the complete built UI:
+original source, preview, speech chunks with mocked browser speech, normal rich
+HTML paste and 390/320px layouts. It blocks external/provider requests. This
+change has staging deployment approval only; production is unchanged.
