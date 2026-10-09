@@ -28,7 +28,7 @@ https://github.com/cloudflare/workerd/blob/main/src/cloudflare/internal/ai-api.t
 
 ## Request and privacy boundaries
 
-- Explicit source-specific consent plus Summarize; typing never invokes inference.
+- Summarize is the explicit source-specific consent action, with a concise visible Cloudflare AI disclosure beside it. There is no separate checkbox; typing never invokes inference.
 - Original retained in the tab, editable result, explicit load into existing reader.
   Ordinary result edits preserve original restoration. Clear, new paste and document
   import retire that saved source. A language/length change cancels stale results
@@ -77,7 +77,7 @@ key deduplication, cross-request concurrency, daily/reset boundaries, late quota
 capacity/auth/model/timeout distinction and unknown/paid configuration gates.
 
 `node tests/summary-browser.mjs` uses isolated local Chrome and intercepted APIs:
-consent, options/defaults, editable results, original restoration, stale source and
+single-action consent, collapsed keyboard-accessible settings, options/defaults, editable results, original restoration, stale source and
 option changes, cached daily message/reset metadata-only refresh, retained result
 on capacity/quota failures, and 390/320px layouts. Actual quota exhaustion is never
 used as a test. Full staging release and existing OCR/speech browser checks remain
@@ -95,9 +95,18 @@ so the encoded guard is necessary. Request transport accepts 150,000 bytes to
 permit escaped input validation; that transport cap is not model admission.
 
 The UI derives an explicit oversized-source message next to Summarize, showing
-actual raw/encoded byte counts, maxima and the smaller-section action. Consent
-checkbox and option changes cannot hide this reason or incorrectly ask an
-already-consenting user to consent again. Full source remains intact. Boundary
+actual raw/encoded byte counts, maxima and the smaller-section action. Settings changes cannot hide this reason. Summarize submits the current source
+at the moment of the explicit click, without a separate consent checkbox. Full source remains intact. Boundary
 checks cover a 15,852-character ASCII article, exact 24,000-byte ASCII and emoji
 sources, one byte above the bound and escape-heavy controls. No automatic
 truncation, section submission or retry is introduced.
+
+## Minimal default flow
+
+Language and length live in a native, initially collapsed More settings disclosure.
+General audience / Brief remain the defaults. Opening or closing settings does not
+submit anything and retains selections. Changes during a request still cancel and
+invalidate its result while keeping the original and existing edited summary.
+The explicit Summarize button sends `consent: true` with the current source;
+backend validation still requires consent. No dialog, automatic inference or
+additional required decision is added. Visible default copy is brief.
