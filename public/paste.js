@@ -1,10 +1,19 @@
 // Parse in an inert template that is never attached to the page. Only the
 // resulting Markdown enters the textarea; clipboard HTML never becomes live UI.
-export function clipboardMarkdown(html) {
+export function clipboardMarkdown(html, plain = '') {
   if (!html?.trim() || html.length > 2_000_000) return null;
   try {
     const template = document.createElement('template');
     template.innerHTML = html;
+    // Match only simple, complete named Markdown links supplied by the source.
+    // An empty HTML anchor for that same destination must not erase its label.
+    const plainLinks = new Set();
+    if (typeof plain === 'string' && plain.length <= 1_000_000) {
+      for (const match of plain.matchAll(/(?<![\\!])\[([^\\\[\]\r\n]+)\]\((https?:\/\/[^\s()<>]+)\)/gi)) {
+        if (/\p{L}|\p{N}/u.test(match[1])) plainLinks.add(match[2]);
+      }
+    }
+    let missingLinkLabel = false;
     let codeMarker = '\uE100';
     while (html.includes(codeMarker) || template.content.textContent.includes(codeMarker)) codeMarker += '\uE100';
     const codeBlocks = [];
@@ -62,6 +71,7 @@ export function clipboardMarkdown(html) {
       if (heading || roleLevel) return block('#'.repeat(heading ? Number(heading[1]) : Math.min(6, Math.max(1, roleLevel))) + ' ' + content.trim().replace(/\n+/g, ' '));
       if (tag === 'A') {
         const href = node.getAttribute('href') || '';
+        if (!content.trim() && plainLinks.has(href)) missingLinkLabel = true;
         if (!/^(https?:\/\/|mailto:)/i.test(href) || /[\u0000-\u0020]/.test(href) || !content.trim()) return content;
         return `[${content.trim()}](${href.replace(/\(/g, '%28').replace(/\)/g, '%29')})`;
       }
@@ -75,6 +85,7 @@ export function clipboardMarkdown(html) {
     }
     const markdown = render(template.content).replace(/\n{3,}/g, '\n\n').trim()
       .replace(new RegExp(codeMarker + '(\\d+)\uE101', 'g'), (_, index) => codeBlocks[Number(index)]);
+    if (missingLinkLabel) return plain;
     return markdown && markdown.length <= 1_000_000 ? markdown : null;
   } catch {
     return null; // Let the browser perform its ordinary plain-text paste.

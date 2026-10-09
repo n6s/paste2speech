@@ -9,12 +9,15 @@ export async function clipboardPayload(clipboard){
  const items=Array.from(await clipboard.read());
  const images=items.map(item=>({item,mime:['image/png','image/jpeg','image/webp'].find(type=>item.types.includes(type))||item.types.find(type=>type.startsWith('image/'))})).filter(entry=>entry.mime);
  for(const item of items){
-  if(item.types.includes('text/html')){
-   try{const text=clipboardMarkdown(await (await item.getType('text/html')).text());if(text?.trim())return {text,image:null,hasImage:images.length>0};}catch{}
-  }
+  let plain;
   if(item.types.includes('text/plain')){
-   const text=await (await item.getType('text/plain')).text();
-   if(text.trim())return {text,image:null,hasImage:images.length>0};
+   try{plain=await (await item.getType('text/plain')).text();}catch(error){if(!item.types.includes('text/html'))throw error;}
+  }
+  if(item.types.includes('text/html')){
+   try{const text=clipboardMarkdown(await (await item.getType('text/html')).text(),plain);if(text?.trim())return {text,image:null,hasImage:images.length>0};}catch{}
+  }
+  if(plain?.trim()){
+   return {text:plain,image:null,hasImage:images.length>0};
   }
  }
  if(images.length>1)throw Error('multiple-images');

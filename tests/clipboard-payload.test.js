@@ -11,3 +11,8 @@ test('empty clipboard, text fallback, multiple images and denied reads remain di
  assert.deepEqual(await clipboardPayload({read:async()=>[]}),{text:'',image:null,hasImage:false});assert.equal((await clipboardPayload({readText:async()=>'Fallback'})).text,'Fallback');
  await assert.rejects(clipboardPayload({read:async()=>[item('image/png','a'),item('image/jpeg','b')]}),/multiple-images/);await assert.rejects(clipboardPayload({read:async()=>{throw Error('denied');}}),/denied/);await assert.rejects(clipboardPayload({}),/unavailable/);
 });
+test('plain clipboard representation is read once and a failed plain-only read stays an error',async()=>{
+ let reads=0;const plain={types:['text/plain'],getType:async()=>{reads++;return new Blob(['Keep source']);}};
+ assert.equal((await clipboardPayload({read:async()=>[plain]})).text,'Keep source');assert.equal(reads,1);
+ await assert.rejects(clipboardPayload({read:async()=>[{types:['text/plain'],getType:async()=>{throw Error('denied representation');}}]}),/denied representation/);
+});

@@ -631,3 +631,21 @@ previously took about 1,057ms. `tests/cleanup-performance.mjs` checks a 120,300
 character line and wrapping semantics. The mocked built-browser test now checks
 30,075-character plain and HTML paste through input/preview (about 2/4ms here).
 These synthetic measurements do not establish the full 37-second phone delay.
+
+The supplied source sentence is ordinary Markdown with weather.gov/gjt and
+weather.gov/slc destinations. Chrome native text insertion preserves it, including
+30,075-character context and multiple input events without a paste event. A
+separate reproduced importer bug prefers empty-label HTML anchors over intact
+plain Markdown. Rich paste now keeps the exact supplied plain source only when a
+rendered empty HTML anchor matches a complete, named HTTP(S) Markdown link in
+that plain source. Valid rich formatting remains preferred; malformed, escaped,
+image, empty-label and unmatched-destination links do not trigger this fallback.
+The shared conversion covers native rich paste and Clear, Paste & Play.
+
+`tests/link-paste-browser.mjs` verifies this failure and correction, exact source
+preservation, keyboard insertion, URL/reference toggles, async clipboard text,
+multiline/30,075-character context and conservative exclusions with mocked APIs.
+Existing rich-paste selection, undo, inert HTML and formatting checks also pass.
+Roger's Android Chrome Beta keyboard payload and original cause remain
+unconfirmed; this correction does not reconstruct labels absent from all supplied
+clipboard representations. Staging approval only; no production or provider calls.

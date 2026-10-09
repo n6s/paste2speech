@@ -363,7 +363,7 @@ $('text').addEventListener('input', () => { resetReading(); preview(); });
 $('text').addEventListener('paste', event => {
   if ($('text').readOnly) return;
   let markdown;
-  try { markdown = clipboardMarkdown(event.clipboardData?.getData('text/html')); } catch { return; }
+  try { markdown = clipboardMarkdown(event.clipboardData?.getData('text/html'), event.clipboardData?.getData('text/plain')); } catch { return; }
   if (!markdown) return;
   event.preventDefault();
   // Native insertion preserves the browser's undo history when available.
