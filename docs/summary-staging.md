@@ -36,8 +36,8 @@ https://github.com/cloudflare/workerd/blob/main/src/cloudflare/internal/ai-api.t
 - Language: General audience, Plain language, Technical. Length: Brief, Standard,
   Detailed. Defaults: General audience / Brief. These are validated enums selecting
   trusted instructions, not arbitrary prompt text. No ASD-STE100 compliance claim.
-- `@cf/meta/llama-3.2-3b-instruct`; source at most 12,000 UTF-8 bytes; request JSON
-  at most 18,000 bytes; output at most 512 tokens and 8,000 characters; response
+- `@cf/meta/llama-3.2-3b-instruct`; source at most 24,000 UTF-8 bytes; request JSON
+  at most 150,000 bytes; output at most 512 tokens and 8,000 characters; response
   timeout 30 seconds. Detailed adds detail within the same output limit.
 - No per-user hourly/daily quota or experimental five-attempt/five-cent cap.
 - One shared D1 lease permits one admitted Summary request at a time. A canceled or
@@ -82,3 +82,22 @@ option changes, cached daily message/reset metadata-only refresh, retained resul
 on capacity/quota failures, and 390/320px layouts. Actual quota exhaustion is never
 used as a test. Full staging release and existing OCR/speech browser checks remain
 required; any minimum real smoke call uses synthetic nonprivate text only.
+
+## Article-size input bound and disabled reason
+
+The staging cap is 24,000 raw UTF-8 bytes. JSON-encoded source is separately
+bounded at 30,000 bytes and complete system/user content at 32,000 bytes before
+admission. Llama uses byte-level tokenization: using a conservative one-token per
+UTF-8 byte bound leaves more than 47,000 of the hosted 80,000 context tokens for
+chat framing and the unchanged 512-token output. This does not equate ordinary
+character counts to token counts. Escaping control characters can expand JSON,
+so the encoded guard is necessary. Request transport accepts 150,000 bytes to
+permit escaped input validation; that transport cap is not model admission.
+
+The UI derives an explicit oversized-source message next to Summarize, showing
+actual raw/encoded byte counts, maxima and the smaller-section action. Consent
+checkbox and option changes cannot hide this reason or incorrectly ask an
+already-consenting user to consent again. Full source remains intact. Boundary
+checks cover a 15,852-character ASCII article, exact 24,000-byte ASCII and emoji
+sources, one byte above the bound and escape-heavy controls. No automatic
+truncation, section submission or retry is introduced.

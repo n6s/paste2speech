@@ -6,12 +6,12 @@ reason. This audit does not approve a model switch, plan upgrade or billing chan
 
 | Path | Current app boundary | Provider boundary / implication |
 | --- | --- | --- |
-| Free Summary | 12,000 UTF-8 source bytes, 18,000 request bytes, 512 output tokens, 30 seconds; one concurrent request | Cloudflare's hosted Llama 3.2 3B advertises 80,000 context tokens. The app cap is deliberately smaller, not the model maximum. Bytes, characters and tokens are different units. |
+| Free Summary | 24,000 UTF-8 source bytes, 150,000 request bytes, 512 output tokens, 30 seconds; one concurrent request | Cloudflare's hosted Llama 3.2 3B advertises 80,000 context tokens. The app cap is deliberately smaller, not the model maximum. Bytes, characters and tokens are different units. |
 | Retail OCR | Pinned `mistral-ocr-4-1`, 6 MiB file, 10 pages, 90-second provider timeout, bounded 16 MiB response | Mistral supports PDF and images. Its documented upload limit must not be confused with the OCR processing limit. The current rendered official FAQ did not expose the numerical processing limit; do not adopt third-party 50 MB/1,000-page claims without verification. |
 | WaveNet | Sentence/word chunks normally 500 JavaScript string units; each submitted chunk checked against 5,000 UTF-8 bytes; private preparation 20,000 string units and 32 MiB audio | Google fixes content at 5,000 bytes per request, including SSML. Its default general quota is 1,000 requests/minute/project; actual project quotas can differ. Long-reading orchestration is separate from a single preparation. |
 | Workers runtime | Bounded parsing, response sizes and deadlines | Free has 10 ms CPU and 128 MB isolate memory. Network waiting is not CPU time. HTTP can continue while connected; `waitUntil` extends up to 30 seconds after response/disconnection. Larger files require profiling and resumable jobs, not merely higher constants. |
 
-Free v1 retains the transparent 12,000-byte source cap and shared upstream daily
+Free v1 retains the transparent 24,000-byte source cap and shared upstream daily
 allowance. Oversized sources are rejected/disabled without truncation. Summary
 does not replace the reader source until the user explicitly chooses Use summary;
 the original remains restorable. OCR text and its downloadable saved result are
