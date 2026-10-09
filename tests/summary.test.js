@@ -1,4 +1,4 @@
-import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
+import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';
 import {summaryResponse,SUMMARY_MODEL,SUMMARY_SYSTEM,SUMMARY_LANGUAGES,SUMMARY_LENGTHS,classifySummaryError,nextSummaryReset,cleanSummaryPreamble} from '../cloudflare/reader/summary.js';
 function fixture(){
  const sql=new DatabaseSync(':memory:');
@@ -45,4 +45,15 @@ test('narrow leading preamble cleanup preserves headings, source phrases and lat
 test('empty cleaned response fails safely; useful cleanup returns only content without changing source',async()=>{
  for(const output of ['Here is a summary of the source text in concise plain text:','**Here is a summary of the provided source text in concise plain text:**\n']){const f=fixture();f.env.AI.run=async()=>Response.json({response:output});assert.equal((await summaryResponse(request(),f.env,f.account)).status,502);assert.equal(f.sql.prepare('SELECT state FROM summary_free_requests').get().state,'failed');}
  const f=fixture();f.env.AI.run=async()=>Response.json({response:'Here is a summary of the source text in concise plain text:\nMeeting at noon.'});assert.equal((await (await summaryResponse(request(),f.env,f.account)).json()).summary,'Meeting at noon.');
+});
+
+test('public Summary uses verified current customers and fails closed without binding/free approval',async()=>{
+ for(const change of [{},{AI:null},{SUMMARY_WORKERS_PLAN:'paid'},{SUMMARY_LIVE_APPROVED:'0'},{PUBLIC_LAUNCH_OPEN:'0'}]){const f=fixture();Object.assign(f.env,{READER_MODE:'production-public',PUBLIC_LAUNCH_OPEN:'1'},change);const r=await summaryResponse(request(),f.env,{...f.account,email:'customer@example.invalid'});assert.equal(r.status,Object.keys(change).length?503:200);assert.equal(f.calls.length,Object.keys(change).length?0:1);}
+ for(const change of [{summaryVerified:false},{legacyPilot:true},{enabled:0}]){const f=fixture();Object.assign(f.env,{READER_MODE:'production-public',PUBLIC_LAUNCH_OPEN:'1'});assert.equal((await summaryResponse(request(),f.env,{...f.account,...change})).status,503);assert.equal(f.calls.length,0);}
+});
+
+test('production Summary migration is additive/idempotent and leaves credit and reserve rows intact',()=>{
+ const db=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').filter(name=>name.endsWith('.sql')&&name<'0016').sort())db.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
+ db.exec("INSERT INTO accounts(id,label,enabled,balance) VALUES('a','a',1,12345);INSERT INTO ocr_accounts(account,balance,debt) VALUES('a',500,0);INSERT INTO ocr_business_budget(id,cap_cents,reserved_cents) VALUES('test',1000,0)");
+ const snapshot=()=>JSON.stringify(['accounts','grants','reservations','ocr_accounts','ocr_grants','ocr_attempts','ocr_business_budget','ocr_business_reservations'].map(table=>db.prepare('SELECT * FROM '+table).all()));const before=snapshot(),migration=readFileSync('cloudflare/reader/migrations/0016_summary_free_allowance.sql','utf8');db.exec(migration);db.exec(migration);assert.equal(snapshot(),before);assert.deepEqual({...db.prepare('SELECT * FROM summary_free_gate').get()},{id:'workers-ai-free',circuit_until:0,active_request:null,lease_until:0});assert.equal(db.prepare('SELECT COUNT(*) AS count FROM summary_free_requests').get().count,0);db.close();
 });

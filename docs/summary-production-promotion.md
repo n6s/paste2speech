@@ -1,11 +1,11 @@
 # Summary production promotion checkpoint
 
 Roger approved production publication of the reviewed free Summary UI and latest
-OCR navigation/parser fixes. Publication is pending the separate approval to add
-Workers AI access to the production Worker. No production configuration, schema,
-plan, catalog or deployment is changed at this checkpoint.
+OCR navigation/parser fixes. Roger separately approved the persistent production AI binding and additive
+usage tables with “Yes. Proceed” on October 9, 2026. The release is prepared
+with this authorization; no plan or Paddle catalog change is included.
 
-## Exact access change requiring approval
+## Exact approved access change
 
 Add the persistent Workers AI binding named `AI` to
 `paste2speech-reader-production`, in the existing Cloudflare account. It lets that
@@ -18,10 +18,11 @@ shows Workers Free as Current plan. Runtime configuration must retain
 
 Existing production has no AI binding or Summary flags. Its current version is
 `42da02a5-75fd-4fcd-8735-7b51b421afa8`. Staging has an AI binding already.
-Automatic approval review rejected preparing the combined production binding and
-enablement changes before this specific access approval, so they remain untouched.
+Automatic approval review initially rejected preparation before the specific
+access approval. The once-retried production preparation succeeded after Roger
+authorized the binding and usage tables.
 
-## Work after that approval
+## Release gates
 
 1. Prepare public flags/build and backend public-mode gates, preserving verified
    session identity, enabled customer eligibility and existing launch restrictions.

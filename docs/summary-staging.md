@@ -1,8 +1,10 @@
 # Summary on staging: Workers Free daily allowance
 
 Roger approved the staging-only upstream daily-allowance policy and simple style
-controls on October 9, 2026. Production has no Summary UI or AI binding and returns
-404 for Summary routes. No plan upgrade, billing change or paid fallback is included.
+controls on October 9, 2026. Roger approved promotion to public production on October 9, including a
+persistent AI binding and additive Summary usage tables. Public mode uses
+existing customer eligibility plus a current verified session; historical owner
+trial mode remains excluded. No plan upgrade, billing change or paid fallback is included.
 
 ## Free-plan assumption and business decision
 

@@ -33,7 +33,11 @@
     "ENABLE_OCR_PAYMENTS": "1",
     "OCR_RETAIL_PROVIDER_MODE": "live",
     "PADDLE_OCR_PRODUCT_ID": "pro_01m4ehjj41jz5zvrn1mkaxxkb8",
-    "PADDLE_OCR_PRICE_ID": "pri_01m4ehnebc7mqj8ymdynbm5b4k"
+    "PADDLE_OCR_PRICE_ID": "pri_01m4ehnebc7mqj8ymdynbm5b4k",
+    "ENABLE_SUMMARY_UI": "1",
+    "SUMMARY_LIVE_APPROVED": "1",
+    "SUMMARY_ALLOWANCE_MODE": "upstream-free-daily",
+    "SUMMARY_WORKERS_PLAN": "free"
   },
   "assets": {
     "directory": "../../work/production-reader/site",
@@ -162,5 +166,8 @@
       "enabled": true,
       "invocation_logs": false
     }
+  },
+  "ai": {
+    "binding": "AI"
   }
 }
