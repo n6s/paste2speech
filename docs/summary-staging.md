@@ -110,3 +110,15 @@ invalidate its result while keeping the original and existing edited summary.
 The explicit Summarize button sends `consent: true` with the current source;
 backend validation still requires consent. No dialog, automatic inference or
 additional required decision is added. Visible default copy is brief.
+
+## Leading model-preamble cleanup
+
+The prompt asks for summary content directly. The backend removes one anchored
+leading preamble matching “Here is a summary of the source text in concise plain
+text:” or “Here is a summary of the provided source text in concise plain text:”,
+including case variants and simple bold/heading/list Markdown wrappers. It never
+deletes a generic first paragraph or arbitrary heading. A matching phrase present
+in the source is ambiguous and remains untouched; later occurrences and quotes
+remain untouched. If cleanup leaves no content, the request fails safely with the
+original intact and no automatic retry. These checks precede returning a summary
+for editing or speech; user edits are never scrubbed by this rule.

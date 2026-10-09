@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync} from 'node:fs';
-import {summaryResponse,SUMMARY_MODEL,SUMMARY_SYSTEM,SUMMARY_LANGUAGES,SUMMARY_LENGTHS,classifySummaryError,nextSummaryReset} from '../cloudflare/reader/summary.js';
+import {summaryResponse,SUMMARY_MODEL,SUMMARY_SYSTEM,SUMMARY_LANGUAGES,SUMMARY_LENGTHS,classifySummaryError,nextSummaryReset,cleanSummaryPreamble} from '../cloudflare/reader/summary.js';
 function fixture(){
  const sql=new DatabaseSync(':memory:');
  sql.exec(readFileSync('cloudflare/reader/staging-migrations/0009_summary_free_allowance.sql','utf8'));
@@ -34,3 +34,15 @@ test('trusted style/length enums create distinct bounded prompts; option injecti
 test('non-JSON HTTP permission/rate errors remain classified without a false daily circuit',async()=>{for(const [status,reason] of [[403,'authorization'],[429,'capacity']]){const f=fixture();f.env.AI.run=async()=>new Response('HTML proxy error 3036',{status});assert.equal((await (await summaryResponse(request(),f.env,f.account)).json()).reason,reason);assert.equal(f.sql.prepare('SELECT circuit_until FROM summary_free_gate').get().circuit_until,0);}});
 
 test('source limits accept a normal article and exact Unicode boundary; encoded controls reject without inference or truncation',async()=>{for(const text of ['x'.repeat(15852),'x'.repeat(23999),'x'.repeat(24000),'😀'.repeat(6000)]){const f=fixture();assert.equal((await summaryResponse(request({text}),f.env,f.account)).status,200);assert.equal(JSON.parse(f.calls[0].input.messages[1].content).source_text,text);assert.ok(f.calls[0].input.messages.reduce((n,m)=>n+new TextEncoder().encode(m.content).length,0)<=32000);}for(const text of ['x'.repeat(24001),'😀'.repeat(6001),'\u0001'.repeat(6000)]){const f=fixture();assert.equal((await summaryResponse(request({text}),f.env,f.account)).status,422);assert.equal(f.calls.length,0);}});
+
+test('narrow leading preamble cleanup preserves headings, source phrases and later content',()=>{
+ const a='Here is a summary of the source text in concise plain text:',b='Here is a summary of the provided source text in concise plain text:';
+ for(const prefix of [a,b,a.toUpperCase(),'**'+a+'**','# '+a,'- '+b,'__'+b+'__'])assert.equal(cleanSummaryPreamble(prefix+'\n\nMeeting at noon.','Other source.'),'Meeting at noon.');
+ for(const value of ['Summary: Meeting at noon.','Meeting at noon.\n'+a,'"'+a+'" is a real heading.','Here is a summary of the source text: Meeting at noon.','Project summary\nMeeting at noon.'])assert.equal(cleanSummaryPreamble(value,'Other source.'),value);
+ assert.equal(cleanSummaryPreamble(a+'\nReal source heading.',a+'\nReal source heading.'),a+'\nReal source heading.');
+ assert.equal(cleanSummaryPreamble(a),'');
+});
+test('empty cleaned response fails safely; useful cleanup returns only content without changing source',async()=>{
+ for(const output of ['Here is a summary of the source text in concise plain text:','**Here is a summary of the provided source text in concise plain text:**\n']){const f=fixture();f.env.AI.run=async()=>Response.json({response:output});assert.equal((await summaryResponse(request(),f.env,f.account)).status,502);assert.equal(f.sql.prepare('SELECT state FROM summary_free_requests').get().state,'failed');}
+ const f=fixture();f.env.AI.run=async()=>Response.json({response:'Here is a summary of the source text in concise plain text:\nMeeting at noon.'});assert.equal((await (await summaryResponse(request(),f.env,f.account)).json()).summary,'Meeting at noon.');
+});
