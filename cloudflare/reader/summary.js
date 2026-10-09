@@ -15,7 +15,7 @@ export async function summaryResponse(request,env,account){
  if(input.consent!==true||typeof input.text!=='string'||!input.text.trim()||new TextEncoder().encode(input.text).length>12000||typeof input.requestId!=='string'||!/^[0-9a-f-]{36}$/.test(input.requestId))return reply({detail:'Consent, source text (up to 12,000 UTF-8 bytes), and a request key are required.'},422);
  const now=Date.now(),day=new Date(now).toISOString().slice(0,10);
  // Atomic admission: reserve one whole cent per attempt, including failures/timeouts.
- // Current model worst-case published token pricing is <0.1 cent at these bounds.
+ // Current model worst-case published token pricing is <0.12 cent with a conservative 20,000-input-token bound.
  // Lifetime cap is at most five cents; no reset, release, or automatic retry.
  const admitted=await env.LEDGER.prepare(`INSERT OR IGNORE INTO summary_attempts(id,account,created,day,reserved_cents)
  SELECT ?,?,?,?,1 WHERE (SELECT COALESCE(SUM(reserved_cents),0) FROM summary_attempts)< ?

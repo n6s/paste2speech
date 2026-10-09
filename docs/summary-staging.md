@@ -5,13 +5,14 @@ only by `ENABLE_SUMMARY_UI=1` in the staging build. It preserves an original in 
 current tab, provides an editable result, and explicitly loads that result into the
 existing reader. Clear, new paste and new document import retire it. Typing never
 invokes inference; each request requires the source-specific consent checkbox and
-Summarize button. No source or summary is stored in D1, R2 or localStorage.
+Summarize button. No source or summary is stored by Summary inference in D1, R2 or localStorage; using
+the result in the reader follows the existing speech preparation/storage policy.
 
-The deployed initial state deliberately has no Workers AI binding,
-`SUMMARY_LIVE_APPROVED=0` and `SUMMARY_BUDGET_CENTS=0`. The UI explains this pause.
+The initial prototype deliberately had no Workers AI binding,
+`SUMMARY_LIVE_APPROVED=0` and `SUMMARY_BUDGET_CENTS=0`. Roger subsequently approved the exact activation below.
 Production always returns 404 for Summary routes and has no Summary UI.
 
-## Concrete activation proposal, awaiting approval
+## Activation approved by Roger on October 9, 2026
 
 - Add a staging-only Workers AI binding named `AI`; no new API credentials.
 - Apply `staging-migrations/0008_summary_attempts.sql` to staging D1 only.
@@ -28,11 +29,11 @@ Production always returns 404 for Summary routes and has no Summary UI.
   system instruction. No tools, retrieval or external facts. Output is plain text
   and must be reviewed for possible model omissions or inaccuracies.
 
-Published Cloudflare pricing checked October 8, 2026:
+Published Cloudflare pricing rechecked October 9, 2026:
 https://developers.cloudflare.com/workers-ai/models/llama-3.2-3b-instruct/
 $0.0509/M input tokens and $0.335/M output tokens. Conservative byte-as-token
-bounds for the accepted request and prompt plus 512 output tokens are below one
-cent per call, so one-cent reservations have substantial headroom. The cap is
+bound of 20,000 input tokens (accepted JSON, prompt and template headroom) plus
+512 output tokens is $0.001190 (~0.119 cents) per call, below one cent, so one-cent reservations have substantial headroom. The cap is
 for this feature's inference only, not the account's other usage. If model pricing
 or tokenization changes, recheck the bound before activation.
 
@@ -53,5 +54,5 @@ source and intercepted responses; consent, explicit request, editable result,
 original restoration after result edits, Read mode, stale-response dismissal,
 duplicate suppression and 390px viewport. This does not validate model quality or
 Workers AI account authorization. Existing full release/browser checks remain
-required. Live inference requires the activation approval above, followed by only
+required. Live smoke tests use only
 synthetic/nonprivate smoke-test content within the approved cap.
