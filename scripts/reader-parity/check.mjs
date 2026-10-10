@@ -39,7 +39,7 @@ try{
    }
    await route.fulfill({json:data});
   });
-  await page.goto(origin);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+  await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);assert.equal(await page.locator('#paste').count(),environment==='staging'?1:0);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
   assert.equal(await page.locator('#mse-delivery').inputValue(),'mse');
   assert.equal(await page.locator('#playback-options').evaluate(e=>e.open),false);
   assert.equal(await page.locator('#mse-delivery').isVisible(),false);

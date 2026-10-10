@@ -118,6 +118,7 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
 </details>
 `);
+if(mse)html=html.replace('<button id="paste-play"', '<button id="paste" type="button" class="quiet">Paste</button><button id="paste-play"').replace('<div class="row"><h2 id="text-title"','<div class="row text-action-row"><h2 id="text-title"');
 if(mse)html=html.replace('<p id="recording-progress" class="hint" role="status"></p>','<p id="recording-progress" class="hint" role="status"></p><p id="offline-progress" class="hint" role="status" hidden></p>');
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks" hidden><summary>Staging checks</summary>

@@ -902,3 +902,43 @@ real browser/WASM encoder and ffprobe, checks complete duration/subtitle counts,
 and verifies player/export section reuse plus actual UI text/voice invalidation.
 All speech/account APIs in these tests are synthetic; no paid/provider calls.
 Android lock-screen and airplane-mode behavior still requires Roger's device test.
+
+## October 10, 2026: separate staging Paste action
+
+Roger requested the previously discussed Paste control and removal of ordinary
+paste troubleshooting UI. Staging now shows Clear, Paste, Clear, Paste & Play in
+that order. Paste inserts at the saved editor cursor or replaces its selection,
+returns to Edit, and does not start speech. The replacement button keeps its
+existing deliberate autoplay behavior. Both actions use the same one-read
+clipboard payload converter, including the confirmed Android HTML-omission
+fallback and split-item plain/HTML pairing. Native rich paste and the new action
+share native insertion/Undo with a setRangeText fallback.
+
+The saved range is captured while editing and before pointer/keyboard toolbar
+focus changes. The action captures its own source/range before awaiting clipboard
+permission. A later edit, native paste, Clear, document import or newer action
+invalidates a pending result; denied and empty clipboards leave source/selection
+intact. Image-only clipboard contents still open the existing document/consent
+flow; Paste never starts OCR or speech automatically. Document busy/read-only
+states apply to both clipboard buttons.
+
+Troubleshoot this paste is created only in explicit staging testing mode
+(`?testing=1`). It remains opt-in, local, bounded and private; the normal reader
+has no diagnostic panel or listeners. No diagnostic machinery was deleted.
+The three staging actions retain 44px touch targets and their order at 390/320px.
+Public builds expose neither the new button nor diagnostics. This is a staging
+release only and preserves the f533251 full-reading download/recovery work.
+
+`check:reader:paste` is now a release gate. Built Chrome tests cover empty/append/
+insertion/selection, toolbar and async permission focus, Undo and fallback,
+rich HTML/plain Markdown and long text, delayed-read edit/Clear races, keyboard
+activation/native input, natural-voice no-autoplay/no-job behavior, old explicit
+autoplay, mobile layout and diagnostic testing-mode isolation. Existing label,
+privacy and input-burst regressions remain included. Clipboard, provider and
+account APIs in these checks are synthetic. They preserve the verified Android
+source-shape fixes; actual device clipboard behavior is not newly instrumented.
+
+Offline audio still has f533251's current-tab-only 64 MiB retention and readiness
+verification. Reload or browser process eviction discards it. The MP4 encoder
+loads on export, so first-time offline MP4 conversion is not promised. Roger's
+Android airplane-mode and lock-screen acceptance remains a separate device test.

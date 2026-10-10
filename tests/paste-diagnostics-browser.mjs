@@ -17,7 +17,7 @@ const secret='PRIVATE-CONTENT-DO-NOT-SHARE https://private.invalid/secret';
 const full=secret+'\n\n'+source+'\n\n'+'Ordinary briefing context. '.repeat(1200).slice(0,30075-secret.length-source.length-4);
 const html='<p>'+secret+'</p><p>For updated conditions, the most useful resources are the <a href="https://www.weather.gov/gjt/?utm_source=chatgpt.com"></a> and the <a href="https://www.weather.gov/slc/?utm_source=chatgpt.com"></a>.</p>';
 try{
- await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForSelector('#text');
+ await page.goto('http://127.0.0.1:'+server.address().port+(process.env.TEST_PUBLIC==='1'?'':'/?testing=1'));await page.waitForSelector('#text');
  const isPublic=process.env.TEST_PUBLIC==='1';
  if(isPublic){assert.equal(await page.locator('#paste-check').count(),0);console.log('PASS public build exposes no paste diagnostic facility.');}
  else{

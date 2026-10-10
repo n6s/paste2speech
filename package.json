@@ -22,7 +22,8 @@
     "package:extension": "npm run build:extension && python3 scripts/chrome-extension/package.py",
     "check:reader:previews": "node scripts/reader-parity/check-previews.mjs",
     "check:reader:documents": "node scripts/reader-parity/check-documents.mjs",
-    "check:reader:recovery": "node scripts/reader-parity/check-media-recovery.mjs && node scripts/reader-parity/check-status-recovery.mjs && node scripts/reader-parity/check-full-reading.mjs && node tests/playback-recovery-browser.mjs"
+    "check:reader:recovery": "node scripts/reader-parity/check-media-recovery.mjs && node scripts/reader-parity/check-status-recovery.mjs && node scripts/reader-parity/check-full-reading.mjs && node tests/playback-recovery-browser.mjs",
+    "check:reader:paste": "node tests/paste-button-browser.mjs && node tests/link-paste-browser.mjs && node tests/paste-diagnostics-browser.mjs && node tests/input-burst-browser.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",

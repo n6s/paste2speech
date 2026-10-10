@@ -89,3 +89,7 @@
 .mode-controls.has-summary {max-width:100%;box-sizing:border-box}.mode-controls.has-summary button {min-width:0;padding-left:12px;padding-right:12px;flex:1}
 
 .summary-options {display:grid;grid-template-columns:minmax(0,1fr);gap:12px;margin:.75rem 0}.summary-options label {display:flex;flex-direction:column;gap:6px;min-width:0}.summary-options select {width:100%;min-width:0;box-sizing:border-box;font:inherit}
+
+/* Three staging paste actions retain their order and full touch targets. */
+.text-action-row{flex-wrap:wrap}.text-action-row .text-actions{flex-wrap:nowrap}
+@media(max-width:380px){.text-action-row .text-actions{margin-left:auto}}

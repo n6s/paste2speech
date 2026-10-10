@@ -13,7 +13,7 @@ await page.addInitScript(()=>{const synth=new EventTarget();synth.getVoices=()=>
 const sentence='For updated conditions, the most useful resources are the [National Weather Service Grand Junction office](https://www.weather.gov/gjt/?utm_source=chatgpt.com) and the [Salt Lake City forecast office](https://www.weather.gov/slc/?utm_source=chatgpt.com).';
 const full=sentence+'\n\n'+('Ordinary briefing context. '.repeat(1300)).slice(0,29294-sentence.length-2),first=full.slice(0,20000);
 try{
- await page.goto('http://127.0.0.1:'+server.address().port);await page.waitForSelector('#text');assert.equal(await page.locator('#text').evaluate(el=>el.maxLength),-1);
+ await page.goto('http://127.0.0.1:'+server.address().port+'/?testing=1');await page.waitForSelector('#text');assert.equal(await page.locator('#text').evaluate(el=>el.maxLength),-1);
  await page.locator('#text').fill(first);
  const off=await page.evaluate(()=>{const input=document.querySelector('#text'),preview=document.querySelector('#preview'),node=preview.firstChild;let records=0;const observer=new MutationObserver(events=>records+=events.length);observer.observe(preview,{childList:true,subtree:true});const start=performance.now();for(let i=0;i<100;i++)input.dispatchEvent(new InputEvent('input',{bubbles:true,inputType:'insertText',data:i%2?'fragment':null}));const elapsed=performance.now()-start;records+=observer.takeRecords().length;observer.disconnect();return {elapsedMs:elapsed,domMutations:records,sameNode:node===preview.firstChild};});
  if(baseline){assert.ok(off.domMutations>0);assert.equal(off.sameNode,false);}else{assert.equal(off.domMutations,0);assert.equal(off.sameNode,true);}assert.equal(await page.locator('#text').inputValue(),first);

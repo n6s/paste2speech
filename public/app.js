@@ -378,7 +378,28 @@ $('text').addEventListener('input', () => {
   }
   resetReading(); preview();
 });
-if(RELEASE==='private-reader')pasteDiagnostics=setupPasteDiagnostics({target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
+if(RELEASE==='private-reader'&&MSE_STAGING)pasteDiagnostics=setupPasteDiagnostics({target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
+// Both native rich paste and the foreground Paste button use the editor's
+// native insertion/undo path. Clipboard conversion stays in the shared importer.
+function insertEditorText(text,range){
+  const input=$('text');input.focus({preventScroll:true});
+  if(range)input.setSelectionRange(range.start,range.end,range.direction);
+  let inserted=false;
+  try{inserted=document.execCommand('insertText',false,text);}catch{}
+  if(!inserted){input.setRangeText(text,input.selectionStart,input.selectionEnd,'end');input.dispatchEvent(new Event('input',{bubbles:true}));}
+}
+let pasteSelection;
+function rememberPasteSelection(){
+  const input=$('text');
+  if(document.activeElement===input||pasteSelection?.value!==input.value)pasteSelection={value:input.value,start:input.selectionStart,end:input.selectionEnd,direction:input.selectionDirection};
+}
+if($('paste')){
+  for(const name of ['focus','select','keyup','input'])$('text').addEventListener(name,rememberPasteSelection);
+  document.addEventListener('selectionchange',()=>{if(document.activeElement===$('text'))rememberPasteSelection();});
+  $('text').addEventListener('keydown',rememberPasteSelection);
+  $('paste').addEventListener('pointerdown',rememberPasteSelection);
+}
+function disablePasteButtons(value){$('paste-play').disabled=value;if($('paste'))$('paste').disabled=value;}
 $('text').addEventListener('paste', event => {
   if ($('text').readOnly) return;
   let markdown;
@@ -386,32 +407,27 @@ $('text').addEventListener('paste', event => {
   pasteDiagnostics?.record('paste-event-html-import',markdown);
   if (!markdown) return;
   event.preventDefault();
-  // Native insertion preserves the browser's undo history when available.
-  let inserted = false;
-  try { inserted = document.execCommand('insertText', false, markdown); } catch {}
-  if (!inserted) {
-    const input = $('text');
-    input.setRangeText(markdown, input.selectionStart, input.selectionEnd, 'end');
-    input.dispatchEvent(new Event('input', {bubbles:true}));
-  }
+  insertEditorText(markdown);
 });
 // Read first: denied, empty, or unreadable clipboards must not erase a reading.
 let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
 $('text').addEventListener('input',()=>{pasteRequest++;});
 $('text').addEventListener('paste',()=>{summaryMode?.clearSource();pasteRequest++;},{capture:true});
-$('paste-play').addEventListener('click', async () => {
-  if(documentImport?.busy)return;
+async function pasteFromClipboard({replace=false}={}){
+  if(documentImport?.busy||$('text').readOnly)return;
+  rememberPasteSelection();
+  const range=replace?null:{...pasteSelection};
   const request = ++pasteRequest;activePasteRequest=request;
   const previousText = $('text').value;
-  $('paste-play').disabled = true;
+  disablePasteButtons(true);
   $('paste-status').hidden = true;
   documentImport?.cancelClipboardRead();
   try {
     pasteDiagnostics?.record('paste-button-start',$('text').value);
     const payload = await clipboardPayload(navigator.clipboard, (stage,text,details)=>pasteDiagnostics?.record(stage,text,details));
     pasteDiagnostics?.record('paste-button-payload',payload.text);
-    if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy) return;
+    if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy || $('text').readOnly) return;
     if(payload.image){
       if(!documentImport)throw Error('image-unavailable');
       await documentImport.openImage(payload.image);
@@ -420,12 +436,12 @@ $('paste-play').addEventListener('click', async () => {
     const text=payload.text;
     if (!text.trim()) throw new Error('empty');
     documentImport?.clear();
-    resetReading();
     summaryMode?.clearSource();
-    $('text').value = text;
-    pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
-    preview();
-    readAndPlay();
+    if(replace){
+      resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();readAndPlay();
+    }else{
+      setMode('edit');insertEditorText(text,range);rememberPasteSelection();pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
+    }
     if(payload.hasImage){
       $('paste-status').textContent=documentImport?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
       $('paste-status').hidden=false;
@@ -436,6 +452,7 @@ $('paste-play').addEventListener('click', async () => {
     }
   } catch (error) {
     if (request !== pasteRequest) return;
+    if(range&&$('text').value===previousText)$('text').setSelectionRange(range.start,range.end,range.direction);
     $('paste-status').textContent = error.message === 'empty'
       ? 'Your browser did not provide text or an image to paste. Your current text is unchanged. Use Choose file for a saved screenshot.'
       : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Choose file. Your current text is unchanged.'
@@ -443,9 +460,11 @@ $('paste-play').addEventListener('click', async () => {
       : 'Clipboard access was unavailable. Your current text is unchanged. Use Choose file for a saved screenshot, or paste text into Edit.';
     $('paste-status').hidden = false;
   } finally {
-    if(activePasteRequest===request){activePasteRequest=0;$('paste-play').disabled=!!documentImport?.busy;}
+    if(activePasteRequest===request){activePasteRequest=0;disablePasteButtons(!!documentImport?.busy||$('text').readOnly);}
   }
-});
+}
+$('paste')?.addEventListener('click',()=>void pasteFromClipboard());
+$('paste-play').addEventListener('click',()=>void pasteFromClipboard({replace:true}));
 $('clear').addEventListener('click', () => { summaryMode?.clearSource(); documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
@@ -587,9 +606,10 @@ if (WORKSTATION) {
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  accept(data){summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');},
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
- onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;$('paste-play').disabled=value;$('clear').disabled=false;if(!value)preview();if(player)render(player);}
+ onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;disablePasteButtons(value);$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
-else $('pdf-file').addEventListener('change', async () => {
+if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent='Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';
+if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;
   if (!LONG_READINGS && file.size > 20 * 1024 * 1024) {
@@ -601,7 +621,7 @@ else $('pdf-file').addEventListener('change', async () => {
   player?.stop();
   $('pdf-file').disabled = true;
   $('text').readOnly = true;
-  $('paste-play').disabled = true;
+  disablePasteButtons(true);
   $('clear').disabled = true;
   $('pdf-status').textContent = `Reading ${file.name}…`;
   const pdfController = new AbortController();
@@ -629,7 +649,7 @@ else $('pdf-file').addEventListener('change', async () => {
     $('pdf-file').disabled = false;
     $('pdf-file').value = '';
     $('text').readOnly = false;
-    $('paste-play').disabled = false;
+    disablePasteButtons(false);
     $('clear').disabled = false;
   }
 });
@@ -692,7 +712,7 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
   $('cancel-pdf').hidden = true;
   $('pdf-file').disabled = false; $('pdf-file').value = '';
   $('text').readOnly = false;
-  $('paste-play').disabled = false; $('clear').disabled = false;
+  disablePasteButtons(false); $('clear').disabled = false;
   $('pdf-status').textContent = '';
   $('paste-status').hidden = true;
   resetReading();
