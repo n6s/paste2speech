@@ -141,6 +141,16 @@ test('a stalled engine preserves the current chunk for retry', t => {
  synth.spoken[0].onend(); assert.equal(p.index,0);
  p.resume({rate:1}); assert.equal(synth.spoken[1].text,'one two'); p.stop();
 });
+test('fresh speech unpauses the native engine after cancellation and on retry', () => {
+ const {synth,player:p}=setup();let resumes=0;
+ synth.paused=true;synth.resume=()=>{resumes++;synth.paused=false;};
+ synth.speak=u=>{assert.equal(synth.paused,false);synth.spoken.push(u);};
+ p.start(['short fresh text'],{rate:1});assert.equal(resumes,1);
+ const old=synth.spoken[0];old.onerror({error:'synthesis-failed'});assert.equal(p.state,'paused');
+ synth.paused=true;p.resume({rate:1});assert.equal(resumes,2);assert.equal(synth.spoken.length,2);
+ old.onend();old.onerror({error:'synthesis-failed'});assert.equal(p.state,'playing');assert.equal(p.index,0);
+ p.stop();synth.paused=true;p.start(['different short text'],{rate:1});assert.equal(resumes,3);p.stop();
+});
 test('new playback ignores callbacks from replaced text', () => {
  const {synth,player:p}=setup(); p.start(['old'],{rate:1}); const old=synth.spoken[0];
  p.start(['new','next'],{rate:1}); old.onend(); assert.equal(p.index,0);

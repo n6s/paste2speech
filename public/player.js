@@ -28,7 +28,7 @@ export class Player {
     // Never silently skip a chunk if the engine stalls or emits no end event.
     this.timer = setTimeout(() => { if (valid()) this.fail('The voice stopped responding. Tap Play to retry this part.'); }, Math.max(30000, utterance.text.length * 250 / utterance.rate));
     this.emit();
-    try { this.synth.speak(utterance); } catch { this.fail('This voice could not start. Choose another voice and tap Play.'); }
+    try { if (this.synth.paused) this.synth.resume(); this.synth.speak(utterance); } catch { this.fail('This voice could not start. Choose another voice and tap Play.'); }
   }
   fail(message) { this.cancel(); this.state = 'paused'; this.emit(message); }
   pause() { if (this.state !== 'playing') return; this.cancel(); this.state = 'paused'; this.emit(); }

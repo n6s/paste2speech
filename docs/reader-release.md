@@ -780,3 +780,47 @@ General audience on every request, no audience control, native keyboard
 disclosure, preservation of the selected length, cancellation/restoration and
 390/320px layouts. Synthetic Summary responses only; no live inference is needed
 for this UI change. Deployment is authorized for staging review only.
+
+
+### October 10 staging playback recovery
+
+Roger approved a staging recovery test after an outage prevented WaveNet resume
+at every position and browser voices reported `synthesis-failed`, including on
+fresh short text. Production remains on `431ee06`; this approval does not promote
+staged clipboard/Summary changes, enable offline saving, or authorize new paid
+proof synthesis.
+
+Media network error code 2 now preserves the logical reading, paid part IDs and
+position, retires the failed resource/controller, and rebuilds playback on Resume.
+Ready readings use the existing completed recording; unfinished MSE readings
+rebuild from saved sections. Seeking while disconnected preserves the requested
+position. No replacement reading POST is made by media recovery. Decode errors
+remain fatal rather than being mislabeled as a lost connection. Play promises,
+playing events and media-session updates from paused/released playback cannot
+undo a later pause or engine switch. Stop resets a pending restored position;
+Clear retires recovery and ignores late callbacks.
+
+Browser speech unpauses the native speech engine before submitting a fresh
+utterance when `speechSynthesis.paused` is true. Its existing generation guard and
+exact `synthesis-failed` error remain. This addresses a verified paused-queue gap;
+it is not a claim to repair every Android speech service failure.
+
+`check:reader:recovery` is included in staging/public release gates. It exercises
+real desktop Chrome MSE/completed-file decoding with existing MP3 fixtures and
+synthetic API responses: complete and unfinished reading recovery, repeated
+network errors, same-job/position/source reuse, seek, decode-error classification,
+Stop/Clear during a pending reload, stale play/event/media-session callbacks,
+three built-UI engine switches, native paused-engine retries and persistent
+`synthesis-failed`. The same UI test supports `READER_ORIGIN` for hosted staging
+verification with the existing Cloudflare Access session. All API writes and
+speech engines are mocked, including hosted verification; no provider/account
+state is changed by these tests. Actual Android validation remains separate.
+
+Offline saving remains a separate proposed change: existing playback buffers
+about 90 seconds ahead and trims behind. Server-ready does not mean saved on the
+phone. An explicit save action should reuse paid IDs, download every required
+part, verify and persist audio/timings, and cache the reader app for offline
+reopening. Only successful complete storage should display ready; quota failures,
+eviction, incomplete generation and interrupted downloads must not. Display
+remaining character credit, preserve cancel and current limits, retry retrieval
+without automatic paid resynthesis, and decide local retention explicitly.

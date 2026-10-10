@@ -12,18 +12,18 @@ const event=(target,name,signal)=>new Promise((resolve,reject)=>{
 });
 export class MsePlayer {
   constructor(audio,onChange=()=>{},fetcher=globalThis.fetch.bind(globalThis)){
-    this.fetcher=fetcher;this.audio=audio;this.onChange=onChange;this.events=[];this.serial=0;this.state='idle';this.next=0;this.rate=1;this.wantPlay=false;
+    this.fetcher=fetcher;this.audio=audio;this.onChange=onChange;this.events=[];this.serial=0;this.state='idle';this.next=0;this.rate=1;this.wantPlay=false;this.playSequence=0;
     this.capability={mediaSource:!!globalThis.MediaSource,mp3:!!globalThis.MediaSource?.isTypeSupported('audio/mpeg')};
     for(const name of ['loadstart','loadedmetadata','progress','loadeddata','canplay','playing','pause','waiting','stalled','seeking','seeked','ended','error','ratechange'])audio.addEventListener(name,()=>{
       this.log(name);
-      if(name==='error'&&this.job)this.fail(Error(`Media decoding error ${audio.error?.code}: ${audio.error?.message||''}`));
+      if(name==='error'&&this.job&&audio.error)this.mediaFailed();
       if(name==='loadeddata'&&this.mode==='mse'){this.capability.decoded=true;this.log('decode-verified');}
-      if(name==='playing')this.state='playing';
+      if(name==='playing'&&this.job&&this.wantPlay&&!audio.paused&&!this.fatal&&!this.mediaRecovery)this.state='playing';
       if(name==='waiting'&&this.wantPlay){
         if(this.status?.state==='credit-paused'&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.wantPlay=false;this.audio.pause();this.state='paused';}
         else this.state='buffering';
       }
-      if(name==='ended'&&this.finalized){this.state='done';this.wantPlay=false;}
+      if(name==='ended'&&this.job&&audio.ended&&this.finalized){this.state='done';this.wantPlay=false;}
       this.emit();
     });
     audio.addEventListener('timeupdate',()=>this.emit());
@@ -34,16 +34,16 @@ export class MsePlayer {
     if(this.events.length>12000)this.events.shift();
   }
   emit(){
-    this.index=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=this.audio.currentTime+1/24000));
+    this.index=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=(this.mediaRecovery?.time??this.pendingTime??this.audio.currentTime)+1/24000));
     const media=navigator.mediaSession;
-    if(this.job&&media){
+    if(this.job&&this.mediaActive&&media){
       media.playbackState=this.wantPlay?'playing':'paused';
       try{const duration=this.status?.duration;if(duration>0)media.setPositionState({duration,playbackRate:this.rate,position:Math.min(duration,this.audio.currentTime)});}catch{}
     }
     this.onChange(this);
   }
   claim(){
-    const media=navigator.mediaSession;if(!media)return;
+    const media=navigator.mediaSession;if(!media)return;this.mediaActive=true;
     media.metadata=new MediaMetadata({title:'Reading',artist:'WaveNet'});
     const actions={play:()=>this.resume(),pause:()=>this.pause(),stop:()=>this.stop(),seekto:e=>this.seek(e.seekTime),seekbackward:e=>this.seek(this.audio.currentTime-(e.seekOffset||10)),seekforward:e=>this.seek(this.audio.currentTime+(e.seekOffset||10))};
     for(const [name,fn] of Object.entries(actions))try{media.setActionHandler(name,fn);}catch{}
@@ -74,14 +74,50 @@ export class MsePlayer {
       if(serial!==this.serial){void this.fetcher(new URL(`/api/readings/${created.id}`,location.href),{method:'DELETE',keepalive:true}).catch(()=>{});return;}
       this.job=created.id;this.texts=input.chunks;this.claim();
       if(mode==='mse'){
-        this.source=new MediaSource();this.objectURL=URL.createObjectURL(this.source);
-        const opened=event(this.source,'sourceopen',this.controller.signal);
-        this.audio.src=this.objectURL;this.audio.load();await opened;
-        this.buffer=this.source.addSourceBuffer('audio/mpeg');this.buffer.mode='sequence';this.capability.sourceBuffer=true;
-        this.log('source-created',{mode:this.buffer.mode});
+        if(!await this.openSource(serial))return;
       }
       this.setRate(this.rate);void this.pump(serial);
     }catch(error){if(serial===this.serial)this.fail(error);}
+  }
+  async openSource(serial){
+    const source=new MediaSource();this.source=source;this.objectURL=URL.createObjectURL(source);
+    const opened=event(source,'sourceopen',this.controller.signal);
+    this.audio.src=this.objectURL;this.audio.load();await opened;
+    if(serial!==this.serial)return false;
+    this.buffer=source.addSourceBuffer('audio/mpeg');this.buffer.mode='sequence';this.capability.sourceBuffer=true;
+    this.log('source-created',{mode:this.buffer.mode});return true;
+  }
+  mediaFailed(){
+    const {code,message}=this.audio.error;
+    const error=Error(code===2?'Playback connection was interrupted. Tap Resume to reconnect using saved audio.':`Media decoding error ${code}: ${message||''}`);
+    if(code===2){
+      this.mediaRecovery={time:this.mediaRecovery?.time??this.pendingTime??this.audio.currentTime};error.reconnect=true;
+      // Retire the old resource/pump before Resume rebuilds it. Keep the paid job.
+      this.serial++;this.controller?.abort(error);this.pumping=false;this.recovering=null;
+    }else this.mediaRecovery=null;
+    this.fail(error);
+  }
+  async recoverMedia(){
+    if(this.recovering)return this.recovering;
+    if(!this.job||!this.mediaRecovery)return;
+    const time=this.mediaRecovery.time;
+    this.serial++;this.controller?.abort();const serial=this.serial;
+    this.controller=new AbortController();this.playSequence++;this.wantPlay=true;this.audio.pause();
+    this.audio.removeAttribute('src');this.audio.load();
+    if(this.objectURL)URL.revokeObjectURL(this.objectURL);
+    this.objectURL=null;this.source=null;this.buffer=null;this.mediaRecovery=null;
+    this.mode=this.status?.state==='ready'?'full':this.mode;
+    this.next=0;this.finalized=false;this.windowSeek=null;this.quotaBlockedAt=null;this.fatal=false;this.pumping=false;this.error='';
+    this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=time));this.pendingTime=time;
+    this.state='preparing';this.log('media-reconnect',{target:time,mode:this.mode});this.emit();
+    const recovery=(async()=>{
+      try{
+        if(this.mode==='mse'&&!await this.openSource(serial))return;
+        if(serial===this.serial)void this.pump(serial);
+      }catch(error){if(serial===this.serial)this.fail(error);}
+    })();
+    this.recovering=recovery;
+    try{await recovery;}finally{if(this.recovering===recovery)this.recovering=null;}
   }
   async bufferOperation(operation,signal){
     const local=new AbortController();
@@ -192,15 +228,16 @@ export class MsePlayer {
   }
   fail(error){
     this.error=error.name==='QuotaExceededError'?'This browser could not buffer the audio. The completed recording remains available.':error.message;
-    this.fatal=!error.reconnect;if(this.fatal)this.controller?.abort(error);this.state=error.reconnect?'disconnected':'failed';this.wantPlay=false;this.audio.pause();this.log('failure',{message:this.error,reconnect:!!error.reconnect});this.emit();
+    this.playSequence++;this.fatal=!error.reconnect;if(this.fatal)this.controller?.abort(error);this.state=error.reconnect?'disconnected':'failed';this.wantPlay=false;this.audio.pause();this.log('failure',{message:this.error,reconnect:!!error.reconnect});this.emit();
   }
   async play(){
-    const serial=this.serial;this.wantPlay=true;
-    try{await this.audio.play();if(serial===this.serial&&this.status?.state!=='credit-paused')this.error='';}
-    catch(error){if(serial===this.serial&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
+    const serial=this.serial,sequence=++this.playSequence;this.wantPlay=true;
+    try{await this.audio.play();if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay&&this.status?.state!=='credit-paused')this.error='';}
+    catch(error){if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
-  pause(){this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
+  pause(){this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
   resume(){
+    if(this.mediaRecovery)return this.recoverMedia();
     if(!this.job||this.fatal)return;
     this.wantPlay=true;
     if(this.audio.ended&&this.finalized){if(this.boundedBuffer&&!this.ranges().some(([a,b])=>a===0&&b>0)){this.seek(0);return;}this.audio.currentTime=0;}
@@ -209,6 +246,10 @@ export class MsePlayer {
   }
   seek(value){
     const time=Number(value);if(!Number.isFinite(time)||!this.job||this.fatal)return false;
+    if(this.mediaRecovery){
+      if(time<0||time>=(this.status?.duration||0))return false;
+      this.mediaRecovery.time=time;this.pendingTime=time;this.pendingIndex=Math.max(0,this.status.starts.findLastIndex(t=>t<=time));this.emit();return true;
+    }
     const range=this.mode==='full'&&this.finalized&&time>=0&&time<this.audio.duration||this.ranges().find(([a,b])=>time>=a&&time<b);
     if(!range && this.boundedBuffer && this.mode==='mse' && time>=0 && time<(this.status?.duration||0)){
       const index=this.status.starts.findLastIndex(t=>t<=time);
@@ -220,7 +261,7 @@ export class MsePlayer {
   }
   setRate(value){this.rate=Math.max(.5,Math.min(2,Number(value)||1));this.audio.playbackRate=this.rate;this.audio.defaultPlaybackRate=this.rate;this.audio.preservesPitch=true;this.emit();}
   invalidate({preserveReady=false}={}){
-    this.serial++;this.controller?.abort();this.wantPlay=false;this.audio.pause();
+    this.serial++;this.playSequence++;this.controller?.abort();this.wantPlay=false;this.mediaRecovery=null;this.recovering=null;this.mediaActive=false;this.audio.pause();
     const id=this.job,keep=preserveReady&&this.status?.state==='ready';this.job=null;this.audio.removeAttribute('src');this.audio.load();
     if(this.objectURL)URL.revokeObjectURL(this.objectURL);
     this.objectURL=null;this.source=null;this.buffer=null;this.status=null;this.texts=[];this.next=0;this.windowSeek=null;this.quotaBlockedAt=null;this.state='idle';this.error='';this.pumping=false;this.fatal=false;this.finalized=false;
