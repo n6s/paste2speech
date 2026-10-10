@@ -36,7 +36,7 @@ try{
   return route.fulfill({json:{}});
  });
  await page.goto(origin);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');const text='First section.\n\nSecond section.\n\nThird section.';await page.fill('#text',text);await page.click('#play');
- await page.waitForFunction(()=>document.querySelector('#status').textContent==='Failed to fetch');failSection=false;await page.click('#play');await page.waitForFunction(()=>__appends===3&&document.querySelector('#status').textContent==='Reading aloud');assert.equal(posts.length,1);
+ await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('Buffered audio has ended'));failSection=false;await page.click('#play');await page.waitForFunction(()=>__appends===3&&document.querySelector('#status').textContent==='Reading aloud');assert.equal(posts.length,1);
  await page.click('#pause');const before=await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).currentTime);await page.evaluate(()=>mediaError());assert.match(await page.locator('#status').textContent(),/Tap Resume to reconnect/);assert.ok(await page.locator('#play').isEnabled());await page.click('#play');
  await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.currentTime>.1)&&document.querySelector('#status').textContent==='Reading aloud');const after=await page.evaluate(()=>__audio.find(a=>a.src.includes('/audio')).currentTime);assert.ok(after>=before-.05&&after<before+1);assert.equal(posts.length,1);assert.equal(await page.locator('#text').inputValue(),text);
  for(let n=0;n<3;n++){

@@ -59,7 +59,8 @@ try{
    await page.waitForFunction(()=>player.state==='paused'&&player.status?.state==='credit-paused');
    const drained=await page.evaluate(()=>({time:player.audio.currentTime,end:player.ranges().at(-1)[1],error:player.error}));
    assert.ok(drained.time>=drained.end-.25,'Paid audio must play to its buffered end');assert.match(drained.error,/insufficient speech credit/);
-  }else await page.waitForFunction(()=>player.state==='failed');
+  }else if(failure==='network')await page.waitForFunction(()=>player.state==='disconnected');
+  else await page.waitForFunction(()=>player.state==='failed');
   const before=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job}));
   assert.equal(posts.length,2);assert.ok(interruptedAt);
   if(!['network','credit'].includes(failure)){

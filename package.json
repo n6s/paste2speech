@@ -22,7 +22,7 @@
     "package:extension": "npm run build:extension && python3 scripts/chrome-extension/package.py",
     "check:reader:previews": "node scripts/reader-parity/check-previews.mjs",
     "check:reader:documents": "node scripts/reader-parity/check-documents.mjs",
-    "check:reader:recovery": "node scripts/reader-parity/check-media-recovery.mjs && node tests/playback-recovery-browser.mjs"
+    "check:reader:recovery": "node scripts/reader-parity/check-media-recovery.mjs && node scripts/reader-parity/check-status-recovery.mjs && node tests/playback-recovery-browser.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",

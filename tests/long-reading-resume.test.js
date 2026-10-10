@@ -22,7 +22,9 @@ async function fixture({failure='failed'}={}){
   return Response.json({id,state:failed?'failed':'ready',completed:failed?0:1,total:1,duration:1,starts:failed?[]:[0],sections:failed?[]:[{index:0,start:0,samples:24000,bytes:100}],providerCost:failed ? .001 : .002,costIncomplete:failed,error:failed?'interrupted':''});
  }});
  const created=await (await transport.fetch('/api/readings',{method:'POST',body:JSON.stringify({voice:'en-US-Wavenet-D',chunks:['A'.repeat(100),'B'.repeat(100)]})})).json();
- const group=transport.groups.get(created.id);await group.finished;assert.ok(group.error);
+ const group=transport.groups.get(created.id);
+ if(failure==='network'){while(!group.connectionError)await new Promise(r=>setTimeout(r,0));assert.equal(group.error,null);}
+ else {await group.finished;assert.ok(group.error);}
  return {transport,group,posts,setFailure:value=>{fail=value;}};
 }
 test('Resume rechecks the same IDs after a network failure and never buys replacement speech',async()=>{

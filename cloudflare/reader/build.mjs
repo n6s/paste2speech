@@ -121,7 +121,8 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks" hidden><summary>Staging checks</summary>
 <p>Testing mode · <a href="/">Return to the reader</a></p>
-<label><input id="mse-cached" type="checkbox" checked>Use cached test audio · no credit used</label>
+<label><input id="mse-cached" type="checkbox" checked aria-describedby="mse-fixture-note">Use server test sample · no speech credit</label>
+<p id="mse-fixture-note" class="hint">Internet required to load. This sample is not saved for offline listening.</p>
 <label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>
 <label>Requests in flight <select id="mse-concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
 <details><summary>Playback results</summary><pre id="mse-diagnostics"></pre></details>

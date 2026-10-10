@@ -1,17 +1,50 @@
 import {checkSpeechCredit} from './speech-credit.js';
+const retryDelay=(ms,signal)=>new Promise(resolve=>{
+  if(signal?.aborted)return resolve();
+  const done=()=>{clearTimeout(timer);signal?.removeEventListener('abort',done);resolve();};
+  const timer=setTimeout(done,ms);signal?.addEventListener('abort',done,{once:true});
+});
 // One paid job per part. Persist IDs before POST so an uncertain acknowledgement
 // can be checked, never silently replaced with another chargeable request.
 export class PlaylistSession {
-  constructor(parts, voice, {fetcher = (...args) => fetch(...args), save = () => {}, records = [], changed = () => {}, statusChanged = () => {}, preflight = false, createOptions = {delivery: 'complete'}, sleep = ms => new Promise(r => setTimeout(r, ms))} = {}) {
-    Object.assign(this, {parts, voice, fetcher, save, changed, statusChanged, preflight, createOptions, sleep});
+  constructor(parts, voice, {fetcher = (...args) => fetch(...args), save = () => {}, records = [], changed = () => {}, statusChanged = () => {}, preflight = false, createOptions = {delivery: 'complete'}, retryStatus = false, connectionChanged = () => {}, sleep = retryDelay} = {}) {
+    Object.assign(this, {parts, voice, fetcher, save, changed, statusChanged, preflight, createOptions, retryStatus, connectionChanged, sleep});
     this.records = parts.map((_, i) => records[i] || {});
     this.stopped = false;
   }
   persist() { this.save(this.records); this.changed(this); }
-  async status(id) {
-    const r = await this.fetcher(`/api/readings/${id}`, {signal: AbortSignal.timeout(15000)});
-    if (!r.ok) throw Error(`Cannot check a prepared part (${r.status}). Try checking again; speech will not be regenerated.`);
-    return r.json();
+  async status(id, signal) {
+    let r;
+    try { r = await this.fetcher(`/api/readings/${id}`, {signal: signal ? AbortSignal.any([signal, AbortSignal.timeout(15000)]) : AbortSignal.timeout(15000)}); }
+    catch (error) { error.statusUnavailable = true; throw error; }
+    if (!r.ok) {
+      const error = Error(`Cannot check a prepared part (${r.status}). Try checking again; speech will not be regenerated.`);
+      error.statusUnavailable = r.status >= 500 || [408, 409, 429].includes(r.status);
+      throw error;
+    }
+    try { return await r.json(); }
+    catch (error) { if (error.name !== 'SyntaxError') error.statusUnavailable = true; throw error; }
+  }
+  async readStatus(id) {
+    if (!this.retryStatus) return this.status(id);
+    for (let attempt = 0; !this.stopped; attempt++) {
+      try {
+        const status = await this.status(id, this.statusController.signal);
+        if (this.stopped) return;
+        this.connectionChanged(null); return status;
+      } catch (error) {
+        if (this.stopped) return;
+        if (!error.statusUnavailable) throw error;
+        this.connectionChanged(error);
+        // Retry only this saved ID's GET. Creation/terminal failures retain their
+        // existing reconciliation and explicit paid-retry protections.
+        const delayController = new AbortController();
+        const wake = new Promise(resolve => { this.wakeStatusRetry = () => { delayController.abort(); resolve(); }; });
+        const online = this.wakeStatusRetry;globalThis.window?.addEventListener('online', online, {once:true});
+        try { await Promise.race([this.sleep(Math.min(8000, 1000 * 2 ** Math.min(attempt, 3)), delayController.signal), wake]); }
+        finally { delayController.abort();globalThis.window?.removeEventListener('online', online);this.wakeStatusRetry = null; }
+      }
+    }
   }
   prepare() {
     if (this.preparing) return this.preparing;
@@ -19,7 +52,7 @@ export class PlaylistSession {
     return this.preparing;
   }
   async runPreparation() {
-    this.stopped = false;
+    this.stopped = false; this.statusController = new AbortController();
     if (this.preflight) {
       // Reconcile saved admissions first. A lost acknowledgement or missing job
       // must never be treated as permission to buy replacement speech.
@@ -27,7 +60,7 @@ export class PlaylistSession {
         const record = this.records[i];
         if (!record.id || ['refused', 'credit-paused'].includes(record.state)) continue;
         this.active = i;
-        const status = await this.status(record.id);
+        const status = await this.readStatus(record.id);
         if (this.stopped) return;
         this.statusChanged(i, status);
         Object.assign(record, {state: status.state, duration: status.duration, completed: status.completed}); this.persist();
@@ -61,14 +94,15 @@ export class PlaylistSession {
         }
       }
       while (!this.stopped) {
-        const status = await this.status(record.id);
+        const status = await this.readStatus(record.id);
+        if (this.stopped) return;
         if (status.state === 'ready' && (status.total != null && (status.total !== this.parts[i].chunks.length || status.completed !== status.total || Array.isArray(status.starts) && status.starts.length !== status.total))) {
           throw Error('Audio preparation is incomplete. Video conversion has not started.');
         }
         this.statusChanged(i, status);
         Object.assign(record, {state: status.state, duration: status.duration, completed: status.completed}); this.persist();
         if (status.state === 'ready') break;
-        if (['failed', 'cancelled'].includes(status.state)) throw Error(status.error || `Part ${i + 1} ${status.state}. Completed parts remain available. No speech was retried.`);
+        if (['failed', 'cancelled', 'expired'].includes(status.state)) throw Error(status.error || `Part ${i + 1} ${status.state}. Completed parts remain available. No speech was retried.`);
         await this.sleep(1500);
       }
     }
@@ -76,7 +110,7 @@ export class PlaylistSession {
   }
   // Stop scheduling immediately. An in-flight create is reconciled by prepare()
   // before its finally block calls cancelPending, including a late POST reply.
-  stop() { this.stopped = true; }
+  stop() { this.stopped = true; this.statusController?.abort(); this.wakeStatusRetry?.(); }
   async cancelPending() {
     for (const record of this.records.filter(r => r.id && r.state !== 'ready')) {
       const response = await this.fetcher(`/api/readings/${record.id}`, {method: 'DELETE', signal: AbortSignal.timeout(15000)});

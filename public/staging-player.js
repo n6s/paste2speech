@@ -39,6 +39,7 @@ export class StagingPlayer extends MsePlayer {
   if(settings&&!this.matches(this.chunks,settings))return this.start(this.chunks,settings,this.index);
   if(settings)this.setRate(settings.rate);
   const group=this.getVideoPreparation();
+  if(group?.connectionError)group.session.wakeStatusRetry?.();
   if(group?.error){
    if(this.resuming)return;
    this.resuming=true;

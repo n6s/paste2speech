@@ -26,7 +26,8 @@ export class LongReadingTransport {
       const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
       const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
-      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,
+      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,
+        connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
         save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
         statusChanged:(index,status)=>{group.statuses[index]=status;}});
@@ -65,17 +66,18 @@ export class LongReadingTransport {
     return Response.json({detail:'Unknown logical reading endpoint'},{status:404});
   }
   prepare(group) {
-    group.error=null;group.done=false;
+    group.error=null;group.connectionError=null;group.done=false;
     group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));
   }
   async resume(id,{confirmRetry=()=>false}={}) {
     const group=this.groups.get(id);
     if(!group||group.cancelled)throw Error('This reading is no longer available.');
+    if(group.connectionError)group.session.wakeStatusRetry?.();
     if(group.resuming)return group.resuming;
     group.resuming=(async()=>{
       await group.finished;
       if(group.cancelled)throw Error('This reading was cleared.');
-      if(!group.error)return {resumed:true};
+      if(!group.error)return {resumed:true,replacedFrom:null};
       const index=group.session.active||0,record=group.session.records[index];
       let replacedFrom=null;
       if(record.id && !['refused','credit-paused'].includes(record.state)) {
@@ -113,7 +115,7 @@ export class LongReadingTransport {
     }
     const total=group.parts.reduce((n,p)=>n+p.chunks.length,0);
     const state=group.cancelled?'cancelled':group.error?.creditPaused?'credit-paused':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
-    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',canResumePreparation:!!group.error&&!group.cancelled,
+    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',connectionUnavailable:!!group.connectionError,canResumePreparation:!!group.error&&!group.cancelled,
       providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0)+group.session.records.reduce((n,r)=>n+(r.previousCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)||group.session.records.some(r=>r.previousCostIncomplete)};
   }
   async downloadURL(id,kind) {

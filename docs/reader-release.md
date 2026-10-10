@@ -824,3 +824,40 @@ reopening. Only successful complete storage should display ready; quota failures
 eviction, incomplete generation and interrupted downloads must not. Display
 remaining character credit, preserve cancel and current limits, retry retrieval
 without automatic paid resynthesis, and decide local retention explicitly.
+
+
+## October 10, 2026: continue buffered audio during status outages
+
+Real-reading preparation now retries network/timeout and temporary HTTP status
+failures against the saved job ID with capped backoff. It publishes a connection
+warning while retaining the last validated preparation snapshot. Terminal job
+failures, cancelled/expired/missing jobs, authorization errors and malformed
+status responses retain the existing failure/reconciliation protections. Online
+and explicit Resume wake status backoff; Stop interrupts it without new jobs.
+
+The MSE reader continues already-buffered audio through these outages and retries
+retrieval without replacement speech. A sustained native wait at unavailable
+audio pauses with the saved position and Resume enabled. Reconnection refills
+the buffer; a boundary pause stays paused until Resume. Repeated transitions and
+Stop/Clear retire pending timers. Staging testing says “Use server test sample ·
+no speech credit” and “Internet required to load. This sample is not saved for
+offline listening.”
+
+The recovery release gate includes nine real desktop MSE/synthetic API scenarios:
+buffered playback through three poll-loss/reconnect cycles, unavailable boundary,
+interrupted section retrieval, terminal failed/404/expired/cancelled responses,
+and Stop/Clear during outage. They verify one paid-job creation, unchanged source,
+job ID and audio resource, no automatic confirmed-failure replacement, and safe
+Resume. Additional unit cases cover GET-only retry classification and cancellation.
+All providers and account APIs in these regressions are synthetic.
+
+Roger separately reported that the earlier staging recovery resumed a real
+286-section briefing after reconnecting on Android without editing its source.
+He heard several sections after going offline once all sections showed prepared.
+This is user-reported evidence, not an instrumented buffer measurement or a claim
+of complete offline support. The exact report is retained in the ignored
+`work/network-recovery-2026-10-10/android-user-report.json`.
+
+Whole-reading prefetch, durable offline storage, export reuse, an additional
+Paste button and automatic voice fallback are not implemented by this release.
+Automatic browser-voice fallback was withdrawn during the design discussion.
