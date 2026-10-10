@@ -861,3 +861,44 @@ of complete offline support. The exact report is retained in the ignored
 Whole-reading prefetch, durable offline storage, export reuse, an additional
 Paste button and automatic voice fallback are not implemented by this release.
 Automatic browser-voice fallback was withdrawn during the design discussion.
+
+## October 10, 2026: staging full-reading download trial
+
+Roger approved a staging-only trial of continuous full-reading downloads shared
+by playback and MP4 export. The earlier status-outage recovery remains included.
+Production deployment and the installed extension are unchanged.
+
+Staging retains verified MP3 sections in the current open tab with three bounded
+GET slots and a 64 MiB audio budget. Playback starts as the first sections arrive;
+downloading continues beyond the decoder's 90-second window. Player refills,
+completed-file recovery, and MP4 preparation reuse the same section requests and
+bytes. Captions derive from the same submitted text and validated sample timeline
+using the backend's existing caption algorithm. Retrieval never creates speech.
+
+Offline readiness requires every section of every source part to be present and
+verified against its declared bytes/sample count and timeline. Server-ready alone
+is insufficient. Network errors retain valid bytes and retry GETs with timeout;
+quota/size limits, invalid audio and incomplete/cancelled/expired jobs cannot claim
+readiness. Stop retains a complete downloaded reading for replay; Clear, changed
+text or changed voice retire the current recording and readiness without automatic
+synthesis. Existing confirmation for explicitly retrying failed paid work remains.
+
+This first trial uses memory, not Cache Storage or a service worker. The visible
+status says to keep this tab open: reload, tab closure or browser process eviction
+clears downloaded audio. Mobile browsers may suspend downloads when backgrounded;
+wait for readiness and audible speech before locking the screen. Media Session
+handlers and normal audio playback remain in use. An OS Downloads MP4 is a separate
+file and is not silently reopened by this reader. MP4 export remains H.264/AAC
+with embedded mov_text subtitles; the encoder assets load on export, so first-time
+offline MP4 conversion is not promised.
+
+Unit coverage checks single-flight retrieval, concurrency, exact shared audio/VTT,
+retention limits, corruption/timing rejection, late cancellation and eviction.
+`check-full-reading.mjs` uses real Chrome MSE with a synthetic 90-section reading:
+early playback, full offline seeking beyond the decoder window, interruption and
+reconnect, Media Session pause/play and visibility transitions, Stop/replay,
+cancellation, eviction and reload. `scripts/video-download/check.mjs` runs the
+real browser/WASM encoder and ffprobe, checks complete duration/subtitle counts,
+and verifies player/export section reuse plus actual UI text/voice invalidation.
+All speech/account APIs in these tests are synthetic; no paid/provider calls.
+Android lock-screen and airplane-mode behavior still requires Roger's device test.

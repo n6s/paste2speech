@@ -20,7 +20,7 @@ const server=createServer(async(req,res)=>{try{
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 try{
- const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0,downloads=0,audioDownloads=0,partial=false,allowComplete=false,partialPolls=0,longMode=false;
+ const page=await browser.newPage({acceptDownloads:true,viewport:{width:1100,height:900}}), errors=[],jobs=new Map();let posts=0,toolLoads=0,downloads=0,audioDownloads=0,captionDownloads=0,sectionReads=new Map(),partial=false,allowComplete=false,partialPolls=0,longMode=false;
  page.on('download',()=>downloads++);
  if(remote)await page.context().addCookies([{name:'CF_Authorization',value:execFileSync('cloudflared',['access','token','--app',remote],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim(),url:remote,httpOnly:true,secure:true,sameSite:'Lax'}]);
  page.on('pageerror',e=>{errors.push(e.message);console.log('PAGE ERROR',e.message);});page.on('console',m=>{if(m.type()==='error')errors.push(m.text());});
@@ -37,13 +37,13 @@ try{
   const match=p.match(/^\/api\/readings\/([^/]+)(.*)$/);
   if(match){const job=jobs.get(match[1]);assert.ok(job);
    if(match[2]==='/download/mp3'){audioDownloads++;return route.fulfill({contentType:'audio/mpeg',body:job.mp3});}
-   if(match[2].startsWith('/sections/'))return route.fulfill({contentType:'audio/mpeg',body:mp3});
-   if(match[2]==='/download/vtt')return route.fulfill({contentType:'text/vtt',body:job.vtt});
+   if(match[2].startsWith('/sections/')){const key=p;sectionReads.set(key,(sectionReads.get(key)||0)+1);return route.fulfill({contentType:'audio/mpeg',body:mp3});}
+   if(match[2]==='/download/vtt'){captionDownloads++;return route.fulfill({contentType:'text/vtt',body:job.vtt});}
    if(partial)partialPolls++;
    const ready=!partial||allowComplete,count=ready?job.total:6;
    return route.fulfill({json:{state:ready?'ready':'preparing',duration:count*info.duration,total:job.total,completed:count,starts:Array.from({length:count},(_,i)=>i*info.duration),sections:Array.from({length:count},(_,i)=>({index:i,start:i*info.duration,samples:info.samples,bytes:info.bytes}))}});
   }
-  return route.fulfill({json:p==='/api/reader'?{eligible:true,account:{balance:10000}}:{}});
+  return route.fulfill({json:p==='/api/reader'?{eligible:true,account:{balance:1000000}}:{}});
  });
  await page.goto(remote||`http://127.0.0.1:${server.address().port}/`);
  await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
@@ -131,6 +131,12 @@ try{
  assert.ok(Math.abs(await page.evaluate(()=>__stagingReader.audio.duration)-43*info.duration)<.1);
  assert.equal(posts,beforeLong+2,'Seeking and full-file fallback must not regenerate speech');
  assert.deepEqual(errors,[]);
+ assert.equal(audioDownloads,0,'MP4 exports reuse section bytes rather than full audio downloads');assert.equal(captionDownloads,0,'MP4 captions reuse verified text/timing');assert.ok([...sectionReads.values()].every(n=>n===1),'Every section is retrieved once across player and encoder');
+ await page.waitForFunction(()=>document.querySelector('#offline-progress').textContent.includes('Ready for offline listening'));
+ const finalPosts=posts;await page.click('#edit-mode');await page.fill('#text','Changed source.');assert.equal(await page.evaluate(()=>__stagingReader.offlineInfo.ready),false);assert.equal(await page.evaluate(()=>__stagingReader.longReadings.assets.bytes),0);assert.equal(await page.locator('#offline-progress').isVisible(),false);assert.equal(posts,finalPosts);
+ await page.fill('#text',source.text);await page.click('#play');await page.waitForFunction(()=>__stagingReader.offlineInfo.ready);const voicePosts=posts;await page.selectOption('#voice','en-GB-Wavenet-F');assert.equal(await page.evaluate(()=>__stagingReader.offlineInfo.ready),false);assert.equal(await page.evaluate(()=>__stagingReader.longReadings.assets.bytes),0);assert.equal(await page.locator('#offline-progress').isVisible(),false);assert.equal(posts,voicePosts,'Voice changes do not synthesize automatically');
+ assert.deepEqual(errors,[]);await writeFile(folder+'/shared-assets.json',JSON.stringify({sectionReads:Object.fromEntries(sectionReads),audioDownloads,captionDownloads,textInvalidation:true,voiceInvalidation:true,codecs:['h264','aac','mov_text'],providerCalls:0,pageErrors:errors},null,2)+'\n');
+ console.log('PASS shared retention: all MP4 exports reused verified bytes/captions, no duplicate section downloads; source and voice changes clear readiness without synthesis.');
  console.log('PASS: 21,347-character normal Play split into 20,000 + 1,347; continuous playback, cross-part seek, full-file fallback, and complete 43-cue video all reused two jobs.');
  console.log('PASS: pending 6/44-section reader job reused without another admission; conversion waited for all 44 sections and captions.');
  console.log('PASS: two prepared jobs → one H.264/AAC/mov_text MP4; 60 captions; full duration; native preview, seeking, repeat download; zero provider calls.');

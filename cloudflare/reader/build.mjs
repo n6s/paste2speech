@@ -24,7 +24,7 @@ const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${mse},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
@@ -118,11 +118,12 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
 </details>
 `);
+if(mse)html=html.replace('<p id="recording-progress" class="hint" role="status"></p>','<p id="recording-progress" class="hint" role="status"></p><p id="offline-progress" class="hint" role="status" hidden></p>');
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks" hidden><summary>Staging checks</summary>
 <p>Testing mode · <a href="/">Return to the reader</a></p>
 <label><input id="mse-cached" type="checkbox" checked aria-describedby="mse-fixture-note">Use server test sample · no speech credit</label>
-<p id="mse-fixture-note" class="hint">Internet required to load. This sample is not saved for offline listening.</p>
+<p id="mse-fixture-note" class="hint">Internet required to load. Wait for offline readiness; reloading clears downloaded audio.</p>
 <label>Scenario <select id="mse-scenario"><option value="normal">Normal</option><option value="out-of-order">Out of order</option><option value="stalled">Stalled section</option><option value="failure">Failed section</option><option value="long">Long · about five minutes</option></select></label>
 <label>Requests in flight <select id="mse-concurrency"><option value="3">Three</option><option value="1">One</option></select></label>
 <details><summary>Playback results</summary><pre id="mse-diagnostics"></pre></details>

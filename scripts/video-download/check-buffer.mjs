@@ -71,7 +71,7 @@ try{
  assert.ok(await page.evaluate(()=>__stagingReader.events.some(e=>e.type==='buffer-pressure')));
  assert.ok(await page.evaluate(()=>__stagingReader.events.some(e=>e.type==='buffer-trim')));
  assert.equal(await page.evaluate(()=>__stagingReader.fatal),false);
- assert.equal(posts,2);
+ assert.equal(posts,1,'Repeating the same source after reload reuses its paid job');
  await page.reload();
  await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
  await page.locator('#mse-cached').evaluate(e=>{e.checked=false;e.dispatchEvent(new Event('change'));});
@@ -79,7 +79,7 @@ try{
  await page.evaluate(()=>{SourceBuffer.prototype.appendBuffer=function(){throw new DOMException('No room','QuotaExceededError');};});
  await page.click('#play');
  await page.waitForFunction(()=>__stagingReader.mode==='full'&&__stagingReader.audio.currentTime>0);
- assert.equal(posts,3,'Native fallback preserves the existing speech job');
+ assert.equal(posts,1,'Native fallback and same-source reload preserve the existing speech job');
  assert.equal(await page.evaluate(()=>__stagingReader.fatal),false);
  assert.deepEqual(errors,[]);
  console.log('PASS: bounded buffering, eviction, backward/forward seek, seek after EOS, and forced quota recovery without new speech jobs.');

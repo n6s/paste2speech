@@ -1,15 +1,17 @@
 import {MSE_FIXTURE_VERSION,MSE_STAGING,LONG_READINGS} from './config.js';
 import {LongReadingTransport} from './long-reading.js';
+import * as readerConfig from './config.js';
 import {MsePlayer} from './mse-buffer-player.js';
 export class StagingPlayer extends MsePlayer {
- constructor(onChange,{audio=new Audio(),fetcher}={}){
-  const transport=LONG_READINGS?new LongReadingTransport(fetcher):null;
+ constructor(onChange,{audio=new Audio(),fetcher,fullAudio=readerConfig.FULL_AUDIO_PREFETCH}={}){
+  const transport=LONG_READINGS?new LongReadingTransport(fetcher,{fullAudio}):null;
   super(audio,p=>{onChange(p,p.error||'');const button=document.getElementById('mse-fallback');if(button)button.hidden=!p.job||p.mode!=='mse';},transport?transport.fetch.bind(transport):fetcher);
-  this.longReadings=transport;this.boundedBuffer=LONG_READINGS;this.bufferAhead=90;this.bufferBehind=20;
+  this.longReadings=transport;this.boundedBuffer=LONG_READINGS;this.bufferAhead=90;this.bufferBehind=20;if(transport?.assets)transport.assets.onChange=()=>this.emit();
  }
  diagnostics(){return {...super.diagnostics(),fixtureVersion:this.settings?.cached?MSE_FIXTURE_VERSION:null,simulated:!!this.settings?.cached,configuration:this.settings?{voice:this.settings.voice,concurrency:this.settings.concurrency,cached:this.settings.cached,scenario:this.settings.scenario}:null};}
  get id(){return this.job;}get chunks(){return this.texts||[];}get starts(){return this.status?.starts||[];}
  get duration(){return this.status?.duration||0;}get complete(){return this.status?.state==='ready';}
+ get offlineInfo(){return this.longReadings?.offlineInfo(this.job,this.chunks.length)||null;}
  get providerCost(){return this.status?.providerCost||0;}get costIncomplete(){return !!this.status?.costIncomplete;}
  matches(chunks,settings){return !!this.job&&settings.voice===this.settings?.voice&&JSON.stringify(chunks)===JSON.stringify(this.chunks)&&settings.cached===this.settings?.cached&&settings.scenario===this.settings?.scenario;}
  async start(chunks,settings,index=0){
@@ -72,10 +74,11 @@ export class StagingPlayer extends MsePlayer {
  sync(){this.emit();}refresh(){if(!this.finalized&&!this.fatal)return this.pump();return Promise.resolve();}
  seekTo(time){return this.seek(time);}
  move(delta){if(!this.chunks.length)return;this.pendingIndex=Math.max(0,Math.min(this.chunks.length-1,this.index+delta));this.applyPending();}
- stop(){if(this.complete&&this.finalized){this.pendingIndex=0;this.pendingTime=0;this.resumeSectionOffset=null;this.pause();this.seek(0);this.state='idle';this.emit();}else this.invalidate();}
+ stop(){if(this.complete&&(this.finalized||this.offlineInfo?.ready)){this.pendingIndex=0;this.pendingTime=0;this.resumeSectionOffset=null;this.pause();this.seek(0);this.state='idle';this.emit();}else this.invalidate();}
  invalidate(options){this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;return super.invalidate(options);}
  release(){this.mediaActive=false;if(navigator.mediaSession){for(const name of ['play','pause','stop','seekto','seekforward','seekbackward'])try{navigator.mediaSession.setActionHandler(name,null);}catch{}navigator.mediaSession.playbackState='none';}}
- download(kind){if(this.complete&&this.getVideoPreparation()){const group=this.getVideoPreparation();return group.parts.length===1?`/api/readings/${group.session.records[0].id}/download/${kind}`:'#';}return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
+ download(kind){if(this.offlineInfo?.ready){const group=this.getVideoPreparation();if(!group||group.parts.length===1)return this.longReadings.assets.url(group?group.session.records[0].id:this.job,kind);}
+  if(this.complete&&this.getVideoPreparation()){const group=this.getVideoPreparation();return group.parts.length===1?`/api/readings/${group.session.records[0].id}/download/${kind}`:'#';}return this.complete&&this.job?new URL(`/api/readings/${this.job}/download/${kind}`,location.href).href:null;}
  getVideoPreparation(){return this.longReadings?.groups.get(this.job);}
  completedAudioURL(){return this.longReadings?.audioURL(this.job)||super.completedAudioURL();}
  useCompletedFile(){

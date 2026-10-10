@@ -1,5 +1,6 @@
 import {FFmpeg} from '@ffmpeg/ffmpeg';
-import {generatedLabel, videoArguments, joinCaptions} from './playlist-plan.js';
+import {generatedLabel, videoArguments} from './playlist-plan.js';
+import {loadPreparedMedia} from './prepared-media.js';
 
 async function get(url, signal) {
   const response = await fetch(url, {signal});
@@ -20,7 +21,7 @@ async function titleCard(label) {
   return new Uint8Array(await blob.arrayBuffer());
 }
 
-export async function exportVideo(records, {signal, update = () => {}} = {}) {
+export async function exportVideo(records, {signal, assets, update = () => {}} = {}) {
   const ffmpeg = new FFmpeg(); let wasmURL;
   const cancel = () => ffmpeg.terminate(); signal?.addEventListener('abort', cancel, {once: true});
   const check = () => signal?.throwIfAborted();
@@ -34,20 +35,8 @@ export async function exportVideo(records, {signal, update = () => {}} = {}) {
     await ffmpeg.load({classWorkerURL: new URL('/video/worker.js', location.href).href,
       coreURL: new URL('/video/ffmpeg-core.js', location.href).href, wasmURL});
     check();
-    const audio = [], captions = [], durations = []; let size = 0;
-    for (let i = 0; i < records.length; i++) {
-      check(); const r = records[i]; update(`Loading audio part ${i + 1} of ${records.length}…`);
-      if (r.state !== 'ready') throw Error('Finish preparing every audio part first.');
-      const response = await get(`/api/readings/${r.id}/download/mp3`, signal);
-      const bytes = new Uint8Array(await response.arrayBuffer()); size += bytes.length;
-      audio.push(bytes);
-      captions.push(await (await get(`/api/readings/${r.id}/download/vtt`, signal)).text());
-      durations.push(r.duration);
-    }
-    const vtt = joinCaptions(captions, durations), duration = durations.reduce((a, b) => a + b, 0);
-    const joined = new Uint8Array(size); let offset = 0;
-    for (const bytes of audio) { joined.set(bytes, offset); offset += bytes.length; }
-    audio.length = 0;
+    const {blob,vtt,duration}=await loadPreparedMedia(records,{assets,signal,update});
+    const joined=new Uint8Array(await blob.arrayBuffer());
     const label = generatedLabel();
     await ffmpeg.writeFile('audio.mp3', joined);
     await ffmpeg.writeFile('captions.vtt', new TextEncoder().encode(vtt));

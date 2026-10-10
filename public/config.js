@@ -20,3 +20,5 @@ export const LONG_READINGS = false;
 export const DOCUMENT_IMPORT = false;
 
 export const SUMMARY_ENABLED = false;
+
+export const FULL_AUDIO_PREFETCH = false;

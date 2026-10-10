@@ -47,7 +47,7 @@ try{
   assert.equal(await page.locator('#staging-checks').isVisible(),false);
   assert.equal(await page.getByText('Download recording',{exact:true}).count(),1);
   if(environment==='staging')assert.equal(await page.locator('.download-card > #video-download').count(),1);
-  const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download'].includes(c.id)).map(c=>c.outerHTML).join(''));
+  const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download','offline-progress'].includes(c.id)).map(c=>c.outerHTML).join(''));
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
   await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');await page.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.ok(Date.now()-started<1700);
   assert.equal(await page.locator('#seek').getAttribute('max'),'0');
@@ -87,14 +87,14 @@ try{
   assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).paused),true);
   assert.equal(await page.locator('#seek').getAttribute('aria-valuetext'),'Section 2 of 3');
   assert.equal(await page.locator('#mse-fallback').isVisible(),false);
-  await page.locator('#mse-fallback').evaluate(button=>button.click());await page.waitForFunction(target=>__audio.some(a=>a.src.includes('/audio')&&a.readyState>=1&&Math.abs(a.currentTime-target)<.01),sections[1].start);assert.equal(creates,1);
+  await page.locator('#mse-fallback').evaluate(button=>button.click());await page.waitForFunction(({target,source})=>__audio.some(a=>a.src!==source&&a.src&&(a.src.startsWith('blob:')||a.src.includes('/audio'))&&a.readyState>=1&&Math.abs(a.currentTime-target)<.01),{target:sections[1].start,source});const completedSource=await page.evaluate(source=>__audio.find(a=>a.src!==source&&a.src&&a.readyState>=1&&a.duration>10).src,source);assert.equal(creates,1);
   for(const speed of ['2×','0.75×','1×','1.25×','1.5×']){
    await page.click('#speed-preset');assert.equal(await page.locator('#speed-preset').textContent(),speed);
   }
   await page.locator('#seek').focus();await page.keyboard.press('ArrowLeft');
-  await page.waitForFunction(()=>__audio.some(a=>a.src.includes('/audio')&&a.currentTime===0));
+  await page.waitForFunction(src=>__audio.some(a=>a.src===src&&a.currentTime===0),completedSource);
   assert.equal(await page.locator('#seek').getAttribute('aria-valuetext'),'Section 1 of 3');
-  assert.equal(await page.evaluate(()=>__audio.find(a=>a.src.includes('/audio')).paused),true);
+  assert.equal(await page.evaluate(src=>__audio.find(a=>a.src===src).paused,completedSource),true);
   assert.ok(await page.locator('#speed-preset').isVisible());
   await page.screenshot({path:`work/shared-reader/${environment}-playback-controls.png`});
   assert.deepEqual(errors,[]);

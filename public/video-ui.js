@@ -73,6 +73,8 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
           const done = session.records.reduce((n,r,i)=>n+(r.state==='ready'?parts[i].chunks.length:Math.min(r.completed||0,parts[i].chunks.length)),0);
           message(done === total ? 'Audio complete. Preparing video…' : `Preparing complete audio… ${Math.floor(done/total*100)}%`);
         }});
+      const assets=prepared?.longReadings?.assets;
+      if(assets){session.assets=assets;session.statusChanged=(index,status)=>{const id=session.records[index].id;assets.register(id,session.parts[index].chunks,voice);assets.observe(id,status);};}
       signature = hash;
     }
     preparedText = text; preparedVoice = voice;
@@ -88,7 +90,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       if (stopRequested) return;
       controller = new AbortController();
       const {exportVideo} = await import('./video-export.js');
-      const result = await exportVideo(session.records, {signal: controller.signal, update: message});
+      const result = await exportVideo(session.records, {signal: controller.signal, assets:session.assets, update: message});
       videoURL = URL.createObjectURL(result.blob);
       captionURL = URL.createObjectURL(new Blob([result.vtt], {type:'text/vtt'}));
       const link = $('open-video'); link.href = videoURL;
