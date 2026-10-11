@@ -11,7 +11,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, RELEASE, BUILD_COMMIT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -450,7 +450,7 @@ async function pasteFromClipboard({replace=false}={}){
       setMode('edit');insertEditorText(text,range);rememberPasteSelection();pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
     }
     if(payload.hasImage){
-      $('paste-status').textContent=documentImport?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
+      $('paste-status').textContent=UNIFIED_CREDITS?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its text-scanning options. No scanning was started.':documentImport?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
       $('paste-status').hidden=false;
     }
     if (!cleaned) {
@@ -463,7 +463,7 @@ async function pasteFromClipboard({replace=false}={}){
     $('paste-status').textContent = error.message === 'empty'
       ? 'Chrome did not provide text or an image to paste. Your text and playback are unchanged. For text, switch to Edit, then long-press the text box and choose Paste on Android, or use your keyboard’s Paste command. For a saved screenshot, use Choose file.'
       : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Choose file. Your current text is unchanged.'
-      : error.message==='image-unavailable' ? 'Image OCR is unavailable here. Your current text is unchanged.'
+      : error.message==='image-unavailable' ? (UNIFIED_CREDITS?'Image text scanning is unavailable here. Your current text is unchanged.':'Image OCR is unavailable here. Your current text is unchanged.')
       : ['NotAllowedError','SecurityError'].includes(error.name)
         ? 'Chrome blocked clipboard access. Your text and playback are unchanged. Allow clipboard access if Chrome asks, or switch to Edit and use Android’s long-press Paste in the text box (keyboard Paste on desktop). For a saved screenshot, use Choose file.'
         : 'Chrome could not read the clipboard. Your text and playback are unchanged. Switch to Edit and use Android’s long-press Paste in the text box, or your keyboard’s Paste command on desktop. For a saved screenshot, use Choose file.';
@@ -617,7 +617,7 @@ if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),paste
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;disablePasteButtons(value);$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
-if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent='Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';
+if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=UNIFIED_CREDITS?'Paste inserts text without playing it. Clear, Paste & Play replaces the text and starts speech. Images open text-scanning options; nothing is uploaded until you agree. Use Choose file if your phone does not provide the image.':'Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';
 if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;

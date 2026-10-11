@@ -1,0 +1,9 @@
+/* Shipped only by the unified staging build. Keep controls usable with large text. */
+.compact-reader{overflow-wrap:anywhere}
+.compact-reader .controls{grid-template-columns:repeat(auto-fit,minmax(min(100%,5rem),1fr))}
+.compact-reader .controls button,.compact-reader .options label{min-width:0}
+.compact-reader .options{grid-template-columns:repeat(2,minmax(0,1fr))}
+.compact-reader .options input{flex-shrink:0}
+.pdf-import summary,#speech-cost-details>summary{min-height:44px}
+@media(max-width:480px){.compact-reader .options{grid-template-columns:1fr}}
+main.compact-reader header>p#shared-balance-help:not([hidden]){display:block}

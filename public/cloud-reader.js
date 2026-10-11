@@ -1,10 +1,11 @@
 import {formatCredits,sharedCredits} from './credit-units.js';
+import {balanceCapacity,SHARED_BALANCE_EXPLANATION} from './balance-capacity.js';
 // Cloudflare transport for the shared reader. Browser speech never uses this.
 const settledReadings=new Set();
 export function naturalVoiceGuidance(config){
  if(!config.account)return {message:'Sign in with a verified email to use natural voices for your own text.',link:'Sign in'};
  if(config.account.verified===false && config.accessAllowed===false)return {message:'Verify your email to use natural voices for your own text.',link:'Open your account'};
- if(sharedCredits(config.account)){if(config.account.shortfall)return {message:'Your shared credits need attention before using natural voices.',link:'Review your account'};if(!config.eligible)return {message:'Natural voices use 1 credit per 1,000 characters, counted exactly. Browser voices and Summary are free.',link:'View shared credits'};return {message:`Natural voices are ready. ${formatCredits(config.account.balance)} shared credits available. Speech uses 1 credit per 1,000 characters, counted exactly. Summary is free.`,link:'View your account'};}
+ if(sharedCredits(config.account)){if(config.account.shortfall)return {message:'Your shared balance needs attention before using paid cloud voices.',link:'Balance & usage'};if(!config.eligible)return {message:'Paid cloud voices use your shared balance. Browser voices are free.',link:'Balance & usage'};return {message:'Paid cloud voices are ready. Creating new audio uses your shared balance.',link:'Balance & usage'};}
  if(config.account.shortfall)return {message:'Your speech credit needs attention before you can use natural voices.',link:'Review your account'};
  if(config.accessAllowed===false)return {message:'Natural voices are currently unavailable for this account.',link:'Open your account'};
  if(!config.eligible)return {message:'Use natural voices for your own text with a speech pack.',link:'View speech packs'};
@@ -42,19 +43,23 @@ export async function cloudFetch(url,options={}) {
 }
 export function setupCloudReader({getEngine,getCostCharacters=()=>0}){
  let account=null;
- const estimate=document.createElement('p');estimate.id='speech-cost-estimate';estimate.className='hint';estimate.hidden=true;document.getElementById('account-summary').after(estimate);
- const updateEstimate=()=>{estimate.hidden=!sharedCredits(account)||getEngine()!=='google';if(!estimate.hidden)estimate.textContent=`This reading holds ${formatCredits(getCostCharacters())} credits for ${getCostCharacters().toLocaleString()} cleaned characters. Only successfully prepared sections use credits. Summary is free.`;};
+ const details=document.createElement('details');details.id='speech-cost-details';details.hidden=true;
+ const title=document.createElement('summary');title.textContent='This reading · cost details';
+ const estimate=document.createElement('p');estimate.id='speech-cost-estimate';estimate.className='hint';details.append(title,estimate);(document.getElementById('shared-balance-help')||document.getElementById('account-summary')).after(details);
+ const updateEstimate=()=>{details.hidden=!sharedCredits(account)||getEngine()!=='google';if(!details.hidden){const characters=getCostCharacters();estimate.textContent=`This reading holds ${formatCredits(characters)} credits for ${characters.toLocaleString()} cleaned characters. Only successfully prepared sections use credits. Creating summaries uses no credits; making paid-voice audio from a summary uses the usual speech credits.`;}};
+ const renderBalance=()=>{const summary=document.getElementById('account-summary'),help=document.getElementById('shared-balance-help');summary.textContent=account?sharedCredits(account)?balanceCapacity(account.balance):`${account.balance.toLocaleString()} characters available`:'Browser voices are free · Natural voices use speech credit';if(help){help.hidden=!sharedCredits(account);help.textContent=SHARED_BALANCE_EXPLANATION;}};
+ window.addEventListener('shared-balance-change',event=>{if(sharedCredits(account)&&sharedCredits(event.detail)){account={...account,balance:event.detail.balance,held:event.detail.held,debt:event.detail.debt};renderBalance();}});
  window.addEventListener('reading-cost-change',updateEstimate);
  const update=async()=>{
   try{
    const response=await fetch('/api/reader');if(!response.ok)throw Error();
    const config=await response.json();account=config.account;updateEstimate();
-   document.getElementById('account-summary').textContent=config.account ? sharedCredits(config.account)?`${formatCredits(config.account.balance)} shared credits available · OCR 2/page · Summary free`:`${config.account.balance.toLocaleString()} characters available` : 'Browser voices are free · Natural voices use speech credit';
+   renderBalance();
    const note=document.getElementById('upgrade-note'),guidance=naturalVoiceGuidance(config);
    const link=document.createElement('a');link.href='/api/billing';link.textContent=guidance.link;
    note.replaceChildren(document.createTextNode(guidance.message+' '),link);note.hidden=getEngine()!=='google';
   }catch{
-   account=null;updateEstimate();
+   account=null;updateEstimate();const help=document.getElementById('shared-balance-help');if(help)help.hidden=true;
    document.getElementById('account-summary').textContent='Account status unavailable · browser voices remain free';
    const note=document.getElementById('upgrade-note');note.textContent='Account status is unavailable. Free samples remain available; check your account before starting a paid reading.';note.hidden=getEngine()!=='google';
   }
