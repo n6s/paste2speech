@@ -8,15 +8,38 @@ const integer=(value,max)=>{const n=value instanceof PDFNumber?value.asNumber():
 // follows Kids. Instead, bound parsing, decompress only structural streams with
 // streaming limits, then independently walk the actual page tree. Image/content
 // streams are never decompressed or rendered for admission.
-export async function verifiedPdfPages(bytes){
- if(!(bytes instanceof Uint8Array)||bytes.length>6*1024*1024||bytes.length<16)throw Error('Invalid PDF');
+const SMALL_PDF_LIMITS={maxBytes:6*1024*1024,maxPages:10,nodes:16384,xref:4096,visited:256,timeoutMs:2000};
+export const LARGE_PDF_LIMITS=Object.freeze({maxBytes:50000000,maxPages:1000,nodes:131072,xref:16384,visited:4096,timeoutMs:10000,tokenBytes:65536,textBytes:4*1024*1024});
+export const verifiedPdfPages=bytes=>verifyPdfPages(bytes,SMALL_PDF_LIMITS);
+export const verifiedLargePdfPages=(bytes,onStats)=>verifyPdfPages(bytes,LARGE_PDF_LIMITS,onStats);
+export const largePdfAdmissionMessage=error=>pdfAdmissionMessage(error)?.replaceAll('1–10','1–1,000').replace('Split this document locally before choosing it again.','Choose a supported whole document within this limit.');
+async function verifyPdfPages(bytes,limits,onStats){
+ if(!(bytes instanceof Uint8Array)||bytes.length>limits.maxBytes||bytes.length<16)throw Error('Invalid PDF');
  const text=new TextDecoder('latin1').decode(bytes.subarray(Math.max(0,bytes.length-2048)));
  if(!/^%PDF-1\.[0-7]|^%PDF-2\.0/.test(new TextDecoder().decode(bytes.subarray(0,8)))||!/[\r\n]%%EOF\s*$/.test(text))throw new PdfAdmissionError('incomplete');
  // Parser steps count dictionary fields and integers, not just objects.
  // 16K admits ordinary outline metadata while retaining strict page/resource bounds.
- const budget={nodes:0,depth:0,inflated:0,deadline:Date.now()+2000};
- const check=()=>{if(++budget.nodes>16384||Date.now()>budget.deadline){budget.failure='complexity';throw new PdfAdmissionError('complexity');}};
- function bound(parser){const rawInt=parser.parseRawInt;if(rawInt)parser.parseRawInt=function(){check();return rawInt.call(this);};const original=parser.parseObject;parser.parseObject=function(){check();if(++budget.depth>64){budget.depth--;throw Error('PDF nesting limit');}try{return original.call(this);}finally{budget.depth--;}};return parser;}
+ const budget={nodes:0,depth:0,inflated:0,textBytes:0,deadline:Date.now()+limits.timeoutMs};
+ const check=()=>{if(++budget.nodes>limits.nodes||Date.now()>budget.deadline){budget.failure='complexity';throw new PdfAdmissionError('complexity');}};
+ function bound(parser){
+  // pdf-lib's ByteStream.slice copies every content/image stream. The large
+  // verifier is read-only, so retain bounded subarray views of its one source.
+  if(limits.tokenBytes)parser.bytes.slice=function(start,end){return this.bytes.subarray(start,end);};
+  // The large profile also bounds individual/aggregate strings before pdf-lib
+  // allocates them; a 50 MB literal is not safe merely because node count is low.
+  if(limits.tokenBytes)for(const [method,kind,max] of [['parseString','literal',limits.tokenBytes],['parseHexString','hex',limits.tokenBytes],['parseName','name',4096],['parseRawInt','number',64],['parseRawNumber','number',64]]){
+   const original=parser[method];if(!original)continue;parser[method]=function(){
+    let length=0,depth=0,escaped=false;for(;length<=max;length++){
+     const c=this.bytes.peekAhead(length);if(c===undefined)break;
+     if(kind==='literal'){if(!escaped){if(c===40)depth++;if(c===41&&--depth===0){length++;break;}}if(c===92)escaped=!escaped;else if(escaped)escaped=false;}
+     else if(kind==='hex'){if(c===62){length++;break;}}
+     else if(kind==='name'){if(length&&[0,9,10,12,13,32,40,41,60,62,91,93,123,125,47,37].includes(c))break;}
+     else if(!(c>=48&&c<=57||[43,45,46].includes(c)))break;
+    }
+    if(length>max||(budget.textBytes+=length)>limits.textBytes){budget.failure='complexity';throw new PdfAdmissionError('complexity');}return original.call(this);
+   };
+  }
+  const rawInt=parser.parseRawInt;if(rawInt)parser.parseRawInt=function(){check();return rawInt.call(this);};const original=parser.parseObject;parser.parseObject=function(){check();if(++budget.depth>64){budget.depth--;throw Error('PDF nesting limit');}try{return original.call(this);}finally{budget.depth--;}};return parser;}
  async function structuralStream(stream){
   if(stream.dict.has(name('DecodeParms')))throw Error('Unsupported structural PDF predictor');
   let filter=stream.dict.lookup(name('Filter'));if(filter instanceof PDFArray){if(filter.size()!==1)throw Error('Unsupported PDF filters');filter=filter.lookup(0);}
@@ -36,7 +59,7 @@ export async function verifiedPdfPages(bytes){
   if(object instanceof PDFRawStream){
    const type=object.dict.lookup(name('Type'));
    if(type===name('ObjStm')){
-    const count=integer(object.dict.lookup(name('N')),2048),first=integer(object.dict.lookup(name('First')),2*1024*1024);if(!count||budget.nodes+count>16384)throw Error('PDF object limit');
+    const count=integer(object.dict.lookup(name('N')),2048),first=integer(object.dict.lookup(name('First')),2*1024*1024);if(!count||budget.nodes+count>limits.nodes)throw Error('PDF object limit');
     const safe=await structuralStream(object);if(first>=safe.contents.length)throw Error('Invalid PDF object stream');
     const sub=bound(PDFObjectStreamParser.forStream(safe,this.shouldWaitForTick));
     // Validate offsets before the library parses individual object bodies.
@@ -44,8 +67,8 @@ export async function verifiedPdfPages(bytes){
     sub.bytes.moveTo(0);await sub.parseIntoContext();return ref;
    }
    if(type===name('XRef')){
-    integer(object.dict.lookup(name('Size')),4096);const widths=object.dict.lookup(name('W'));if(!(widths instanceof PDFArray)||widths.size()!==3)throw Error('Invalid PDF xref');const width=Array.from({length:3},(_,i)=>integer(widths.lookup(i),8)).reduce((a,b)=>a+b,0);if(!width)throw Error('Invalid PDF xref width');
-    const index=object.dict.lookup(name('Index'));let entries=integer(object.dict.lookup(name('Size')),4096);if(index){if(!(index instanceof PDFArray)||index.size()%2||index.size()>128)throw Error('Invalid PDF xref index');entries=0;for(let i=0;i<index.size();i+=2){integer(index.lookup(i),4096);entries+=integer(index.lookup(i+1),4096);}}if(entries>4096)throw Error('PDF xref limit');
+    integer(object.dict.lookup(name('Size')),limits.xref);const widths=object.dict.lookup(name('W'));if(!(widths instanceof PDFArray)||widths.size()!==3)throw Error('Invalid PDF xref');const width=Array.from({length:3},(_,i)=>integer(widths.lookup(i),8)).reduce((a,b)=>a+b,0);if(!width)throw Error('Invalid PDF xref width');
+    const index=object.dict.lookup(name('Index'));let entries=integer(object.dict.lookup(name('Size')),limits.xref);if(index){if(!(index instanceof PDFArray)||index.size()%2||index.size()>128)throw Error('Invalid PDF xref index');entries=0;for(let i=0;i<index.size();i+=2){integer(index.lookup(i),limits.xref);entries+=integer(index.lookup(i+1),limits.xref);}}if(entries>limits.xref)throw Error('PDF xref limit');
     const safe=await structuralStream(object);if(safe.contents.length!==entries*width)throw Error('Incomplete PDF xref');PDFXRefStreamParser.forStream(safe).parseIntoContext();return ref;
    }
   }
@@ -55,15 +78,15 @@ export async function verifiedPdfPages(bytes){
  const root=context.lookup(context.trailerInfo.Root);if(!(root instanceof PDFDict)||root.lookup(name('Type'))!==name('Catalog'))throw Error('Invalid PDF catalog');
  const seen=new Set();let visited=0;
  function walk(ref,parent,depth=0){
-  if(!(ref instanceof PDFRef)||seen.has(ref.toString())||++visited>256||depth>32)throw Error('Invalid PDF page tree');seen.add(ref.toString());
+  if(!(ref instanceof PDFRef)||seen.has(ref.toString())||++visited>limits.visited||depth>32)throw Error('Invalid PDF page tree');seen.add(ref.toString());
   const dict=context.lookup(ref);if(!(dict instanceof PDFDict))throw Error('Missing PDF page');
   if(parent&&dict.get(name('Parent'))?.toString()!==parent.toString())throw Error('Invalid PDF page parent');
   if(!parent&&dict.has(name('Parent')))throw Error('Invalid PDF page root');
   const type=dict.lookup(name('Type'));if(type===name('Page'))return 1;
   if(type!==name('Pages'))throw Error('Invalid PDF page type');
-  const kids=dict.lookup(name('Kids'));if(!(kids instanceof PDFArray)||kids.size()<1||kids.size()>10)throw Error('Invalid PDF page children');
-  let count=0;for(let i=0;i<kids.size();i++){count+=walk(kids.get(i),ref,depth+1);if(count>10)throw new PdfAdmissionError('pages');}
-  if(integer(dict.lookup(name('Count')),10)!==count)throw Error('Inconsistent PDF page count');return count;
+  const kids=dict.lookup(name('Kids'));if(!(kids instanceof PDFArray)||kids.size()<1||kids.size()>limits.maxPages)throw Error('Invalid PDF page children');
+  let count=0;for(let i=0;i<kids.size();i++){count+=walk(kids.get(i),ref,depth+1);if(count>limits.maxPages)throw new PdfAdmissionError('pages');}
+  if(integer(dict.lookup(name('Count')),limits.maxPages)!==count)throw Error('Inconsistent PDF page count');return count;
  }
- const pages=walk(root.get(name('Pages')),null);if(pages<1||pages>10)throw new PdfAdmissionError('pages');return pages;
+ const pages=walk(root.get(name('Pages')),null);if(pages<1||pages>limits.maxPages)throw new PdfAdmissionError('pages');if(typeof onStats==='function'){const buffers=new Set([bytes.buffer]);for(const [,object]of context.enumerateIndirectObjects())if(object instanceof PDFRawStream)buffers.add(object.contents.buffer);onStats({nodes:budget.nodes,textBytes:budget.textBytes,inflatedBytes:budget.inflated,pages,sourceAndRawStreamBufferCount:buffers.size,sourceAndRawStreamBufferBytes:Array.from(buffers).reduce((n,b)=>n+b.byteLength,0)});}return pages;
 }

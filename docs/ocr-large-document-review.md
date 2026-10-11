@@ -1,6 +1,6 @@
 # OCR large-document review — October 11, 2026
 
-Status: Roger approved the described staging original storage and restricted access on October 11 (“Clever. Proceed.”). The source-lifecycle component and gateway handler are now implemented and tested locally, but not wired to a job or deployed. No new resource binding, migration, larger OCR cap, paid provider call, or account upgrade has been deployed. The independently approved remembered-consent/text-export reader release retains the current 6 MiB / 10-page cloud OCR caps.
+Status: Roger approved the described staging original storage and restricted access on October 11 (“Clever. Proceed.”). The source lifecycle, large verifier, native upload proxy and additive accounting components are implemented and tested locally, but the durable provider job and recovery UI are not complete or deployed. No new resource binding, migration, larger OCR cap, paid provider call, or account upgrade has been deployed. The independently approved remembered-consent/text-export reader release retains the current 6 MiB / 10-page cloud OCR caps.
 
 ## Target and verified economics
 
@@ -127,3 +127,59 @@ smoke. Preserve the deployed Summary consent fix while these gates are built.
 Runtime references: [R2 conditional/streaming API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/),
 [native exact-length streams](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/),
 [durable alarms](https://developers.cloudflare.com/durable-objects/api/alarms/).
+
+
+## Native resource and accounting milestone
+
+`tests/ocr-large-native.mjs` now exercises local workerd with native
+`FixedLengthStream`, SQLite Durable Objects and local R2. The exact synthetic
+**50,000,000-byte / 1,000-page** supported PDF is uploaded immutably, independently
+counted, hashed, retrieved byte-for-byte once through the gateway, and deleted.
+The recorded loopback upload/verify/retrieve duration was **1,223.13 ms**, including
+**25 ms hash wall time** and **25 ms parse wall time**. Those are local wall timings,
+not Cloudflare billed CPU, production latency or Mistral throughput.
+
+The large verifier avoids pdf-lib's raw-stream copy by using read-only subarray
+views. In that maximum fixture it reports **one original/raw-stream backing buffer
+of 50,000,000 bytes**, rather than another source-size content-stream copy. It
+bounds metadata tokens before allocation (64 KiB strings, 4 KiB names, 64-byte
+numbers, 4 MiB aggregate text), 131,072 parser steps, bounded structural inflation,
+page-tree depth and a 10-second parse wall deadline. The source/hash/parse allocation
+is serialized per isolate; two concurrent 50 MB/1,000-page verifications both
+report a maximum of one active large verification allocation. This is retained
+backing-buffer/concurrency evidence, **not a measured process or phone memory
+peak**. The old verifier retains its 6 MiB/10-page policy and its existing tests.
+
+Native tests also reject byte/page excess, long literal metadata, incomplete PDF,
+and a short chunked upload without issuing provider access. Plain/compressed
+1,000-page unit cases, structural inflation bombs, false Count, parent cycles,
+duplicate definitions and missing EOF are covered separately. Rejected duplicate
+stream uploads exposed a request-lifetime issue; `ocr-upload-proxy.js` now checks
+owned metadata first, pumps through a native known-length stream and keeps the
+HTTP context alive until pumping finishes or stops. Incoming account/auth headers
+are not forwarded. Native duplicate and incomplete cases pass without an extra
+original or accepted job.
+
+`staging-migrations/0012_ocr_jobs.sql` and `ocr-job-ledger.js` are prepared locally.
+They add upload identity/one-active-owner checks, job receipts, an immutable credit
+journal and immutable provider reservations, plus refundable-hold capacity. Tests
+preserve every prior table row and account balance before exercising isolated
+fixtures. A 1,000-page fixture atomically holds **2,000 credits / 2,000,000 units**
+and reserves **800 provider cents**, settles once only with the full saved result
+and confirmed source deletion, or refunds once against debt. Cross-service holds,
+account suspension, cancellation, expiry, foreign ownership, receipt immutability
+and duplicate inline/durable processing are checked. Eight accounting tests pass.
+
+No migration has been applied remotely. The new large-job allowance table starts
+empty/disabled; existing legacy provider permits and counters remain unchanged
+unless an ordinary admitted job legitimately consumes their existing scope.
+There is no implicit 1,000-page live authority or new credit grant. These components
+still need the durable admission/alarm/dispatch protocol, bounded result persistence,
+recovery UI, changed source-storage consent and end-to-end staged verification.
+The larger limits are **not ready for user processing** at this milestone.
+
+The separately authorized five-page recipe QA used the already deployed fb74a5a
+inline path and settled 10 credits. It is independent of these local proofs;
+no duplicate or broader provider test was run here. Handwriting can contain
+material substitutions and must be compared with the original; generated export
+bytes do not establish transcription accuracy.
