@@ -49,7 +49,7 @@ removed at cancellation/hold expiry. Expired accepted output is inaccessible and
 maintenance deletes it; financial receipt metadata remains. This short recovery
 retention is included in the new consent and staged terms.
 
-Cached reopening in the same tab is free, retains edits and does not infer again.
+Cached reopening in the same tab is free, retains edits and does not infer again, including returning to Summary after loading that summary into the reader.
 Receipt replay is owner-authenticated and account scoped; no general recent-result
 UI or browser-restart recovery is promised in this change. Re-generating through
 the priced button is a fresh paid request. No inference retries occur automatically.
