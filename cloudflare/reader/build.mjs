@@ -26,7 +26,7 @@ const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${mse},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${sharedReaderFeatures},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
@@ -49,7 +49,7 @@ if(videoDownload){
  await writeFile(root+'/video/core.json',JSON.stringify({parts}));
 }
 await copyFile('public/style.css',root+'/style.css');
-if(mse)await copyFile('public/section-progress.css',root+'/section-progress.css');
+if(sharedReaderFeatures)await copyFile('public/section-progress.css',root+'/section-progress.css');
 await copyFile('public/domain-move.js',root+'/domain-move.js');
 const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
 for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
@@ -123,7 +123,7 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 `);
 if(sharedReaderFeatures)html=html.replace('<button id="paste-play"', '<button id="paste" type="button" class="quiet">Paste</button><button id="paste-play"').replace('<div class="row"><h2 id="text-title"','<div class="row text-action-row"><h2 id="text-title"');
 if(sharedReaderFeatures)html=html.replace('<p id="recording-progress" class="hint" role="status"></p>','<p id="recording-progress" class="hint" role="status"></p><p id="offline-progress" class="hint" role="status" hidden></p>');
-if(mse){
+if(sharedReaderFeatures){
  html=html.replace('</head>','<link rel="stylesheet" href="section-progress.css"></head>');
  html=html.replace('<p id="offline-progress" class="hint" role="status" hidden></p>','');
  html=html.replace('<label>Position <span id="seek-time">0 / 0</span><input id="seek" type="range" min="0" max="0" step="1" value="0" disabled></label>',`<div id="section-progress" class="section-progress" data-total="0" data-available="0" data-retained="0">
@@ -200,4 +200,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','domain-move.js',...(retailBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...(sharedReaderFeatures?['section-progress.css']:[]),'domain-move.js',...(retailBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

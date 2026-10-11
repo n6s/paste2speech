@@ -1073,3 +1073,21 @@ Focused built/hosted checks measure all three selected/focused modes at 320px,
 checkmarks, touch targets, focus outlines, native Tab/Enter order, panel visibility
 and unchanged original text. Enlarged-text coverage applies to this control rather
 than an app-wide reflow audit. Provider/account responses are synthetic.
+
+## October 11, 2026: approved progress and text-mode promotion
+
+Roger phone-tested the staging progress bar and the full Edit/Read/Summary labels,
+reported browser voices working in airplane mode, and approved production
+promotion. The public build now ships the same section progress helper and
+stylesheet, including the label sizing fix. Testing controls, fixture endpoints
+and diagnostic player exposure remain private. No wallet, provider, catalog,
+account, secret or environment configuration changes accompany this promotion.
+
+The progress stylesheet is now explicitly included in both served asset hash
+manifests. Public release gates exercise progress and text-mode behavior against
+both actual built variants, including public diagnostic exclusion. Hosted checks
+use intercepted account/provider APIs and fixture audio; no paid calls are needed.
+Text-mode checks cover three modes and three widths at 100/150/200% root text size;
+this is control-specific coverage rather than an app-wide enlarged-text audit.
+Retain the previous production Worker/version and manifest for rollback, preserving
+all account/financial history. This UI promotion does not deploy unified billing.

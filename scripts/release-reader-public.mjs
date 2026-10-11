@@ -15,6 +15,7 @@ execFileSync('npm',['run','build:reader:staging'],{stdio:'inherit'});
 execFileSync('node',['cloudflare/reader/build.mjs','--public'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:paste'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:parity'],{stdio:'inherit'});
+for(const variant of ['staging','public'])for(const check of ['check:reader:progress','check:reader:modes'])execFileSync('npm',['run',check],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant,READER_PROGRESS_OUTPUT:`work/reader-polish-promotion-2026-10-11/${variant}-progress`,READER_MODE_OUTPUT:`work/reader-polish-promotion-2026-10-11/${variant}-modes`}});
 execFileSync('npm',['run','check:reader:resume'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:recovery'],{stdio:'inherit'});
 execFileSync('node',['scripts/reader-parity/check-built-offline.mjs'],{stdio:'inherit'});
