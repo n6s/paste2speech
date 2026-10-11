@@ -40,7 +40,10 @@ try{
   await page.locator('#text').fill('');await page.locator('#text').focus();
   await page.evaluate(({html,plain})=>{const data=new DataTransfer();data.setData('text/plain',plain);data.setData('text/html',html);document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},{html:empty,plain:full});
   await page.locator('#clean-citations').setChecked(citations);await page.locator('#clean-urls').setChecked(urls);
-  assert.equal(await page.locator('#text').inputValue(),full);const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));assert.equal(preview.includes('https://www.weather.gov'),!urls);
+  assert.equal(await page.locator('#text').inputValue(),full);
+  // The labels lie at the end of this 1,000+-section source. Verify they remain
+  // reachable in the bounded reader window after every cleanup-option change.
+  await page.evaluate(()=>{const input=document.querySelector('.reading-window input');if(input){input.value=input.max;[...document.querySelectorAll('.reading-window button')].find(button=>button.textContent==='Show').click();}});const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));assert.equal(preview.includes('https://www.weather.gov'),!urls);
  }
  console.log('PASS 30,075-character dual-format paste retains exact original across URL/reference toggles.');
  const checks=await page.evaluate(async({empty,html,sentence})=>{
@@ -72,7 +75,10 @@ try{
    Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});
   },{html:empty,plain:full,order});
   await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);assert.equal(await page.evaluate(()=>window.spoken.length),1,'Explicit Paste & Play starts browser speech');
-  assert.equal(await page.locator('#text').inputValue(),full);const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));console.log('PASS Clear, Paste & Play: '+order+' retains exact 30,075-character source and both labels; mocked browser speech only.');
+  assert.equal(await page.locator('#text').inputValue(),full);
+  // The labels lie at the end of this 1,000+-section source. Verify they remain
+  // reachable in the bounded reader window after every cleanup-option change.
+  await page.evaluate(()=>{const input=document.querySelector('.reading-window input');if(input){input.value=input.max;[...document.querySelectorAll('.reading-window button')].find(button=>button.textContent==='Show').click();}});const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));console.log('PASS Clear, Paste & Play: '+order+' retains exact 30,075-character source and both labels; mocked browser speech only.');
  }
 
 
