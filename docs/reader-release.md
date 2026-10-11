@@ -1017,3 +1017,42 @@ a stale ledger over newer purchases or usage. Offline audio remains current-tab
 only with the established 64 MiB bound; reload/reopening and first-time offline
 MP4 encoder loading remain unsupported. Device acceptance is Roger-reported,
 not independently instrumented Android behavior.
+
+## October 11, 2026: staging section progress scale
+
+Roger requested one progress bar showing the full planned reading, audio actually
+saved for offline listening, and the current playback section. Staging now expands
+the section rail as soon as preparation starts. Equal section spacing does not
+estimate duration. The native seek control keeps the existing prepared-section
+limit; future sections on the rail do not enable seeking early. Its orange marker
+and thin played line remain distinct from the pale green retained-audio shading.
+Dragging previews a section without moving the actual playback line.
+
+Saved ranges come from verified MP3 bytes held by the existing shared audio store,
+including multipart offsets and gaps. Queued requests, generated sections and
+server-ready status do not count as downloaded audio. Eviction, invalid timelines,
+Clear and source/voice changes remove the corresponding shading. Complete readiness
+continues to use the existing every-section verification. Stop preserves the
+complete recording's offline status. Browser voices have no downloaded-audio claim.
+The section count and current-section cache state are available to assistive
+technology; the range retains keyboard seeking and a 46px touch target.
+
+One status below the bar covers waiting, downloaded counts, interruptions, cache
+limits and complete readiness. The duplicate prepared-count line is hidden in
+staging. Existing pause/stop, tab retention, screen-lock and credit guidance stays
+available. Retention remains current-tab memory with the existing 64 MiB limit;
+reload, tab closure or browser process eviction discards it. Background downloads
+may pause when mobile browsers suspend the tab. This UI does not add persistent
+offline reopening, change retrieval or synthesis, or alter billing.
+
+`check:reader:progress` is a staging release gate. The actual built/hosted UI uses
+real Chrome MP3 decoding and synthetic account/speech responses to verify the
+initial plan, out-of-order retained gaps, generated-but-not-downloaded state,
+interruption/reconnect, independent playback/drag markers, seek bounds and keyboard
+controls, offline seeking/pause/resume, Stop, eviction, invalid metadata,
+Clear/stale callbacks, browser voices and the completed-file fallback without MSE.
+Checks cover 390px and 320px layouts. A multipart unit test preserves missing-part
+offsets, and the existing 90-section built-reader offline gate checks both staging
+and public variants beyond the bounded playback window. No paid provider calls are
+needed. Physical Android and screen-lock acceptance remain device checks. Public
+builds exclude the new bar/style; this authorization deploys only staging.

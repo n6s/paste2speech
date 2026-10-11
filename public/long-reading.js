@@ -89,6 +89,18 @@ export class LongReadingTransport {
     const group=this.groups.get(id),ids=group?group.session.records.filter(r=>r.id).map(r=>r.id):id?[id]:[];
     return this.assets.info(ids,total);
   }
+  retainedSections(id) {
+    if(!this.assets)return [];
+    const group=this.groups.get(id),indices=[];
+    if(!group){const job=this.assets.jobs.get(id);return job&&!job.invalid?[...job.data.keys()].sort((a,b)=>a-b):[];}
+    let offset=0;
+    for(let part=0;part<group.parts.length;part++){
+      const job=this.assets.jobs.get(group.session.records[part]?.id);
+      if(job&&!job.invalid)for(const index of job.data.keys())indices.push(offset+index);
+      offset+=group.parts[part].chunks.length;
+    }
+    return indices.sort((a,b)=>a-b);
+  }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;
     group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));

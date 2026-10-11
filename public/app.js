@@ -1,4 +1,5 @@
 import {clipboardPayload} from './clipboard-payload.js';
+import {setupSectionProgress} from './section-progress.js';
 import {setupPasteDiagnostics} from './paste-diagnostics.js';
 import {setupSummary} from './summary-ui.js';
 import {setupDocumentImport} from './document-import.js';
@@ -10,7 +11,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, RELEASE, BUILD_COMMIT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -22,6 +23,7 @@ import { ProgressivePlayer } from './progressive-player.js';
 import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
+const sectionProgress=SECTION_PROGRESS?setupSectionProgress():null;
 let summaryMode=null;
 let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
@@ -290,8 +292,10 @@ function render(p, message) {
   $('playback-note').textContent = isWorkstation()
     ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours. Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
+  if(sectionProgress&&isWorkstation())$('playback-note').textContent='Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Recordings expire after 24 hours. Clear or a new reading may use speech credit.';
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
-  if($('offline-progress')){
+  if(sectionProgress)$('recording-progress').hidden=true;
+  if($('offline-progress')&&!sectionProgress){
     const info=isWorkstation()&&p.id?p.offlineInfo:null;
     $('offline-progress').hidden=!info;
     if(info)$('offline-progress').textContent=info.ready?'Ready for offline listening in this tab. Keep this page open; reloading clears downloaded audio.':info.error||`Downloading for offline listening: ${info.downloaded} / ${info.total} sections. Keep this page open; downloads may pause when your device suspends the browser.`;
@@ -311,10 +315,12 @@ function render(p, message) {
     seek.disabled=!available;
     seek.max=Math.max(0,available-1);
     if(seek.dataset.dragging!=='true')seek.value=Math.min(index,Math.max(0,available-1));
-    const total=p.state==='idle'?0:p.chunks.length;
+    const total=p.state==='idle'?0:p.chunks.length||(sectionProgress&&p.state==='preparing'?chunks.length:0);
     seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${total}`);
     const selected=seek.dataset.dragging==='true'?Number(seek.value):index;
-    $('seek-time').textContent=`${total?selected+1:0} / ${total}`;
+    $('seek-time').textContent=`${total&&(!sectionProgress||available)?selected+1:0} / ${total}`;
+    const playbackIndex=sectionProgress&&p===workstationPlayer&&p.starts.length?Math.max(0,p.starts.findLastIndex(t=>t<=(p.audio?.currentTime||0)+1/24000)):index;
+    sectionProgress?.({total,available,index:playbackIndex,natural:isWorkstation(),retained:p.retainedSections||[],info:p.id?p.offlineInfo:null,offline:navigator.onLine===false});
     $('previous-section').disabled=!available||index===0;
     $('next-section').disabled=!available||index>=available-1;
   }

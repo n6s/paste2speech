@@ -12,6 +12,7 @@ export class StagingPlayer extends MsePlayer {
  get id(){return this.job;}get chunks(){return this.texts||[];}get starts(){return this.status?.starts||[];}
  get duration(){return this.status?.duration||0;}get complete(){return this.status?.state==='ready';}
  get offlineInfo(){return this.longReadings?.offlineInfo(this.job,this.chunks.length)||null;}
+ get retainedSections(){return this.longReadings?.retainedSections(this.job)||[];}
  get providerCost(){return this.status?.providerCost||0;}get costIncomplete(){return !!this.status?.costIncomplete;}
  matches(chunks,settings){return !!this.job&&settings.voice===this.settings?.voice&&JSON.stringify(chunks)===JSON.stringify(this.chunks)&&settings.cached===this.settings?.cached&&settings.scenario===this.settings?.scenario;}
  async start(chunks,settings,index=0){
