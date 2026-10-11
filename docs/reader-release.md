@@ -109,6 +109,11 @@ migration to production. Its first statement requires a staging-only table.
 Do not rerun the original campaign installation script: it would reactivate old
 limits. Keep the historical migration for reproducing the original schema/tests.
 
+The routine JavaScript gate checks ceiling retirement, preserved history, current
+credit reservations and production isolation. Reproduce the two original ceiling
+cases explicitly with `node --test tests/historical/mse-staging-ceilings.test.js`;
+they describe the retired limits and are excluded from `tests/*.test.js`.
+
 Do not roll staging back to the pre-unification Worker after retiring the caps:
 that older code requires an active campaign. Fix forward on this shared baseline
 (or pause new live staging admissions while recovering). Never restore a ledger

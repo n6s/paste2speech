@@ -9,7 +9,8 @@ await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true}),page=await browser.newPage({viewport:{width:390,height:844}});
 const errors=[],external=[],paid=[];page.on('pageerror',error=>errors.push(error.message));
 await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.hostname!=='127.0.0.1'){external.push(url.href);return route.abort();}if(url.pathname.startsWith('/api/')){if(['/api/readings','/api/speech','/api/ocr','/api/summary'].includes(url.pathname)&&route.request().method==='POST')paid.push(url.pathname);return route.fulfill({json:url.pathname==='/api/reader'?{account:{balance:10000},accessAllowed:true,eligible:false,liveEnabled:false,voices:[]}:{available:false}});}return route.continue();});
-await page.addInitScript(()=>{window.spoken=[];const synth=new EventTarget();synth.getVoices=()=>[];synth.cancel=()=>{};synth.speak=u=>{window.spoken.push(u.text);queueMicrotask(()=>u.onend?.());};Object.defineProperty(window,'speechSynthesis',{value:synth});window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};});
+// Record speech starts; completion/chunk progression is covered by playback gates.
+await page.addInitScript(()=>{window.spoken=[];const synth=new EventTarget();synth.getVoices=()=>[];synth.cancel=()=>{};synth.speak=u=>{window.spoken.push(u.text);};Object.defineProperty(window,'speechSynthesis',{value:synth});window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};});
 
 const first='National Weather Service Grand Junction office',second='Salt Lake City forecast office';
 const sentence='For updated conditions, the most useful resources are the [National Weather Service Grand Junction office](https://www.weather.gov/gjt/?utm_source=chatgpt.com) and the [Salt Lake City forecast office](https://www.weather.gov/slc/?utm_source=chatgpt.com).';
@@ -66,11 +67,11 @@ try{
  for(const order of ['same-item','html-first','plain-first']){
   await page.locator('#edit-mode').click();
   await page.evaluate(({html,plain,order})=>{
-   const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});
+   window.spoken=[];const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});
    const items=order==='same-item'?[make(['text/html','text/plain'])]:order==='html-first'?[make(['text/html']),make(['text/plain'])]:[make(['text/plain']),make(['text/html'])];
    Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});
   },{html:empty,plain:full,order});
-  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);
+  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);assert.equal(await page.evaluate(()=>window.spoken.length),1,'Explicit Paste & Play starts browser speech');
   assert.equal(await page.locator('#text').inputValue(),full);const preview=await page.locator('#preview').textContent();assert.ok(preview.includes(first));assert.ok(preview.includes(second));console.log('PASS Clear, Paste & Play: '+order+' retains exact 30,075-character source and both labels; mocked browser speech only.');
  }
 
@@ -87,8 +88,8 @@ try{
  await page.locator('#edit-mode').click();await page.locator('#text').fill('');await page.locator('#text').focus();await page.keyboard.insertText(phonePlain);const nativePreview=await page.locator('#preview').textContent();
  for(const order of ['same-plain-first','same-html-first','split-html-first','split-plain-first']){
   await page.locator('#edit-mode').click();
-  await page.evaluate(({html,plain,order})=>{const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});const items=order==='same-plain-first'?[make(['text/plain','text/html'])]:order==='same-html-first'?[make(['text/html','text/plain'])]:order==='split-html-first'?[make(['text/html']),make(['text/plain'])]:[make(['text/plain']),make(['text/html'])];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});},{html:phoneHTML,plain:phonePlain,order});
-  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);assert.equal(await page.locator('#text').inputValue(),phonePlain);assert.equal(await page.locator('#preview').textContent(),nativePreview);console.log('PASS observed no-anchor phone shape: '+order+', intact 29,294-character source, 31,346-character HTML and keyboard-equivalent preview.');
+  await page.evaluate(({html,plain,order})=>{window.spoken=[];const make=types=>({types,getType:async type=>new Blob([type==='text/html'?html:plain],{type})});const items=order==='same-plain-first'?[make(['text/plain','text/html'])]:order==='same-html-first'?[make(['text/html','text/plain'])]:order==='split-html-first'?[make(['text/html']),make(['text/plain'])]:[make(['text/plain']),make(['text/html'])];Object.defineProperty(navigator,'clipboard',{configurable:true,value:{read:async()=>items}});},{html:phoneHTML,plain:phonePlain,order});
+  await page.locator('#paste-play').click();await page.waitForFunction(()=>!document.querySelector('#paste-play').disabled);assert.equal(await page.evaluate(()=>window.spoken.length),1,'Explicit Paste & Play starts browser speech');assert.equal(await page.locator('#text').inputValue(),phonePlain);assert.equal(await page.locator('#preview').textContent(),nativePreview);console.log('PASS observed no-anchor phone shape: '+order+', intact 29,294-character source, 31,346-character HTML and keyboard-equivalent preview.');
  }
  await page.locator('#edit-mode').click();await page.locator('#text').fill('');await page.locator('#text').focus();
  await page.evaluate(({html,plain})=>{const data=new DataTransfer();data.setData('text/html',html);data.setData('text/plain',plain);document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));},{html:phoneHTML,plain:phonePlain});assert.equal(await page.locator('#text').inputValue(),phonePlain);assert.equal(await page.locator('#preview').textContent(),nativePreview);
