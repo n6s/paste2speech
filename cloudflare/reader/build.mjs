@@ -19,12 +19,14 @@ const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?
 const configVars=JSON.parse(await readFile(configPath,'utf8')).vars;
 const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READER==='1');
 const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
+// Public promotion keeps reader features independent of staging test controls.
+const sharedReaderFeatures=mse||publicLaunch;
 const videoDownload=configVars.VIDEO_DOWNLOAD==='1';
 const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${mse},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
@@ -118,8 +120,8 @@ if(progressive)html=html.replace('<div id="recording-controls" hidden>',`<div id
 <button id="mse-fallback" hidden type="button">Use completed file · no new speech</button>
 </details>
 `);
-if(mse)html=html.replace('<button id="paste-play"', '<button id="paste" type="button" class="quiet">Paste</button><button id="paste-play"').replace('<div class="row"><h2 id="text-title"','<div class="row text-action-row"><h2 id="text-title"');
-if(mse)html=html.replace('<p id="recording-progress" class="hint" role="status"></p>','<p id="recording-progress" class="hint" role="status"></p><p id="offline-progress" class="hint" role="status" hidden></p>');
+if(sharedReaderFeatures)html=html.replace('<button id="paste-play"', '<button id="paste" type="button" class="quiet">Paste</button><button id="paste-play"').replace('<div class="row"><h2 id="text-title"','<div class="row text-action-row"><h2 id="text-title"');
+if(sharedReaderFeatures)html=html.replace('<p id="recording-progress" class="hint" role="status"></p>','<p id="recording-progress" class="hint" role="status"></p><p id="offline-progress" class="hint" role="status" hidden></p>');
 if(mse)html=html.replace('<div id="recording-controls" hidden>',`<div id="recording-controls" hidden>
 <details id="staging-checks" hidden><summary>Staging checks</summary>
 <p>Testing mode · <a href="/">Return to the reader</a></p>

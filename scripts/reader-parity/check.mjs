@@ -7,6 +7,7 @@ import assert from 'node:assert/strict';
 import {inspectMp3} from '../../cloudflare/prepared/mp3.js';
 import fixtures from '../wavenet-worker-proof/fixture.json' with {type:'json'};
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
+const publicBuild=/RELEASE\s*=\s*["']production-public["']/.test(await readFile(sites.production+'/app.js','utf8'));
 let assets;
 const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;const file=path==='/'?'index.html':path.slice(1);res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFile(`${assets}/${file}`));}catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -39,7 +40,7 @@ try{
    }
    await route.fulfill({json:data});
   });
-  await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);assert.equal(await page.locator('#paste').count(),environment==='staging'?1:0);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+  await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);assert.equal(await page.locator('#paste').count(),environment==='staging'||publicBuild?1:0);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
   assert.equal(await page.locator('#mse-delivery').inputValue(),'mse');
   assert.equal(await page.locator('#playback-options').evaluate(e=>e.open),false);
   assert.equal(await page.locator('#mse-delivery').isVisible(),false);

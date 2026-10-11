@@ -985,3 +985,35 @@ lose activation before fallback; native Paste remains the supported alternative.
 Actual device acceptance remains separate. Current-tab offline playback retains
 its prior limits; offline reload/reopening and first-time MP4 encoding are not
 promised. Production and the installed extension are not deployment targets.
+
+
+## October 11, 2026: approved public reader feature promotion
+
+Roger confirmed Android offline browser voices, Paste and Clear, Paste & Play,
+then WaveNet lock-screen and background playback, and approved production
+promotion of those tested reader features. The public build now includes the
+separate Paste action and current-tab full-reading retention. These features are
+independent of `MSE_STAGING`; testing queries, cached fixtures, diagnostics and
+private staging controls remain excluded from the public build. Existing public
+OCR, Summary, payment, Access, storage and secret configuration is unchanged.
+No new paid probes, billing terms, migrations or extension rebuild are implied.
+
+Public releases now run `check:reader:paste` against both built reader variants
+and a built-UI whole-reading offline gate. Paste checks include source, selection,
+Undo, no autoplay, rich/plain fallback, denials, stale results, mobile layout and
+public diagnostic exclusion. Offline fixtures also exercise initial API failures
+and an existing OCR retail balance: the old background balance refresh and
+playback telemetry may be attempted, but cannot block text paste/play offline.
+All clipboard/account/speech APIs in these checks are synthetic. The built-UI
+reading gate decodes cached MP3 sections in real Chrome, starts before retention
+is complete, verifies readiness, then seeks/pauses/resumes past the bounded MSE
+window with network disabled, without another synthesis job.
+
+Promote the same clean commit through the documented staging and public release
+commands. Refresh only the existing Cloudflare Access CLI session when necessary;
+preserve production credentials and bindings. Retain the previous production
+Worker/version and release manifest for a compatible code rollback. Never restore
+a stale ledger over newer purchases or usage. Offline audio remains current-tab
+only with the established 64 MiB bound; reload/reopening and first-time offline
+MP4 encoder loading remain unsupported. Device acceptance is Roger-reported,
+not independently instrumented Android behavior.

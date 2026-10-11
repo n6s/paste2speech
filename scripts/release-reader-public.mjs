@@ -13,9 +13,11 @@ if(deploy){
 execFileSync('npm',['test'],{stdio:'inherit'});
 execFileSync('npm',['run','build:reader:staging'],{stdio:'inherit'});
 execFileSync('node',['cloudflare/reader/build.mjs','--public'],{stdio:'inherit'});
+execFileSync('npm',['run','check:reader:paste'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:parity'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:resume'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:recovery'],{stdio:'inherit'});
+execFileSync('node',['scripts/reader-parity/check-built-offline.mjs'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:reload'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:documents'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:previews'],{stdio:'inherit'});

@@ -1,9 +1,9 @@
-// Built staging UI: real editor insertion/undo; synthetic clipboard and APIs.
+// Built staging/public UI: real editor insertion/undo; synthetic clipboard and APIs.
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
-const root='work/private-reader/site',out='work/paste-button-2026-10-10';await mkdir(out,{recursive:true});
+const root=process.env.READER_SITE||'work/private-reader/site',isPublic=(await readFile(root+'/app.js','utf8')).includes('RELEASE = "production-public"'),out='work/paste-promotion-2026-10-11/paste-'+(isPublic?'public':'staging');await mkdir(out,{recursive:true});
 const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname,file=path==='/'?'index.html':path.slice(1);res.setHeader('Content-Type',file.endsWith('.js')||file.endsWith('.mjs')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFile(root+'/'+file));}catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
@@ -48,6 +48,6 @@ try{
  assert.deepEqual(await page.evaluate(()=>spoken),[]);assert.equal(await page.evaluate(()=>audioStarts),0);assert.deepEqual(paid,[]);
  // The existing replacement action retains its deliberate autoplay behavior.
  await page.setViewportSize({width:390,height:844});await clipboard({plain:'Replacement speech.'});await page.locator('#paste-play').click();await settled();assert.equal(await page.locator('#text').inputValue(),'Replacement speech.');assert.deepEqual(await page.evaluate(()=>spoken),['Replacement speech.']);assert.deepEqual(paid,[]);checks.push('Clear, Paste & Play still replaces text and starts mocked browser speech');
- await page.goto(origin+'/?testing=1');assert.equal(await page.locator('#paste-check').count(),1);await page.locator('#paste-check summary').click();await page.locator('#paste-check-start').click();await page.waitForFunction(()=>JSON.parse(document.querySelector('#paste-check-report').value).versionCheck==='match');await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);checks.push('diagnostics preserved exclusively in explicit testing mode');
+ await page.goto(origin+'/?testing=1');if(isPublic){assert.equal(await page.locator('#paste-check, #staging-checks, #testing-mode-link').count(),0);checks.push('public testing query exposes no diagnostics or staging controls');}else{assert.equal(await page.locator('#paste-check').count(),1);await page.locator('#paste-check summary').click();await page.locator('#paste-check-start').click();await page.waitForFunction(()=>JSON.parse(document.querySelector('#paste-check-report').value).versionCheck==='match');await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);checks.push('diagnostics preserved exclusively in explicit staging testing mode');}
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);const release=JSON.parse(await readFile(root+'/release.json'));await writeFile(out+'/verification.json',JSON.stringify({commit:release.commit,checks,clipboard:'Synthetic; no actual clipboard read',paidPosts:paid,pageErrors:errors,externalRequests:external,providerCalls:0},null,2)+'\n');checks.forEach(x=>console.log('PASS Paste: '+x));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
