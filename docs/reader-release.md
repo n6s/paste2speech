@@ -1096,3 +1096,27 @@ Text-mode checks cover three modes and three widths at 100/150/200% root text si
 this is control-specific coverage rather than an app-wide enlarged-text audit.
 Retain the previous production Worker/version and manifest for rollback, preserving
 all account/financial history. This UI promotion does not deploy unified billing.
+
+
+### Staging one-credit Summary
+
+October 11, 2026: Roger approved 1 shared credit ($0.01 at pack face value) for an
+accepted ordinary Summary. Staging alone enables `SUMMARY_PRICE_CREDITS=1` and
+adds migration 0011 after a private backup and local restore proof. Public remains
+free until explicitly promoted. Model, input/output caps, Workers Free provider
+allowance, OCR limits, fonts, bindings and installed extension assets are unchanged.
+
+The atomic hold/preparation/acceptance flow releases failed, canceled or abandoned
+work before acceptance; completed accepted results remain charged. Separate
+immutable Summary events update the existing shared wallet. No old ledger rows or
+grants are rewritten. Generated results have private 24-hour recovery retention;
+source is not saved. New priced consent invalidates remembered free choices.
+Oversized input keeps the full source and recommends summarizing an excerpt in a
+separate reader tab, without truncation, charging or a provider call.
+
+The staging release gate includes `tests/summary-credits-browser.mjs` alongside
+existing free Summary and whole-reader checks. See `docs/summary-staging.md` for
+exact billing cutoff, race coverage, migration and rollback. No real provider call
+or payment is needed for these checks. Deployment verification must include the
+hosted price/terms pages and synthetic mobile UI, preserve public release identity,
+and avoid exposing private backup contents or credentials.

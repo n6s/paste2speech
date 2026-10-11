@@ -1,10 +1,83 @@
-# Summary on staging: Workers Free daily allowance
+# Summary: current staging price and provider allowance
 
 Roger approved the staging-only upstream daily-allowance policy and simple style
 controls on October 9, 2026. Roger approved promotion to public production on October 9, including a
 persistent AI binding and additive Summary usage tables. Public mode uses
 existing customer eligibility plus a current verified session; historical owner
-trial mode remains excluded. No plan upgrade, billing change or paid fallback is included.
+trial mode remains excluded. That original release included no plan upgrade, billing change or paid fallback. The October 11 staging price below supersedes its free customer-pricing and retention descriptions; public production retains the original free Summary behavior.
+
+## October 11, 2026: one-credit staging Summary
+
+Roger approved **1 shared credit (1,000 wallet units, $0.01 at the $10/1,000-credit
+pack face value) per successful accepted ordinary Summary**. Staging enables
+`SUMMARY_PRICE_CREDITS=1`; public production has no price flag and remains free.
+There is no new purchase SKU, subscription, refill, plan upgrade or paid AI fallback.
+The model, input/output bounds and provider allowance policy below are unchanged.
+
+The first-use button says “Summarize · 1 credit ($0.01)” and explains the hold,
+Cloudflare AI transfer, acceptance cutoff, retention and separate speech cost.
+Optional remembered one-tap consent uses `cloudflare-summary-1-credit-receipt-v1`;
+an earlier free preference cannot authorize a paid action. Choices are scoped to
+account, operation and policy. No source is sent on typing or ordinary text paste.
+
+`POST /api/summary` atomically acquires the shared provider lease, records a
+source/settings hash and reserves exactly 1,000 units from the existing wallet.
+An immutable dispatch marker precedes the single provider call. Valid output is
+saved privately, but only prepared receipt metadata is returned. The current UI
+checks the unchanged source, settings, account and price before accepting it via
+`POST /api/summary/accept`. Acceptance consumes the existing hold once and returns
+the output. Concurrent acceptance, duplicate receipts and lost settlement
+acknowledgments recover the same saved result without a second AI call or charge.
+**Acceptance is the charge cutoff:** cancellation/source changes before acceptance
+release the hold; a result already accepted remains charged and recoverable.
+Cancellation racing acceptance resolves to exactly one settle or one release.
+
+Provider failure, malformed/empty output, allowance exhaustion, uncertainty,
+pre-acceptance cancellation, account suspension, debt and abandoned prepared
+results use zero customer credits. Holds expire after 120 seconds and are released
+by the existing minute maintenance task. Refund releases reduce any wallet debt
+before creating available credit. Speech, OCR, refunds and Summary share the same
+integer balance; refundable Summary holds are included in purchase liability.
+
+Apply only `staging-migrations/0011_summary_credits.sql` to **staging** after a
+private D1 export. It adds separate `summary_credit_attempts`, immutable
+`summary_credit_events` and `summary_credit_results` tables and extends the staging
+capacity view. It does not rewrite old wallet events, grants, balances, orders or
+legacy reservations. Generated output, not source text, is stored in the result
+table for 24 hours from generation completion. Canceled/unaccepted output is
+removed at cancellation/hold expiry. Expired accepted output is inaccessible and
+maintenance deletes it; financial receipt metadata remains. This short recovery
+retention is included in the new consent and staged terms.
+
+Cached reopening in the same tab is free, retains edits and does not infer again.
+Receipt replay is owner-authenticated and account scoped; no general recent-result
+UI or browser-restart recovery is promised in this change. Re-generating through
+the priced button is a fresh paid request. No inference retries occur automatically.
+
+Oversized text is rejected **before credit reservation or AI invocation**, with
+all original text intact. Keep the full document open, copy a smaller excerpt into
+a separate reader tab, and summarize that excerpt. There is no silent prefix
+truncation, whole-book claim, recursive/chunked summary or raised input cap.
+The browser shows both actual raw UTF-8 bytes and encoded-source size.
+
+Verification: `tests/summary-credits.test.js` checks exact one-credit accounting,
+debt/refund races, cross-service holds, cancellation at each stage, lost admission/
+dispatch/settlement acknowledgments, lease contention, expiry, foreign accounts,
+immutable history and unchanged prior rows with foreign-key checks. The isolated
+`tests/summary-credits-browser.mjs` verifies priced first use, free-to-paid
+reconsent, cached edits, lost acceptance recovery, stale source/length cancellation,
+account/policy/credit checks, oversized input and 320/390px layouts. Providers and
+wallets are synthetic. Existing free Summary and whole-reader release gates remain.
+
+Rollback keeps all receipt/event tables and historical financial rows. Before
+returning to an older Worker or removing the flag, release all held/prepared
+attempts using the current cancellation/expiry implementation (or a reviewed
+`UPDATE summary_credit_attempts SET state='canceled',updated=<now>` restricted to
+those states); its triggers refund exactly once. Remove expired/abandoned output,
+then restore the prior staging `unified_capacity` view if reverting its definition.
+Do not delete journals, replay grants, rebuild wallets or restore a stale database
+backup over live payment/activity history. The migration is passive for old code
+before priced deployment. A private exported database restore is checked locally.
 
 ## Free-plan assumption and business decision
 
@@ -48,7 +121,7 @@ https://github.com/cloudflare/workerd/blob/main/src/cloudflare/internal/ai-api.t
   timed-out call may continue upstream; its request key stays recorded and lease
   stays held until settlement or its conservative 120-second expiry. No automatic
   inference retries. This is concurrency safety, not an allocation per user.
-- No source or summary stored by Summary inference in D1, R2 or localStorage.
+- In the original free/public flow, no source or summary is stored by Summary inference in D1, R2 or localStorage.
   D1 stores request keys, account IDs, timestamps and states only. Existing reader
   playback/storage follows the separate speech policy. Review model output for
   omissions or inaccuracies before use.

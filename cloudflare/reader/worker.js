@@ -1,6 +1,7 @@
 import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
 import {unifiedCheckoutStatus} from './unified-payments.js';
 import {summaryResponse} from './summary.js';
+import {summaryPriced,maintainSummaryCredits} from './summary-credits.js';
 import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {documentOcrResponse,purgeOcrCache,probeOcrAccess} from './document-ocr.js';
 import {OcrLedger} from './ocr-ledger.js';
@@ -45,7 +46,7 @@ async function asset(request,env,path){
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1')ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));await runMaintenance(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1')ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));await runMaintenance(env);await maintainSummaryCredits(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
   if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
    if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
@@ -79,7 +80,7 @@ export default {
    if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname)){if(publicMode(env)&&url.pathname==='/api/ocr'&&request.method==='POST')await rateLimit(env,'READING_LIMIT',request);return await documentOcrResponse(request,env,{token});}
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER,env),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
-   if(url.pathname==='/api/summary'||url.pathname==='/api/summary/config'){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null,{ctx});}
+   if(url.pathname==='/api/summary'||url.pathname.startsWith('/api/summary/')){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null,{ctx});}
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
     if(production(env)&&!owner)await rateLimit(env,'ACCOUNT_LIMIT',request);
@@ -89,7 +90,7 @@ export default {
     if(unifiedEnabled(env)){
      const wallet=new UnifiedWallet(env.LEDGER,env),pendingOrder=owner?await wallet.pendingOrder(owner):null;
      const serviceCapacity=await unifiedCapacity(wallet),checkout=unifiedCheckoutStatus(env,account,serviceCapacity,pendingOrder),configured=checkout.configured;
-     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:env.PADDLE_ENVIRONMENT==='sandbox',trial:false,...checkout,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
+     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:!summaryPriced(env),summaryCredits:summaryPriced(env)?1:0,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:env.PADDLE_ENVIRONMENT==='sandbox',trial:false,...checkout,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
     }
 
     let configured=false;try{paymentConfig(env);configured=env.ENABLE_PAYMENTS==='1';}catch{}

@@ -177,6 +177,8 @@ if(unifiedBuild){
  await copyFile('public/balance-capacity.css',root+'/balance-capacity.css');
  html=html.replace('</head>','<link rel="stylesheet" href="balance-capacity.css"></head>');
 }
+const pricedSummary=!production&&configVars.SUMMARY_PRICE_CREDITS==='1';
+if(pricedSummary)html=html.replaceAll('Creating summaries uses no credits','Each accepted summary uses 1 shared credit ($0.01)').replace('Using either reduces the same balance.','Using cloud voices, scanning or summaries reduces the same balance.');
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
 let billing=await readFile(unifiedBuild?'cloudflare/reader/unified-account.html':publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
@@ -187,6 +189,7 @@ if(retailBuild&&!unifiedBuild){
  billing=billing.replace(/(<p><a id="reader"[\s\S]*?<\/p>)/,'$1<nav aria-labelledby="account-contents-heading"><h2 id="account-contents-heading">On this page</h2><ul><li><a href="#account-signin">Your account</a> — Sign in to recover your credits on this device.</li><li><a href="#speech-credit">Speech credit</a> — Prepare WaveNet audio from reading text. Browser voices are free.</li><li><a href="#usage-history">Speech usage</a> — Review this month’s audio generation.</li><li><a href="#ocr-account">OCR pages</a> — Extract text from scanned PDFs and images. Buy OCR page credits and check your separate balance.</li></ul></nav>');
 }
 if(publicLaunch&&unifiedBuild)billing=billing.replaceAll('Private staging','PasteToSpeech').replace('Staging test wallet. ','');
+if(pricedSummary)billing=billing.replace('One shared balance for paid cloud voices and scanning. Using either reduces both estimates.','One shared balance for cloud voices, scanning and summaries. Summary uses 1 credit ($0.01) per accepted result.').replace('Creating summaries uses no credits.','Each accepted summary uses 1 shared credit ($0.01).').replace('Summary creation remains subject', 'Unaccepted, failed or canceled work releases its hold. Reopening a saved result uses no more credits. Accepted summaries are kept privately for 24 hours; source text is not stored. Summary creation remains subject');
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(unifiedBuild?'cloudflare/reader/unified-account.js':publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
@@ -204,6 +207,7 @@ console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?
 
 for(const page of ['terms','pricing']){
  let content=await readFile('cloudflare/reader/'+(unifiedBuild?'unified-':'')+page+'.html','utf8');
+ if(pricedSummary)content=content.replace('for paid cloud speech and scanning.','for cloud speech, scanning and summaries.').replace('approximately 18.5 hours of listening <strong>or</strong> 500 scanned pages, or a mix of both.','approximately 18.5 hours of listening <strong>or</strong> 500 scanned pages <strong>or</strong> 1,000 summaries, or a mix of these uses.').replace('create summaries for free','create summaries for 1 credit each').replace('Browser voices and summaries — free','Free browser voices · summaries 1 credit each').replace('Free browser voices and summaries','Browser voices and summaries').replaceAll('Creating summaries uses no credits','Each accepted summary uses 1 shared credit ($0.01)').replace('the Summary service does not store source or output in its ledger or object storage','source text is not stored; accepted Summary output is kept privately for 24 hours for delivery recovery and replay; unaccepted output is deleted on cancellation or hold expiry').replace('Creating paid-voice audio from a summary uses the usual speech credits.','One credit is held while Summary works; failed or canceled work before acceptance releases it. Reopening saved output uses no more credits. Oversized source is rejected without charging or silently shortening it. Creating paid-voice audio from a summary uses the usual speech credits.');
  content=content.replace('</title>','</title>'+(production?'<link rel="canonical" href="'+origin+'/'+page+'">':'<meta name="robots" content="noindex, nofollow">'));
  if(production)content=content.replace('</h1>','</h1>'+moveNotice);
  await writeFile(root+'/'+page,content);

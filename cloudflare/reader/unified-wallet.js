@@ -24,6 +24,7 @@ export class UnifiedWallet extends UsageLedger {
  async balance(account){
   const row=await this.query('SELECT balance,debt FROM unified_wallets WHERE account=?',account).first();
   const held=await this.query("SELECT COALESCE(SUM(units),0) held FROM (SELECT remaining units FROM reservations WHERE account=? AND state='open' AND wallet_version='unified-v1' UNION ALL SELECT pages*2000 units FROM ocr_attempts WHERE account=? AND state='held' AND wallet_version='unified-v1')",account,account).first();
+  if(this.env.READER_MODE==='staging'&&this.env.SUMMARY_PRICE_CREDITS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM summary_credit_attempts WHERE account=? AND state IN('held','prepared')",account).first()).held;
   return {...(row||{balance:0,debt:0}),held:held.held,unitsPerCredit:UNITS_PER_CREDIT,walletVersion:'unified-v1'};
  }
  async newOrder(account,offer){
