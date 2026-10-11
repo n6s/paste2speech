@@ -8,6 +8,14 @@ export function unifiedPaymentConfig(env){
  if([env.PADDLE_PRICE_ID,env.PADDLE_OCR_PRICE_ID].includes(config.price)||[env.PADDLE_PRODUCT_ID,env.PADDLE_OCR_PRODUCT_ID].includes(config.product))throw Error('Unified catalog must be separate');
  const {characters,...rest}=config;return {...rest,units:PACK_UNITS,walletVersion:'unified-v1'};
 }
+export function unifiedCheckoutStatus(env,account,capacity,pendingOrder){
+ let reason=null;
+ try{unifiedPaymentConfig(env);}catch{reason='catalog';}
+ if(!reason&&(env.ENABLE_UNIFIED_PAYMENTS!=='1'||env.ENABLE_PAYMENTS!=='1'))reason='paused';
+ if(!reason&&(!account?.email||account.email!==env.OWNER_EMAIL||account.enabled!==1))reason='account';
+ if(!reason&&!capacity?.available&&!pendingOrder)reason='capacity';
+ return {configured:!reason,checkoutAvailable:!reason,checkoutUnavailableReason:reason};
+}
 export function unifiedProvider(env,fetcher=fetch){const config=unifiedPaymentConfig(env),provider=paddleProvider({...env,PADDLE_PRICE_ID:config.price,PADDLE_PRODUCT_ID:config.product},fetcher);return {...provider,config};}
 export async function syncUnifiedOrder(ledger,order,provider){
  const c=provider.config;

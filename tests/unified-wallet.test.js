@@ -3,7 +3,7 @@ import test from 'node:test';import assert from 'node:assert/strict';
 import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';
 import {ReaderLedger} from '../cloudflare/reader/ledger.js';import {UsageLedger,digest} from '../cloudflare/prepared/ledger.js';
 import {UnifiedWallet,unifiedEnabled} from '../cloudflare/reader/unified-wallet.js';
-import {unifiedPaymentConfig,syncUnifiedOrder} from '../cloudflare/reader/unified-payments.js';
+import {unifiedPaymentConfig,unifiedCheckoutStatus,syncUnifiedOrder} from '../cloudflare/reader/unified-payments.js';
 import {retailDocumentOcr} from '../cloudflare/reader/document-ocr-retail.js';
 import {mistralOcrPayload} from '../cloudflare/reader/document-ocr.js';
 import {UnifiedPaymentCoordinator,PaymentCoordinator} from '../cloudflare/reader/payments-do.js';
@@ -51,3 +51,16 @@ test('refund of an unused held reading releases its whole hold back against debt
 test('a payment command failure rolls back both purchase credit and refund evidence',async()=>{const f=fixture(),p=await purchase(f);f.sql.exec("CREATE TRIGGER synthetic_failure BEFORE INSERT ON unified_payment_sync BEGIN SELECT RAISE(ABORT,'fixture'); END");await assert.rejects(syncUnifiedOrder(f.wallet,p.order,p.provider));assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM unified_grants').get().n,0);assert.equal((await f.wallet.balance('a')).balance,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM unified_payment_commands').get().n,0);});
 
 test('Summary remains free with a zero wallet and never writes financial events',async()=>{const f=fixture();Object.assign(f.env,{SUMMARY_LIVE_APPROVED:'1',SUMMARY_ALLOWANCE_MODE:'upstream-free-daily',SUMMARY_WORKERS_PLAN:'free',AI:{run:async()=>Response.json({response:'Synthetic free summary.'})}});const request=new Request('https://stage.test/api/summary',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({text:'Synthetic source.',consent:true,requestId:crypto.randomUUID()})});const response=await summaryResponse(request,f.env,{id:'a',email:f.env.OWNER_EMAIL,enabled:1,summaryVerified:true});assert.equal(response.status,200);assert.equal((await f.wallet.balance('a')).balance,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM unified_events').get().n,0);assert.deepEqual(legacy(f),[12345,17]);});
+
+test('checkout reports capacity separately from catalog, account and payment pause, while preserving pending purchase recovery',()=>{const f=fixture(),account={email:f.env.OWNER_EMAIL,enabled:1};
+ const state=(env=f.env,user=account,available=true,pending=null)=>unifiedCheckoutStatus(env,user,{available},pending);
+ assert.deepEqual(state(),{configured:true,checkoutAvailable:true,checkoutUnavailableReason:null});
+ assert.deepEqual(state(f.env,account,false),{configured:false,checkoutAvailable:false,checkoutUnavailableReason:'capacity'});
+ assert.equal(state({...f.env,PADDLE_UNIFIED_PRICE_ID:undefined},account,false).checkoutUnavailableReason,'catalog');
+ assert.equal(state({...f.env,ENABLE_UNIFIED_PAYMENTS:'0'},account,false).checkoutUnavailableReason,'paused');
+ assert.equal(state(f.env,null,false).checkoutUnavailableReason,'account');
+ assert.equal(state(f.env,{...account,enabled:0},false).checkoutUnavailableReason,'account');
+ assert.equal(state(f.env,{...account,email:'other@example.invalid'},false).checkoutUnavailableReason,'account');
+ assert.equal(state(f.env,account,false,'existing-pending-order').checkoutAvailable,true);
+ assert.equal(state({...f.env,PADDLE_UNIFIED_PRICE_ID:undefined},account,false,'pending').checkoutAvailable,false);
+});

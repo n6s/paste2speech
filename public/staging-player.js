@@ -30,7 +30,9 @@ export class StagingPlayer extends MsePlayer {
    const section=this.status.sections?.[this.pendingIndex];
    const offset=section?Math.min(this.resumeSectionOffset||0,Math.max(0,section.samples/24000-1/24000)):this.resumeSectionOffset||0;
    const target=this.resumeSectionOffset!=null?this.status.starts[this.pendingIndex]+offset:this.pendingTime??this.status.starts[this.pendingIndex];
-   if((this.mode==='full'&&this.finalized&&this.audio.readyState>=1)||this.ranges().some(([a,b])=>a<=target&&b>target)){
+   // Old buffered-audio events can arrive during the completed-file handoff.
+   // Keep the saved position pending until the new source has metadata.
+   if(this.mode==='full'?this.finalized&&this.audio.readyState>=1:this.ranges().some(([a,b])=>a<=target&&b>target)){
     this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;this.audio.currentTime=target;
     if(this.wantPlay)void this.play();
    }

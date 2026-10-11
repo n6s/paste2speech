@@ -65,3 +65,49 @@ SKU/terms, funding/capacity and the zero-opening-wallet decision with Roger, the
 obtain explicit production billing deployment approval. The current stage-only
 flag fails closed outside the staging/sandbox environment. Do not copy sandbox
 IDs, grants or credentials into production or replay historical purchases.
+
+## Sandbox end-to-end verification
+
+The official Paddle 4242 test card completed sandbox transaction
+`txn_01m4nwgddwpq9ww70zkqv65qf2`: USD 10.00 subtotal, zero tax, one-time.
+Exactly one purchase grant added 1,000 credits. Nine observed signed Paddle
+notifications processed successfully. The USD 1.00 partial refund removed 100
+credits at 16:30 UTC; the existing USD 9.00 remainder request was approved at
+16:40 UTC and removed the remaining 900 credits. Both approvals reconciled via
+background webhook before reopening billing. No refund request was repeated.
+Repeated account refreshes and remote snapshots retained exactly one grant and
+two refund events totaling 1,000 credits removed.
+
+The final wallet had 96.057 available credits, zero holds and zero debt:
+100 test credits + 1,000 purchased - 1,000 refunded - 3.943 live speech credits.
+The 3.943-credit usage comes from five separately recorded live WaveNet jobs
+between 16:29:37 and 16:30:08 UTC, with 51 successful sections and 3,943 submitted
+characters. These are billable provider requests, distinct from our cached test
+job `9c9c7658-4fad-4317-8613-524b61ee6b5a`, which has no reservation. The five jobs
+were recorded sequentially while our checks ran; the ledger does not identify
+the initiating person/client or whether they belong to one logical reading.
+Do not attribute that activity to Roger personally or to synthetic tests.
+All existing records and this additional live usage remain preserved.
+
+The hosted Chrome smoke check displayed the exact 0.004-credit estimate for
+four cleaned characters, free Summary, eight cached audio sections ready for
+offline listening, and a whole-file 2-credit/one-page OCR consent notice with
+submission disabled before consent. The old expired OCR fixture correctly
+blocked automatic retry. No live OCR or speech provider request was made by
+these smoke checks. Synthetic local accounting/browser tests cover completion,
+failure/release, uncertainty, cache replay, cross-provider contention and debt.
+
+The account status now supplies a specific unavailable-checkout reason so a
+correctly configured catalog with full processing capacity says purchases are
+temporarily paused and existing credits remain available. Catalog setup,
+account eligibility and payment pauses remain distinct; pending purchases can
+still reconcile when capacity is full. Regression tests check that the capacity
+message does not enable checkout, create an order or change a balance.
+
+A required playback parity check reproduced a completed-file handoff race: a
+late event from the old buffered audio could consume the pending saved position
+before the replacement file loaded. Full-file playback now waits for its own
+metadata before applying that position. The parity fixture deliberately sends
+an old-source pause event during the switch and verifies the saved place in both
+built variants. Only staging is deployed; production remains on its earlier
+approved UI release.

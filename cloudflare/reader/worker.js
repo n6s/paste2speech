@@ -1,5 +1,5 @@
 import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
-import {unifiedPaymentConfig} from './unified-payments.js';
+import {unifiedCheckoutStatus} from './unified-payments.js';
 import {summaryResponse} from './summary.js';
 import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {documentOcrResponse,purgeOcrCache,probeOcrAccess} from './document-ocr.js';
@@ -87,9 +87,9 @@ export default {
    }
    if(path==='/api/billing/status'&&request.method==='GET'){
     if(unifiedEnabled(env)){
-     const wallet=new UnifiedWallet(env.LEDGER);let configured=false;try{unifiedPaymentConfig(env);configured=env.ENABLE_UNIFIED_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&account?.email===env.OWNER_EMAIL&&account.enabled===1;}catch{}
-     const serviceCapacity=await unifiedCapacity(wallet);configured=configured&&(serviceCapacity.available||!!(owner&&await wallet.pendingOrder(owner)));
-     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:true,trial:false,checkoutAvailable:configured,configured,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder:owner?await wallet.pendingOrder(owner):null,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
+     const wallet=new UnifiedWallet(env.LEDGER),pendingOrder=owner?await wallet.pendingOrder(owner):null;
+     const serviceCapacity=await unifiedCapacity(wallet),checkout=unifiedCheckoutStatus(env,account,serviceCapacity,pendingOrder),configured=checkout.configured;
+     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:true,trial:false,...checkout,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
     }
 
     let configured=false;try{paymentConfig(env);configured=env.ENABLE_PAYMENTS==='1';}catch{}
