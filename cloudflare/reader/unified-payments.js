@@ -1,4 +1,4 @@
-import {unifiedEnabled,PACK_UNITS} from './unified-wallet.js';
+import {unifiedEnabled,unifiedCustomerAllowed,PACK_UNITS} from './unified-wallet.js';
 import {paymentConfig} from './modes.js';
 import {paddleProvider} from './providers.js';
 import {validPurchase,revokedCharacters} from '../prepared/payments.js';
@@ -12,14 +12,14 @@ export function unifiedCheckoutStatus(env,account,capacity,pendingOrder){
  let reason=null;
  try{unifiedPaymentConfig(env);}catch{reason='catalog';}
  if(!reason&&(env.ENABLE_UNIFIED_PAYMENTS!=='1'||env.ENABLE_PAYMENTS!=='1'))reason='paused';
- if(!reason&&(!account?.email||account.email!==env.OWNER_EMAIL||account.enabled!==1))reason='account';
+ if(!reason&&!unifiedCustomerAllowed(env,account))reason='account';
  if(!reason&&!capacity?.available&&!pendingOrder)reason='capacity';
  return {configured:!reason,checkoutAvailable:!reason,checkoutUnavailableReason:reason};
 }
 export function unifiedProvider(env,fetcher=fetch){const config=unifiedPaymentConfig(env),provider=paddleProvider({...env,PADDLE_PRICE_ID:config.price,PADDLE_PRODUCT_ID:config.product},fetcher);return {...provider,config};}
 export async function syncUnifiedOrder(ledger,order,provider){
  const c=provider.config;
- if(!c||c.environment!=='sandbox'||order.environment!==c.environment||order.price_id!==c.price||order.product_id!==c.product||order.amount!=='1000'||order.currency!=='USD'||order.units!==PACK_UNITS||order.wallet_version!=='unified-v1'||!/^txn_[a-z0-9]{26}$/.test(order.transaction_id))throw Error('Credit purchase configuration mismatch');
+ if(!c||!['sandbox','live'].includes(c.environment)||order.environment!==c.environment||order.price_id!==c.price||order.product_id!==c.product||order.amount!=='1000'||order.currency!=='USD'||order.units!==PACK_UNITS||order.wallet_version!=='unified-v1'||!/^txn_[a-z0-9]{26}$/.test(order.transaction_id))throw Error('Credit purchase configuration mismatch');
  const remote=await provider.transaction(order.transaction_id),state=remote.status;
  if(remote.id!==order.transaction_id||!['draft','ready','billed','paid','completed','canceled','past_due'].includes(state))throw Error('Invalid credit transaction');
  let revoked=0;if(state==='completed'){

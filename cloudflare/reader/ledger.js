@@ -1,11 +1,11 @@
 import {UsageLedger,CreditError,digest,sourceCounts} from '../prepared/ledger.js';
-import {UnifiedWallet,unifiedEnabled} from './unified-wallet.js';
+import {UnifiedWallet,unifiedEnabled,assertUnifiedEnvironment} from './unified-wallet.js';
 export class ReaderLedger extends UsageLedger {
- constructor(db,env={}){super(db);this.unified=unifiedEnabled(env);}
+ constructor(db,env={}){super(db);this.env=env;this.unified=unifiedEnabled(env);}
 
  async account(id){
   const account=await this.accountDetails(id);if(!account)return null;
-  if(this.unified){const w=await new UnifiedWallet(this.db).balance(id);return {...account,legacyBalance:account.balance,balance:w.balance,reserved:w.held,shortfall:w.debt,legacyPilot:false,walletVersion:w.walletVersion,unitsPerCredit:w.unitsPerCredit};}
+  if(this.unified){const w=await new UnifiedWallet(this.db,this.env).balance(id);return {...account,legacyBalance:account.balance,balance:w.balance,reserved:w.held,shortfall:w.debt,legacyPilot:false,walletVersion:w.walletVersion,unitsPerCredit:w.unitsPerCredit};}
   const pilot=await this.query('SELECT account FROM legacy_pilots WHERE account=?',id).first();
   const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open' AND metered=1",id).first();return {...account,legacyPilot:!!pilot,reserved:held.reserved};
  }
@@ -50,6 +50,7 @@ export class ReaderLedger extends UsageLedger {
   return row;
  }
  async reserveUnified(job,account,input){
+  await assertUnifiedEnvironment(this.db,this.env);
   const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
   const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:'',...(input.mseOptions?{mseOptions:input.mseOptions}:{})}));
   await this.query(`INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,created,metered,wallet_version)
@@ -62,6 +63,7 @@ export class ReaderLedger extends UsageLedger {
  async assertOpen(job,account){
   const receipt=await this.query('SELECT * FROM reservations WHERE job=? AND account=?',job,account).first();
   if(receipt?.wallet_version==='unified-v1'){
+   await assertUnifiedEnvironment(this.db,this.env);
    const row=await this.query("SELECT r.job FROM reservations r JOIN accounts a ON a.id=r.account WHERE r.job=? AND r.account=? AND r.state='open' AND a.enabled=1 AND (r.wallet_version='unified-v1' AND NOT EXISTS(SELECT 1 FROM unified_wallets WHERE account=a.id AND debt>0) OR r.wallet_version='legacy' AND NOT EXISTS(SELECT 1 FROM account_debt WHERE account=a.id AND characters>0))",job,account).first();
    if(!row)throw new CreditError('The credit reservation is no longer available.');return;
   }

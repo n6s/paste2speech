@@ -1,4 +1,4 @@
-import {unifiedEnabled} from './unified-wallet.js';
+import {unifiedEnabled,assertUnifiedEnvironment} from './unified-wallet.js';
 import {ocrRetailEnabled} from './ocr-policy.js';
 import {readBounded} from '../prepared/google.js';
 export async function verifyWebhook(request,secret,now=Date.now()){
@@ -21,7 +21,7 @@ export async function receiveWebhook(request,env,ctx){
  let event;try{event=await verifyWebhook(request,env.PADDLE_WEBHOOK_SECRET);}catch{return Response.json({detail:'Invalid webhook'}, {status:401});}
  if(event){
   if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1'){
-   try{await env.LEDGER.prepare('INSERT OR IGNORE INTO unified_webhook_events(id,transaction_id,received) VALUES(?,?,?)').bind(event.id,event.transaction,Date.now()).run();}catch{return Response.json({detail:'Retry delivery'},{status:503});}
+   try{await assertUnifiedEnvironment(env.LEDGER,env);await env.LEDGER.prepare('INSERT OR IGNORE INTO unified_webhook_events(id,transaction_id,received) VALUES(?,?,?)').bind(event.id,event.transaction,Date.now()).run();}catch{return Response.json({detail:'Retry delivery'},{status:503});}
    ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));
   }
 

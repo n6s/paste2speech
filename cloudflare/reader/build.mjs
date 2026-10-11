@@ -18,8 +18,8 @@ const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&
 const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const configVars=JSON.parse(await readFile(configPath,'utf8')).vars;
 const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READER==='1');
-const unifiedBuild=!production&&configVars.UNIFIED_CREDITS==='1';
-if(configVars.UNIFIED_CREDITS==='1'&&production)throw Error('Unified wallet build is staging-only');
+const unifiedBuild=configVars.UNIFIED_CREDITS==='1';
+if(unifiedBuild&&(production&&!publicLaunch||publicLaunch&&(configVars.UNIFIED_LIVE_APPROVED!=='1'||configVars.PADDLE_ENVIRONMENT!=='live')))throw Error('Shared wallet build environment is not approved');
 const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
 // Public promotion keeps reader features independent of staging test controls.
 const sharedReaderFeatures=mse||publicLaunch;
@@ -186,6 +186,7 @@ if(retailBuild&&!unifiedBuild){
  billing=billing.replace('<h1>Speech usage</h1>','<h1>Account &amp; credits</h1>').replace('<section><h2>Your account</h2>','<section id="account-signin" tabindex="-1"><h2>Your account</h2>').replace(/<section><h2>(WaveNet speech pack|PasteToSpeech — Speech pack)<\/h2>/,'<section id="speech-credit" tabindex="-1"><h2>Speech credit</h2>').replace('<section><h2>This month’s generation</h2>','<section id="usage-history" tabindex="-1"><h2>This month’s generation</h2>');
  billing=billing.replace(/(<p><a id="reader"[\s\S]*?<\/p>)/,'$1<nav aria-labelledby="account-contents-heading"><h2 id="account-contents-heading">On this page</h2><ul><li><a href="#account-signin">Your account</a> — Sign in to recover your credits on this device.</li><li><a href="#speech-credit">Speech credit</a> — Prepare WaveNet audio from reading text. Browser voices are free.</li><li><a href="#usage-history">Speech usage</a> — Review this month’s audio generation.</li><li><a href="#ocr-account">OCR pages</a> — Extract text from scanned PDFs and images. Buy OCR page credits and check your separate balance.</li></ul></nav>');
 }
+if(publicLaunch&&unifiedBuild)billing=billing.replaceAll('Private staging','PasteToSpeech').replace('Staging test wallet. ','');
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
 let billingJS=await readFile(unifiedBuild?'cloudflare/reader/unified-account.js':publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
@@ -202,7 +203,7 @@ if(!production)for(const list of Object.values(fixtures))for(const section of li
 console.log(publicLaunch?'Built public reader with prepaid WaveNet.':production?'Built public reader with owner-only WaveNet trial.':'Built shared reader for private Cloudflare staging.');
 
 for(const page of ['terms','pricing']){
- let content=await readFile('cloudflare/reader/'+page+'.html','utf8');
+ let content=await readFile('cloudflare/reader/'+(unifiedBuild?'unified-':'')+page+'.html','utf8');
  content=content.replace('</title>','</title>'+(production?'<link rel="canonical" href="'+origin+'/'+page+'">':'<meta name="robots" content="noindex, nofollow">'));
  if(production)content=content.replace('</h1>','</h1>'+moveNotice);
  await writeFile(root+'/'+page,content);

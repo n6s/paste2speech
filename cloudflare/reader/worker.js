@@ -87,9 +87,9 @@ export default {
    }
    if(path==='/api/billing/status'&&request.method==='GET'){
     if(unifiedEnabled(env)){
-     const wallet=new UnifiedWallet(env.LEDGER),pendingOrder=owner?await wallet.pendingOrder(owner):null;
+     const wallet=new UnifiedWallet(env.LEDGER,env),pendingOrder=owner?await wallet.pendingOrder(owner):null;
      const serviceCapacity=await unifiedCapacity(wallet),checkout=unifiedCheckoutStatus(env,account,serviceCapacity,pendingOrder),configured=checkout.configured;
-     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:true,trial:false,...checkout,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
+     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:env.PADDLE_ENVIRONMENT==='sandbox',trial:false,...checkout,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
     }
 
     let configured=false;try{paymentConfig(env);configured=env.ENABLE_PAYMENTS==='1';}catch{}
@@ -134,8 +134,8 @@ export default {
     if(path.endsWith('/order')&&(env.ENABLE_PAYMENTS!=='1'||publicMode(env)&&env.ENABLE_LIVE_SYNTHESIS!=='1'))throw new CreditError('New purchases are temporarily paused.',503);
     const input=await body(request,2048);
     if(unifiedEnabled(env)&&(!path.endsWith('/reconcile')||input.offer==='credits')){
-     if(input.offer!==undefined&&input.offer!=='credits')throw new CreditError('Choose the shared-credit pack.',422);
-     if(path.endsWith('/order')&&env.ENABLE_UNIFIED_PAYMENTS!=='1')throw new CreditError('Shared-credit checkout is awaiting sandbox catalog setup.',503);
+     if(input.offer!=='credits')throw new CreditError('Choose the shared-credit pack.',422);
+     if(path.endsWith('/order')&&env.ENABLE_UNIFIED_PAYMENTS!=='1')throw new CreditError('New shared-credit purchases are paused.',503);
      return env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
     }
     if(input.offer!==undefined&&!['speech','ocr'].includes(input.offer))throw new CreditError('Unknown offer.',422);const ocr=input.offer==='ocr';if(ocr&&(!ocrRetailEnabled(env)||!env.OCR_PAYMENTS))throw new CreditError('OCR checkout is unavailable.',503);const coordinator=ocr?env.OCR_PAYMENTS:env.PAYMENTS;return coordinator.get(coordinator.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
@@ -144,7 +144,7 @@ export default {
     if(!mseStaging(env))return json({},404);
     return json({voices:Object.fromEntries(Object.keys(fixtures).map(voice=>[voice,fixtureChunks(voice)]))});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,creditRequired:!account.legacyPilot,verified:verifiedCustomer(account),shortfall:!!account.shortfall,walletVersion:account.walletVersion,unitsPerCredit:account.unitsPerCredit}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
+   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1'&&env.PAID_ADMISSIONS_PAUSED!=='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,creditRequired:!account.legacyPilot,verified:verifiedCustomer(account),shortfall:!!account.shortfall,walletVersion:account.walletVersion,unitsPerCredit:account.unitsPerCredit}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
     if(trialMode(env)&&!approved(env,account))return json({detail:'WaveNet is available only to the verified trial owner. Browser voices remain free.'},403);
@@ -157,6 +157,7 @@ export default {
     else {
      const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
      const receipt=await ledger.receipt(id,owner);
+     if(env.PAID_ADMISSIONS_PAUSED==='1'&&!receipt)throw new CreditError('New paid work is temporarily paused. Existing readings remain available.',503);
      if(mseStaging(env)&&env.MSE_ADMISSIONS_PAUSED==='1'&&!receipt)throw new CreditError('New live staging readings are paused.',503);
      if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError(unifiedEnabled(env)?'WaveNet needs sufficient shared credits. Speech uses 1 credit per 1,000 characters, counted exactly.':trialMode(env)?'Not enough trial allowance. Browser voices remain free.':'WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
      if(env.ENABLE_LIVE_SYNTHESIS!=='1')throw new CreditError('Speech generation is disabled.',503);

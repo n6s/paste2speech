@@ -32,3 +32,9 @@ export function assertStagingPromotion(staged,expected){
  assert.equal(staged.configSHA256,expected.configSHA256,'Staging configuration differs from this release');
  assert.deepEqual(staged.assets,expected.assets,'Staging assets differ from this release');
 }
+
+// Pure preflight: preparing assets needs no live SKU; deploying the shared wallet does.
+export function assertPublicSharedCatalog(vars){
+ if(vars.UNIFIED_CREDITS!=='1')return;
+ assert.ok(vars.UNIFIED_LIVE_APPROVED==='1'&&vars.OCR_RETAIL_PROVIDER_MODE==='live'&&/^pri_[a-z0-9]{26}$/.test(vars.PADDLE_UNIFIED_PRICE_ID||'')&&/^pro_[a-z0-9]{26}$/.test(vars.PADDLE_UNIFIED_PRODUCT_ID||'')&&![vars.PADDLE_PRICE_ID,vars.PADDLE_OCR_PRICE_ID].includes(vars.PADDLE_UNIFIED_PRICE_ID)&&![vars.PADDLE_PRODUCT_ID,vars.PADDLE_OCR_PRODUCT_ID].includes(vars.PADDLE_UNIFIED_PRODUCT_ID),'Verified separate live shared-credit catalog is required');
+}

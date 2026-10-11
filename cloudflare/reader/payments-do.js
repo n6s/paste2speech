@@ -1,4 +1,4 @@
-import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
+import {UnifiedWallet,unifiedEnabled,unifiedCapacity,unifiedCustomerAllowed} from './unified-wallet.js';
 import {unifiedProvider,syncUnifiedOrder} from './unified-payments.js';
 import {ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {trialMode,publicMode,customerAllowed} from './modes.js';
@@ -126,14 +126,14 @@ export class OcrPaymentCoordinator extends PaymentCoordinator {
 }
 
 export class UnifiedPaymentCoordinator extends PaymentCoordinator {
- ledger(){return new UnifiedWallet(this.env.LEDGER);}
+ ledger(){return new UnifiedWallet(this.env.LEDGER,this.env);}
  provider(){return unifiedProvider(this.env);}
  apply(ledger,order,provider){return syncUnifiedOrder(ledger,order,provider);}
  query(ledger,sql,...args){return ledger.query(sql.replace(/\b(orders|payment_sync|webhook_events)\b/g,table=>'unified_'+table),...args);}
  async admit(ledger,account){
   const a=await ledger.account(account);
-  if(!a?.email||a.enabled!==1||a.email!==this.env.OWNER_EMAIL)return json({detail:'Verify the staging owner email before purchasing credits.'},403);
+  if(!unifiedCustomerAllowed(this.env,a))return json({detail:'Sign in with an eligible verified email before purchasing credits.'},403);
   const capacity=await unifiedCapacity(ledger);if(!capacity.available&&!await ledger.pendingOrder(account))return json({detail:'Shared-credit purchase capacity is temporarily full.'},429);
-  if(this.env.ENABLE_UNIFIED_PAYMENTS!=='1')return json({detail:'Shared-credit checkout is awaiting sandbox catalog setup.'},503);
+  if(this.env.ENABLE_UNIFIED_PAYMENTS!=='1')return json({detail:'New shared-credit purchases are paused.'},503);
  }
 }
