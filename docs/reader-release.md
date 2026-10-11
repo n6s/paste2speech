@@ -942,3 +942,46 @@ Offline audio still has f533251's current-tab-only 64 MiB retention and readines
 verification. Reload or browser process eviction discards it. The MP4 encoder
 loads on export, so first-time offline MP4 conversion is not promised. Roger's
 Android airplane-mode and lock-screen acceptance remains a separate device test.
+
+
+## October 11, 2026: staging clipboard plain-text fallback
+
+Roger approved a staging-only fallback after reporting that Android native paste
+worked offline while the two toolbar actions did not. Both buttons still prefer
+rich clipboard text and preserve the existing HTML/Markdown label conversion.
+Each action reads rich contents at most once. When that method is missing, fails
+without a denial/cancellation, or provides no usable text/image, the shared reader
+tries `readText()` once. Both methods remain subject to browser permissions and
+user activation. `NotAllowedError`, `SecurityError`, and `AbortError` stop the
+action, including errors while reading individual representations; no permission
+query, polling, repeated read or denial bypass is added. Multiple-image errors
+retain the existing file guidance. A successful image payload keeps the existing
+document options and consent flow; no new OCR scope or automatic OCR is enabled.
+
+Unsuccessful actions preserve the existing text, selection and active playback.
+Messages distinguish blocked access from empty/unavailable contents and explain
+Edit plus Android long-press Paste or desktop keyboard Paste. Successful plain
+fallback enters the usual cleanup/preview path. Paste retains cursor/selection
+insertion without autoplay; Clear, Paste & Play only replaces after retrieval.
+Existing edit/Clear/document/new-action invalidation and document busy protection
+remain. No playback, offline audio retention, Worker or environment configuration
+changes accompany this release.
+
+`check:reader:paste` includes `tests/clipboard-fallback-browser.mjs`. Isolated
+desktop Chrome goes offline after loading assets and separately covers failed
+initial account/OCR configuration requests. Synthetic rich/absent/unsupported/
+failed/empty/blank/custom/representation-error reads, plain fallback failure and
+denial, rich denial/security/cancellation, native paste, both toolbar actions,
+selection and active playback preservation, and delayed fallback edit/Clear races
+are covered. Each available method/representation is read at most once per action.
+Paste insertion and failed actions make no requests. Successful playback may
+attempt existing optional `/api/events` telemetry; it still succeeds with every
+API blocked and requires no new assets or provider calls. Fixture speech and
+clipboard are synthetic and do not touch real account data or system permissions.
+
+These checks establish the application behavior, not Pixel clipboard permission
+policy or the cause of Roger's earlier failure. Android may deny either method or
+lose activation before fallback; native Paste remains the supported alternative.
+Actual device acceptance remains separate. Current-tab offline playback retains
+its prior limits; offline reload/reopening and first-time MP4 encoding are not
+promised. Production and the installed extension are not deployment targets.

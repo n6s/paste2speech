@@ -25,3 +25,45 @@ test('separate HTML/plain clipboard items reuse the companion plain read during 
  assert.equal((await clipboardPayload({read:async()=>[html,plain]})).text,'Keep companion source');
  assert.equal(plainReads,1);assert.equal(htmlReads,1);
 });
+
+test('rich unavailable, failed or unusable reads fall back to plain text once',async()=>{
+ for(const mode of ['absent','unsupported','failed','empty','blank','unknown','representation']){
+  const calls=[];
+  const clipboard={readText:async()=>{calls.push('readText');return 'Plain fallback.';}};
+  if(mode!=='absent')clipboard.read=async()=>{
+   calls.push('read');
+   if(mode==='unsupported')throw new DOMException('Unsupported','NotSupportedError');
+   if(mode==='failed')throw new DOMException('Unavailable','DataError');
+   if(mode==='representation')return [{types:['text/plain'],getType:async()=>{throw new DOMException('Missing','NotFoundError');}}];
+   return mode==='blank'?[item('text/plain','  ')]:mode==='unknown'?[item('application/x-custom','bytes')]:[];
+  };
+  assert.equal((await clipboardPayload(clipboard)).text,'Plain fallback.');
+  assert.deepEqual(calls,mode==='absent'?['readText']:['read','readText'],mode);
+ }
+});
+test('explicit denials and cancellation stop without attempting another clipboard read',async()=>{
+ for(const name of ['NotAllowedError','SecurityError','AbortError'])for(const stage of ['read','plain','html','companion']){
+  let fallback=0;
+  const fail=async()=>{throw new DOMException('Private failure',name);};
+  const denied={types:[stage==='html'?'text/html':'text/plain'],getType:fail};
+  const clipboard={read:stage==='read'?fail:async()=>stage==='companion'?[item('text/html','<p>Text</p>'),denied]:[denied],readText:async()=>{fallback++;return 'Must not read';}};
+  await assert.rejects(clipboardPayload(clipboard),error=>error.name===name);
+  assert.equal(fallback,0,stage+' '+name);
+ }
+});
+test('rich text and image success need no readText; multiple images keep their error',async()=>{
+ let fallback=0;
+ const readText=async()=>{fallback++;throw Error('Unexpected fallback');};
+ assert.equal((await clipboardPayload({read:async()=>[item('text/plain','Rich text')],readText})).text,'Rich text');
+ assert.equal((await clipboardPayload({read:async()=>[item('image/png','bytes')],readText})).image.type,'image/png');
+ await assert.rejects(clipboardPayload({read:async()=>[item('image/png','a'),item('image/jpeg','b')],readText}),/multiple-images/);
+ assert.equal(fallback,0);
+});
+test('a failed or empty plain fallback remains unsuccessful without retries',async()=>{
+ for(const result of ['empty','denied','failed']){
+  const calls=[];
+  const promise=clipboardPayload({read:async()=>{calls.push('read');return [];},readText:async()=>{calls.push('readText');if(result==='denied')throw new DOMException('Blocked','NotAllowedError');if(result==='failed')throw Error('Unavailable');return '';}});
+  if(result==='empty')assert.equal((await promise).text,'');else await assert.rejects(promise);
+  assert.deepEqual(calls,['read','readText']);
+ }
+});

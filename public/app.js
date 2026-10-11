@@ -454,10 +454,12 @@ async function pasteFromClipboard({replace=false}={}){
     if (request !== pasteRequest) return;
     if(range&&$('text').value===previousText)$('text').setSelectionRange(range.start,range.end,range.direction);
     $('paste-status').textContent = error.message === 'empty'
-      ? 'Your browser did not provide text or an image to paste. Your current text is unchanged. Use Choose file for a saved screenshot.'
+      ? 'Chrome did not provide text or an image to paste. Your text and playback are unchanged. For text, switch to Edit, then long-press the text box and choose Paste on Android, or use your keyboard’s Paste command. For a saved screenshot, use Choose file.'
       : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Choose file. Your current text is unchanged.'
       : error.message==='image-unavailable' ? 'Image OCR is unavailable here. Your current text is unchanged.'
-      : 'Clipboard access was unavailable. Your current text is unchanged. Use Choose file for a saved screenshot, or paste text into Edit.';
+      : ['NotAllowedError','SecurityError'].includes(error.name)
+        ? 'Chrome blocked clipboard access. Your text and playback are unchanged. Allow clipboard access if Chrome asks, or switch to Edit and use Android’s long-press Paste in the text box (keyboard Paste on desktop). For a saved screenshot, use Choose file.'
+        : 'Chrome could not read the clipboard. Your text and playback are unchanged. Switch to Edit and use Android’s long-press Paste in the text box, or your keyboard’s Paste command on desktop. For a saved screenshot, use Choose file.';
     $('paste-status').hidden = false;
   } finally {
     if(activePasteRequest===request){activePasteRequest=0;disablePasteButtons(!!documentImport?.busy||$('text').readOnly);}
