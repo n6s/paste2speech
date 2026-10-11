@@ -1,6 +1,6 @@
 # OCR large-document review — October 11, 2026
 
-Status: proposed next staging phase, awaiting approval of new original-file storage. No new storage flow, resource binding, migration, larger OCR cap, paid provider call, or account upgrade has been deployed. The independently approved remembered-consent/text-export reader release retains the current 6 MiB / 10-page cloud OCR caps.
+Status: Roger approved the described staging original storage and restricted access on October 11 (“Clever. Proceed.”). The source-lifecycle component and gateway handler are now implemented and tested locally, but not wired to a job or deployed. No new resource binding, migration, larger OCR cap, paid provider call, or account upgrade has been deployed. The independently approved remembered-consent/text-export reader release retains the current 6 MiB / 10-page cloud OCR caps.
 
 ## Target and verified economics
 
@@ -78,3 +78,52 @@ Read-only source/config inspection and existing D1 aggregates on October 11 conf
 Exact application limits: 24,000 UTF-8 source bytes; 30,000 encoded-source bytes; combined message content at most 32,000 bytes; request JSON at most 150,000 bytes; one response up to 512 generated tokens / 8,000 characters and 65,536 response bytes; temperature 0.1; non-streaming; 30-second timeout. The app does not count source tokens; Cloudflare currently publishes an 80,000-token model context, distinct from these application byte limits ([official model documentation](https://developers.cloudflare.com/workers-ai/models/llama-3.2-3b-instruct/)). One D1-serialized shared in-flight request per environment (120-second uncertainty lease), one AI.run call per admission, no automatic retry, retained request keys prevent reuse. Separate environment databases do not form one account-wide concurrency lock.
 
 Existing aggregate records: production **1 done, 0 requests in the preceding 24 hours**; staging **31 done, 4 requests in the preceding 24 hours**. The read-only queries wrote zero rows. The request table stores only ID, account, creation time and admitted/done/failed/uncertain state; returned token usage and neurons are not recorded. Thus no actual per-summary token/cost average can be calculated from the current ledger. No inference was run for this check. Current free availability remains unchanged; a pricing discussion authorizes neither a model change nor wallet deductions.
+
+
+## First implementation milestone: private original source
+
+`ocr-source.js` implements metadata-only Durable Object state plus a bounded raw
+R2 upload. The original is streamed through native `FixedLengthStream`, enforcing
+exact declared size with a 50,000,000-byte ceiling and a conditional immutable
+PUT. Upload completion is confirmed by R2 size/etag before becoming eligible for
+verification. No source body or clear capability is persisted in DO state or D1.
+A server verifier must set the hash/pages, and an injected durable-dispatch check
+must authorize access; the default check denies all capability creation/access.
+This component alone does not accept an OCR job or charge credits.
+
+A 256-bit capability expires after 15 minutes, bounded by the original's hard
+one-hour lifetime from upload initialization. It permits one canonical GET for
+that immutable object. Range, HEAD, wrong token, expired/revoked source, replaced
+etag, or unauthorized dispatch cannot expose the object. The used marker is
+persisted before returning bytes; uncertain GET acknowledgement never retries.
+Revocation also stops an active stream. Original access expires at the hard hour
+even if R2 deletion needs retries. Physical cleanup is retried by alarm after a
+minute, including a cancel/late-upload race. Incomplete, excessive, disconnected,
+conditionally rejected or unconfirmed uploads cannot become accepted jobs.
+
+`ocr-source-gateway.js` is a disabled-until-configured, staging-only handler. Its
+only intended binding is the OCR-job namespace; it receives no bucket, D1,
+account/session, payment or provider-key binding. It forwards only the capability
+header to a fixed internal source-read route, never external account/cookie/auth
+headers or query parameters. Its future dedicated Worker must disable request
+observability so capability paths are not logged. No gateway Worker or binding has
+been created yet, and the existing private app Access policy remains intact.
+
+`tests/ocr-source.test.js` covers twelve lifecycle/security cases with fake R2,
+transactional metadata and no providers: size/type/owner bounds, exact immutable
+upload, early storage rejection without hanging, lost write/metadata/GET
+acknowledgments, single GET/hash-only storage, expiry, replacement, revocation of
+an active stream, deletion retry, late commit cleanup and gateway header isolation.
+Native workerd 50 MB streaming/resource proof is still required; Node's test
+transform emulates length checks and is not a Cloudflare memory/CPU measurement.
+
+Remaining integration: bounded 1,000-page server admission, staging additive job
+and wallet/provider journals preserving legacy rows, durable alarm/dispatch and
+settlement, paged/streamed complete result persistence, owner recovery UI and
+material new privacy consent. Existing provider permits still have 10-page and
+finite-cents constraints; this milestone does not widen them or authorize a paid
+smoke. Preserve the deployed Summary consent fix while these gates are built.
+
+Runtime references: [R2 conditional/streaming API](https://developers.cloudflare.com/r2/api/workers/workers-api-reference/),
+[native exact-length streams](https://developers.cloudflare.com/workers/runtime-apis/streams/transformstream/),
+[durable alarms](https://developers.cloudflare.com/durable-objects/api/alarms/).
