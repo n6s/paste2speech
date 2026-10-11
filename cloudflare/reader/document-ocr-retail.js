@@ -13,14 +13,14 @@ const acknowledged=r=>{if(r.success!==true||!Number.isSafeInteger(r.meta?.change
 export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Date.now,payload}={}){
  if(!ocrRetailEnabled(env))return reply({},404);
  const synthetic=env.OCR_RETAIL_PROVIDER_MODE==='synthetic';
- const clock=()=>typeof now==='function'?now():now,ledger=new OcrLedger(env.LEDGER);
+ const clock=()=>typeof now==='function'?now():now,ledger=new OcrLedger(env.LEDGER,env);
  const account=await ledger.query("SELECT a.id,a.enabled,i.email FROM sessions s JOIN accounts a ON a.id=s.account JOIN identities i ON i.account=a.id WHERE s.token_hash=? AND s.kind='verified' AND s.expires>? AND a.enabled=1",await digest(token||''),clock()).first();
  if(!account||publicMode(env)&&!customerAllowed(env,account)||(synthetic||ocrOwnerOnly(env))&&account.email!==env.OWNER_EMAIL)return reply({detail:'Sign in with a verified email to use OCR pages.'},403);
  const url=new URL(request.url),path=url.pathname,hash=url.searchParams.get('document_hash');if(hash&&!/^[a-f0-9]{64}$/.test(hash))return reply({detail:'Invalid document reference.'},422);
- const find=h=>ledger.find(account.id,h,OCR_MODEL),receipt=row=>({attemptId:row.id,pagesUsed:row.consumed,pagesReleased:row.released,state:row.state});
+ const find=h=>ledger.find(account.id,h,OCR_MODEL),receipt=row=>({attemptId:row.id,pagesUsed:row.consumed,pagesReleased:row.released,state:row.state,...(row.wallet_version==='unified-v1'?{creditsUsed:row.consumed*2,creditsReleased:row.released*2,walletVersion:'unified-v1'}:{})});
  const cached=async row=>{
   if(row?.state!=='ready'||row.expires<=clock())return reply({detail:'This OCR result is unfinished, uncertain or expired. No automatic retry or debit was made.',attemptId:row?.id},409);
-  try{const object=await env.AUDIO.get(row.cache_key);if(!object)throw Error();return reply({...await object.json(),p2s_ocr:{...receipt(row),pagesUsed:0,cached:true,...await ledger.balance(account.id)}});}catch{return reply({detail:'Saved OCR could not be read. No replacement request or debit was made.'},503);}
+  try{const object=await env.AUDIO.get(row.cache_key);if(!object)throw Error();return reply({...await object.json(),p2s_ocr:{...receipt(row),pagesUsed:0,creditsUsed:0,cached:true,...await ledger.balance(account.id)}});}catch{return reply({detail:'Saved OCR could not be read. No replacement request or debit was made.'},503);}
  };
  const enabled=env.ENABLE_DOCUMENT_OCR==='1'&&(synthetic||env.OCR_RETAIL_PROVIDER_MODE==='live'&&!!env.MISTRAL_API_KEY);
  if(request.method==='GET'){
@@ -31,6 +31,7 @@ export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Dat
    const status={state,attemptId:row?.id,fileName:row?.name,elapsedSeconds:row?Math.max(0,Math.floor((clock()-row.created)/1000)):undefined,retryAllowed:false,...(row?receipt(row):{}),...balance,detail:state==='ready'?`Saved OCR is ready. ${row.consumed} pages were charged; saved replay uses 0 credits.`:state==='idle'?'No OCR attempt exists for this document.':'This attempt is pending, uncertain or expired. No automatic retry is allowed. Customer holds are released after five minutes if completion remains unconfirmed.'};status.state=state;
    if(path==='/api/ocr/result')return row?cached(row):reply({detail:'No saved OCR result exists.'},404);
    if(path==='/api/ocr/status')return reply(status);
+   if(path==='/api/ocr/config'&&ledger.unified)return reply({enabled,retail:true,synthetic,model:OCR_MODEL,maxBytes:6*1024*1024,maxPages:10,balance,unitsPerPage:2000,providerAllowance:allowance?{remainingCents:allowance.cap_cents-allowance.reserved_cents,capCents:allowance.cap_cents}:null,canSubmit:enabled&&balance.debt===0&&!!budget&&budget.reserved_cents+1<=budget.cap_cents&&(synthetic||!!permit),attempt:row?status:null,costNotice:'OCR uses 2 shared credits per page when complete, validated output is saved. Failed, incomplete or entirely blank results use 0 credits. Local extraction and saved replay are free. Saved OCR expires after 24 hours; reprocessing the same expired file is currently blocked. Speech uses 1 credit per 1,000 characters, counted exactly. Summary is free.'});
    if(path==='/api/ocr/config')return reply({enabled,retail:true,synthetic,model:OCR_MODEL,maxBytes:6*1024*1024,maxPages:10,balance,providerAllowance:allowance?{remainingCents:allowance.cap_cents-allowance.reserved_cents,capCents:allowance.cap_cents}:null,canSubmit:enabled&&balance.debt===0&&!!budget&&budget.reserved_cents+1<=budget.cap_cents&&(synthetic||env.READER_MODE!=='staging'||!!permit),attempt:row?status:null,costNotice:(synthetic?'Synthetic fixture only; no file is sent to Mistral. ':'')+'One OCR credit is used for each submitted page only when the whole document produces complete, validated output that is saved privately. This includes blank pages within an otherwise successful document. Failed, incomplete or entirely blank results use 0 customer credits. Local extraction and replay of a saved result use 0 credits. Saved OCR results expire after 24 hours; processing the same file again after expiry is currently blocked. Download the text before expiry. Purchased OCR pages have no scheduled expiry. Approved refunds remove the corresponding pages; partial refunds round the removed amount up to a whole page. Credits already used become a page shortfall that a later purchase covers first. Speech credit is separate.'});
   }catch{return reply({detail:'OCR balance or status could not be confirmed. Nothing was uploaded.'},503);}
  }
@@ -49,14 +50,14 @@ export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Dat
   await ledger.expireHolds(clock());const prior=await find(h);if(prior)return cached(prior);
   if(!enabled)return reply({detail:'Cloud OCR is paused.'},503);
   const permit=synthetic?null:await providerPermit(ledger,env,account.id,h,pages);if(!synthetic&&env.READER_MODE==='staging'&&!permit)return reply({detail:'The approved provider allowance cannot cover this document. Saved results remain free; no file was sent.'},402);
-  id=crypto.randomUUID();acknowledged(await ledger.query('INSERT INTO ocr_attempts(id,account,document_hash,model,mime,pages,name,created,updated,deadline,provider_permit) VALUES(?,?,?,?,?,?,?,?,?,?,?)',id,account.id,h,OCR_MODEL,mime,pages,name,clock(),clock(),clock()+300000,permit?.id||null).run());
+  id=crypto.randomUUID();acknowledged(await ledger.query(ledger.unified?'INSERT INTO ocr_attempts(id,account,document_hash,model,mime,pages,name,created,updated,deadline,provider_permit,wallet_version) VALUES(?,?,?,?,?,?,?,?,?,?,?,?)':'INSERT INTO ocr_attempts(id,account,document_hash,model,mime,pages,name,created,updated,deadline,provider_permit) VALUES(?,?,?,?,?,?,?,?,?,?,?)',id,account.id,h,OCR_MODEL,mime,pages,name,clock(),clock(),clock()+300000,permit?.id||null,...(ledger.unified?['unified-v1']:[])).run());
  }catch{try{const prior=await find(h);if(prior)return cached(prior);}catch{}return reply({detail:'OCR credit, business capacity or admission could not be confirmed. No new provider request was made.'},402);}
  try{
   const body=payload(bytes,mime);
   // Dispatch exactly the whole-file page count independently verified before
   // any credit hold/provider reservation. Client page claims must match it.
   body.pages=Array.from({length:pages},(_,i)=>i);
-  acknowledged(await ledger.query("UPDATE ocr_attempts SET dispatched=? WHERE id=? AND state='held' AND dispatched IS NULL",clock(),id).run());
+  acknowledged(await ledger.query("UPDATE ocr_attempts SET dispatched=? WHERE id=? AND state='held' AND dispatched IS NULL"+(ledger.unified?" AND (wallet_version='legacy' OR NOT EXISTS(SELECT 1 FROM unified_wallets WHERE account=ocr_attempts.account AND debt>0))":""),clock(),id).run());
   let raw;if(synthetic)raw=syntheticOcr();else {
   const response=await fetcher('https://api.mistral.ai/v1/ocr',{method:'POST',redirect:'manual',signal:AbortSignal.timeout(90000),headers:{Authorization:'Bearer '+env.MISTRAL_API_KEY,'Content-Type':'application/json'},body:JSON.stringify(body)});
   if(!response.ok){await response.body?.cancel();throw Error();}
@@ -74,7 +75,7 @@ export async function retailDocumentOcr(request,env,{token,fetcher=fetch,now=Dat
 }
 export async function maintainRetailOcr(env,now=Date.now()){
  if(!ocrRetailEnabled(env))return;
- const ledger=new OcrLedger(env.LEDGER);await ledger.expireHolds(now);
+ const ledger=new OcrLedger(env.LEDGER,env);await ledger.expireHolds(now);
  const rows=await ledger.query('SELECT id,cache_key FROM ocr_attempts WHERE expires<=? AND cache_key IS NOT NULL LIMIT 20',now).all();
  for(const row of rows.results){await env.AUDIO.delete(row.cache_key);await ledger.query('UPDATE ocr_attempts SET cache_key=NULL WHERE id=?',row.id).run();}
 }

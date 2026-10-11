@@ -18,6 +18,8 @@ const mseProduction=process.argv.includes('--mse-production');if(mseProduction&&
 const configPath=`cloudflare/reader/wrangler.${publicLaunch?'public':production?'production':'staging'}.jsonc`;
 const configVars=JSON.parse(await readFile(configPath,'utf8')).vars;
 const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READER==='1');
+const unifiedBuild=!production&&configVars.UNIFIED_CREDITS==='1';
+if(configVars.UNIFIED_CREDITS==='1'&&production)throw Error('Unified wallet build is staging-only');
 const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
 // Public promotion keeps reader features independent of staging test controls.
 const sharedReaderFeatures=mse||publicLaunch;
@@ -168,19 +170,20 @@ if(production)html=html.replace('<title>PasteToSpeech</title>', '<title>PasteToS
 else html=html.replace('</head>','<meta name="robots" content="noindex, nofollow"></head>');
 await writeFile(root+'/robots.txt',production?'User-agent: *\nAllow: /\nDisallow: /api/\nDisallow: /billing\nDisallow: /signin\nSitemap: '+origin+'/sitemap.xml\n':'User-agent: *\nDisallow: /\n');
 if(production)await writeFile(root+'/sitemap.xml','<?xml version="1.0" encoding="UTF-8"?>\n<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">'+['/','/pricing','/terms'].map(path=>'<url><loc>'+origin+path+'</loc></url>').join('')+'</urlset>\n');
+if(unifiedBuild)html=html.replace('Speech packs pay for new WaveNet speech generation, counted by characters of text.','Shared credits pay for WaveNet and OCR. Speech uses 1 credit per 1,000 characters, counted exactly; OCR uses 2 credits per page. Summary is free.').replaceAll('Top up speech credit','Add shared credits').replace('Browser voices are free; WaveNet uses prepaid speech credit.','Browser voices and Summary are free; WaveNet and OCR use shared credits.');
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
-let billing=await readFile(publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
+let billing=await readFile(unifiedBuild?'cloudflare/reader/unified-account.html':publicLaunch?'cloudflare/reader/public-account.html':production?'cloudflare/reader/trial-account.html':'server/billing/index.html','utf8');
 billing=billing.replace('src="billing/app.js"','src="/api/billing/app.js"').replace(/<p><label><input id="mode"[\s\S]*?<\/label><\/p>/,'').replace('Pronunciation expansions cost no extra allowance.','WaveNet uses its default pronunciation.');
 if(!production)billing=billing.replace('speak.rogerpbrown.com — Speech pack','PasteToSpeech — Speech pack').replace('PADDLE.NET* SPEAKRPB','PADDLE.NET* PASTESPEAK');
-if(retailBuild){
+if(retailBuild&&!unifiedBuild){
  billing=billing.replace('<h1>Speech usage</h1>','<h1>Account &amp; credits</h1>').replace('<section><h2>Your account</h2>','<section id="account-signin" tabindex="-1"><h2>Your account</h2>').replace(/<section><h2>(WaveNet speech pack|PasteToSpeech — Speech pack)<\/h2>/,'<section id="speech-credit" tabindex="-1"><h2>Speech credit</h2>').replace('<section><h2>This month’s generation</h2>','<section id="usage-history" tabindex="-1"><h2>This month’s generation</h2>');
  billing=billing.replace(/(<p><a id="reader"[\s\S]*?<\/p>)/,'$1<nav aria-labelledby="account-contents-heading"><h2 id="account-contents-heading">On this page</h2><ul><li><a href="#account-signin">Your account</a> — Sign in to recover your credits on this device.</li><li><a href="#speech-credit">Speech credit</a> — Prepare WaveNet audio from reading text. Browser voices are free.</li><li><a href="#usage-history">Speech usage</a> — Review this month’s audio generation.</li><li><a href="#ocr-account">OCR pages</a> — Extract text from scanned PDFs and images. Buy OCR page credits and check your separate balance.</li></ul></nav>');
 }
 billing=billing.replace('</h1>','</h1>'+moveNotice);
 await writeFile(root+'/billing.html',billing);
-let billingJS=await readFile(publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
-if(retailBuild){
+let billingJS=await readFile(unifiedBuild?'cloudflare/reader/unified-account.js':publicLaunch?'cloudflare/reader/public-account.js':production?'cloudflare/reader/trial-account.js':'server/billing/app.js','utf8');billingJS="import {setupDomainMoveNotice} from '/domain-move.js';\nsetupDomainMoveNotice();\n"+billingJS;billingJS=billingJS.replace("$('mode').checked=!!s.account?.enabled;",'').replace(/^\$\('mode'\)\.onchange=.*$/m,'');
+if(retailBuild&&!unifiedBuild){
  await copyFile('public/ocr-account.js',root+'/ocr-account.js');
  billingJS="import {refreshOcr,reconcileOcr,confirmOcrPurchase} from '/ocr-account.js';\n"+billingJS;
 billingJS=billingJS.replace('return s;}','await refreshOcr(s,api);return s;}').replace("if(s.configured&&window.Paddle&&!initialized)","if((s.configured||s.ocr?.configured)&&window.Paddle&&!initialized)").replace("if(event.name==='checkout.completed'){","if(event.name==='checkout.completed'){confirmOcrPurchase(api);").replace("if(!s.configured)$('message')","if(!s.configured&&!s.ocr?.configured)$('message')").replace('async function reconcile(){','async function reconcile(){await reconcileOcr(api);').replace("await api('logout',{});","await api('logout',{});sessionStorage.removeItem('p2s.ocr.order');");
@@ -200,4 +203,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...(sharedReaderFeatures?['section-progress.css']:[]),'domain-move.js',...(retailBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css','billing.html','billing.js','signin.html','signin.js','signin.css',...(sharedReaderFeatures?['section-progress.css']:[]),'domain-move.js',...(retailBuild&&!unifiedBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

@@ -1,7 +1,10 @@
 import {UsageLedger,CreditError} from '../prepared/ledger.js';
 // Separate tables and units: no OCR method mutates speech credit.
+import {UnifiedWallet,unifiedEnabled} from './unified-wallet.js';
 export class OcrLedger extends UsageLedger {
- async balance(account){const row=await this.query('SELECT balance,debt FROM ocr_accounts WHERE account=?',account).first();const held=await this.query("SELECT COALESCE(SUM(pages),0) AS held FROM ocr_attempts WHERE account=? AND state='held'",account).first();const spent=await this.query('SELECT COUNT(*) AS spent FROM ocr_usage u JOIN ocr_attempts a ON a.id=u.attempt WHERE a.account=?',account).first();return {...(row||{balance:0,debt:0}),held:held.held,spent:spent.spent};}
+ constructor(db,env={}){super(db);this.unified=unifiedEnabled(env);}
+
+ async balance(account){if(this.unified)return new UnifiedWallet(this.db).balance(account);const row=await this.query('SELECT balance,debt FROM ocr_accounts WHERE account=?',account).first();const held=await this.query("SELECT COALESCE(SUM(pages),0) AS held FROM ocr_attempts WHERE account=? AND state='held'",account).first();const spent=await this.query('SELECT COUNT(*) AS spent FROM ocr_usage u JOIN ocr_attempts a ON a.id=u.attempt WHERE a.account=?',account).first();return {...(row||{balance:0,debt:0}),held:held.held,spent:spent.spent};}
  async newOrder(account,offer){
   await this.query("INSERT INTO ocr_orders(id,account,created,environment,price_id,product_id,amount,currency,pages) SELECT ?,?,?,?,?,?,?,?,? WHERE NOT EXISTS(SELECT 1 FROM ocr_orders WHERE account=? AND status='pending')",crypto.randomUUID(),account,new Date().toISOString(),offer.environment,offer.price,offer.product,offer.amount,offer.currency,offer.pages,account).run();
   const order=await this.query("SELECT * FROM ocr_orders WHERE account=? AND status='pending'",account).first();

@@ -25,7 +25,8 @@
     "check:reader:recovery": "node scripts/reader-parity/check-media-recovery.mjs && node scripts/reader-parity/check-status-recovery.mjs && node scripts/reader-parity/check-full-reading.mjs && node tests/playback-recovery-browser.mjs",
     "check:reader:progress": "node tests/section-progress-browser.mjs",
     "check:reader:modes": "node tests/mode-controls-browser.mjs",
-    "check:reader:paste": "node scripts/reader-parity/check-paste.mjs"
+    "check:reader:paste": "node scripts/reader-parity/check-paste.mjs",
+    "check:reader:unified": "node tests/unified-wallet-browser.mjs"
   },
   "dependencies": {
     "@ffmpeg/core": "0.12.10",

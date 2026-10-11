@@ -1,7 +1,11 @@
 import {UsageLedger,CreditError,digest,sourceCounts} from '../prepared/ledger.js';
+import {UnifiedWallet,unifiedEnabled} from './unified-wallet.js';
 export class ReaderLedger extends UsageLedger {
+ constructor(db,env={}){super(db);this.unified=unifiedEnabled(env);}
+
  async account(id){
   const account=await this.accountDetails(id);if(!account)return null;
+  if(this.unified){const w=await new UnifiedWallet(this.db).balance(id);return {...account,legacyBalance:account.balance,balance:w.balance,reserved:w.held,shortfall:w.debt,legacyPilot:false,walletVersion:w.walletVersion,unitsPerCredit:w.unitsPerCredit};}
   const pilot=await this.query('SELECT account FROM legacy_pilots WHERE account=?',id).first();
   const held=await this.query("SELECT COALESCE(SUM(remaining),0) AS reserved FROM reservations WHERE account=? AND state='open' AND metered=1",id).first();return {...account,legacyPilot:!!pilot,reserved:held.reserved};
  }
@@ -22,6 +26,7 @@ export class ReaderLedger extends UsageLedger {
   return [...rows.results,...legacy.results];
  }
  async reserve(job,account,input){
+  if(this.unified)return this.reserveUnified(job,account,input);
   const identity=await this.account(account);
   if(!identity?.legacyPilot && !await this.query('SELECT job FROM public_jobs WHERE job=?',job).first())await this.query('UPDATE accounts SET enabled=1 WHERE id=?',account).run();
   const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
@@ -44,7 +49,23 @@ export class ReaderLedger extends UsageLedger {
   if(row.fingerprint!==fingerprint)throw new CreditError('This request key belongs to a different reading.');
   return row;
  }
+ async reserveUnified(job,account,input){
+  const counts=sourceCounts(input.chunks),total=counts.reduce((a,b)=>a+b,0);
+  const fingerprint=await digest(JSON.stringify({voice:input.voice,chunks:input.chunks,mode:input.mode,scenario:'',...(input.mseOptions?{mseOptions:input.mseOptions}:{})}));
+  await this.query(`INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,created,metered,wallet_version)
+   SELECT ?,?,?,?,?,?,?,1,'unified-v1' FROM unified_wallets WHERE account=? AND debt=0 AND balance>=? AND NOT EXISTS(SELECT 1 FROM reservations WHERE job=?)`,job,account,fingerprint,JSON.stringify(counts),total,total,Date.now(),account,total,job).run();
+  const row=await this.query('SELECT * FROM reservations WHERE job=?',job).first();
+  if(!row)throw new CreditError('Not enough shared credits for this reading.',402);
+  if(row.account!==account)throw new CreditError('Reading not found.',404);
+  if(row.fingerprint!==fingerprint)throw new CreditError('This request key belongs to a different reading.');return row;
+ }
  async assertOpen(job,account){
+  const receipt=await this.query('SELECT * FROM reservations WHERE job=? AND account=?',job,account).first();
+  if(receipt?.wallet_version==='unified-v1'){
+   const row=await this.query("SELECT r.job FROM reservations r JOIN accounts a ON a.id=r.account WHERE r.job=? AND r.account=? AND r.state='open' AND a.enabled=1 AND (r.wallet_version='unified-v1' AND NOT EXISTS(SELECT 1 FROM unified_wallets WHERE account=a.id AND debt>0) OR r.wallet_version='legacy' AND NOT EXISTS(SELECT 1 FROM account_debt WHERE account=a.id AND characters>0))",job,account).first();
+   if(!row)throw new CreditError('The credit reservation is no longer available.');return;
+  }
+
   const row=await this.query("SELECT job FROM reservations WHERE job=? AND account=? AND state='open' AND (NOT EXISTS(SELECT 1 FROM public_jobs WHERE job=reservations.job) OR EXISTS(SELECT 1 FROM accounts WHERE id=reservations.account AND enabled=1)) AND NOT EXISTS(SELECT 1 FROM account_debt WHERE account=? AND characters>0)",job,account,account).first();
   if(!row)throw new CreditError('The speech reservation is no longer available.');
  }

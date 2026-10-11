@@ -29,7 +29,7 @@ export class PreparedReading {
   async settle(){
     if(this.job.settlementDone||this.cachedStage())return;
     if(!this.env.LEDGER||this.job.admission==='rejected')return;
-    const ledger=new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER);
+    const ledger=new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER,this.env);
     // Pending admission may expire/cancel before a debit, or after a committed
     // debit whose response was lost. Serialized admission prevents a late debit.
     if(this.job.admission==='pending'&&!await ledger.receipt(this.job.id,this.job.owner))return;
@@ -39,7 +39,7 @@ export class PreparedReading {
   }
   async admit(){
     if(!this.job||Date.now()>=this.job.expires||this.cachedStage()||!this.env.LEDGER||this.job.admission!=='pending'||this.job.state!=='preparing')return;
-    await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER),save:j=>this.save(j),afterReserve:async()=>{
+    await admitJob(this.job,{ledger:new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER,this.env),save:j=>this.save(j),afterReserve:async()=>{
       if(this.job.proofAdmissionFault==='after-reserve'){
         this.job.proofAdmissionFault='';await this.save(this.job);
         throw Error('Synthetic lost reservation response');
@@ -108,12 +108,12 @@ export class PreparedReading {
           this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
         token=this.googleAuthorization.token;
       }
-      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:progressiveReader(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:progressiveReader(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER,this.env).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live'){
             if(this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Synthesis paused');
             if(publicMode(this.env)){
-              if(!customerAllowed(this.env,await new ReaderLedger(this.env.LEDGER).account(job.owner)))throw Error('Account disabled');
+              if(!customerAllowed(this.env,await new ReaderLedger(this.env.LEDGER,this.env).account(job.owner)))throw Error('Account disabled');
               await dispatchBudget(this.env.LEDGER,job.id,index,text);
             }
             return synthesize(text,voice,token);
@@ -162,7 +162,7 @@ export class PreparedReading {
       if(!meta){return json({done:true,state:'empty'});}
       if(!meta.id||!/^[a-f0-9-]{36}$/.test(meta.id))return json({done:false,attention:true,code:'invalid_job_id'});
       if(this.env.LEDGER){
-        const ledger=new ReaderLedger(this.env.LEDGER),receipt=await ledger.receipt(meta.id,meta.owner);
+        const ledger=new ReaderLedger(this.env.LEDGER,this.env),receipt=await ledger.receipt(meta.id,meta.owner);
         if(receipt?.state==='open'){
           await this.load();
           if(this.job.parts.some(part=>part.state==='submitting'))return json({done:false,attention:true,code:'uncertain_speech'});
@@ -195,7 +195,7 @@ export class PreparedReading {
         if(Date.now()>=this.job.expires)return json({detail:'Reading expired'},410);
         // Only an unpaid, untouched credit rejection may re-enter admission.
         // Matching owner/body and expiry were checked above; the same ID is reused.
-        if(this.env.LEDGER&&this.job.state==='failed'&&this.job.admission==='rejected'&&this.job.errorStatus===402&&!this.job.attempts&&!this.job.submittedCharacters&&this.job.parts.every(part=>part.state==='pending')&&!await new UsageLedger(this.env.LEDGER).receipt(this.job.id,owner)){
+        if(this.env.LEDGER&&this.job.state==='failed'&&this.job.admission==='rejected'&&this.job.errorStatus===402&&!this.job.attempts&&!this.job.submittedCharacters&&this.job.parts.every(part=>part.state==='pending')&&!await new UsageLedger(this.env.LEDGER,this.env).receipt(this.job.id,owner)){
           this.job.admission='pending';this.job.state='preparing';this.job.error='';this.job.settlementDone=false;
           await this.save(this.job,Date.now()+1);
         }

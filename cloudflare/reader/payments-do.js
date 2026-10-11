@@ -1,3 +1,5 @@
+import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
+import {unifiedProvider,syncUnifiedOrder} from './unified-payments.js';
 import {ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {trialMode,publicMode,customerAllowed} from './modes.js';
 import {capacity} from './budget.js';
@@ -40,6 +42,7 @@ export class PaymentCoordinator {
   if(current===null||current>due)await this.ctx.storage.setAlarm(due);
  }
  async alarm(){
+  if(this.constructor===PaymentCoordinator&&await this.ctx.storage.get?.('wallet_kind')==='unified-v1')return this.unifiedCoordinator().alarm();
   if(this.env.BACKGROUND_WORK_PAUSED==='1'){await this.ctx.storage.setAlarm(Date.now()+86400000);return;}
   if(trialMode(this.env)||this.env.LOCAL_READER==='1')return;
   if((await this.ctx.storage.get?.('payment_recovery')||0)>=5)return;
@@ -76,7 +79,9 @@ export class PaymentCoordinator {
    }
   });
  }
+ unifiedCoordinator(){return this.unifiedDelegate ||= new UnifiedPaymentCoordinator(this.ctx,this.env);}
  async fetch(request){
+  if(this.constructor===PaymentCoordinator&&new URL(request.url).pathname==='/unified'){if(!unifiedEnabled(this.env))return json({},404);await this.ctx.storage.put('wallet_kind','unified-v1');return this.unifiedCoordinator().fetch(new Request('https://payments/',request));}
   if(this.env.BACKGROUND_WORK_PAUSED==='1')return json({detail:'Payments are temporarily paused for maintenance.'},503);
   return this.serial(async()=>{
   try{
@@ -117,5 +122,18 @@ export class OcrPaymentCoordinator extends PaymentCoordinator {
   if(!session?.email||session.enabled!==1||publicMode(this.env)&&!customerAllowed(this.env,session)||(this.env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||ocrOwnerOnly(this.env))&&session.email!==this.env.OWNER_EMAIL)return json({detail:'Verify your email before purchasing OCR pages.'},403);
   if(this.env.ENABLE_OCR_PAYMENTS!=='1'||this.env.ENABLE_DOCUMENT_OCR!=='1'||!(this.env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||this.env.OCR_RETAIL_PROVIDER_MODE==='live'&&this.env.MISTRAL_API_KEY))return json({detail:'OCR purchases are paused.'},503);
   const b=await ocrCapacity(ledger);if(!b.available&&!await ledger.pendingOrder(account))return json({detail:'OCR capacity is temporarily full.'},429);
+ }
+}
+
+export class UnifiedPaymentCoordinator extends PaymentCoordinator {
+ ledger(){return new UnifiedWallet(this.env.LEDGER);}
+ provider(){return unifiedProvider(this.env);}
+ apply(ledger,order,provider){return syncUnifiedOrder(ledger,order,provider);}
+ query(ledger,sql,...args){return ledger.query(sql.replace(/\b(orders|payment_sync|webhook_events)\b/g,table=>'unified_'+table),...args);}
+ async admit(ledger,account){
+  const a=await ledger.account(account);
+  if(!a?.email||a.enabled!==1||a.email!==this.env.OWNER_EMAIL)return json({detail:'Verify the staging owner email before purchasing credits.'},403);
+  const capacity=await unifiedCapacity(ledger);if(!capacity.available&&!await ledger.pendingOrder(account))return json({detail:'Shared-credit purchase capacity is temporarily full.'},429);
+  if(this.env.ENABLE_UNIFIED_PAYMENTS!=='1')return json({detail:'Shared-credit checkout is awaiting sandbox catalog setup.'},503);
  }
 }

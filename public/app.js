@@ -195,6 +195,7 @@ function preview() {
   const characters = readingCharacters($('text').value, chunks);
   $('character-savings').hidden = !characters.before;
   $('character-savings').textContent = characters.before ? `${characters.before.toLocaleString()} original characters → ${characters.submitted.toLocaleString()} to read${characters.saved ? ` · ${characters.saved.toLocaleString()} saved` : ''}` : '';
+  if(CLOUD_READER)window.dispatchEvent(new Event('reading-cost-change'));
   $('count').textContent = cleaned ? `${cleaned.split(/\s+/).length.toLocaleString()} words` : '';
   $('play').disabled = !canPlay() || !cleaned;
   videoDownload?.update();
@@ -594,7 +595,7 @@ if (!CLOUD_READER) {
 }
 }
 if (CLOUD_READER) {
-  setupCloudReader({getEngine:()=> $('engine').value});
+  setupCloudReader({getEngine:()=> $('engine').value,getCostCharacters:()=>chunks.reduce((n,t)=>n+[...t].length,0)});
   if(saved.engine==='google'){$('engine').value='google';changeEngine();}
   voicePreviews=setupVoicePreviews({pauseReading:()=>{if(['playing','preparing','buffering'].includes(player?.state))player.pause();}});
   setupFeedback(()=>player?.state||'idle',()=>({...options}));

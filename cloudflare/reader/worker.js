@@ -1,3 +1,5 @@
+import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
+import {unifiedPaymentConfig} from './unified-payments.js';
 import {summaryResponse} from './summary.js';
 import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
 import {documentOcrResponse,purgeOcrCache,probeOcrAccess} from './document-ocr.js';
@@ -43,7 +45,7 @@ async function asset(request,env,path){
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){await runMaintenance(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1')ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));await runMaintenance(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
   if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
    if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
@@ -76,7 +78,7 @@ export default {
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
    if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
-   const ledger=new ReaderLedger(env.LEDGER),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
+   const ledger=new ReaderLedger(env.LEDGER,env),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    if(url.pathname==='/api/summary'||url.pathname==='/api/summary/config'){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null,{ctx});}
    const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
@@ -84,11 +86,17 @@ export default {
     const response=json({ready:true});if(!owner)setCookie(response,env,'p2s_private_reader',await ledger.newAccount(),2592000);return response;
    }
    if(path==='/api/billing/status'&&request.method==='GET'){
+    if(unifiedEnabled(env)){
+     const wallet=new UnifiedWallet(env.LEDGER);let configured=false;try{unifiedPaymentConfig(env);configured=env.ENABLE_UNIFIED_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&account?.email===env.OWNER_EMAIL&&account.enabled===1;}catch{}
+     const serviceCapacity=await unifiedCapacity(wallet);configured=configured&&(serviceCapacity.available||!!(owner&&await wallet.pendingOrder(owner)));
+     return json({serviceCapacity,unified:true,walletVersion:'unified-v1',packCredits:1000,priceUSD:10,unitsPerCredit:1000,ocrUnitsPerPage:2000,summaryFree:true,emailConfigured:env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:true,trial:false,checkoutAvailable:configured,configured,clientToken:configured?env.PADDLE_CLIENT_TOKEN:'',account,wallet:owner?await wallet.balance(owner):null,pendingOrder:owner?await wallet.pendingOrder(owner):null,paymentStatus:owner?await wallet.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],local,ocr:null});
+    }
+
     let configured=false;try{paymentConfig(env);configured=env.ENABLE_PAYMENTS==='1';}catch{}
     const serviceCapacity=publicMode(env)?await capacity(env.LEDGER):null;
     if(publicMode(env))configured=configured&&customerAllowed(env,account)&&serviceCapacity.available&&env.ENABLE_LIVE_SYNTHESIS==='1';
     const rows=await ledger.query("SELECT COALESCE(SUM(u.characters),0) AS characters FROM usage u JOIN reservations r ON r.job=u.job WHERE r.account=?",owner||'').first();
-    let ocr=null;if(ocrRetailEnabled(env)){const ol=new OcrLedger(env.LEDGER);let configured=false;try{ocrPaymentConfig(env);configured=env.ENABLE_OCR_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&env.ENABLE_DOCUMENT_OCR==='1'&&(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||env.OCR_RETAIL_PROVIDER_MODE==='live'&&!!env.MISTRAL_API_KEY)&&!!account?.email&&account.enabled===1&&(!publicMode(env)||customerAllowed(env,account))&&(!(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||ocrOwnerOnly(env))||account.email===env.OWNER_EMAIL);}catch{}const budget=await ocrCapacity(ol);configured=configured&&(budget.available||!!(owner&&await ol.pendingOrder(owner))); ocr={configured,packPages:500,priceUSD:10,balance:owner?await ol.balance(owner):null,pendingOrder:owner?await ol.pendingOrder(owner):null,paymentStatus:owner?await ol.paymentStatus(owner):null,policyDraft:false};}
+    let ocr=null;if(ocrRetailEnabled(env)){const ol=new OcrLedger(env.LEDGER,env);let configured=false;try{ocrPaymentConfig(env);configured=env.ENABLE_OCR_PAYMENTS==='1'&&env.ENABLE_PAYMENTS==='1'&&env.ENABLE_DOCUMENT_OCR==='1'&&(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||env.OCR_RETAIL_PROVIDER_MODE==='live'&&!!env.MISTRAL_API_KEY)&&!!account?.email&&account.enabled===1&&(!publicMode(env)||customerAllowed(env,account))&&(!(env.OCR_RETAIL_PROVIDER_MODE==='synthetic'||ocrOwnerOnly(env))||account.email===env.OWNER_EMAIL);}catch{}const budget=await ocrCapacity(ol);configured=configured&&(budget.available||!!(owner&&await ol.pendingOrder(owner))); ocr={configured,packPages:500,priceUSD:10,balance:owner?await ol.balance(owner):null,pendingOrder:owner?await ol.pendingOrder(owner):null,paymentStatus:owner?await ol.paymentStatus(owner):null,policyDraft:false};}
     return json({ocr,emailConfigured:local||env.ENABLE_EMAIL==='1',email:account?.email||null,sandbox:!production(env),trial:trialMode(env),serviceCapacity,checkoutAvailable:configured,configured,clientToken:configured||ocr?.configured?env.PADDLE_CLIENT_TOKEN:'',packCharacters:1000000,priceUSD:10,account,pendingOrder:owner?await ledger.pendingOrder(owner):null,paymentStatus:owner?await ledger.paymentStatus(owner):null,month:new Date().toISOString().slice(0,7),usage:owner?await ledger.summary(new Date().toISOString().slice(0,7),owner):[],successfulCharacters:rows.characters,local});
    }
    if(path==='/api/billing/login/request'&&request.method==='POST'){
@@ -124,13 +132,19 @@ export default {
      if(path.endsWith('/order')&&!customerAllowed(env,account))throw new CreditError('Purchases are not available for this account yet. Verify your email before purchasing.',403);
     }
     if(path.endsWith('/order')&&(env.ENABLE_PAYMENTS!=='1'||publicMode(env)&&env.ENABLE_LIVE_SYNTHESIS!=='1'))throw new CreditError('New purchases are temporarily paused.',503);
-    const input=await body(request,2048);if(input.offer!==undefined&&!['speech','ocr'].includes(input.offer))throw new CreditError('Unknown offer.',422);const ocr=input.offer==='ocr';if(ocr&&(!ocrRetailEnabled(env)||!env.OCR_PAYMENTS))throw new CreditError('OCR checkout is unavailable.',503);const coordinator=ocr?env.OCR_PAYMENTS:env.PAYMENTS;return coordinator.get(coordinator.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
+    const input=await body(request,2048);
+    if(unifiedEnabled(env)&&(!path.endsWith('/reconcile')||input.offer==='credits')){
+     if(input.offer!==undefined&&input.offer!=='credits')throw new CreditError('Choose the shared-credit pack.',422);
+     if(path.endsWith('/order')&&env.ENABLE_UNIFIED_PAYMENTS!=='1')throw new CreditError('Shared-credit checkout is awaiting sandbox catalog setup.',503);
+     return env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
+    }
+    if(input.offer!==undefined&&!['speech','ocr'].includes(input.offer))throw new CreditError('Unknown offer.',422);const ocr=input.offer==='ocr';if(ocr&&(!ocrRetailEnabled(env)||!env.OCR_PAYMENTS))throw new CreditError('OCR checkout is unavailable.',503);const coordinator=ocr?env.OCR_PAYMENTS:env.PAYMENTS;return coordinator.get(coordinator.idFromName('coordinator')).fetch('https://payments/',{method:'POST',body:JSON.stringify({action:path.endsWith('/order')?'order':'reconcile',account:owner,id:input.order})});
    }
    if(path==='/api/staging/fixtures'&&request.method==='GET'){
     if(!mseStaging(env))return json({},404);
     return json({voices:Object.fromEntries(Object.keys(fixtures).map(voice=>[voice,fixtureChunks(voice)]))});
    }
-   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,creditRequired:!account.legacyPilot,verified:verifiedCustomer(account),shortfall:!!account.shortfall}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
+   if(path==='/api/reader'&&request.method==='GET')return json({local,mseStaging:mseStaging(env),liveEnabled:!local&&env.ENABLE_LIVE_SYNTHESIS==='1',voices:WAVENET_VOICE_IDS,account:account?{balance:account.balance,reserved:account.reserved,creditRequired:!account.legacyPilot,verified:verifiedCustomer(account),shortfall:!!account.shortfall,walletVersion:account.walletVersion,unitsPerCredit:account.unitsPerCredit}:null,accessAllowed:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account))),eligible:!!account&&(!production(env)||(trialMode(env)?approved(env,account):customerAllowed(env,account)))&&(account.legacyPilot||account.balance>0)&&!account.shortfall,fixtures:local?fixtures:undefined});
    if(path==='/api/readings'&&request.method==='POST'){
     if(!owner)return json({detail:'Open your account to start a session.'},401);
     if(trialMode(env)&&!approved(env,account))return json({detail:'WaveNet is available only to the verified trial owner. Browser voices remain free.'},403);
@@ -144,7 +158,7 @@ export default {
      const requested=sourceCounts(input.chunks).reduce((a,b)=>a+b,0);
      const receipt=await ledger.receipt(id,owner);
      if(mseStaging(env)&&env.MSE_ADMISSIONS_PAUSED==='1'&&!receipt)throw new CreditError('New live staging readings are paused.',503);
-     if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError(trialMode(env)?'Not enough trial allowance. Browser voices remain free.':'WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
+     if(!receipt && (account.shortfall||(!account.legacyPilot&&account.balance<requested)))throw new CreditError(unifiedEnabled(env)?'WaveNet needs sufficient shared credits. Speech uses 1 credit per 1,000 characters, counted exactly.':trialMode(env)?'Not enough trial allowance. Browser voices remain free.':'WaveNet needs sufficient speech credit. Upgrade with a speech pack, or choose free browser voices.',402);
      if(env.ENABLE_LIVE_SYNTHESIS!=='1')throw new CreditError('Speech generation is disabled.',503);
      // Lifetime budget is deliberately never replenished automatically. Failed
      // or cancelled admissions consume budget too, bounding uncertain charges.

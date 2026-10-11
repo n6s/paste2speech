@@ -38,7 +38,11 @@
     "PADDLE_PRODUCT_ID": "pro_01m32gd3hj94whqywcvmyta74b",
     "MSE_STAGING": "1",
     "VIDEO_DOWNLOAD": "1",
-    "OCR_STAGE_OWNER_ONLY": "1"
+    "OCR_STAGE_OWNER_ONLY": "1",
+    "UNIFIED_CREDITS": "1",
+    "ENABLE_UNIFIED_PAYMENTS": "1",
+    "PADDLE_UNIFIED_PRODUCT_ID": "pro_01m4ntya23sa7g6mr4kv7yepyc",
+    "PADDLE_UNIFIED_PRICE_ID": "pri_01m4nv10a0b8nq3tpnp78shzbj"
   },
   "ai": {"binding": "AI"},
   "assets": {
