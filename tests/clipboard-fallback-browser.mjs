@@ -9,6 +9,8 @@ const server=createServer(async(req,res)=>{try{const p=new URL(req.url,'http://l
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const origin='http://127.0.0.1:'+server.address().port;
 const browser=await chromium.launch({executablePath:process.env.CHROME_PATH||'/usr/bin/google-chrome',headless:true});
+// Chrome may request its page icon after load; it is unrelated to a text action.
+const textActionRequests=paths=>paths.filter(path=>!['/favicon.svg','/favicon.ico'].includes(path));
 const checks=[];
 try{
  for(const configuration of ['available','unavailable','retail']){
@@ -50,7 +52,7 @@ try{
     await select('Before selected after',7,15);await page.evaluate(mode=>installClipboard(mode),mode);
     const speechBefore=await page.evaluate(()=>spoken.length),actionCheckpoint=requests.length;
     await page.locator(button).click();await settled();
-    if(button==='#paste')assert.deepEqual(requests.slice(actionCheckpoint).filter(path=>!(retail&&path==='/api/ocr/config')),[],'Paste needs no network; only existing background OCR balance refresh is allowed');
+    if(button==='#paste')assert.deepEqual(textActionRequests(requests.slice(actionCheckpoint)).filter(path=>!(retail&&path==='/api/ocr/config')),[],'Paste needs no network; only existing background OCR balance refresh and incidental browser icons are allowed');
     const text=mode==='rich'?'**Rich offline.**':'Fallback offline.';
     assert.equal(await page.locator('#text').inputValue(),button==='#paste'?'Before '+text+' after':text);
     assert.equal(await page.evaluate(()=>spoken.length),speechBefore+(button==='#paste-play'?1:0));
@@ -68,7 +70,7 @@ try{
     const actionCheckpoint=requests.length;
     const before=await page.evaluate(()=>({spoken:spoken.length,cancels,speaking:speechSynthesis.speaking,status:document.querySelector('#status').textContent}));
     await page.locator(button).click();await settled();
-    assert.deepEqual(requests.slice(actionCheckpoint),[],'Unsuccessful clipboard action must make no requests');
+    assert.deepEqual(textActionRequests(requests.slice(actionCheckpoint)),[],'Unsuccessful clipboard action must make no requests');
     assert.equal(await page.locator('#text').inputValue(),'Keep selected source.');
     assert.deepEqual(await page.locator('#text').evaluate(el=>[el.selectionStart,el.selectionEnd]),[5,13]);
     assert.deepEqual(await page.evaluate(()=>({spoken:spoken.length,cancels,speaking:speechSynthesis.speaking,status:document.querySelector('#status').textContent})),before);
@@ -94,9 +96,9 @@ try{
     checks.push({configuration,startupUnavailable,button,mode:'delayed-plain-fallback',intervention,preserved:true});
    }
   }
-  assert.deepEqual(requests.slice(checkpoint).filter(path=>path!=='/api/events'&&!(retail&&path==='/api/ocr/config')),[],'Only existing optional playback telemetry and retail balance refresh may be attempted; no required network or assets');
+  assert.deepEqual(textActionRequests(requests.slice(checkpoint)).filter(path=>path!=='/api/events'&&!(retail&&path==='/api/ocr/config')),[],'Only existing optional playback telemetry and retail balance refresh may be attempted; no required network or assets');
   assert.deepEqual(paid,[]);assert.deepEqual(external,[]);assert.deepEqual(errors,[]);
-  checks.push({startupUnavailable,configuration,optionalPlaybackTelemetryAndBalanceRefresh:requests.slice(checkpoint),newRequiredRequests:requests.slice(checkpoint).filter(path=>path!=='/api/events'&&!(retail&&path==='/api/ocr/config')),paidPosts:paid,externalRequests:external,pageErrors:errors});
+  checks.push({startupUnavailable,configuration,incidentalBrowserIconRequests:requests.slice(checkpoint).filter(path=>['/favicon.svg','/favicon.ico'].includes(path)),optionalPlaybackTelemetryAndBalanceRefresh:textActionRequests(requests.slice(checkpoint)),newRequiredRequests:textActionRequests(requests.slice(checkpoint)).filter(path=>path!=='/api/events'&&!(retail&&path==='/api/ocr/config')),paidPosts:paid,externalRequests:external,pageErrors:errors});
   await context.close();
  }
  const release=JSON.parse(await readFile(root+'/release.json','utf8'));
