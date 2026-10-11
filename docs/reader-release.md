@@ -1120,3 +1120,17 @@ exact billing cutoff, race coverage, migration and rollback. No real provider ca
 or payment is needed for these checks. Deployment verification must include the
 hosted price/terms pages and synthetic mobile UI, preserve public release identity,
 and avoid exposing private backup contents or credentials.
+
+
+### Staging Summary consent transition recovery
+
+The October 11 one-credit deployment correctly rejected free-consent submissions
+from older open tabs, but its error did not explain how to reach new consent.
+The backend now returns `consent_changed` with copy-before-reload guidance. The
+current UI preflights price metadata, refreshes mismatched consent in place and
+requires a separate explicit priced action; it never retries inference on a
+policy change. Source stays intact, and initial loading copy does not claim free
+Summary. A regression gate runs the actual 0b3aa786 free client and current client
+against SQLite plus mocked AI, covering stale tabs, fresh-page acceptance and a
+metadata/POST race with 6,214 characters. This is staging-only deployment, with no
+new migration, provider call, purchase, plan upgrade or OCR infrastructure change.

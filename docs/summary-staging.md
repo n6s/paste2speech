@@ -203,3 +203,37 @@ in the source is ambiguous and remains untouched; later occurrences and quotes
 remain untouched. If cleanup leaves no content, the request fails safely with the
 original intact and no automatic retry. These checks precede returning a summary
 for editing or speech; user edits are never scrubbed by this rule.
+
+
+## Open-tab consent recovery after the billing deployment
+
+Roger's October 11 report showed the earlier free UI with a 6,214-character
+source and “Your Summary choice changed” after submission. The original free
+client remains loaded in an already open tab; it cannot render the new paid
+policy or send its price field. The server rejects that request before admission,
+credit reservation or AI inference. Input size was not the cause of that message.
+
+The server now returns machine reason `consent_changed` and tells the old client
+the current one-credit price, to copy the full source before reloading, and to
+review the price before pressing Summarize. There is no automatic reload that
+could discard source. A fresh page accepts the current paid policy normally;
+remembered free consent does not authorize it.
+
+The current client checks metadata before generation. Any price/account/policy
+change updates the disclosure and stops that action, requiring a separate explicit
+click at the newly displayed price. A change between the metadata check and POST
+also refreshes consent in place and stops, with no automatic generation retry.
+Unrecognized future policy versions explain how to preserve text before reload.
+While metadata loads, the UI does not claim that Summary is free. Optional
+remembered consent is saved only after confirming unchanged current metadata.
+
+`tests/summary-consent-recovery-browser.mjs` runs the actual pre-billing client
+from commit 0b3aa786 and the current client against the real Summary handler with
+SQLite and mocked AI. It proves old-tab rejection/reload recovery, current-tab
+price transitions and a metadata/submission race: the entire 6,214-character
+source survives, price changes invoke zero AI calls and reserve zero credits,
+and a separate priced click can accept exactly one result/credit. Existing free
+and paid browser tests remain required. No live inference or purchase is used.
+
+For an already old tab: **copy all source text, reload, paste it back if needed,
+and confirm the button says “Summarize · 1 credit ($0.01)” before clicking.**

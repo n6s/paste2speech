@@ -50,3 +50,7 @@ test('foreign receipt access, unverified accounts and production price flags fai
   f.sql.exec(readFileSync('cloudflare/reader/staging-migrations/0011_summary_credits.sql','utf8'));assert.deepEqual(rows(),before);assert.deepEqual(f.sql.prepare('PRAGMA foreign_key_check').all(),[]);
   f.sql.exec('DROP VIEW unified_capacity;'+view);assert.deepEqual(rows(),before);assert.ok(f.sql.prepare("SELECT name FROM sqlite_master WHERE name='summary_credit_events'").get());
  });
+
+ test('obsolete free consent gets actionable reload guidance before hold, request admission or AI',async()=>{
+  const f=setup();f.grant(2000);const response=await f.send(req({text:'x'.repeat(6214),consent:true,requestId:crypto.randomUUID(),consentPolicy:CLOUD_POLICIES.summary.version,consentScope:'a'}));assert.equal(response.status,409);const data=await response.json();assert.equal(data.reason,'consent_changed');assert.equal(data.priceCredits,1);assert.match(data.detail,/Copy your full text before reloading.*review the price.*Nothing was sent to AI or charged/);assert.equal(f.calls,0);assert.deepEqual(counts(f),[]);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM summary_free_requests').get().n,0);assert.equal((await f.wallet.balance('a')).balance,2000);
+ });
