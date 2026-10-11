@@ -1056,3 +1056,20 @@ offsets, and the existing 90-section built-reader offline gate checks both stagi
 and public variants beyond the bounded playback window. No paid provider calls are
 needed. Physical Android and screen-lock acceptance remain device checks. Public
 builds exclude the new bar/style; this authorization deploys only staging.
+
+### Staging Edit, Read and Summary sizing
+
+Roger reported that Summary did not fit inside its segmented button. The staging
+stylesheet now sizes the three buttons from their full labels and selected
+checkmark rather than shrinking each to an equal width. Normal 320px and 390px
+layouts remain one row. Enlarged text can wrap the control into rows while every
+label stays whole. Existing 48px minimum heights, selected styling, focus outlines,
+native keyboard activation and mode behavior remain. The change is confined to
+the stylesheet shipped only by the staging build; public assets and billing are
+not deployment targets.
+
+Focused built/hosted checks measure all three selected/focused modes at 320px,
+390px and 780px with 100%, 150% and 200% root text sizing. They verify whole labels,
+checkmarks, touch targets, focus outlines, native Tab/Enter order, panel visibility
+and unchanged original text. Enlarged-text coverage applies to this control rather
+than an app-wide reflow audit. Provider/account responses are synthetic.
