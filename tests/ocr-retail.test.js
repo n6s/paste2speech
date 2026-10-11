@@ -1,3 +1,4 @@
+import {CLOUD_POLICIES} from '../public/cloud-choices.js';
 import {outlinePdf} from './ocr-pdf-outline-fixture.js';
 import test from 'node:test';import assert from 'node:assert/strict';
 import {PDFDocument} from 'pdf-lib';
@@ -32,7 +33,7 @@ function pdf(pages=2,marker='a'){
 function pdfObjects(objects,trailer='/Root 1 0 R',marker='a'){
  let out='%PDF-1.4\n% '+marker+'\n';const offsets=[0];for(const [i,obj] of objects.entries()){offsets.push(Buffer.byteLength(out,'latin1'));out+=`${i+1} 0 obj\n${obj}\nendobj\n`;}const at=Buffer.byteLength(out,'latin1');out+=`xref\n0 ${offsets.length}\n0000000000 65535 f \n`+offsets.slice(1).map(o=>String(o).padStart(10,'0')+' 00000 n \n').join('')+`trailer\n<< /Size ${offsets.length} ${trailer} >>\nstartxref\n${at}\n%%EOF\n`;return Buffer.from(out,'latin1');
 }
-function request({marker='a',pages=2,actualPages=pages,mime='application/pdf',consent='true',extra=false,dataBytes}={}){const data=dataBytes||(mime==='application/pdf'?pdf(actualPages,marker):new Uint8Array([137,80,78,71,13,10,26,10,...new TextEncoder().encode(marker)]));const form=new FormData();form.append('file',new File([data],'synthetic.pdf',{type:mime}));form.append('pages',String(pages));form.append('consent',consent);form.append('model','mistral-ocr-4-1');if(extra)form.append('price','1');return new Request('https://stage.test/api/ocr',{method:'POST',body:form});}
+function request({marker='a',pages=2,actualPages=pages,mime='application/pdf',consent='true',extra=false,dataBytes,consentPolicy,consentScope}={}){const data=dataBytes||(mime==='application/pdf'?pdf(actualPages,marker):new Uint8Array([137,80,78,71,13,10,26,10,...new TextEncoder().encode(marker)]));const form=new FormData();form.append('file',new File([data],'synthetic.pdf',{type:mime}));form.append('pages',String(pages));form.append('consent',consent);form.append('model','mistral-ocr-4-1');if(extra)form.append('price','1');if(consentPolicy!==undefined)form.append('consent_policy',consentPolicy);if(consentScope!==undefined)form.append('consent_scope',consentScope);return new Request('https://stage.test/api/ocr',{method:'POST',body:form});}
 
 const options={token:'a',now:()=>time,payload:mistralOcrPayload};
 const speechBalance=f=>f.sql.prepare("SELECT balance FROM accounts WHERE id='a'").get().balance;
@@ -108,4 +109,12 @@ test('outline-rich five-page PDFs are fully counted; excessive metadata remains 
  const bytes=await outlinePdf();assert.equal(await verifiedPdfPages(bytes),5);const f=await fixture();await purchase(f);let calls=0;
  const result=await retailDocumentOcr(request({pages:5,dataBytes:bytes}),f.env,{...options,fetcher:async(_u,init)=>{calls++;assert.deepEqual(JSON.parse(init.body).pages,[0,1,2,3,4]);return Response.json(raw(5));}});assert.equal(result.status,200);assert.equal(calls,1);assert.equal((await f.ledger.balance('a')).balance,495);
  const excessive=await outlinePdf(1200);await assert.rejects(verifiedPdfPages(excessive),e=>/too much structural metadata.*Export/.test(pdfAdmissionMessage(e)));const before=(await f.ledger.balance('a')).balance;const blocked=await retailDocumentOcr(request({pages:5,dataBytes:excessive}),f.env,{...options,fetcher:async()=>{calls++;throw Error('Must not dispatch');}});assert.equal(blocked.status,422);assert.match((await blocked.json()).detail,/structural metadata.*Nothing was submitted; no OCR credits/);assert.equal(calls,1);assert.equal((await f.ledger.balance('a')).balance,before);
+});
+
+test('remembered OCR policy and account are rechecked before holds or provider dispatch',async()=>{
+ const f=await fixture();await purchase(f);let calls=0;const opts={...options,fetcher:async()=>{calls++;return Response.json(raw());}};
+ const config=await(await retailDocumentOcr(new Request('https://stage.test/api/ocr/config'),f.env,opts)).json();assert.equal(config.consentScope,'a');assert.equal(config.consentPolicy,CLOUD_POLICIES.ocr.version);
+ for(const fields of [{consentPolicy:'old-policy',consentScope:'a'},{consentPolicy:CLOUD_POLICIES.ocr.version,consentScope:'b'},{consentPolicy:CLOUD_POLICIES.ocr.version}])assert.equal((await retailDocumentOcr(request(fields),f.env,opts)).status,409);
+ assert.equal(calls,0);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_attempts').get().n,0);assert.equal((await f.ledger.balance('a')).balance,500);
+ assert.equal((await retailDocumentOcr(request({consentPolicy:CLOUD_POLICIES.ocr.version,consentScope:'a'}),f.env,opts)).status,200);assert.equal(calls,1);
 });

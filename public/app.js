@@ -88,7 +88,11 @@ let cleaned = '';
 let previewedText;
 let chunks = [];
 let paragraphStarts = [];
-let sentenceElements = [];
+let sentenceElements = new Map();
+let sectionBefore = [], sectionAfter = [];
+let readingWindowStart = 0;
+const READING_WINDOW = 160;
+const READING_WINDOW_THRESHOLD = 1000;
 let stagingSampleText='';
 let videoDownload;
 let documentImport;
@@ -156,41 +160,21 @@ function preview() {
   if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
   chunks = [];
   paragraphStarts = [];
-  sentenceElements = [];
-  $('preview').replaceChildren();
+  sectionBefore = [];
+  sectionAfter = [];
   for (const paragraph of cleaned.split(/\n\s*\n/).filter(Boolean)) {
-    if (sentenceElements.length) $('preview').append('\n\n');
-    const group = document.createElement('p');
-    group.className = 'reading-paragraph';
     paragraphStarts.push(chunks.length);
     let cursor = 0;
     for (const chunk of (MSE_STAGING&&cleaned===stagingSampleText?[paragraph]:chunkText(paragraph))) {
-      const start = chunks.length;
       const offset = paragraph.indexOf(chunk, cursor);
-      group.append(paragraph.slice(cursor, offset));
+      sectionBefore.push(paragraph.slice(cursor, offset));
       cursor = offset + chunk.length;
       chunks.push(chunk);
-      const button = document.createElement('span');
-      button.className = 'sentence';
-      button.textContent = chunk;
-      button.setAttribute('role', 'button');
-      button.tabIndex = canPlay() ? 0 : -1;
-      button.setAttribute('aria-disabled', String(!canPlay()));
-      button.setAttribute('aria-label', `Read from section ${start + 1}: ${chunk}`);
-      const activate = () => { if (canPlay()) { if (['idle','done'].includes(player?.state)) countNextPlayback=true; player?.start(chunks, settings(), start); } };
-      button.addEventListener('click', activate);
-      button.addEventListener('keydown', event => {
-        if (event.key === 'Enter' || event.key === ' ') {
-          event.preventDefault();
-          if (!event.repeat) activate();
-        }
-      });
-      sentenceElements.push(button);
-      group.append(button);
+      sectionAfter.push('');
     }
-    group.append(paragraph.slice(cursor));
-    $('preview').append(group);
+    if (chunks.length) sectionAfter[chunks.length - 1] = paragraph.slice(cursor);
   }
+  renderReadingWindow(0);
   if (!cleaned) $('preview').textContent = 'Your cleaned text will appear here.';
   const characters = readingCharacters($('text').value, chunks);
   $('character-savings').hidden = !characters.before;
@@ -200,6 +184,59 @@ function preview() {
   $('play').disabled = !canPlay() || !cleaned;
   videoDownload?.update();
   if(diagnosticStarted!=null)pasteDiagnostics.record('preview-complete',$('preview').textContent,{elapsedMs:Math.round(performance.now()-diagnosticStarted),sections:chunks.length,editorUnchanged:$('text').value===previewedText});
+}
+function renderReadingWindow(target) {
+  const pane = $('preview');
+  const paged = chunks.length > READING_WINDOW_THRESHOLD;
+  readingWindowStart = paged ? Math.floor(Math.max(0, Math.min(chunks.length - 1, target)) / READING_WINDOW) * READING_WINDOW : 0;
+  const end = paged ? Math.min(chunks.length, readingWindowStart + READING_WINDOW) : chunks.length;
+  sentenceElements = new Map();
+  pane.replaceChildren();
+  if (paged) {
+    const controls = document.createElement('div');
+    controls.className = 'reading-window';
+    const notice = document.createElement('div');
+    notice.textContent = `Showing sections ${(readingWindowStart + 1).toLocaleString()}–${end.toLocaleString()} of ${chunks.length.toLocaleString()}. The complete text is available in Edit.`;
+    controls.append(notice);
+    for (const [label, next] of [['Earlier sections', readingWindowStart - READING_WINDOW], ['Later sections', end]]) {
+      const button = document.createElement('button');
+      button.type = 'button'; button.textContent = label; button.disabled = next < 0 || next >= chunks.length;
+      button.onclick = () => { renderReadingWindow(next); markReadingPosition(player); pane.scrollTop = 0; };
+      controls.append(button);
+    }
+    const label = document.createElement('label'); label.textContent = ' Go to section ';
+    const input = document.createElement('input'); input.type = 'number'; input.min = '1'; input.max = String(chunks.length); input.value = String(readingWindowStart + 1); input.style.width = '7em';
+    label.append(input); controls.append(label);
+    const jump = document.createElement('button'); jump.type = 'button'; jump.textContent = 'Show';
+    jump.onclick = () => { if (input.checkValidity()) { renderReadingWindow(Number(input.value) - 1); markReadingPosition(player); pane.scrollTop = 0; } };
+    controls.append(jump); pane.append(controls);
+  }
+  const starts = new Set(paragraphStarts);
+  let group;
+  for (let index = readingWindowStart; index < end; index++) {
+    if (!group || starts.has(index)) {
+      if (group) pane.append('\n\n');
+      group = document.createElement('p'); group.className = 'reading-paragraph'; pane.append(group);
+    }
+    group.append(sectionBefore[index]);
+    const button = document.createElement('span'); button.className = 'sentence'; button.textContent = chunks[index];
+    button.dataset.sectionIndex = String(index); button.setAttribute('role', 'button'); button.tabIndex = canPlay() ? 0 : -1;
+    button.setAttribute('aria-disabled', String(!canPlay())); button.setAttribute('aria-label', `Read from section ${index + 1}: ${chunks[index]}`);
+    const activate = () => { if (canPlay()) { if (['idle','done'].includes(player?.state)) countNextPlayback=true; player?.start(chunks, settings(), index); } };
+    button.addEventListener('click', activate);
+    button.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!event.repeat) activate(); } });
+    sentenceElements.set(index, button); group.append(button, sectionAfter[index]);
+  }
+}
+function markReadingPosition(p) {
+  const active = p && ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
+  if (active && $('follow-reading').checked && chunks.length > READING_WINDOW_THRESHOLD && !sentenceElements.has(p.index)) renderReadingWindow(p.index);
+  for (const [index, button] of sentenceElements) {
+    if (active && p.index === index) {
+      const changed = !button.hasAttribute('aria-current'); button.setAttribute('aria-current', 'true');
+      if (changed) followParagraph(button);
+    } else button.removeAttribute('aria-current');
+  }
 }
 function setMode(mode) {
   const reading = mode === 'read';
@@ -259,6 +296,7 @@ new ResizeObserver(() => {
 document.fonts?.ready.then(() => followParagraph($('preview').querySelector('[aria-current=true]')));
 $('follow-reading').addEventListener('change', () => {
   save();
+  markReadingPosition(player);
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 $('reading-size').addEventListener('input', () => {
@@ -327,16 +365,7 @@ function render(p, message) {
   }
   if(!CLOUD_READER) $('previous-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index===0;
   if(!CLOUD_READER) $('next-section').disabled = (CLOUD_READER&&!isWorkstation()) || !p.chunks.length || p.index>=p.chunks.length-1;
-  const active = ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
-  for (const [index, button] of sentenceElements.entries()) {
-    const current = active && p.index === index;
-    if (current) {
-      const changed = !button.hasAttribute('aria-current');
-      button.setAttribute('aria-current', 'true');
-      if (changed) followParagraph(button);
-    }
-    else button.removeAttribute('aria-current');
-  }
+  markReadingPosition(p);
 }
 for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', citations: 'ChatGPT references', urls: 'Web addresses', code: 'Code blocks', tables: 'Tables', emoji: 'Emoji', joinLines: 'Join wrapped lines', math:'Skip math notation' })) {
   if(key==='math'&&!DOCUMENT_IMPORT)continue;
@@ -420,7 +449,7 @@ $('text').addEventListener('paste', event => {
 let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
 $('text').addEventListener('input',()=>{pasteRequest++;});
-$('text').addEventListener('paste',()=>{summaryMode?.clearSource();pasteRequest++;},{capture:true});
+$('text').addEventListener('paste',event=>{summaryMode?.clearSource();pasteRequest++;if(!documentImport?.busy&&Array.from(event.clipboardData?.types||[]).some(type=>type==='text/plain'||type==='text/html'))documentImport?.clear();},{capture:true});
 async function pasteFromClipboard({replace=false}={}){
   if(documentImport?.busy||$('text').readOnly)return;
   rememberPasteSelection();

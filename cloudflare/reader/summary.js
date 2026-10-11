@@ -1,3 +1,4 @@
+import {CLOUD_POLICIES} from '../../public/cloud-choices.js';
 import {publicMode,customerAllowed} from './modes.js';
 import {SUMMARY_SOURCE_BYTES,SUMMARY_ENCODED_SOURCE_BYTES,summarySourceBytes,summarySourceFits} from '../../public/summary-limits.js';
 export const SUMMARY_MODEL='@cf/meta/llama-3.2-3b-instruct';
@@ -41,9 +42,10 @@ export async function summaryResponse(request,env,account,{now=Date.now,timeoutM
  if(!configured)return reply({available:false,reason:'disabled',detail:'Summary service is unavailable for this account or configuration. Nothing has been sent.'},configRequest?200:503);
  const gate=()=>env.LEDGER.prepare("SELECT circuit_until,lease_until FROM summary_free_gate WHERE id='workers-ai-free'").first();
  let current=await gate();if(current.circuit_until>now())return dailyReply(current.circuit_until,now(),configRequest?200:429);
- if(configRequest)return reply({available:true,model:SUMMARY_MODEL,maxSourceBytes:SUMMARY_SOURCE_BYTES,maxEncodedSourceBytes:SUMMARY_ENCODED_SOURCE_BYTES,maxOutputTokens:512,allowance:'shared Workers Free daily allocation',perUserQuota:false});
+ if(configRequest)return reply({available:true,consentScope:account.id,consentPolicy:CLOUD_POLICIES.summary.version,model:SUMMARY_MODEL,maxSourceBytes:SUMMARY_SOURCE_BYTES,maxEncodedSourceBytes:SUMMARY_ENCODED_SOURCE_BYTES,maxOutputTokens:512,allowance:'shared Workers Free daily allocation',perUserQuota:false});
  if(request.method!=='POST')return reply({detail:'Method not allowed.'},405);
  let input;try{input=await boundedJSON(request.body,150000);}catch{return reply({detail:'Source is invalid or too large.'},422);}
+ if(input.consentPolicy!==undefined&&(input.consentPolicy!==CLOUD_POLICIES.summary.version||input.consentScope!==account.id))return reply({detail:'Your Summary choice changed. Review the Cloudflare AI disclosure again.'},409);
  if(input.consent!==true||typeof input.text!=='string'||!input.text.trim()||!summarySourceFits(input.text)||typeof input.requestId!=='string'||!/^[0-9a-f-]{36}$/.test(input.requestId))return reply({detail:'Consent, source text (up to 24,000 UTF-8 bytes with bounded encoded prompt), and a request key are required.'},422);
  const language=input.language??'general',length=input.length??'brief';
  if(typeof language!=='string'||typeof length!=='string'||!Object.hasOwn(SUMMARY_LANGUAGES,language)||!Object.hasOwn(SUMMARY_LENGTHS,length))return reply({detail:'Choose a supported language style and summary length.'},422);

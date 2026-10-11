@@ -1,3 +1,4 @@
+import {CLOUD_POLICIES} from '../public/cloud-choices.js';
 import test from 'node:test';import assert from 'node:assert/strict';import {DatabaseSync} from 'node:sqlite';import {readFileSync,readdirSync} from 'node:fs';
 import {summaryResponse,SUMMARY_MODEL,SUMMARY_SYSTEM,SUMMARY_LANGUAGES,SUMMARY_LENGTHS,classifySummaryError,nextSummaryReset,cleanSummaryPreamble} from '../cloudflare/reader/summary.js';
 function fixture(){
@@ -56,4 +57,10 @@ test('production Summary migration is additive/idempotent and leaves credit and 
  const db=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').filter(name=>name.endsWith('.sql')&&name<'0016').sort())db.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
  db.exec("INSERT INTO accounts(id,label,enabled,balance) VALUES('a','a',1,12345);INSERT INTO ocr_accounts(account,balance,debt) VALUES('a',500,0);INSERT INTO ocr_business_budget(id,cap_cents,reserved_cents) VALUES('test',1000,0)");
  const snapshot=()=>JSON.stringify(['accounts','grants','reservations','ocr_accounts','ocr_grants','ocr_attempts','ocr_business_budget','ocr_business_reservations'].map(table=>db.prepare('SELECT * FROM '+table).all()));const before=snapshot(),migration=readFileSync('cloudflare/reader/migrations/0016_summary_free_allowance.sql','utf8');db.exec(migration);db.exec(migration);assert.equal(snapshot(),before);assert.deepEqual({...db.prepare('SELECT * FROM summary_free_gate').get()},{id:'workers-ai-free',circuit_until:0,active_request:null,lease_until:0});assert.equal(db.prepare('SELECT COUNT(*) AS count FROM summary_free_requests').get().count,0);db.close();
+});
+
+test('remembered Summary policy and account are rechecked before any AI dispatch',async()=>{
+ const f=fixture(),config=await(await summaryResponse(request({},'GET','/config'),f.env,f.account)).json();assert.equal(config.consentScope,'a');assert.equal(config.consentPolicy,CLOUD_POLICIES.summary.version);
+ for(const fields of [{consentPolicy:'old-policy',consentScope:'a'},{consentPolicy:CLOUD_POLICIES.summary.version,consentScope:'b'},{consentPolicy:CLOUD_POLICIES.summary.version}])assert.equal((await summaryResponse(request(fields),f.env,f.account)).status,409);
+ assert.equal(f.calls.length,0);assert.equal((await summaryResponse(request({consentPolicy:CLOUD_POLICIES.summary.version,consentScope:'a'}),f.env,f.account)).status,200);assert.equal(f.calls.length,1);
 });
