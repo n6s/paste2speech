@@ -1,5 +1,5 @@
 /* Shipped only by the unified staging build. Keep controls usable with large text. */
-.compact-reader{overflow-wrap:anywhere}
+.compact-reader header{overflow-wrap:anywhere}
 .compact-reader .controls{grid-template-columns:repeat(auto-fit,minmax(min(100%,5rem),1fr))}
 .compact-reader .controls button,.compact-reader .options label{min-width:0}
 .compact-reader .options{grid-template-columns:repeat(2,minmax(0,1fr))}
