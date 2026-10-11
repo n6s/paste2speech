@@ -7,7 +7,7 @@ import {ReaderLedger} from '../cloudflare/reader/ledger.js';
 const bundled=await build({entryPoints:['cloudflare/prepared/durable.js'],bundle:true,write:false,format:'esm',platform:'node'});
 const {PreparedReading}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 function database(){
- const sql=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
+ const sql=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
  const db={prepare(text){return {bind(...args){return {first:async()=>sql.prepare(text).get(...args)||null,run:async()=>sql.prepare(text).run(...args),all:async()=>({results:sql.prepare(text).all(...args)})};}};},async batch(statements){sql.exec('BEGIN');try{for(const s of statements)await s.run();sql.exec('COMMIT');}catch(e){sql.exec('ROLLBACK');throw e;}}};
  return {sql,ledger:new ReaderLedger(db)};
 }

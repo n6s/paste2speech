@@ -11,6 +11,7 @@ import {UnifiedPaymentCoordinator} from '../cloudflare/reader/payments-do.js';
 import {retailDocumentOcr} from '../cloudflare/reader/document-ocr-retail.js';
 import {mistralOcrPayload} from '../cloudflare/reader/document-ocr.js';
 import {receiveWebhook} from '../cloudflare/reader/webhooks.js';
+import {capacity,dispatchBudget} from '../cloudflare/reader/budget.js';
 import {assertPublicSharedCatalog} from '../scripts/reader-release-policy.mjs';
 const bundle=await build({entryPoints:['cloudflare/reader/worker.js'],bundle:true,write:false,format:'esm',platform:'node'});
 const {default:worker}=await import('data:text/javascript;base64,'+Buffer.from(bundle.outputFiles[0].text).toString('base64'));
@@ -134,4 +135,27 @@ test('production pending/rejected refunds never revoke credit and approved rever
 test('production deployment preflight rejects missing or reused shared catalog IDs',()=>{
  const vars=JSON.parse(readFileSync('cloudflare/reader/wrangler.public.jsonc')).vars;assert.throws(()=>assertPublicSharedCatalog({...vars,PADDLE_UNIFIED_PRICE_ID:'',PADDLE_UNIFIED_PRODUCT_ID:''}),/Verified separate live shared-credit catalog/);
  const f=fixture('production');assert.doesNotThrow(()=>assertPublicSharedCatalog(f.env));assert.throws(()=>assertPublicSharedCatalog({...f.env,PADDLE_UNIFIED_PRICE_ID:f.env.PADDLE_PRICE_ID}));assert.throws(()=>assertPublicSharedCatalog({...f.env,PADDLE_UNIFIED_PRODUCT_ID:f.env.PADDLE_OCR_PRODUCT_ID}));
+});
+
+
+test('authorized owner testing grant is exact, one-time, immutable and counts toward the retained provider ceiling',async()=>{
+ const f=fixture('production'),grant=readFileSync('cloudflare/reader/operations/owner-testing-grant.sql','utf8');f.sql.exec("UPDATE identities SET email='rogerpbrown@gmail.com' WHERE account='a'");
+ f.sql.exec(grant);assert.equal((await f.wallet.balance('a')).balance,100000);assert.equal(f.sql.prepare('SELECT committed_cents FROM unified_capacity').get().committed_cents,50);f.sql.exec(grant);assert.equal((await f.wallet.balance('a')).balance,100000);assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM unified_events WHERE kind='owner-test-grant'").get().n,1);
+ await f.speech.reserve('test','a',input);f.sql.exec(grant);assert.equal((await f.wallet.balance('a')).balance,99995);assert.equal((await f.wallet.balance('a')).held,5);
+ const p=await purchase(f);await syncUnifiedOrder(f.wallet,p.order,p.provider);await assert.rejects(f.wallet.newOrder('b',unifiedPaymentConfig(f.env)),/capacity/);assert.equal(f.sql.prepare('SELECT cap_cents FROM unified_capacity').get().cap_cents,1000);
+ assert.throws(()=>f.sql.exec("DELETE FROM unified_events WHERE kind='owner-test-grant'"));assert.throws(()=>f.sql.exec("INSERT INTO unified_events VALUES('other','b','owner-test-grant','roger-approved-production-testing-2026-10-11',100000,1,NULL)"));
+ const full=fixture('production');full.sql.exec("UPDATE identities SET email='rogerpbrown@gmail.com' WHERE account='a'");full.sql.exec('UPDATE ocr_business_budget SET cap_cents=49');assert.throws(()=>full.sql.exec(grant),/capacity/);assert.equal((await full.wallet.balance('a')).balance,0);
+});
+
+
+const uncap=f=>f.sql.exec(readFileSync('cloudflare/reader/migrations/0018_public_provider_spending.sql','utf8'));
+test('approved public spending migration preserves financial records and removes OCR sales ceilings',async()=>{
+ const f=fixture('production');await fund(f);const prior=f.sql.prepare('SELECT * FROM unified_events').all();uncap(f);assert.deepEqual(f.sql.prepare('SELECT * FROM unified_events').all(),prior);assert.deepEqual(legacy(f),[12345,17]);assert.equal(f.sql.prepare('SELECT cap_cents FROM ocr_business_budget').get().cap_cents,null);
+ f.sql.exec("INSERT INTO accounts(id,label,enabled) VALUES('c','c',1),('d','d',1);INSERT INTO identities VALUES('c@example.invalid','c'),('d@example.invalid','d')");for(const a of ['b','c','d'])await f.wallet.newOrder(a,unifiedPaymentConfig(f.env));const cap=f.sql.prepare('SELECT * FROM unified_capacity').get();assert.equal(cap.committed_cents,2000);assert.equal(unifiedCheckoutStatus(f.env,{email:f.env.OWNER_EMAIL,enabled:1},{available:true},null).configured,true);assert.equal(f.sql.prepare('SELECT prior_ocr_cap FROM provider_spending_policy_changes').get().prior_ocr_cap,1000);assert.throws(()=>f.sql.exec('DELETE FROM provider_spending_policy_changes'));
+});
+test('uncapped production OCR remains credit-bound and allows only one in-flight scan per account',async()=>{
+ const f=fixture('production');await fund(f);uncap(f);f.sql.exec("UPDATE ocr_business_budget SET reserved_cents=5000");f.ocr('one',10);assert.equal((await f.wallet.balance('a')).held,20000);assert.throws(()=>f.ocr('two',1));assert.equal((await f.wallet.balance('a')).balance,980000);f.sql.prepare("INSERT INTO ocr_settlements(attempt,outcome,created) VALUES('one','uncertain',?)").run(now);f.ocr('two',1);assert.equal((await f.wallet.balance('a')).held,2000);assert.throws(()=>f.ocr('too-many-pages',11));assert.equal(f.sql.prepare('SELECT reserved_cents FROM ocr_business_budget').get().reserved_cents,5009);
+});
+test('uncapped speech preserves immutable one-attempt accounting beyond former daily/monthly ceilings',async()=>{
+ const f=fixture('production');uncap(f);const day=new Date(now).toISOString().slice(0,10),month=day.slice(0,7);f.sql.prepare('INSERT INTO provider_periods VALUES(?,?)').run(day,2500000);f.sql.prepare('INSERT INTO provider_periods VALUES(?,?)').run(month,12500000);await dispatchBudget(f.db,'after-ceiling',0,'valid request',now);await assert.rejects(dispatchBudget(f.db,'after-ceiling',0,'valid request',now));const cap=await capacity(f.db,now);assert.equal(cap.available,true);assert.equal(cap.dailyRemaining,null);assert.equal(cap.monthlyRemaining,null);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM provider_attempts').get().n,1);assert.equal(f.sql.prepare('SELECT prior_speech_daily FROM provider_spending_policy_changes').get().prior_speech_daily,2500000);assert.equal(f.sql.prepare('SELECT prior_speech_monthly FROM provider_spending_policy_changes').get().prior_speech_monthly,12500000);
 });

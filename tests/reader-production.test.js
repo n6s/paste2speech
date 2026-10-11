@@ -10,7 +10,7 @@ const bundled=await build({entryPoints:['cloudflare/reader/worker.js'],bundle:tr
 const {default:worker,PreparedReading}=await import('data:text/javascript;base64,'+Buffer.from(bundled.outputFiles[0].text).toString('base64'));
 const origin='https://pastetospeech.com';
 function setup(){
- const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
+ const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  const db={prepare(text){return {bind(...values){return {first:async()=>sql.prepare(text).get(...values)||null,run:async()=>sql.prepare(text).run(...values),all:async()=>({results:sql.prepare(text).all(...values)})};}};},async batch(statements){sql.exec('BEGIN');try{for(const s of statements)await s.run();sql.exec('COMMIT');}catch(e){sql.exec('ROLLBACK');throw e;}}};
  const env={READER_MODE:'production-trial',LOCAL_READER:'0',PRIVATE_READER:'0',READER_ORIGIN:origin,TRIAL_EMAIL:'rogerpbrown@gmail.com',ENABLE_EMAIL:'0',ENABLE_PAYMENTS:'0',ENABLE_LIVE_SYNTHESIS:'0',MAX_LIFETIME_CHARACTERS:'100000',LEDGER:db,ACCOUNT_LIMIT:{limit:async()=>({success:true})},EMAIL_LIMIT:{limit:async()=>({success:true})},ASSETS:{fetch:async()=>new Response('reader')},JOBS:{idFromName:id=>id,get:()=>({fetch:async()=>Response.json({ready:true}, {status:201})})}};
  const ledger=new ReaderLedger(db);

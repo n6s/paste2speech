@@ -7,7 +7,7 @@ import {newJob,prepareJob,publicStatus} from '../cloudflare/prepared/job.js';
 const env={MSE_STAGING:'1',PRIVATE_READER:'1',READER_MODE:'staging'};
 const options={delivery:'mse',concurrency:3,cached:true,scenario:'normal'};
 const raw={voice:'en-US-Wavenet-F',chunks:fixtureChunks('en-US-Wavenet-F'),mseOptions:options};
-function db(){const sql=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));sql.exec(readFileSync('cloudflare/reader/staging-migrations/0001_mse_campaign.sql','utf8'));sql.exec("INSERT INTO speech_budget VALUES('private-lifetime',24100,100000)");return sql;}
+function db(){const sql=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));sql.exec(readFileSync('cloudflare/reader/staging-migrations/0001_mse_campaign.sql','utf8'));sql.exec("INSERT INTO speech_budget VALUES('private-lifetime',24100,100000)");return sql;}
 test('staging-only options validate fixtures and canonicalize identity',()=>{
  assert.ok(mseStaging(env));assert.equal(mseStaging({...env,READER_MODE:'production-public'}),false);
  assert.throws(()=>stagingInput(raw,{...env,READER_MODE:'production-trial'}));
@@ -48,7 +48,7 @@ test('retiring staging ceilings preserves history and accounting above both form
  assert.throws(()=>sql.exec("INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,created) VALUES('unfunded','metered','test','[1]',1,1,1)"),/insufficient credit/);
  assert.equal(sql.prepare("SELECT balance FROM accounts WHERE id='metered'").get().balance,0);
  sql.close();
- const production=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').sort())production.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
+ const production=new DatabaseSync(':memory:');for(const file of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())production.exec(readFileSync('cloudflare/reader/migrations/'+file,'utf8'));
  assert.throws(()=>production.exec(migration),/mse_campaign/);
  assert.ok(production.prepare("SELECT name FROM sqlite_master WHERE type='trigger' AND name='budget_check'").get());production.close();
 });

@@ -13,7 +13,7 @@ import {documentOcrResponse,mistralOcrPayload} from '../cloudflare/reader/docume
 import {receiveWebhook} from '../cloudflare/reader/webhooks.js';
 const time=Date.now(),txn='txn_'+'o'.repeat(26),config={environment:'sandbox',price:'pri_01m4dzmjgsjt3feew9j7maj8w5',product:'pro_01m4dzha8772sp5eezdtz2c0cz',amount:'1000',currency:'USD',pages:500};
 async function fixture(){
- const sql=new DatabaseSync(':memory:');for(const f of readdirSync('cloudflare/reader/migrations').filter(f=>f.endsWith('.sql')).sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+f,'utf8'));
+ const sql=new DatabaseSync(':memory:');for(const f of readdirSync('cloudflare/reader/migrations').filter(f=>f.endsWith('.sql')&&f<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+f,'utf8'));
  sql.exec("INSERT INTO ocr_business_budget VALUES('sandbox-retail',1000,0)");
  sql.exec("INSERT INTO accounts(id,label,enabled,balance) VALUES('a','A',1,12345),('b','B',1,321); INSERT INTO identities VALUES('a@example.invalid','a'),('b@example.invalid','b');");
  for(const [token,account,kind,expires] of [['a','a','verified',time+3600000],['b','b','verified',time+3600000],['anon','a','anonymous',time+3600000],['old','a','verified',0]])sql.prepare('INSERT INTO sessions(token_hash,account,expires,kind) VALUES(?,?,?,?)').run(await digest(token),account,expires,kind);

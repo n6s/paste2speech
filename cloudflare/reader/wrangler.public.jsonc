@@ -19,7 +19,7 @@
     "PADDLE_ENVIRONMENT": "live",
     "PADDLE_PRICE_ID": "pri_01m35bk8byw8drpd8t2rhayene",
     "PADDLE_PRODUCT_ID": "pro_01m35bhyw23tf3f8yfafsezark",
-    "PUBLIC_LAUNCH_OPEN": "0",
+    "PUBLIC_LAUNCH_OPEN": "1",
     "LAUNCH_TEST_EMAIL": "rogerpbrown@gmail.com",
     "BACKGROUND_WORK_PAUSED": "0",
     "MAINTENANCE_QUEUE_ENABLED": "1",
@@ -41,8 +41,8 @@
     "UNIFIED_CREDITS": "1",
     "UNIFIED_LIVE_APPROVED": "1",
     "ENABLE_UNIFIED_PAYMENTS": "1",
-    "PADDLE_UNIFIED_PRODUCT_ID": "",
-    "PADDLE_UNIFIED_PRICE_ID": "",
+    "PADDLE_UNIFIED_PRODUCT_ID": "pro_01m4p9ggf6sm4hy4nz41hqjmnf",
+    "PADDLE_UNIFIED_PRICE_ID": "pri_01m4p9rrgrcwscvx2q0bqwc00j",
     "PAID_ADMISSIONS_PAUSED": "0"
   },
   "assets": {

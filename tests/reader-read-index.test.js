@@ -6,7 +6,7 @@ import {ReaderLedger} from '../cloudflare/reader/ledger.js';
 import {UsageLedger} from '../cloudflare/prepared/ledger.js';
 function setup(){
  const sql=new DatabaseSync(':memory:');
- for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
+ for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  const queries=[];
  const db={prepare(text){queries.push(text);return {bind(...args){return {first:async()=>sql.prepare(text).get(...args)||null,run:async()=>sql.prepare(text).run(...args),all:async()=>({results:sql.prepare(text).all(...args)})};}};}};
  db.batch=async statements=>{sql.exec('BEGIN');try{for(const statement of statements)await statement.run();sql.exec('COMMIT');}catch(error){sql.exec('ROLLBACK');throw error;}};

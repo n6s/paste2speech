@@ -4,7 +4,7 @@
 CREATE TABLE unified_controls(id TEXT PRIMARY KEY CHECK(id='production'),version TEXT NOT NULL CHECK(version='unified-v1'));
 INSERT INTO unified_controls VALUES('production','unified-v1');
 CREATE TABLE unified_wallets(account TEXT PRIMARY KEY REFERENCES accounts(id),balance INTEGER NOT NULL DEFAULT 0 CHECK(typeof(balance)='integer' AND balance>=0),debt INTEGER NOT NULL DEFAULT 0 CHECK(typeof(debt)='integer' AND debt>=0));
-CREATE TABLE unified_events(id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES accounts(id),kind TEXT NOT NULL CHECK(kind IN('purchase','refund','speech-hold','speech-release','ocr-hold','ocr-release')),reference TEXT NOT NULL,delta INTEGER NOT NULL CHECK(typeof(delta)='integer'),created INTEGER NOT NULL,net INTEGER);
+CREATE TABLE unified_events(id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES accounts(id),kind TEXT NOT NULL CHECK(kind IN('owner-test-grant','purchase','refund','speech-hold','speech-release','ocr-hold','ocr-release')),reference TEXT NOT NULL,delta INTEGER NOT NULL CHECK(typeof(delta)='integer'),created INTEGER NOT NULL,net INTEGER);
 CREATE TRIGGER unified_event_apply AFTER INSERT ON unified_events BEGIN
  INSERT OR IGNORE INTO unified_wallets(account) VALUES(NEW.account);
  UPDATE unified_events SET net=(SELECT balance-debt FROM unified_wallets WHERE account=NEW.account)+NEW.delta WHERE id=NEW.id;
@@ -105,3 +105,10 @@ CREATE TRIGGER unified_ocr_provenance BEFORE UPDATE OF wallet_version ON ocr_att
 
 CREATE TRIGGER unified_control_update BEFORE UPDATE ON unified_controls BEGIN SELECT RAISE(ABORT,'immutable wallet environment'); END;
 CREATE TRIGGER unified_control_delete BEFORE DELETE ON unified_controls BEGIN SELECT RAISE(ABORT,'immutable wallet environment'); END;
+
+-- Roger explicitly authorized one 100-credit production testing grant.
+-- It is separate from the zero-opening migration and cannot bypass capacity.
+CREATE TRIGGER unified_owner_test_grant BEFORE INSERT ON unified_events WHEN NEW.kind='owner-test-grant' BEGIN
+ SELECT RAISE(ABORT,'unapproved owner testing grant') WHERE NEW.id<>'owner-testing-2026-10-11-100' OR NEW.reference<>'roger-approved-production-testing-2026-10-11' OR NEW.delta<>100000 OR NOT EXISTS(SELECT 1 FROM identities i JOIN accounts a ON a.id=i.account WHERE i.email='rogerpbrown@gmail.com' AND a.id=NEW.account AND a.enabled=1);
+ SELECT RAISE(ABORT,'owner testing grant exceeds provider capacity') WHERE NOT EXISTS(SELECT 1 FROM unified_capacity WHERE reserved_cents+committed_cents+50<=cap_cents);
+END;

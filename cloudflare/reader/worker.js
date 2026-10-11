@@ -76,7 +76,7 @@ export default {
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
-   if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname))return await documentOcrResponse(request,env,{token});
+   if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname)){if(publicMode(env)&&url.pathname==='/api/ocr'&&request.method==='POST')await rateLimit(env,'READING_LIMIT',request);return await documentOcrResponse(request,env,{token});}
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER,env),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    if(url.pathname==='/api/summary'||url.pathname==='/api/summary/config'){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null,{ctx});}
@@ -165,7 +165,7 @@ export default {
      // or cancelled admissions consume budget too, bounding uncertain charges.
      if(publicMode(env)){
       const cap=await capacity(env.LEDGER);
-      if(!receipt&&(requested>cap.dailyRemaining||requested>cap.monthlyRemaining))throw new CreditError('Speech capacity is temporarily full. Your credit is safe; check your account for reset times.',429);
+      if(!receipt&&(cap.dailyRemaining!==null&&requested>cap.dailyRemaining||cap.monthlyRemaining!==null&&requested>cap.monthlyRemaining))throw new CreditError('Speech capacity is temporarily full. Your credit is safe; check your account for reset times.',429);
       await ledger.query('INSERT OR IGNORE INTO public_jobs(job,account) VALUES(?,?)',id,owner).run();
       const admitted=await ledger.query('SELECT account FROM public_jobs WHERE job=?',id).first();
       if(admitted.account!==owner)throw new CreditError('Reading not found.',404);

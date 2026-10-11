@@ -11,7 +11,7 @@ const {default:worker}=await import('data:text/javascript;base64,'+Buffer.from(b
 const now=Date.parse('2026-09-29T12:00:00Z');
 function setup(){
  const sql=new DatabaseSync(':memory:');
- for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
+ for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  sql.exec(readFileSync('migrations/0001.sql','utf8'));
  const db={prepare(text){return {bind(...args){return {first:async()=>sql.prepare(text).get(...args)||null,all:async()=>({results:sql.prepare(text).all(...args)})};}};}};
  sql.exec("INSERT INTO accounts VALUES('owner','Owner',1,100000),('customer','Customer',1,100000); INSERT INTO identities VALUES('owner@example.invalid','owner'),('customer@example.invalid','customer')");

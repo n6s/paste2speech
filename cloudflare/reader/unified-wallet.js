@@ -14,7 +14,7 @@ export async function assertUnifiedEnvironment(db,env){
  const control=await db.prepare('SELECT id,version FROM unified_controls').bind().first();
  if(control?.id!==(publicMode(env)?'production':'staging')||control.version!=='unified-v1')throw Error('Shared wallet database environment mismatch');
 }
-export async function unifiedCapacity(ledger){const b=await ledger.query('SELECT * FROM unified_capacity').first();return {...b,available:!!b&&b.reserved_cents+b.committed_cents+500<=b.cap_cents};}
+export async function unifiedCapacity(ledger){const b=await ledger.query('SELECT * FROM unified_capacity').first();return {...b,available:!!b&&(b.cap_cents===null||b.reserved_cents+b.committed_cents+500<=b.cap_cents)};}
 export class UnifiedWallet extends UsageLedger {
  constructor(db,env){super(db);this.env=env;}
  query(sql,...values){

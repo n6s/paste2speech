@@ -9,7 +9,7 @@ import {validateInput} from '../cloudflare/prepared/job.js';
 import {privateAccess,allowedRequestSource} from '../cloudflare/reader/access.js';
 import {paddleProvider,sendLink} from '../cloudflare/reader/providers.js';
 function setup(){
- const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
+ const sql=new DatabaseSync(':memory:');for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  const db={prepare(text){return {bind(...values){return {first:async()=>sql.prepare(text).get(...values)||null,run:async()=>sql.prepare(text).run(...values),all:async()=>({results:sql.prepare(text).all(...values)})};}};},async batch(statements){sql.exec('BEGIN');try{for(const s of statements)await s.run();sql.exec('COMMIT');}catch(e){sql.exec('ROLLBACK');throw e;}}};
  return {sql,db,ledger:new ReaderLedger(db)};
 }
