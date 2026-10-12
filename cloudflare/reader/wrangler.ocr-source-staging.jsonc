@@ -1,0 +1,30 @@
+{
+  "name": "private-wavenet-ocr-source-staging",
+  "main": "ocr-source-gateway.js",
+  "compatibility_date": "2026-09-21",
+  "account_id": "c71dba5be3cc617a904adc61e767704d",
+  "workers_dev": true,
+  "preview_urls": false,
+  "vars": {
+    "READER_MODE": "staging",
+    "OCR_SOURCE_GATEWAY_APPROVED": "1"
+  },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "OCR_JOBS",
+        "class_name": "OcrJob",
+        "script_name": "private-wavenet-reader-staging"
+      }
+    ]
+  },
+  "observability": {
+    "enabled": false,
+    "logs": {
+      "enabled": false
+    },
+    "traces": {
+      "enabled": false
+    }
+  }
+}

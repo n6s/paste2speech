@@ -160,7 +160,7 @@ test('external sign-in navigation is allowed while cross-site API and mutations 
  assert.equal(allowedRequestSource(new Request(url,{headers:navigation})),true);
  assert.equal(allowedRequestSource(new Request(url,{headers:{...navigation,'Sec-Fetch-Dest':'iframe'}})),false);
  assert.equal(allowedRequestSource(new Request(url,{headers:{...navigation,'Sec-Fetch-Mode':'cors'}})),false);
- for(const method of ['POST','DELETE']){
+ for(const method of ['POST','PUT','DELETE']){
   assert.equal(allowedRequestSource(new Request(url,{method,headers:navigation})),false);
   assert.equal(allowedRequestSource(new Request(url,{method,headers:{...navigation,Origin:'https://private.example.invalid'}})),false);
   assert.equal(allowedRequestSource(new Request(url,{method,headers:{Origin:'https://private.example.invalid','Sec-Fetch-Site':'same-origin'}})),true);

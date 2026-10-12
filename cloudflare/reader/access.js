@@ -23,7 +23,7 @@ export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={})
 // metadata. Permit only safe top-level navigation, never cross-site API calls.
 export function allowedRequestSource(request){
  const url=new URL(request.url);
- if(['POST','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return false;
+ if(['POST','PUT','DELETE'].includes(request.method)&&request.headers.get('Origin')!==url.origin)return false;
  if(request.headers.get('Sec-Fetch-Site')!=='cross-site')return true;
  return ['GET','HEAD'].includes(request.method)&&
   request.headers.get('Sec-Fetch-Mode')==='navigate'&&

@@ -1,12 +1,14 @@
 import {ocrExportParts,ocrExportBlob} from './ocr-result-export.js';
 import {configureCloudChoice,CLOUD_POLICIES} from './cloud-choices.js';
 import {formatCredits,sharedCredits} from './credit-units.js';
-import {UNIFIED_CREDITS} from './config.js';
+import {UNIFIED_CREDITS,OCR_DURABLE_JOBS} from './config.js';
 import {balanceCapacity} from './balance-capacity.js';
 import {setupClipboardImage} from './clipboard-image.js';
 import {documentType,DOCUMENT_LIMIT,validateDocumentBytes,OCR_MODEL} from './document-format.js';
 import {reconstruct,exportText} from './document-reconstruct.js';
+import {setupDurableDocumentImport} from './ocr-jobs-client.js';
 export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,pauseReading,pasteTarget,fetcher=fetch}) {
+ if(OCR_DURABLE_JOBS)return setupDurableDocumentImport({input,status,cancel,getText,accept,onBusy,pauseReading,pasteTarget,fetcher});
  const root=input.closest('details');root.querySelector('summary').textContent=UNIFIED_CREDITS?'Scan text from images & PDFs':'Open document';root.querySelector('label[for="pdf-file"]').textContent='Choose PDF or image';input.accept='.pdf,.png,.jpg,.jpeg,.webp,application/pdf,image/png,image/jpeg,image/webp';
  const sources=document.createElement('div');sources.className='document-sources';sources.setAttribute('role','group');sources.setAttribute('aria-label','Open a document');
  const choose=document.createElement('button');choose.type='button';choose.id='document-choose-file';choose.textContent='Choose file';choose.setAttribute('aria-describedby','pdf-status');choose.onclick=()=>input.click();

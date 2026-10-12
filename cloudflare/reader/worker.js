@@ -1,5 +1,7 @@
 import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
 import {unifiedCheckoutStatus} from './unified-payments.js';
+import {ocrJobsApi} from './ocr-jobs-api.js';
+import {durableOcrEnabled} from './ocr-job.js';
 import {summaryResponse} from './summary.js';
 import {summaryPriced,maintainSummaryCredits} from './summary-credits.js';
 import {ocrRetailEnabled,ocrOwnerOnly,ocrCapacity} from './ocr-policy.js';
@@ -24,6 +26,7 @@ import {validateInput} from '../prepared/job.js';
 import {readBounded} from '../prepared/google.js';
 import {sendLink} from './providers.js';
 import fixtures from '../../scripts/wavenet-worker-proof/fixture.json';
+export {OcrJob} from './ocr-job.js';
 export {PreparedReading} from '../prepared/durable.js';
 export {PaymentCoordinator,OcrPaymentCoordinator} from './payments-do.js';
 const approved=(env,account)=>!!account && account.email===env.TRIAL_EMAIL && account.enabled===1 && !account.legacyPilot;
@@ -71,12 +74,13 @@ export default {
   if(production(env) ? env.LOCAL_READER==='1'||new URL(request.url).origin!==env.READER_ORIGIN||new URL(request.url).protocol!=='https:' : !await privateAccess(request,env))return json({detail:'Private reader access required.'},403);
   const url=new URL(request.url),local=env.LOCAL_READER==='1';
   if(env.BACKGROUND_WORK_PAUSED==='1'&&url.pathname.startsWith('/api/'))return json({detail:'The reader is temporarily paused for maintenance. Please try again later.'},503);
-  if(!['GET','HEAD','POST','DELETE'].includes(request.method))return json({},405);
+  if(!['GET','HEAD','POST','DELETE'].includes(request.method)&&!(request.method==='PUT'&&durableOcrEnabled(env)&&/^\/api\/ocr\/jobs\/[0-9a-f-]{36}\/upload$/.test(url.pathname)))return json({},405);
   if(url.pathname==='/api/billing/webhook'&&request.method==='POST'&&(publicMode(env)||ocrRetailEnabled(env)))return receiveWebhook(request,env,ctx);
   if(!allowedRequestSource(request))return json({detail:'Open the reader directly.'},403);
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
+   if(url.pathname.startsWith('/api/ocr/jobs/'))return ocrJobsApi(request,env,{token});
    if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname)){if(publicMode(env)&&url.pathname==='/api/ocr'&&request.method==='POST')await rateLimit(env,'READING_LIMIT',request);return await documentOcrResponse(request,env,{token});}
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER,env),session=await ledger.session(token),account=session?await ledger.account(session.id):null;

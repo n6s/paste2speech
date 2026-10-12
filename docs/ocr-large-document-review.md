@@ -1,6 +1,6 @@
 # OCR large-document review — October 11, 2026
 
-Status: Roger approved the described staging original storage and restricted access on October 11 (“Clever. Proceed.”). The source lifecycle, large verifier, native upload proxy and additive accounting components are implemented and tested locally, but the durable provider job and recovery UI are not complete or deployed. No new resource binding, migration, larger OCR cap, paid provider call, or account upgrade has been deployed. The independently approved remembered-consent/text-export reader release retains the current 6 MiB / 10-page cloud OCR caps.
+Status (October 12 checkpoint): Roger approved the exact staging temporary-original design on October 11 (“Clever. Proceed.”) and resumed implementation (“Yes, Resume it”). Source verification, atomic accounting, durable dispatch/results/cleanup, authenticated recovery API and material-consent UI are implemented and tested locally. The full native workerd lifecycle now passes with a 50,000,000-byte / 1,000-page synthetic PDF and a mocked provider. Nothing in this larger-job checkpoint has been deployed: staging remains Summary-consent release `fb74a5a` with the earlier 6 MiB / 10-page scanner. Public production remains `068c2318`. Remote staging migration, restricted gateway deployment, updated complete reader release gates and hosted verification remain. These larger limits are not ready for user processing yet.
 
 ## Target and verified economics
 
@@ -18,7 +18,7 @@ Approve this exact design for the next **staging** implementation:
 - A foreground upload streams into a private random object under an account/job-specific prefix. Stop at 50,000,000 bytes. Incomplete uploads are not accepted jobs, do not reserve customer credits, cannot dispatch OCR, and are deleted; any orphan is denied all reads and removed by cleanup. Enforce **one hour from upload start** as the hard original-file access expiry, including an interrupted upload.
 - A complete immutable object is verified independently for byte length, hash, MIME, PDF structure and whole-file page count. This verification belongs to the job Durable Object, rather than the Free HTTP Worker's 10 ms CPU budget. Only trusted counts can reserve the atomic wallet hold and provider allowance.
 - Confirm “Accepted” only after the complete source, verified metadata, admission, reservation, and durable alarm are recorded. Return a job ID promptly. Before this confirmation, the UI says “Uploading — keep this page open”; it must never imply that a suspended/interrupted upload will continue.
-- Staging Cloudflare Access currently protects the app origin, so Mistral cannot fetch that URL. The next implementation also needs an explicitly approved separate **staging OCR source gateway Worker** (public Workers.dev endpoint, existing private staging bucket binding, only the expiring one-object capability GET route). Do not bypass Access for the app or cross-bind staging files into production. Public rollout can use a token-protected source route on its existing public origin. This additional endpoint/resource is part of the pending storage/access review; none has been created.
+- Staging Cloudflare Access currently protects the app origin, so Mistral cannot fetch that URL. The next implementation also needs an explicitly approved separate **staging OCR source gateway Worker** (public Workers.dev endpoint, only an OCR-job namespace binding and the expiring one-object capability GET route). Do not bypass Access for the app or cross-bind staging files into production. Public rollout can use a token-protected source route on its existing public origin. This additional endpoint/resource is part of the pending storage/access review; none has been created.
 - For Mistral only, mint one random 256-bit capability for GET of this immutable object, store its hash and expiry, and allow no listing, upload, or access to any other object. Proposed capability expiry: **15 minutes from accepted dispatch admission**, never beyond the original-file hard expiry. Treat the URL as a temporary bearer secret; redact it from logs/results/history. Customer result endpoints remain authenticated and account-bound. Do not create permanent provider access.
 - Bump the remembered OCR policy version and require renewed disclosure/choice before using temporary original-file storage or provider URL access. A remembered approval for the current inline/no-original-storage path must not authorize the new privacy behavior.
 - Once accepted, server-owned alarms drive queued → running → ready / failed / uncertain. An alarm retry must inspect a durable dispatch marker and **never redispatch a paid OCR request**. A marked dispatch with lost/expired execution becomes uncertain, releases customer credit, retains the provider cost reservation, and permits only reconciliation of the original attempt. It does not offer an automatic paid retry.
@@ -183,3 +183,78 @@ inline path and settled 10 credits. It is independent of these local proofs;
 no duplicate or broader provider test was run here. Handwriting can contain
 material substitutions and must be compared with the original; generated export
 bytes do not establish transcription accuracy.
+
+
+## Durable lifecycle and browser checkpoint — October 12
+
+`ocr-job.js` now accepts only a complete immutable server-verified source, fresh
+account/policy/whole-price consent and an affordable whole-file hold. SQLite DO
+alarms continue after the upload client leaves. A durable D1 dispatch fence allows
+one provider call only; lost acknowledgements and restart uncertainty never cause
+another paid attempt. The pinned standard model remains `mistral-ocr-4-1`.
+Provider reservations remain immutable estimates ($8 for 1,000 pages), not a new
+customer spending allowance. Standard jobs do not gate on or mutate old finite
+experimental permits/business counters; tests preserve those old records.
+
+`ocr-job-results.js` parses the provider response as bounded streaming JSON, writes
+immutable page objects, and publishes a manifest only after every expected page,
+model, usage count and nonblank body are validated. Bounds: 64 MiB response,
+1 MiB per page, 20 million text characters and JSON nesting 64. Excess/incomplete
+work is rejected as a whole and refunded; there is no silent truncation. A complete
+manifest can recover a lost write/settlement acknowledgement. Source revocation
+and confirmed original deletion precede settlement; deletion failure retains the
+hold temporarily and retries without repeating inference. Failure, timeout,
+cancellation, refund debt and a lost dispatch acknowledgement cannot settle.
+Outputs are privately available for 24 hours from completed storage; expiry deletes
+page content while retaining immutable minimal financial receipts.
+
+`ocr-jobs-api.js` requires the verified staging owner session and exact owned job
+IDs. Raw foreground uploads use native known-length streams without forwarding
+incoming account/credential headers. PUT now requires the same-origin source
+check, alongside existing POST/DELETE protection. Recent scans includes both new
+jobs and earlier inline receipts, allowing free original-result replay. The
+prepared staging source gateway binds only the OCR job namespace, has no bucket,
+D1, credentials, account or payment binding, and disables logs/traces. Its origin
+is `private-wavenet-ocr-source-staging.rogerpbrown.workers.dev`; it is not deployed.
+
+The staging-only `ocr-jobs-client.js` first obtains explicit temporary-storage
+consent, uploads/verifies the whole file, then displays the verified full price for
+explicit acceptance. The material policy is
+`mistral-temporary-original-2-credit-v1`; the old inline remembered choice cannot
+authorize it. A newly remembered choice applies only to deliberately chosen/pasted
+files, fresh matching account/policy/price metadata and full affordability.
+Accepted work survives tab closure; Recent scans recovers it without re-upload or
+inference. Loading saved text is explicit and preserves editor changes during
+loading. Server text/Markdown downloads stream complete original page data;
+Copy preserves all original pages and footers. Local PDF checking remains free;
+large PDFs go to bounded server verification. Public builds keep the old path.
+
+Native proof: `work/ocr-job-native-proof/verification.json`, generated by
+`tests/ocr-job-native.mjs`, uses local workerd, native FixedLengthStream, local
+SQLite DO/D1 and private local R2. The exact 50,000,000-byte / 1,000-page file was
+verified, held at exactly 2,000 credits, fetched byte-identically by the mocked
+provider once (second GET denied), processed once, saved and settled once.
+**5,025,890 result characters** and the final original footer replayed intact;
+text/Markdown exports contain **5,039,813 / 5,046,820 bytes**. The full local
+lifecycle/replay/export/cleanup proof took **13,488.28 ms**. This is local wall time,
+not billed CPU, production throughput, physical-phone memory or real Mistral
+latency. Expiry and pre-upload cancellation cleanup pass. No real provider call,
+payment, remote data write or new access credential was used.
+
+Browser proof: `work/ocr-job-browser-proof/verification.json` and
+`mobile-consent.png`, generated by `tests/ocr-jobs-browser.mjs`, uses built staging
+assets in isolated Chrome with every API intercepted. It checks old-consent
+invalidation, separate privacy/whole-price clicks, deliberate remembered action,
+whole 50 MB upload, exact 1,000-page/2,000-credit price, 1,000-page reader load,
+reload/recent recovery with no new inference, editor preservation, original Copy
+and download, insufficient wallet, material/account isolation, uncertain admission
+without retry, and 320/390px fit. This is not a physical phone/lock-screen proof.
+
+The repository tests and focused fault/parser/accounting/API checks pass. The
+native proof exposed Wrangler's CASE/END splitting requirement; the new migration
+is formatted compatibly and has a regression using Wrangler's actual splitter.
+Before any larger scan becomes available, finish adapting the older reader browser
+gates to the new staging flow, take and verify a private staging D1 backup, apply
+only additive 0012, deploy the DO binding and restricted gateway, and verify hosted
+assets/UI with all provider writes mocked. No new real-provider smoke, public
+promotion or paid account upgrade is approved by this checkpoint.

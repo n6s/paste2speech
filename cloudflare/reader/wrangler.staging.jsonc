@@ -43,9 +43,13 @@
     "UNIFIED_CREDITS": "1",
     "ENABLE_UNIFIED_PAYMENTS": "1",
     "PADDLE_UNIFIED_PRODUCT_ID": "pro_01m4ntya23sa7g6mr4kv7yepyc",
-    "PADDLE_UNIFIED_PRICE_ID": "pri_01m4nv10a0b8nq3tpnp78shzbj"
+    "PADDLE_UNIFIED_PRICE_ID": "pri_01m4nv10a0b8nq3tpnp78shzbj",
+    "OCR_DURABLE_JOBS": "1",
+    "OCR_SOURCE_ORIGIN": "https://private-wavenet-ocr-source-staging.rogerpbrown.workers.dev"
   },
-  "ai": {"binding": "AI"},
+  "ai": {
+    "binding": "AI"
+  },
   "assets": {
     "directory": "../../work/private-reader/site",
     "binding": "ASSETS",
@@ -64,6 +68,10 @@
       {
         "name": "OCR_PAYMENTS",
         "class_name": "OcrPaymentCoordinator"
+      },
+      {
+        "name": "OCR_JOBS",
+        "class_name": "OcrJob"
       }
     ]
   },
@@ -79,6 +87,12 @@
       "tag": "v2-ocr-sandbox",
       "new_sqlite_classes": [
         "OcrPaymentCoordinator"
+      ]
+    },
+    {
+      "tag": "v3-ocr-jobs",
+      "new_sqlite_classes": [
+        "OcrJob"
       ]
     }
   ],
