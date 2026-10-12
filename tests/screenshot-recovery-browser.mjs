@@ -21,7 +21,7 @@ await context.route('**/*',async route=>{const req=route.request(),url=new URL(r
  if(p==='/api/reader')return route.fulfill({json:{eligible:true,accessAllowed:true,account:{...wallet,verified:true,creditRequired:true},voices:['en-US-Wavenet-F']}});
  if(p==='/api/events'||p==='/api/summary/config')return route.fulfill({json:{available:false}});
  if(p==='/api/ocr/jobs/config')return route.fulfill({json:config});if(p==='/api/ocr/jobs/recent')return route.fulfill({json:{jobs:[...jobs.values()],balance:wallet}});
- if(p==='/api/ocr/jobs/init'){const value=req.postDataJSON();last=value.id;jobs.set(last,{id:last,fileName:value.name,durable:true,pages:1,state:'verified'});return route.fulfill({json:{id:last}});}
+ if(p==='/api/ocr/jobs/init'){const value=req.postDataJSON();last=value.id;jobs.set(last,{id:last,fileName:value.name,durable:true,pages:1,state:'verified',expires:Date.now()+86400000});return route.fulfill({json:{id:last}});}
  const part=p.split('/'),job=jobs.get(part[4]);if(job){if(part[5]==='upload')return route.fulfill({json:{id:job.id,pages:1,priceCredits:2,units:2000,documentHash:'a'.repeat(64),wallet,canSubmit:true,consentScope:config.consentScope,consentPolicy:config.consentPolicy}});if(part[5]==='accept'){job.state='ready';job.creditsUsed=2;return route.fulfill({json:{id:job.id,wallet}});}if(part[5]==='result')return route.fulfill({json:{model:config.model,pages:[{index:0,markdown:'Synthetic screenshot text.'}],p2s_ocr:wallet}});if(part[5]==='cancel'){job.state='canceled';return route.fulfill({json:{wallet}});}}
  throw Error('Unexpected intercepted API '+req.method()+' '+p);
 });

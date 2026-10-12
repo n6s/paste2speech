@@ -4,18 +4,22 @@ export function setupProcessingIndicator({delayMs=200}={}) {
  if(indicator)return indicator;
  const panel=document.createElement('aside');
  panel.id='processing-indicator';panel.hidden=true;panel.setAttribute('aria-hidden','true');
- document.body.append(panel);
+ const modes=document.querySelector('.mode-controls');if(modes)modes.before(panel);else document.body.prepend(panel);
  const entries=new Map();
  const paint=()=>{
-  panel.replaceChildren();
+  panel.replaceChildren();let outcome=false;
   for(const [kind,entry] of entries)if(entry.visible){
    const row=document.createElement('div');row.className='processing-indicator-row';row.id='processing-'+kind;
-   const spinner=document.createElement('span');spinner.className='processing-spinner';
-   const copy=document.createElement('div'),title=document.createElement('strong'),note=document.createElement('span');
-   title.textContent=entry.message;note.textContent='You can keep using the reader.';
-   copy.append(title,note);row.append(spinner,copy);panel.append(row);
+   const copy=document.createElement('div'),title=document.createElement('strong'),note=document.createElement('span');title.textContent=entry.message;
+   if(entry.outcome){
+    outcome=true;row.classList.add('processing-outcome-row');row.setAttribute('role','group');title.id=row.id+'-title';row.setAttribute('aria-labelledby',title.id);note.textContent=entry.body;
+    copy.append(title,note);const credit=document.createElement('p');credit.className='processing-outcome-credit';credit.textContent=entry.credit;copy.append(credit);
+    const actions=document.createElement('div');actions.className='processing-outcome-actions';if(entry.onAction){const action=document.createElement('button');action.type='button';action.textContent=entry.actionLabel;action.onclick=entry.onAction;actions.append(action);}
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Dismiss';dismiss.onclick=()=>{indicator.clear(kind,entry.token);entry.onDismiss?.();document.getElementById('edit-mode')?.focus({preventScroll:true});};actions.append(dismiss);copy.append(actions);
+   }else{row.setAttribute('aria-hidden','true');const spinner=document.createElement('span');spinner.className='processing-spinner';row.append(spinner);note.textContent='You can keep using the reader.';copy.append(title,note);}
+   row.append(copy);panel.append(row);
   }
-  panel.hidden=!panel.childElementCount;
+  panel.classList.toggle('has-outcome',outcome);panel.setAttribute('aria-hidden',String(!outcome));panel.hidden=!panel.childElementCount;
  };
  indicator={
   update(kind,token,message){
@@ -33,6 +37,7 @@ export function setupProcessingIndicator({delayMs=200}={}) {
     entry.visible=true;paint();
    },delayMs);
   },
+  outcome(kind,token,details){const current=entries.get(kind);if(current)clearTimeout(current.timer);entries.set(kind,{token,...details,outcome:true,visible:true});paint();panel.scrollIntoView({block:'nearest'});},
   clear(kind,token){
    const current=entries.get(kind);
    if(!current||token!==undefined&&current.token!==token)return;
@@ -43,6 +48,7 @@ export function setupProcessingIndicator({delayMs=200}={}) {
 }
 export function showProcessing(kind,token,message){indicator?.update(kind,token,message);}
 export function hideProcessing(kind,token){indicator?.clear(kind,token);}
+export function showProcessingOutcome(kind,token,details){indicator?.outcome(kind,token,details);}
 export function audioWaitMessage(player,{browser=false,creditPaused=false}={}){
  if(!player)return '';
  if(browser)return player.state==='playing'&&player.starting?'Starting your device voice…':'';

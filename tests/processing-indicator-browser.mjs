@@ -45,7 +45,7 @@ await context.route('**/*',async route=>{
   const snapshot=[...jobs.values()].map(j=>({...j}));await hold('recent');
   return route.fulfill(rejectRecent?{status:503,json:{detail:'Synthetic connection failed. Check Recent scans.'}}:{json:{jobs:snapshot,balance:wallet}});
  }
- if(path==='/api/ocr/jobs/init'){const p=req.postDataJSON();last=p.id;jobs.set(last,{id:last,fileName:p.name,state:'awaiting-upload',pages:1,durable:true});return route.fulfill({json:{id:last}});}
+ if(path==='/api/ocr/jobs/init'){const p=req.postDataJSON();last=p.id;jobs.set(last,{id:last,fileName:p.name,state:'awaiting-upload',pages:1,durable:true,expires:Date.now()+86400000});return route.fulfill({json:{id:last}});}
  const parts=path.split('/'),job=jobs.get(parts[4]);
  if(job){
   const op=parts[5];
@@ -90,12 +90,12 @@ try{
  await page.click('#edit-mode');assert.equal(await page.locator('#text').evaluate(e=>e.readOnly),false);await page.fill('#text','Edits while the scan runs.');assert.equal(await page.locator('#text').inputValue(),'Edits while the scan runs.');
  await page.selectOption('#engine','browser');await page.click('#play');await notice('audio');assert.equal(await page.locator('.processing-indicator-row').count(),2);await page.click('#pause');assert.equal(await page.locator('#processing-ocr').isVisible(),true);await page.click('#stop');
  await page.screenshot({path:out+'/scan-wait-'+(hosted?'hosted':'built')+'.png'});
- jobs.get(last).state='ready';jobs.get(last).creditsUsed=2;await refresh();await hidden();assert.equal(await page.locator('#text').inputValue(),'Edits while the scan runs.');assert.equal(await page.locator('#document-load-result').evaluate(e=>e.hidden),false);
- arm('result');await page.click('#document-load-result');await waitGate('result');await notice('ocr',/Loading scan/);await page.click('#clear');await hidden();await page.fill('#text','New text after Clear.');release('result');await page.waitForTimeout(300);await hidden();assert.equal(await page.locator('#text').inputValue(),'New text after Clear.');
- await openScans();await page.getByRole('button',{name:'Load saved scan',exact:true}).click();await page.waitForFunction(()=>document.getElementById('text').value.includes('Synthetic scanned text'));await hidden();assert.doesNotMatch(await page.locator('#text').inputValue(),/Synthetic footer/);
+ jobs.get(last).state='ready';jobs.get(last).creditsUsed=2;await refresh();await hidden();assert.equal(await page.locator('#text').inputValue(),'Edits while the scan runs.');assert.equal(await page.locator('#document-load-result').evaluate(e=>e.hidden),true);
+ arm('result');await page.locator('[data-scan-id="'+last+'"] button').click();await waitGate('result');await notice('ocr',/Loading scan/);await page.click('#clear');await hidden();await page.fill('#text','New text after Clear.');release('result');await page.waitForTimeout(300);await hidden();assert.equal(await page.locator('#text').inputValue(),'New text after Clear.');
+ await openScans();await page.locator('[data-scan-id="'+last+'"] button').click();await page.waitForFunction(()=>document.getElementById('text').value.includes('Synthetic scanned text'));await hidden();assert.doesNotMatch(await page.locator('#text').inputValue(),/Synthetic footer/);
  // Failures and cancellation retire the wait; a lost poll can recover on refresh.
- await quote();await submit();await notice('ocr');rejectRecent=true;await refresh();await hidden();assert.match(await page.locator('#pdf-status').textContent(),/Synthetic connection failed/);rejectRecent=false;await refresh();await notice('ocr');jobs.get(last).state='uncertain';jobs.get(last).creditsReleased=2;await refresh();await hidden();assert.match(await page.locator('#document-problem').textContent(),/Scan outcome uncertain/);
- await page.click('#clear');await quote();await submit();await notice('ocr');await openScans();await page.getByRole('button',{name:'Cancel scan',exact:true}).click();await hidden();
+ await quote();await submit();await notice('ocr');rejectRecent=true;await refresh();await page.locator('#processing-scan-outcome').waitFor({state:'visible'});assert.match(await page.locator('#pdf-status').textContent(),/Synthetic connection failed/);rejectRecent=false;await refresh();await notice('ocr');jobs.get(last).state='uncertain';jobs.get(last).creditsReleased=2;await refresh();assert.match(await page.locator('#processing-scan-outcome').textContent(),/Scan did not finish/);
+ await page.click('#clear');await quote();await submit();await notice('ocr');await openScans();await page.click('#cancel-pdf');await page.locator('#processing-scan-outcome').waitFor({state:'visible'});
  // A stale acceptance/recent response cannot revive an indicator after Clear.
  await page.click('#clear');await quote();arm('accept');await page.click('#document-ocr');await waitGate('accept');await notice('ocr');await page.click('#clear');await page.fill('#text','Final preserved text.');release('accept');await page.waitForTimeout(300);await hidden();assert.equal(await page.locator('#text').inputValue(),'Final preserved text.');
  await openScans();arm('recent');await page.click('#document-check');await waitGate('recent');await page.click('#clear');release('recent');await page.waitForTimeout(300);await hidden();

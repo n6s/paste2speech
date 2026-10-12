@@ -34,3 +34,11 @@
 .staging-reader-layout .screenshot-recovery p{font-size:1rem;line-height:1.45;margin:0 0 12px}
 .screenshot-recovery-actions{display:flex;flex-wrap:wrap;gap:8px}
 .screenshot-recovery-actions button{min-height:44px;max-width:100%}
+
+#processing-indicator.has-outcome{position:static;transform:none;width:auto;margin:12px 0;border-color:#b87924;background:#fff0d1;color:#472900;box-shadow:none;pointer-events:auto}
+.processing-outcome-row{display:block}
+.processing-outcome-row>div{width:100%;min-width:0}
+#processing-indicator.has-outcome .processing-indicator-row span:not(.processing-spinner){color:inherit;font-size:1rem;line-height:1.45;margin-top:8px}
+.processing-outcome-credit{font-size:.9rem;line-height:1.45;margin:8px 0}
+.processing-outcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
+.processing-outcome-actions button{min-height:44px;max-width:100%}
