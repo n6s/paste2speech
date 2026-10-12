@@ -1,0 +1,21 @@
+.staging-reader-layout .reader-tool-section{margin:10px 0;border:1px solid #dce1d7;border-radius:12px;background:#fffef8;padding:0 10px;min-width:0}
+.staging-reader-layout .reader-tool-section summary{min-height:44px;display:flex;align-items:center;gap:8px;padding:6px 0}
+.staging-reader-layout .reader-tool-section summary::before{content:"▸";flex:none}
+.staging-reader-layout .reader-tool-section details[open]>summary::before,.staging-reader-layout details.reader-tool-section[open]>summary::before{content:"▾"}
+.staging-reader-layout .reader-tool-section summary::-webkit-details-marker{display:none}
+.staging-reader-layout .reader-tool-section details{border:1px solid #e0e5db;border-radius:8px;margin:8px 0;padding:0 10px;background:#f7f8f2}
+.staging-reader-layout #document-tools>.pdf-import{border:0;margin:0;padding:0;background:transparent}
+.staging-reader-layout .reader-tool-section details[open]{padding-bottom:10px}
+.staging-reader-layout .reader-tool-section p{margin:8px 0;overflow-wrap:anywhere}
+.staging-reader-layout #document-result{padding-bottom:4px}
+.staging-reader-layout #document-exports{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 0}
+.staging-reader-layout #document-exports>p{flex-basis:100%;margin:0}
+.staging-reader-layout #cloud-actions label{display:flex;align-items:flex-start;gap:8px;min-height:44px}
+.staging-reader-layout #cloud-actions input{width:19px;height:19px;flex:none;margin:3px 0 0}
+.staging-reader-layout #document-clipboard-hint,.staging-reader-layout #document-paste-hint{font-size:.78rem;color:#63746a}
+
+.staging-reader-layout #online-processing>#cloud-actions{border:0;margin:0;padding:0;background:transparent}
+.staging-reader-layout #online-processing>#cloud-actions[open]{padding-bottom:10px}
+
+.staging-reader-layout #read-view>p.hint{margin:6px 0 0}
+.staging-reader-layout .reading-toolbar{margin:4px 0}

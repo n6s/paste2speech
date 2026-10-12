@@ -28,3 +28,5 @@ export const FULL_AUDIO_PREFETCH = false;
 export const SECTION_PROGRESS = false;
 
 export const OCR_DURABLE_JOBS = false;
+
+export const STAGING_READER_LAYOUT = false;

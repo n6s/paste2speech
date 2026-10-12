@@ -28,7 +28,7 @@ const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const OCR_DURABLE_JOBS=${!production&&configVars.OCR_DURABLE_JOBS==='1'},SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},UNIFIED_CREDITS=${unifiedBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${sharedReaderFeatures},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const STAGING_READER_LAYOUT=${!production},OCR_DURABLE_JOBS=${!production&&configVars.OCR_DURABLE_JOBS==='1'},SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},UNIFIED_CREDITS=${unifiedBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${sharedReaderFeatures},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
@@ -51,11 +51,13 @@ if(videoDownload){
  await writeFile(root+'/video/core.json',JSON.stringify({parts}));
 }
 await copyFile('public/style.css',root+'/style.css');
+if(!production)await copyFile('public/staging-reader-layout.css',root+'/staging-reader-layout.css');
 if(sharedReaderFeatures)await copyFile('public/section-progress.css',root+'/section-progress.css');
 await copyFile('public/domain-move.js',root+'/domain-move.js');
 const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
 for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
 let html=await readFile('public/index.html','utf8');
+if(!production)html=html.replace('</head>','<link rel="stylesheet" href="staging-reader-layout.css"></head>');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
 // Keep the reader next to its controls, with optional settings following playback.
 const settingsCard=html.match(/<section class="card voice-settings-card"[\s\S]*?<\/section>/)[0];
