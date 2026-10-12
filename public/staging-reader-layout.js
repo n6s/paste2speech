@@ -12,5 +12,5 @@ export function setupStagingReaderLayout(){
  const cancel=document.getElementById('cancel-pdf');if(cancel)scan.append(cancel);
  const settings=document.createElement('section');settings.id='reader-settings';settings.className='reader-tool-section';settings.hidden=true;settings.setAttribute('aria-label','Online processing preferences');
  const mount=document.createElement('div');mount.id='online-processing';settings.append(mount);
- const cleanup=document.querySelector('.cleanup-card');if(cleanup)cleanup.after(settings);else document.querySelector('footer').before(settings);
+ const cleanup=document.querySelector('.cleanup-card'),savings=document.getElementById('character-savings');if(cleanup&&savings)cleanup.querySelector('details').append(savings);if(cleanup)cleanup.after(settings);else document.querySelector('footer').before(settings);
 }
