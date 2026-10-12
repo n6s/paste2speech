@@ -9,7 +9,7 @@ const setup=(trackStart=true)=>{
 };
 test('device speech waits for its actual start or word boundary, then tracks each chunk',t=>{
  const {player:p,spoken}=setup();t.after(()=>p.stop());
- p.start(['first','second'],{rate:1});assert.equal(audioWaitMessage(p,{browser:true}),'Starting your device voice…');
+ p.start(['first','second'],{rate:1});assert.equal(audioWaitMessage(p,{browser:true}),'Starting your device voice…');assert.equal(audioWaitMessage(p,{browser:true,creditPaused:true}),'Starting your device voice…');
  spoken[0].onstart();assert.equal(audioWaitMessage(p,{browser:true}),'');
  spoken[0].onend();assert.equal(p.starting,true);assert.equal(spoken[1].text,'second');
  spoken[1].onboundary({name:'word',charIndex:0});assert.equal(p.starting,false);

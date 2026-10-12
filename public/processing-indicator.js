@@ -44,8 +44,9 @@ export function setupProcessingIndicator({delayMs=200}={}) {
 export function showProcessing(kind,token,message){indicator?.update(kind,token,message);}
 export function hideProcessing(kind,token){indicator?.clear(kind,token);}
 export function audioWaitMessage(player,{browser=false,creditPaused=false}={}){
- if(!player||creditPaused||player.status?.state==='credit-paused'||player.getVideoPreparation?.()?.error?.creditPaused)return '';
+ if(!player)return '';
  if(browser)return player.state==='playing'&&player.starting?'Starting your device voice…':'';
+ if(creditPaused||player.status?.state==='credit-paused'||player.getVideoPreparation?.()?.error?.creditPaused)return '';
  if(player.wantPlay===false||['failed','disconnected','done'].includes(player.state))return '';
  if(player.state==='buffering')return 'Waiting for audio…';
  if(player.state==='preparing')return 'Preparing audio…';
