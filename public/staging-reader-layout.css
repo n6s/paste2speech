@@ -28,3 +28,9 @@
 .processing-spinner{width:24px;height:24px;flex:none;border:3px solid #ffffff66;border-top-color:#fff;border-radius:50%;animation:processing-spin .8s linear infinite}
 @keyframes processing-spin{to{transform:rotate(360deg)}}
 @media(prefers-reduced-motion:reduce){.processing-spinner{animation:none}}
+
+.staging-reader-layout .screenshot-recovery{border:2px solid #b87924;border-radius:10px;background:#fff0d1;color:#472900;margin:12px 0;padding:14px;min-width:0}
+.staging-reader-layout .screenshot-recovery h3{font-size:1.1rem;line-height:1.35;margin:0 0 8px}
+.staging-reader-layout .screenshot-recovery p{font-size:1rem;line-height:1.45;margin:0 0 12px}
+.screenshot-recovery-actions{display:flex;flex-wrap:wrap;gap:8px}
+.screenshot-recovery-actions button{min-height:44px;max-width:100%}
