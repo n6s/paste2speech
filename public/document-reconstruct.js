@@ -1,3 +1,4 @@
+import {assembleOcrPage} from './ocr-table-resources.js';
 import {transformMath} from './math-notation.js';
 // Deterministic transcription formatting. No generative rewriting or summaries.
 export function plain(markdown) {
@@ -39,8 +40,23 @@ export function tableText(markdown) {
   const rows = String(markdown || '').split('\n').filter(line => line.includes('|'))
     .map(line => line.trim().replace(/^\||\|$/g, '').split(/(?<!\\)\|/).map(cell => cell.trim()));
   if (rows.length < 2 || !rows[1].every(cell => /^:?-{3,}:?$/.test(cell))) return {text: plain(markdown), uncertain:true};
-  const headers = rows[0].map(plain);
-  return {text:rows.slice(2).map(row => row.map((cell, i) => `${headers[i] || 'Column ' + (i+1)}: ${plain(cell.replace(/\\\|/g,'|'))}`).join('; ') + '.').join('\n\n'), uncertain:false};
+  const cells=row=>row.map(cell=>plain(cell.replace(/\\\|/g,'|')));
+  const headers = cells(rows[0]),body=rows.slice(2).map(cells);
+  // Some forms put merged metadata cells above the actual log headings.
+  // Recognize the explicit activity-log structure; retain its metadata once.
+  const logHeader=body.findIndex(row=>row.some(cell=>/^date\s*\/\s*time$/i.test(cell))&&row.some(cell=>/^notable\s+activities$/i.test(cell)));
+  const isLog=logHeader>=0&&[headers,...body.slice(0,logHeader)].some(row=>row.some(cell=>/\bactivity log\b/i.test(cell)));
+  if(isLog){
+    const labels=body[logHeader],date=labels.findIndex(cell=>/^date\s*\/\s*time$/i.test(cell)),activity=labels.findIndex(cell=>/^notable\s+activities$/i.test(cell));
+    const metadata=[headers,...body.slice(0,logHeader)].map(row=>row.filter(Boolean).join('; ')).filter(Boolean);
+    const entries=body.slice(logHeader+1).map(row=>{
+      const main=[row[date],row[activity]].filter(Boolean).join(' — ');
+      const extra=row.map((cell,i)=>cell&&i!==date&&i!==activity?`${labels[i]||'Column '+(i+1)}: ${cell}`:'').filter(Boolean);
+      return [main,...extra].filter(Boolean).join('; ');
+    }).filter(Boolean);
+    return {text:[...metadata,...entries].join('\n\n'),uncertain:false};
+  }
+  return {text:body.map(row => row.map((cell, i) => `${headers[i] || 'Column ' + (i+1)}: ${cell}`).join('; ') + '.').join('\n\n'), uncertain:false};
 }
 
 function markdownBlocks(markdown) {
@@ -62,7 +78,8 @@ export function reconstruct(raw) {
     if (current?.parts.length) articles.push({...current,text:current.parts.join('\n\n')});
     current = null;
   };
-  for (const page of [...(raw.pages || [])].sort((a,b) => a.index-b.index)) {
+  for (const originalPage of [...(raw.pages || [])].sort((a,b) => a.index-b.index)) {
+    const assembled=assembleOcrPage(originalPage),page=assembled.page;notes.push(...assembled.notes);
     const number = page.index + 1;
     if (!Array.isArray(page.blocks) || !page.blocks.length) notes.push(`Page ${number}: layout blocks were absent; article grouping uses Markdown headings and needs verification.`);
     const blocks = page.blocks?.length ? page.blocks : markdownBlocks(page.markdown);
