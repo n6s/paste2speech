@@ -2,9 +2,9 @@ import {readBounded} from '../prepared/google.js';
 const bytes=s=>Uint8Array.from(atob(s.replaceAll('-','+').replaceAll('_','/')),c=>c.charCodeAt(0));
 const decode=s=>JSON.parse(new TextDecoder().decode(bytes(s)));
 // No authentication bypass on a hosted origin, including workers.dev.
-export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={}){
+export async function privateAccess(request,env,{fetcher=fetch,now=Date.now,identity=false}={}){
  const url=new URL(request.url);
- if(env.LOCAL_READER==='1')return url.origin===(env.READER_ORIGIN||'http://127.0.0.1:8790');
+ if(env.LOCAL_READER==='1')return identity?null:url.origin===(env.READER_ORIGIN||'http://127.0.0.1:8790');
  if(url.origin!==env.READER_ORIGIN||url.protocol!=='https:'||!env.ACCESS_AUD||!/^https:\/\/[a-z0-9-]+\.cloudflareaccess\.com$/.test(env.ACCESS_ISSUER||''))return false;
  try{
   const token=request.headers.get('Cf-Access-Jwt-Assertion');if(!token||token.length>16000)return false;
@@ -15,7 +15,7 @@ export async function privateAccess(request,env,{fetcher=fetch,now=Date.now}={})
   if(!response.ok)return false;const jwks=JSON.parse(new TextDecoder().decode(await readBounded(response,64000)));
   const jwk=jwks.keys.find(k=>k.kid===header.kid&&k.kty==='RSA'&&k.alg==='RS256');if(!jwk)return false;
   const key=await crypto.subtle.importKey('jwk',jwk,{name:'RSASSA-PKCS1-v1_5',hash:'SHA-256'},false,['verify']);
-  return crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,bytes(s),new TextEncoder().encode(h+'.'+p));
+  const valid=await crypto.subtle.verify('RSASSA-PKCS1-v1_5',key,bytes(s),new TextEncoder().encode(h+'.'+p));return identity?(valid?{email:claims.email}:null):valid;
  }catch{return false;}
 }
 

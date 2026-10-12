@@ -24,3 +24,61 @@ benign tests and notified once (Telegram message IDs 26–29). Latest report
 run imported zero rows, stayed healthy and left every delivery_attempts count at
 one. All 16 reviewer tests passed. Production service and state were untouched;
 no Worker deployment or billing configuration change was required.
+
+
+## Opt-in scan diagnostics (October 12, 2026)
+
+The scan outcome offers an explicit Send feedback form. Include my scan with this
+report starts unchecked. A JSON-only request records the exact raw filename basename
+(up to 1,024 UTF-16 code units, with truncation disclosed), file size/type and available
+bounded header dimensions, actual input route, browser/OS version, relevant scan-choice
+booleans, client build and stage. It contains no editor text, clipboard contents,
+credentials, full folder paths, source links or provider bodies. Filenames are untrusted
+data, kept in JSON and rendered with textContent; never shell arguments or instructions.
+
+The server correlates only the owner's attempt, using original hash, timestamps,
+provider stage/HTTP status when available, and immutable credit settlement. Its current
+served build is labelled serverBuildAtReport rather than attributed to the original
+attempt. Missing provider request IDs and original Ray IDs remain null. An unconfirmed
+client ID remains a separate reportedClientJobId with attemptAvailable=false.
+
+After explicit inspection consent, the owning Durable Object verifies the existing
+R2 object and pins that same object for seven days; no second file is uploaded. Normal
+provider access still ends at the original hour/single-GET deadline and revocation.
+Diagnostic access requires the same app's verified Access owner identity plus a saved
+report reference. Its stream ends at that report's expiry. Cleanup serializes with
+retention, retries failed deletion and honors later independently consented reports.
+Each report has its own deadline; repeated submission does not extend its consent.
+
+Failed/uncertain/canceled originals normally revoke and delete immediately. This change
+does not extend pre-opt-in storage. If the original never arrived or is already deleted,
+the report is metadata-only with the reason stated. No replacement upload is requested.
+D1/local report diagnostics keep the existing 90-day cleanup. No schema migration,
+new storage binding, credential or paid OCR retry is introduced.
+
+The staging systemd service must run from %h/workarea/paste2speech after integration.
+Its existing timer, queue, recipient, Telegram credentials and production service stay
+unchanged. Review input stays under the existing 350,000-character source bound, with
+relevant files selected first and the partial source scope stated. The present reviewer
+is metadata-only: no private image is retrieved or transmitted. Telegram renders
+findings/recommendations, suppresses raw evidence and removes URLs for scan reports.
+
+### Pending image-analysis approval
+
+Automatic approval review blocked retrieval/transmission of private scan previews until
+explicit payload-and-destination approval is confirmed. The concrete proposed recipient
+is OpenAI, using gpt-6-astra through Roger's existing ChatGPT-authenticated Codex CLI;
+there is no additional model provider, recipient or credential. Proposed payload: the
+opted-in original represented by ephemeral previews, at most three initial PDF pages
+or one PNG/JPEG/WebP image, scaled to at most 1,600 pixels per side, plus the sanitized
+correlation metadata and bounded committed source subset already used by the reviewer.
+Local retrieval would use only the existing cached staging Access session (no automatic
+browser login), bounded 50 MB/30-second reads, no redirects or arbitrary URLs. Preview
+conversion would have bounded memory, CPU and time, and local copies would be deleted
+at the end of the review; the R2 original expires after seven days. The model receives
+images as untrusted evidence and has all action tools disabled. Telegram receives no
+image, attachment, image URL, transcription or raw filename.
+
+This image path is not implemented or enabled pending that approval. Tests for the
+current report, retention and browser flows use synthetic files, mocked APIs and local
+workerd only; no old scan has been transmitted.

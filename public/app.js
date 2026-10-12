@@ -472,7 +472,7 @@ async function pasteFromClipboard({replace=false}={}){
     if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy || $('text').readOnly) return;
     if(payload.image){
       if(!documentImport)throw Error('image-unavailable');
-      await documentImport.openImage(payload.image);
+      await documentImport.openImage(payload.image,replace?'clear_paste_play':'paste_button');
       return;
     }
     const text=payload.text;

@@ -6,7 +6,7 @@ const encoder=new TextEncoder();
 async function hash(text){return [...new Uint8Array(await crypto.subtle.digest('SHA-256',encoder.encode(text)))].map(x=>x.toString(16).padStart(2,'0')).join('');}
 async function signingKey(secret){return crypto.subtle.importKey('raw',encoder.encode(secret),{name:'HMAC',hash:'SHA-256'},false,['sign','verify']);}
 async function ticketSignature(secret,id,expires){return [...new Uint8Array(await crypto.subtle.sign('HMAC',await signingKey(secret),encoder.encode(`${id}:${expires}`)))].map(x=>x.toString(16).padStart(2,'0')).join('');}
-async function validTicket(t,secret){
+export async function validTicket(t,secret){
  if(!t||typeof t.id!=='string'||!/^[a-f0-9-]{36}$/.test(t.id)||!Number.isSafeInteger(t.expires)||t.expires<Date.now()||t.expires>Date.now()+3600000||typeof t.signature!=='string'||!/^[a-f0-9]{64}$/.test(t.signature))return false;
  return crypto.subtle.verify('HMAC',await signingKey(secret),new Uint8Array(t.signature.match(/../g).map(h=>parseInt(h,16))),encoder.encode(`${t.id}:${t.expires}`));
 }

@@ -42,3 +42,7 @@
 .processing-outcome-credit{font-size:.9rem;line-height:1.45;margin:8px 0}
 .processing-outcome-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:10px}
 .processing-outcome-actions button{min-height:44px;max-width:100%}
+
+#scan-feedback{margin-top:12px;overflow-wrap:anywhere}#scan-feedback form{display:grid;gap:10px}#scan-feedback label{display:block}#scan-feedback textarea{box-sizing:border-box;width:100%;min-height:70px}#scan-feedback input[type=file]{max-width:100%;box-sizing:border-box}#scan-feedback-status{overflow-wrap:anywhere}
+
+#scan-feedback button,#scan-feedback>summary{min-height:44px;box-sizing:border-box}#scan-feedback>summary{padding:10px 0}

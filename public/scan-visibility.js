@@ -14,10 +14,10 @@ export function setupScanVisibility({editor,onDismiss=()=>{}}){
  editor?.addEventListener('input',clear);editor?.addEventListener('paste',clear,{capture:true});
  document.addEventListener('click',e=>{if(['clear','paste','paste-play','document-paste-image','document-choose-file','pdf-file','screenshot-recovery-choose'].includes(e.target.closest?.('button,input')?.id))clear();},{capture:true});
  return {clear,
-  failure({title='Scan did not finish',message,job,receipt,noReadable=false,onAction,actionLabel='Choose another file'}){
+  failure({title='Scan did not finish',message,job,receipt,noReadable=false,onAction,actionLabel='Choose another file',report=null}){
    if(mirror)mirror.hidden=true;
    if(noReadable&&editor&&!editor.value){editor.placeholder='[No readable text was returned.]';notice=true;}
-   const credit=scanCreditOutcome({job,receipt});showProcessingOutcome('scan-outcome',Symbol(),{message:title,body:message,credit,onAction,actionLabel,onDismiss:clear});
+   const credit=scanCreditOutcome({job,receipt});showProcessingOutcome('scan-outcome',Symbol(),{message:title,body:message,credit,onAction,actionLabel,extra:report,onDismiss:clear});
   }
  };
 }

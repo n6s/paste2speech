@@ -64,6 +64,7 @@ test('Access validates signature, issuer, audience, expiry and key algorithm',as
  async function signed(claims){const input=b64(JSON.stringify({alg:'RS256',kid:'key'}))+'.'+b64(JSON.stringify(claims));return input+'.'+b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',keys.privateKey,new TextEncoder().encode(input)));}
  const options={now:()=>150000,fetcher:async (url,init)=>{assert.equal(init.redirect,'manual');assert.equal(url,env.ACCESS_ISSUER+'/cdn-cgi/access/certs');return Response.json({keys:[jwk]});}};
  for(const [claims,expected] of [[base,true],[{...base,aud:['wrong']},false],[{...base,exp:149},false],[{...base,iss:'https://wrong'},false],[{...base,nbf:160},false]])assert.equal(await privateAccess(new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':await signed(claims)}}),env,options),expected);
+ const ownerRequest=new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':await signed({...base,email:'owner@example.invalid'})}});assert.deepEqual(await privateAccess(ownerRequest,env,{...options,identity:true}),{email:'owner@example.invalid'});
  const redirectRequest=new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':await signed(base)}});
  assert.equal(await privateAccess(redirectRequest,env,{...options,fetcher:async()=>Response.redirect('https://attacker.invalid',302)}),false);
  const token=await signed(base);assert.equal(await privateAccess(new Request(env.READER_ORIGIN,{headers:{'Cf-Access-Jwt-Assertion':token.slice(0,-20)+'aaaaaaaaaaaaaaaaaaaa'}}),env,options),false);

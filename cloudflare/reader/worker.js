@@ -1,6 +1,7 @@
 import {UnifiedWallet,unifiedEnabled,unifiedCapacity} from './unified-wallet.js';
 import {unifiedCheckoutStatus} from './unified-payments.js';
 import {ocrJobsApi} from './ocr-jobs-api.js';
+import {scanFeedbackResponse} from './scan-feedback.js';
 import {durableOcrEnabled} from './ocr-job.js';
 import {summaryResponse} from './summary.js';
 import {summaryPriced,maintainSummaryCredits} from './summary-credits.js';
@@ -80,6 +81,7 @@ export default {
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    const token=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox');
+   if(url.pathname==='/api/scan-feedback'||url.pathname.startsWith('/api/scan-feedback/'))return scanFeedbackResponse(request,env,{token,ctx,accessIdentity:request.method==='GET'?await privateAccess(request,env,{identity:true}):null});
    if(url.pathname.startsWith('/api/ocr/jobs/'))return ocrJobsApi(request,env,{token});
    if(['/api/ocr','/api/ocr/config','/api/ocr/status','/api/ocr/result','/api/ocr/retry'].includes(url.pathname)){if(publicMode(env)&&url.pathname==='/api/ocr'&&request.method==='POST')await rateLimit(env,'READING_LIMIT',request);return await documentOcrResponse(request,env,{token});}
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);

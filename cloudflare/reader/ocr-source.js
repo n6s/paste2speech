@@ -13,7 +13,7 @@ export class OcrSourceError extends Error {constructor(code){super(code);this.co
 const fail=code=>{throw new OcrSourceError(code);};
 const safeError=(status=404)=>new Response('Source unavailable.',{status,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
 export class OcrSourceStore {
- constructor(storage,bucket,{now=Date.now,fixedLength=n=>new FixedLengthStream(n),dispatchAuthorized=async()=>false}={}){this.storage=storage;this.bucket=bucket;this.now=now;this.fixedLength=fixedLength;this.dispatchAuthorized=dispatchAuthorized;this.readers=new Set();this.writers=new Set();}
+ constructor(storage,bucket,{now=Date.now,fixedLength=n=>new FixedLengthStream(n),dispatchAuthorized=async()=>false}={}){this.storage=storage;this.bucket=bucket;this.now=now;this.fixedLength=fixedLength;this.dispatchAuthorized=dispatchAuthorized;this.readers=new Set();this.writers=new Set();this.cleanupQueue=Promise.resolve();}
  async read(){return this.storage.get('source');}
  async alarmAt(deadline){const current=await this.storage.getAlarm();if(!current||current<=this.now()||deadline<current)await this.storage.setAlarm(deadline);}
  async create({id,owner,mime,bytes,name}){
@@ -53,9 +53,25 @@ export class OcrSourceStore {
  async revoke(owner){
   await this.storage.transaction(async tx=>{const r=await tx.get('source');if(!r||r.owner!==owner)fail('source_not_found');r.state='revoked';r.cleanupAfter=this.now();await tx.put('source',r);});for(const writer of this.writers)writer.abort();for(const reader of [...this.readers])reader.stop();return this.cleanup();
  }
- async cleanup(){
+ async serializeCleanup(fn){const operation=this.cleanupQueue.then(fn);this.cleanupQueue=operation.catch(()=>{});return operation;}
+ async diagnosticAvailable(owner){const r=await this.owned(owner);const head=await this.bucket.head(r.key);return {available:r.state!=='deleted'&&!!head&&head.size===r.bytes&&!!r.etag&&head.etag===r.etag,mime:r.mime,bytes:r.bytes,sha256:r.documentHash||null};}
+ async retainDiagnostic(owner,reportId,expires){return this.serializeCleanup(async()=>{
+  if(!uuid.test(reportId)||!Number.isSafeInteger(expires)||expires<=this.now()||expires>this.now()+7*86400000)fail('invalid_diagnostic_retention');
+  const available=await this.diagnosticAvailable(owner);if(!available.available)return available;
+  await this.storage.transaction(async tx=>{const r=await tx.get('source');r.diagnosticReports=(r.diagnosticReports||[]).filter(v=>v.expires>this.now());if(r.diagnosticReports.length>=20&&!r.diagnosticReports.some(v=>v.id===reportId))fail('diagnostic_limit');if(!r.diagnosticReports.some(v=>v.id===reportId))r.diagnosticReports.push({id:reportId,expires});r.diagnosticUntil=Math.max(...r.diagnosticReports.map(v=>v.expires));await tx.put('source',r);});const r=await this.read(),retained=r.diagnosticReports.find(v=>v.id===reportId);await this.alarmAt(retained.expires);return {...available,expires:retained.expires};
+ });}
+ async diagnosticResponse(owner,reportId){
+  const r=await this.owned(owner),consent=r.diagnosticReports?.find(v=>v.id===reportId&&v.expires>this.now());if(!consent)return safeError(410);
+  const object=await this.bucket.get(r.key,{onlyIf:{etagMatches:r.etag}});if(!object||object.size!==r.bytes)return safeError(410);
+  const reader=object.body.getReader();let timer,closed=false;const stop=()=>{if(closed)return;closed=true;clearTimeout(timer);void reader.cancel().catch(()=>{});};
+  const body=new ReadableStream({start:controller=>{timer=setTimeout(()=>{stop();controller.error(new OcrSourceError('diagnostic_expired'));},Math.max(1,consent.expires-this.now()));},pull:async controller=>{if(closed)return;if(consent.expires<=this.now()){stop();controller.error(new OcrSourceError('diagnostic_expired'));return;}try{const result=await reader.read();if(closed)return;if(result.done){stop();controller.close();}else controller.enqueue(result.value);}catch{stop();controller.error(new OcrSourceError('diagnostic_unavailable'));}},cancel:stop});
+  return new Response(body,{headers:{'Content-Type':r.mime,'Content-Length':String(r.bytes),'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff','Content-Disposition':'attachment; filename="diagnostic-scan"'}});
+ }
+ async cleanup(){return this.serializeCleanup(()=>this.cleanupLocked());}
+ async cleanupLocked(){
   let r=await this.read();if(!r)return true;if(r.state!=='revoked'&&r.state!=='deleted'&&r.expires<=this.now()){await this.storage.transaction(async tx=>{const v=await tx.get('source');v.state='revoked';v.cleanupAfter=this.now();await tx.put('source',v);});r=await this.read();for(const writer of this.writers)writer.abort();for(const reader of [...this.readers])reader.stop();}
   if(r.state!=='revoked')return r.state==='deleted';
+  if(r.diagnosticUntil>this.now()){await this.alarmAt(r.diagnosticUntil);return false;}
   try{await this.bucket.delete(r.key);await this.storage.transaction(async tx=>{const v=await tx.get('source');v.state='deleted';delete v.cleanupAfter;await tx.put('source',v);});return true;}catch{await this.alarmAt(this.now()+OCR_SOURCE_CLEANUP_RETRY_MS);return false;}
  }
 }

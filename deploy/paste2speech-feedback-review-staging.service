@@ -5,7 +5,7 @@ After=network-online.target
 
 [Service]
 Type=oneshot
-WorkingDirectory=%h/.codex/worktrees/reader-shared-release/paste2speech
+WorkingDirectory=%h/workarea/paste2speech
 ExecStart=/usr/bin/python3 -m scripts.feedback_review run
 Environment=PATH=%h/.nvm/versions/node/v24.16.0/bin:/usr/local/bin:/usr/bin:/bin
 Environment=PYTHONUNBUFFERED=1

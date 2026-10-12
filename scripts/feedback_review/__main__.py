@@ -98,7 +98,7 @@ def normalize(row):
     context = row.get('context') or '{}'
     if isinstance(context, str):
         context = json.loads(context)
-    if not isinstance(context, dict) or len(json.dumps(context)) > 3000:
+    if not isinstance(context, dict) or len(json.dumps(context,ensure_ascii=False).encode()) > (16000 if 'scanReport' in context else 3000):
         raise ValueError('invalid_context')
     context['feedback_source'] = ENVIRONMENT
     # The optional email is deliberately not imported or sent to Codex.
@@ -149,11 +149,14 @@ def plain(text, limit):
 
 
 def render(review):
-    r = review['result']
+    r = dict(review['result'])
+    if review.get('scan_report'):
+        for key,value in r.items():
+            if isinstance(value,str):r[key]=re.sub(r'(?i)(?:https?://|file://|data:image/)[^\s<>]+','[link omitted]',value)
     chunks = [f"{LABEL} · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
     if r['category'] == 'appreciation':
         return '\n\n'.join(chunks + [f"No action needed. Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."])
-    for key, label, limit in [('evidence', 'Evidence', 600), ('uncertainty', 'Still uncertain', 400),
+    for key, label, limit in ([] if review.get('scan_report') else [('evidence','Evidence',600)]) + [ ('uncertainty', 'Still uncertain', 400),
                                ('recommended_action', 'Recommendation', 600), ('validation_needed', 'Check needed', 300)]:
         if r[key].strip():
             chunks.append(label + ': ' + plain(r[key], limit))

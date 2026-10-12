@@ -15,7 +15,7 @@ export function setupProcessingIndicator({delayMs=200}={}) {
     outcome=true;row.classList.add('processing-outcome-row');row.setAttribute('role','group');title.id=row.id+'-title';row.setAttribute('aria-labelledby',title.id);note.textContent=entry.body;
     copy.append(title,note);const credit=document.createElement('p');credit.className='processing-outcome-credit';credit.textContent=entry.credit;copy.append(credit);
     const actions=document.createElement('div');actions.className='processing-outcome-actions';if(entry.onAction){const action=document.createElement('button');action.type='button';action.textContent=entry.actionLabel;action.onclick=entry.onAction;actions.append(action);}
-    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Dismiss';dismiss.onclick=()=>{indicator.clear(kind,entry.token);entry.onDismiss?.();document.getElementById('edit-mode')?.focus({preventScroll:true});};actions.append(dismiss);copy.append(actions);
+    const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Dismiss';dismiss.onclick=()=>{indicator.clear(kind,entry.token);entry.onDismiss?.();document.getElementById('edit-mode')?.focus({preventScroll:true});};actions.append(dismiss);copy.append(actions);if(entry.extra)copy.append(entry.extra);
    }else{row.setAttribute('aria-hidden','true');const spinner=document.createElement('span');spinner.className='processing-spinner';row.append(spinner);note.textContent='You can keep using the reader.';copy.append(title,note);}
    row.append(copy);panel.append(row);
   }
