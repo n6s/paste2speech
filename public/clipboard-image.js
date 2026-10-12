@@ -7,13 +7,13 @@ export function pastedImages(data){
 }
 // Clipboard bytes are read only by a foreground user gesture. All document
 // validation and explicit paid-upload consent stay in the existing importer.
-export function setupClipboardImage({root,target,importFile,getBusy,status,read=()=>navigator.clipboard.read(),canRead=()=>globalThis.isSecureContext&&document.hasFocus()&&typeof navigator.clipboard?.read==='function'}){
+export function setupClipboardImage({root,target,importFile,getBusy,status,createReport,read=()=>navigator.clipboard.read(),canRead=()=>globalThis.isSecureContext&&document.hasFocus()&&typeof navigator.clipboard?.read==='function'}){
  const button=document.createElement('button');button.type='button';button.id='document-paste-image';button.textContent='Paste screenshot';
  const hint=document.createElement('p');hint.id='document-clipboard-hint';hint.textContent='Paste works when your browser can read the copied image. On phones, Choose file is the reliable way to open a saved screenshot.';button.setAttribute('aria-describedby',hint.id);const sources=root.querySelector('.document-sources');if(sources){sources.prepend(button);sources.after(hint);}else root.append(button,hint);
  const pasteHint=document.createElement('p');pasteHint.id='document-paste-hint';pasteHint.className='hint';pasteHint.textContent='Paste text or an image into the text box, or use Clear, Paste & Play. That button plays text; images open OCR options. Nothing is uploaded for OCR until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';if(document.getElementById('document-tools'))root.append(pasteHint);else target?.after(pasteHint);if(target)target.setAttribute('aria-describedby',[target.getAttribute('aria-describedby'),pasteHint.id].filter(Boolean).join(' '));
  let sequence=0,reading=false,pickerRequest=null;
  // document-tools is created only by the staging layout.
- const recovery=document.getElementById('document-tools')?setupScreenshotRecovery({root,status,onDismiss:()=>{cancelRead();button.focus({preventScroll:true});}}):null;
+ const recovery=document.getElementById('document-tools')?setupScreenshotRecovery({root,status,createReport,onDismiss:()=>{cancelRead();button.focus({preventScroll:true});}}):null;
  const render=()=>{button.disabled=reading||getBusy();recovery?.setBusy(reading||getBusy());};
  const cancelRead=()=>{sequence++;reading=false;pickerRequest=null;recovery?.hide();render();};
  const problem=(reason,legacy)=>{if(recovery)recovery.show(reason);else status.textContent=legacy;};

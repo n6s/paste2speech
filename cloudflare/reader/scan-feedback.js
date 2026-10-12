@@ -6,7 +6,7 @@ export const SCAN_FEEDBACK_POLICY='private-scan-review-7-days-v1';
 export const SCAN_ATTACHMENT_TTL=7*86400000;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
 const routes=['native_paste','paste_button','clear_paste_play','paste_screenshot','file_upload','screenshot_picker','unknown'];
-const codes=['scan_incomplete','no_readable_text','saved_unavailable','upload_failed'];
+const codes=['scan_incomplete','no_readable_text','saved_unavailable','upload_failed','clipboard_unavailable'];
 const json=(v,s=200)=>Response.json(v,{status:s,headers:{'Cache-Control':'no-store','Referrer-Policy':'no-referrer','X-Content-Type-Options':'nosniff'}});
 export function validScanReport(v){
  return v&&Object.keys(v).every(k=>['ticket','jobId','clientBuild','inputRoute','errorCode','note','includeScan','consentPolicy','metadata'].includes(k))&&
@@ -14,8 +14,8 @@ export function validScanReport(v){
  typeof v.note==='string'&&v.note.length<=1000&&typeof v.includeScan==='boolean'&&v.consentPolicy===SCAN_FEEDBACK_POLICY&&validScanMetadata(v.metadata);
 }
 export function validScanMetadata(m){
- const stages=['input_validation','config_check','upload_initialization','upload_transfer','quote_confirmation','acceptance','processing','saved_retrieval'];
- return m&&!Array.isArray(m)&&Object.keys(m).every(k=>['rawBasename','filenameTruncated','mime','bytes','width','height','stage','browser','os','settings'].includes(k))&&
+ const stages=['clipboard_read','input_validation','config_check','upload_initialization','upload_transfer','quote_confirmation','acceptance','processing','saved_retrieval'];
+ return m&&(m.clientFailureObservedAt===undefined||Number.isSafeInteger(m.clientFailureObservedAt)&&m.clientFailureObservedAt>=0)&&(m.clipboardOutcome===undefined||['missing','unavailable','denied','failed','multiple'].includes(m.clipboardOutcome))&&!Array.isArray(m)&&Object.keys(m).every(k=>['clientFailureObservedAt','clipboardOutcome','rawBasename','filenameTruncated','mime','bytes','width','height','stage','browser','os','settings'].includes(k))&&
  (m.filenameTruncated===undefined||typeof m.filenameTruncated==='boolean')&&typeof m.rawBasename==='string'&&m.rawBasename.length<=1024&&!/[\/]/.test(m.rawBasename)&&!/^[A-Za-z]:\\/.test(m.rawBasename)&&typeof m.mime==='string'&&m.mime.length<=120&&
  Number.isSafeInteger(m.bytes)&&m.bytes>=0&&m.bytes<=1000000000000&&['width','height'].every(k=>m[k]===null||Number.isSafeInteger(m[k])&&m[k]>0&&m[k]<=1000000)&&stages.includes(m.stage)&&
  typeof m.browser==='string'&&m.browser.length<=100&&typeof m.os==='string'&&m.os.length<=100&&m.settings&&!Array.isArray(m.settings)&&Object.keys(m.settings).every(k=>['rememberScanChoice','storageConsentChecked','hadEditorText'].includes(k))&&Object.values(m.settings).every(v=>typeof v==='boolean');

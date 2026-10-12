@@ -29,7 +29,7 @@ no Worker deployment or billing configuration change was required.
 ## Opt-in scan diagnostics (October 12, 2026)
 
 The scan outcome offers an explicit Send feedback form. Include my scan with this
-report starts unchecked. A JSON-only request records the exact raw filename basename
+report starts unchecked. Clipboard failures also offer explicit metadata-only reporting, without another clipboard read or a file request. A JSON-only request records the exact raw filename basename
 (up to 1,024 UTF-16 code units, with truncation disclosed), file size/type and available
 bounded header dimensions, actual input route, browser/OS version, relevant scan-choice
 booleans, client build and stage. It contains no editor text, clipboard contents,
