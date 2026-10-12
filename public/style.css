@@ -93,3 +93,5 @@
 /* Three staging paste actions retain their order and full touch targets. */
 .text-action-row{flex-wrap:wrap}.text-action-row .text-actions{flex-wrap:nowrap}
 @media(max-width:380px){.text-action-row .text-actions{margin-left:auto}}
+
+.document-problem{padding:12px 14px;margin:12px 0;border:2px solid #a3452e;border-radius:12px;background:#fff2e9;color:#742d20;overflow-wrap:anywhere}.document-problem strong{display:block;font-size:1rem}.document-problem p{margin:6px 0;font-size:.9rem}.document-problem button{margin-top:6px}.document-problem-record{border-left:3px solid #a3452e;padding-left:10px}.document-scan-detail{font-size:.9rem;color:#742d20}
