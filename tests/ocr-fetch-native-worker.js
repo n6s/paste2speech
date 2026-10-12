@@ -1,0 +1,3 @@
+import {OcrJob} from '../cloudflare/reader/ocr-job.js';
+// Local native workerd regression; never calls a real provider.
+export default {async fetch(request){const url=new URL(request.url);if(url.pathname==='/mock')return Response.json({mock:true});const target=url.origin+'/mock';let result={};for(const [kind,method]of Object.entries({property:{fetcher:fetch},actualOcrJob:new OcrJob({storage:{}},{READER_MODE:'staging',UNIFIED_CREDITS:'1'})})){try{const r=await method.fetcher(target);result[kind]={status:r.status,body:await r.json()};}catch(e){result[kind]={error:e.message};}}return Response.json(result);}};
