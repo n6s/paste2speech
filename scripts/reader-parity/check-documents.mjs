@@ -1,3 +1,4 @@
+import {legacyOcrBrowserAsset} from '../../tests/helpers/legacy-ocr-browser-assets.js';
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
 import {readFile} from 'node:fs/promises';
@@ -8,7 +9,7 @@ const publicConfig=await readFile('cloudflare/reader/wrangler.public.jsonc','utf
 const builtRelease=JSON.parse(await readFile('work/production-reader/site/release.json','utf8'));
 const publicRetail=builtRelease.configSHA256===createHash('sha256').update(publicConfig).digest('hex')&&JSON.parse(publicConfig).vars.OCR_RETAIL_LIVE_APPROVED==='1';
 const root=process.cwd();let assets='work/private-reader/site';
-const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;res.setHeader('Content-Type',/\.(js|mjs)$/.test(path)?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(await readFile(`${root}/${assets}/${path==='/'?'index.html':path.slice(1)}`));}catch{res.writeHead(404).end();}});
+const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname;res.setHeader('Content-Type',/\.(js|mjs)$/.test(path)?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(legacyOcrBrowserAsset(path,await readFile(`${root}/${assets}/${path==='/'?'index.html':path.slice(1)}`)));}catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=`http://127.0.0.1:${server.address().port}`;
 function pdf(text='Hello PDF reader.'){
  const stream=`BT /F1 12 Tf 72 720 Td (${text}) Tj ET`,objects=['<< /Type /Catalog /Pages 2 0 R >>','<< /Type /Pages /Kids [3 0 R 6 0 R] /Count 2 >>','<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Resources << /Font << /F1 4 0 R >> >> /Contents 5 0 R >>','<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>',`<< /Length ${stream.length} >>\nstream\n${stream}\nendstream`,'<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] >>'];let out='%PDF-1.4\n';const offsets=[0];objects.forEach((o,i)=>{offsets.push(out.length);out+=`${i+1} 0 obj\n${o}\nendobj\n`;});const start=out.length;out+=`xref\n0 ${offsets.length}\n0000000000 65535 f \n`;offsets.slice(1).forEach(o=>out+=`${String(o).padStart(10,'0')} 00000 n \n`);return Buffer.from(out+`trailer\n<< /Size ${offsets.length} /Root 1 0 R >>\nstartxref\n${start}\n%%EOF\n`);

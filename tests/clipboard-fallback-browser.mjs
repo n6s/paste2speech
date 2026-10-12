@@ -4,6 +4,7 @@ import {createServer} from 'node:http';
 import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 const root=process.env.READER_SITE||'work/private-reader/site',isPublic=/RELEASE\s*=\s*["']production-public["']/.test(await readFile(root+'/app.js','utf8')),out='work/paste-promotion-2026-10-11/clipboard-'+(isPublic?'public':'staging');
+const durable=/var OCR_DURABLE_JOBS = true;/.test(await readFile(root+'/app.js','utf8'));
 await mkdir(out,{recursive:true});
 const server=createServer(async(req,res)=>{try{const p=new URL(req.url,'http://local').pathname;res.setHeader('Content-Type',/\.(js|mjs)$/.test(p)?'text/javascript':p.endsWith('.css')?'text/css':'text/html');res.end(await readFile(root+'/'+(p==='/'?'index.html':p.slice(1))));}catch{res.writeHead(404).end();}});
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
@@ -19,7 +20,7 @@ try{
   const page=await context.newPage(),requests=[],paid=[],external=[],errors=[];let blocked=startupUnavailable;
   page.on('pageerror',error=>errors.push(error.message));
   page.on('request',request=>{const path=new URL(request.url()).pathname;requests.push(path);if(request.method()==='POST'&&/^\/api\/(readings|speech|ocr|summary)$/.test(path))paid.push(path);});
-  await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin!==origin){external.push(url.origin);return route.abort();}if(url.pathname.startsWith('/api/'))return blocked?route.abort('internetdisconnected'):route.fulfill({json:url.pathname==='/api/reader'?{eligible:true,accessAllowed:true,account:{balance:1000000}}:retail?{available:true,retail:true,enabled:true,balance:{balance:500,held:0,spent:0,debt:0}}:{available:false}});return route.continue();});
+  await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin!==origin){external.push(url.origin);return route.abort();}if(!blocked&&durable&&retail&&url.pathname==='/api/ocr/jobs/config')return route.fulfill({json:{durable:true,enabled:true,model:'mistral-ocr-4-1',maxBytes:50000000,maxPages:1000,unitsPerPage:2000,consentScope:'synthetic-owner',consentPolicy:'mistral-temporary-original-2-credit-v1',balance:{balance:1000000,held:0,debt:0,walletVersion:'unified-v1'},costNotice:'Synthetic only.'}});if(!blocked&&durable&&retail&&url.pathname==='/api/ocr/jobs/recent')return route.fulfill({json:{jobs:[],balance:{balance:1000000,held:0,debt:0,walletVersion:'unified-v1'}}});if(url.pathname.startsWith('/api/'))return blocked?route.abort('internetdisconnected'):route.fulfill({json:url.pathname==='/api/reader'?{eligible:true,accessAllowed:true,account:{balance:1000000}}:retail?{available:true,retail:true,enabled:true,balance:{balance:500,held:0,spent:0,debt:0}}:{available:false}});return route.continue();});
   await page.addInitScript(()=>{
    localStorage.setItem('paste2speech.settings',JSON.stringify({engine:'browser',joinLines:false}));
    window.spoken=[];window.cancels=0;window.clipboardCalls=[];window.typeCalls=[];
@@ -43,7 +44,7 @@ try{
    };
   });
   await page.goto(origin);await page.locator('#voice-settings').evaluate(el=>el.open=true);await page.locator('#engine').selectOption('browser');
-  if(retail)await page.waitForFunction(()=>document.querySelector('#document-ocr-balance').textContent.includes('500 OCR pages'));blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
+  if(retail)await page.waitForFunction(durable=>document.querySelector('#document-ocr-balance').textContent.includes(durable?'500 pages':'500 OCR pages'),durable);blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
   const checkpoint=requests.length;
   const select=async(text,start=text.length,end=start)=>{if(await page.locator('#stop').isEnabled())await page.locator('#stop').click();await page.locator('#edit-mode').click();await page.locator('#text').fill(text);await page.locator('#text').focus();await page.locator('#text').evaluate((el,{start,end})=>el.setSelectionRange(start,end,'backward'),{start,end});};
   const settled=()=>page.waitForFunction(()=>!document.querySelector('#paste').disabled&&!document.querySelector('#paste-play').disabled);

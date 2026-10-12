@@ -1134,3 +1134,46 @@ Summary. A regression gate runs the actual 0b3aa786 free client and current clie
 against SQLite plus mocked AI, covering stale tabs, fresh-page acceptance and a
 metadata/POST race with 6,214 characters. This is staging-only deployment, with no
 new migration, provider call, purchase, plan upgrade or OCR infrastructure change.
+
+## Staging durable OCR release (October 12, 2026)
+
+The staging-only `OCR_DURABLE_JOBS=1` build uses whole-file private uploads,
+server-verified pages, separate temporary-storage and exact-price confirmation,
+and authenticated Recent scans. Technical bounds are 50,000,000 bytes / 1,000
+pages, with 2,000 shared-wallet units (2 credits) held per submitted page. Standard
+jobs use wallet affordability rather than a new customer/provider spending cap.
+The model remains `mistral-ocr-4-1`; one dispatch fence and one paid call per job,
+whole saved-result settlement only, no automatic paid retries. Accepted jobs are
+owned by SQLite DO alarms. Provider timeout is 10 minutes / admission deadline
+12 minutes. Original access ends one hour from upload initialization, link access
+at most 15 minutes and one GET, and result access 24 hours from completion.
+
+Additive staging migration `0012_ocr_jobs.sql` must follow a private D1 export,
+local integrity/foreign-key restore proof and whole-record preservation proof.
+Apply only that file; retain every old row/receipt and the immutable new journals.
+Never restore a whole backup over later activity. The old capacity view is recorded
+for compatible code rollback while journals remain. No additional grant, payment,
+provider smoke or paid plan is implied.
+
+Deploy the main staging Worker once with the new OcrJob binding/migration but
+OCR_DURABLE_JOBS disabled; then deploy the restricted
+`wrangler.ocr-source-staging.jsonc` gateway; then deploy the final clean staged
+release with the approved flag enabled. The gateway binds only the main staging
+OCR namespace, has no R2/D1/provider/account/payment binding, disables request
+logging/traces and leaves app Access protection intact. Do not apply this migration,
+binding, source origin or larger cap to public production.
+
+The complete release script runs the unchanged durable staging build through the
+new browser and native workerd proofs. Historical inline tests explicitly select
+the retained inline branch in a test server, preserving the behavior still used
+publicly. Shared-wallet and offline clipboard checks directly use the new staging
+API. The installed extension package is not rebuilt.
+
+Hosted verification checks every asset hash, real owner config/recent recovery,
+and a synthetic whole-file upload/cancel before acceptance (no OCR call or credit
+hold). Paid completion/1,000-page output, failure/uncertainty/refund, hard expiry,
+single-GET/revocation and late-write races are tested with mocked providers in
+native workerd; hosted browser completion also intercepts all paid APIs. Distinguish
+these proofs from actual Mistral URL processing. Physical-phone foreground upload,
+lock/reload after acceptance, memory/responsiveness and final OS file-save behavior
+remain separate checks.
