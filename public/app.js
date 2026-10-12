@@ -4,6 +4,7 @@ import {setupPasteDiagnostics} from './paste-diagnostics.js';
 import {setupSummary} from './summary-ui.js';
 import {setupDocumentImport} from './document-import.js';
 import {setupStagingReaderLayout} from './staging-reader-layout.js';
+import {setupProcessingIndicator,showProcessing,hideProcessing,audioWaitMessage} from './processing-indicator.js';
 import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
@@ -25,7 +26,7 @@ import { AudioPlayer } from './audio-player.js?v=20260917-answer-labels-1';
 if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 const sectionProgress=SECTION_PROGRESS?setupSectionProgress():null;
-if(STAGING_READER_LAYOUT)setupStagingReaderLayout();
+if(STAGING_READER_LAYOUT){setupStagingReaderLayout();setupProcessingIndicator();}
 let summaryMode=null;
 let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
@@ -100,7 +101,7 @@ let videoDownload;
 let documentImport;
 let voicePreviews;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
-const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render) : null;
+const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render,{trackStart:STAGING_READER_LAYOUT}) : null;
 const localKokoro = new LocalKokoro(message => { $('download-status').textContent = message; });
 const workstationPlayer = new (MSE_ENABLED?StagingPlayer:ProgressivePlayer)(render, CLOUD_READER ? {fetcher:cloudFetch} : {});
 const localPlayer = new AudioPlayer(render, {provider: (text, settings, signal) => localKokoro.request(text,settings,signal)});
@@ -259,6 +260,7 @@ function readAndPlay() {
   if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
   if (['paused', 'ready', 'failed', 'disconnected'].includes(player.state)) player.resume(settings());
   else { countNextPlayback=true; player.start(chunks, settings()); }
+  if(STAGING_READER_LAYOUT&&player!==browserPlayer&&audioWaitMessage(player))render(player,player.error||'');
 }
 $('credit-resume').onclick=()=>{window.dispatchEvent(new Event('speech-credit-change'));if(videoDownload?.creditPaused&&!workstationPlayer.getVideoPreparation?.()?.error)void videoDownload.resume();else void player?.resume(settings());};
 $('credit-browser').onclick=()=>{$('engine').value='browser';changeEngine();};
@@ -309,6 +311,8 @@ $('reading-size').addEventListener('input', () => {
 function render(p, message) {
   if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error},null,2);}
   if (p !== player) return;
+  const waiting=STAGING_READER_LAYOUT?audioWaitMessage(p,{browser:p===browserPlayer,creditPaused:videoDownload?.creditPaused}):'';
+  if(STAGING_READER_LAYOUT){if(waiting)showProcessing('audio',p,waiting);else hideProcessing('audio');}
   if (CLOUD_READER && ['playing','preparing','buffering'].includes(p.state)) voicePreviews?.stop();
   if(p.state!==previousState){
     if(p.state==='preparing') preparationStarted=performance.now();
@@ -322,12 +326,12 @@ function render(p, message) {
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('credit-actions').hidden = !isGoogle() || !(p.getVideoPreparation?.()?.error?.creditPaused || videoDownload?.creditPaused);
-  $('status').textContent = message || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  $('status').textContent = message || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
   $('play').textContent = ['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
-  $('pause').disabled = !['playing', 'preparing', 'buffering'].includes(p.state);
+  $('play').disabled = !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
+  $('pause').disabled = !waiting && !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()

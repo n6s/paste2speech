@@ -1,9 +1,9 @@
 export class Player {
-  constructor(synth, Utterance, onChange = () => {}) {
-    Object.assign(this, { synth, Utterance, onChange, state: 'idle', chunks: [], index: 0, offset: 0, generation: 0 });
+  constructor(synth, Utterance, onChange = () => {}, {trackStart=false}={}) {
+    Object.assign(this, { synth, Utterance, onChange, trackStart, starting:false, state: 'idle', chunks: [], index: 0, offset: 0, generation: 0 });
   }
   emit(message = '') { this.onChange(this, message); }
-  cancel() { this.generation++; clearTimeout(this.timer); this.synth.cancel(); this.utterance = null; }
+  cancel() { this.starting=false;this.generation++; clearTimeout(this.timer); this.synth.cancel(); this.utterance = null; }
   start(chunks, settings, startIndex = 0) {
     this.cancel(); this.chunks = chunks; this.settings = settings; this.index = Math.max(0, Math.min(chunks.length - 1, Math.trunc(startIndex) || 0)); this.offset = 0;
     this.state = chunks.length ? 'playing' : 'idle';
@@ -15,14 +15,16 @@ export class Player {
     this.utterance = utterance; // Keep a strong reference while speaking.
     utterance.rate = this.settings.rate;
     if (this.settings.voice) { utterance.voice = this.settings.voice; utterance.lang = this.settings.voice.lang; }
+    if(this.trackStart)this.starting=true;
     const base = this.offset;
     const valid = () => generation === this.generation && this.state === 'playing';
-    utterance.onboundary = event => { if (valid() && event.name === 'word') this.offset = base + event.charIndex; };
+    if(this.trackStart)utterance.onstart=()=>{if(valid()){this.starting=false;this.emit();}};
+    utterance.onboundary = event => { if (valid() && event.name === 'word'){this.offset = base + event.charIndex;if(this.starting){this.starting=false;this.emit();}} };
     utterance.onend = () => {
       if (!valid()) return;
       clearTimeout(this.timer); this.offset = 0; this.index++;
       if (this.index < this.chunks.length) this.speak();
-      else { this.state = 'done'; this.utterance = null; this.emit(); }
+      else { this.starting=false;this.state = 'done'; this.utterance = null; this.emit(); }
     };
     utterance.onerror = event => { if (valid()) this.fail(event.error === 'not-allowed' ? 'Press Play to start' : `Speech stopped (${event.error || 'voice error'}). Tap Play to retry this part, or choose another voice.`); };
     // Never silently skip a chunk if the engine stalls or emits no end event.
