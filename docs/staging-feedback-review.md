@@ -82,3 +82,36 @@ image, attachment, image URL, transcription or raw filename.
 This image path is not implemented or enabled pending that approval. Tests for the
 current report, retention and browser flows use synthetic files, mocked APIs and local
 workerd only; no old scan has been transmitted.
+
+### Existing lifecycle constraint and retention wording
+
+The historical staging setup record (docs/private-wavenet-staging-status.md:12)
+records a 24-hour R2 deletion/multipart-abort lifecycle. Current lifecycle-rule
+inspection returned HTTP 403; it was not retried through another route and no
+permissions were changed. The rule's current status and prefix scope are unknown.
+Application metadata/pins cannot override a matching R2 lifecycle rule. Therefore
+seven-day file availability is not guaranteed. The API guarantees that diagnostic
+access ends at its seven-day deadline even if deletion is delayed. Deletion is
+scheduled then and retried after storage errors; physical completion is asynchronous.
+The UI states at-most-seven-day diagnostic access with possible earlier storage
+cleanup, rather than an exact physical-deletion or availability promise.
+
+Before claiming seven-day storage availability or deploying on that basis, Roger
+must verify the current lifecycle and approve any narrowly scoped policy change.
+Object age matters: lifecycle age starts at upload, while diagnostic consent starts
+at reporting. No source copy, key rewrite, new bucket, lifecycle edit, credential or
+Access change has been made. The proposed pre-opt-in 24-hour retention remains
+unapproved and unimplemented. A metadata-only deployment can avoid this storage
+promise entirely; the current feedback release remains undeployed.
+
+The immutable settlement guard still requires original deletion for successful
+scans. Diagnostic retention is permitted only for already-closed failed, uncertain,
+canceled or expired attempts; active/unaccepted viable scans produce metadata-only
+reports with scan_still_active. Feedback cannot pin an active original, delay a
+successful settlement or generate another provider request. Existing accounting
+and source-deletion constraints are unchanged.
+
+Cloudflare's current object-lifecycle documentation confirms prefix-scoped rules,
+age-based expiration and asynchronous deletion:
+https://developers.cloudflare.com/r2/buckets/object-lifecycles/ . This public
+reference describes behavior; it does not verify this account's current rules.

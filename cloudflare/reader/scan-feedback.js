@@ -65,7 +65,7 @@ export async function scanFeedbackResponse(request,env,{token,accessIdentity=nul
    if(!attempt.attemptAvailable)attachmentUnavailableReason='upload_not_initialized';
    else {let source;try{const r=await env.OCR_JOBS.get(env.OCR_JOBS.idFromName(value.jobId)).fetch('https://ocr/diagnostic-retain',{method:'POST',headers:{'X-Ocr-Owner':account.id,'Content-Type':'application/json'},body:JSON.stringify({reportId,expires:time+SCAN_ATTACHMENT_TTL})});if(!r.ok)throw Error();source=await r.json();}catch{return json({detail:'The stored original could not be checked. No replacement was uploaded. Try Send feedback again, or send error information only.'},503);}
     if(source.available)attachment={storage:'original_reference',mime:source.mime,bytes:source.bytes,sha256:source.sha256,originalHashMatch:source.sha256?source.sha256===attempt.originalHash:null,expires:source.expires,consentPolicy:SCAN_FEEDBACK_POLICY};
-    else attachmentUnavailableReason='original_already_deleted_or_upload_incomplete';
+    else attachmentUnavailableReason=source.reason||'original_already_deleted_or_upload_incomplete';
    }
   }
   let serverBuildAtReport=null;try{const r=await env.ASSETS.fetch(new Request(url.origin+'/release.json'));const release=await r.json();if(/^[a-f0-9]{40}$/.test(release.commit))serverBuildAtReport=release.commit;}catch{}
