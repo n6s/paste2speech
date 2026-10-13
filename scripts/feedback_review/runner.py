@@ -35,6 +35,7 @@ def source_snapshot(report=None):
         priority=['public/app.js','public/style.css','public/scan-feedback.js','shared/scan-diagnostics.js',
             'public/ocr-jobs-client.js','public/clipboard-image.js','public/scan-visibility.js','public/processing-indicator.js',
             'cloudflare/reader/scan-feedback.js','cloudflare/reader/ocr-job.js','cloudflare/reader/ocr-source.js',
+            'cloudflare/reader/ocr-provider-diagnostics.js',
             'cloudflare/reader/ocr-jobs-api.js','cloudflare/reader/worker.js','cloudflare/reader/access.js',
             'cloudflare/reader/ocr-job-ledger.js','cloudflare/reader/ocr-job-results.js','public/document-reconstruct.js']
         names=[n for n in priority if n in names]+[n for n in names if n not in priority]

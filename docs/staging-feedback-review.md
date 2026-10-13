@@ -115,7 +115,8 @@ Object age matters: lifecycle age starts at upload, while diagnostic consent sta
 at reporting. No source copy, key rewrite, new bucket, lifecycle edit, credential or
 Access change has been made. The proposed pre-opt-in 24-hour retention remains
 unapproved and unimplemented. A metadata-only deployment can avoid this storage
-promise entirely; the current feedback release remains undeployed.
+promise entirely. The deployed feedback wording uses at-most access and possible
+earlier cleanup; no seven-day storage availability promise is made.
 
 The immutable settlement guard still requires original deletion for successful
 scans. Diagnostic retention is permitted only for already-closed failed, uncertain,
@@ -128,3 +129,36 @@ Cloudflare's current object-lifecycle documentation confirms prefix-scoped rules
 age-based expiration and asynchronous deletion:
 https://developers.cloudflare.com/r2/buckets/object-lifecycles/ . This public
 reference describes behavior; it does not verify this account's current rules.
+
+
+### Safe failure diagnostics and concise scan notifications (October 13, 2026)
+
+Future provider rejections retain only an allowlisted category/code, the category's
+origin (provider code, heuristic message pattern or HTTP status alone), a validated
+request ID, and the bounded-body read outcome. At most 4,096 response bytes are
+examined for two seconds. Raw error text, document/source URLs, capability tokens,
+credentials and filenames are discarded. An HTTP-only 400 remains unspecified;
+a heuristic category is not a confirmed explanation from the provider.
+
+The source gateway's existing single GET records response status, expected bytes,
+bytes enqueued by the server, local stream completion/outcome, start/end times and
+bounded denied reuse count. A complete local stream does not prove remote receipt.
+An unavailable/interrupted stream is distinguishable from mere grant consumption.
+Diagnostic writes are best effort and cannot authorize reuse, change settlement,
+retain an original, or dispatch another provider request. Existing deletion/refund
+and uncertain-attempt safeguards remain in force; no automatic paid retry is added.
+Old attempts have unknown new fields; their discarded provider responses cannot
+be reconstructed. No change to pre-opt-in retention or bucket lifecycle is included.
+
+Future staging scan notifications contain Outcome, Credits, Uncertain and Next,
+plus one report ID and the existing reply-channel guidance, within 1,200 UTF-16
+units. Credit figures come from correlated ledger evidence. Complete sentences are
+selected within each budget; excessive prose receives a complete fallback rather
+than a clipped sentence. Technical file paths remain in private saved review
+fields. Already-delivered reports are not reformatted or resent.
+
+Unpaid regressions cover rejected/malformed/oversized/timed-out provider bodies,
+secret redaction, incomplete source streams, diagnostic storage failures, one-time
+refund/dispatch, and offline boot followed by online reload and a single mocked
+scan acceptance. Reloading after a failed attempt cannot redispatch it. These
+checks use intercepted APIs and mocked providers; no real OCR or payment occurs.

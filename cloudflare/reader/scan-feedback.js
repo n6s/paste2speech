@@ -2,6 +2,7 @@
 import {digest} from '../prepared/ledger.js';
 import {readBounded} from '../prepared/google.js';
 import {validTicket} from '../worker.js';
+import {safeProviderRequestId,PROVIDER_ERROR_CATEGORIES,PROVIDER_ERROR_CODES} from './ocr-provider-diagnostics.js';
 export const SCAN_FEEDBACK_POLICY='private-scan-review-7-days-v1';
 export const SCAN_ATTACHMENT_TTL=7*86400000;
 const UUID=/^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/;
@@ -32,7 +33,7 @@ async function evidence(env,account,id,now){
   uploadStartedAt:integer(row.started),acceptedAt:integer(row.acceptedAt),dispatchJournalAt:integer(row.dispatched),updatedAt:integer(row.updated),
   state:safeCode(row.jobState||row.state,['awaiting-upload','verified','held','ready','failed','uncertain','canceled','expired']),
   failureStage:safeCode(status?.failureStage,['dispatch','source_handoff','provider_request','result_validation']),providerHttpStatus:integer(status?.providerHttpStatus),sourceLinkUsedAt:integer(status?.sourceLinkUsedAt),
-  providerRequestId:null,originalCloudflareRayId:null,credits:{held:row.jobState==='held'?row.units/1000:0,used:row.consumed===null?null:(row.consumed||0)*2,released:row.released===null?null:(row.released||0)*2},capturedAt:now};
+  providerRequestId:safeProviderRequestId(status?.providerRequestId),providerError:status?.providerError&&PROVIDER_ERROR_CATEGORIES.includes(status.providerError.category)?{category:status.providerError.category,classificationSource:safeCode(status.providerError.classificationSource,['provider_code','message_pattern','http_status_only']),code:safeCode(status.providerError.code,PROVIDER_ERROR_CODES),bodyState:safeCode(status.providerError.bodyState,['unavailable','oversized','parsed','unreadable','timeout'])}:null,sourceResponse:status?.sourceResponse?{httpStatus:integer(status.sourceResponse.httpStatus),expectedBytes:integer(status.sourceResponse.expectedBytes),bytesEnqueued:integer(status.sourceResponse.bytesEnqueued),streamComplete:status.sourceResponse.streamComplete===true,outcome:safeCode(status.sourceResponse.outcome,['started','streaming','unavailable','complete','length_mismatch','expired','revoked','read_failed','cancelled']),startedAt:integer(status.sourceResponse.startedAt),finishedAt:integer(status.sourceResponse.finishedAt),reusedGetDenied:integer(status.sourceResponse.reusedGetDenied)}:null,originalCloudflareRayId:null,credits:{held:row.jobState==='held'?row.units/1000:0,used:row.consumed===null?null:(row.consumed||0)*2,released:row.released===null?null:(row.released||0)*2},capturedAt:now};
 }
 export async function scanFeedbackResponse(request,env,{token,accessIdentity=null,now=Date.now,ctx={waitUntil(){}}}={}){
  if(env.READER_MODE!=='staging'||env.OCR_DURABLE_JOBS!=='1'||!env.AUDIO)return json({},404);

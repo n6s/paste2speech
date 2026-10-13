@@ -148,19 +148,59 @@ def plain(text, limit):
     return ''.join(c for c in text if c in '\n\t' or c.isprintable())[:limit]
 
 
+def scan_sentence(text, limit, fallback):
+    # Select whole sentences. Oversized model prose never becomes a clipped message.
+    text = ''.join(c for c in str(text) if c.isprintable() or c.isspace())
+    text = re.sub(r'(?i)(?:https?://|file://|data:image/)[^\s<>]+', '[link omitted]', text)
+    text = re.sub(r"(?:[A-Za-z]:[\\/]|/)[^\s,;]+|\b[\w.-]+(?:/[\w.-]+)+|\b[\w.-]+\.(?:py|js|mjs|ts|jsonc?|md|sql)(?::\d+)?", '[technical detail omitted]', text)
+    text = re.sub(r'\s+', ' ', text).strip()
+    sentences = re.findall(r'.*?[.!?](?=\s|$)', text)
+    selected = []
+    for sentence in sentences:
+        candidate = ' '.join(selected + [sentence.strip()])
+        if len(candidate.encode('utf-16-le')) // 2 > limit:
+            break
+        selected.append(sentence.strip())
+    return ' '.join(selected) or fallback
+
+
+def render_scan(review):
+    r = review['result']
+    scan = review.get('scan_evidence', {})
+    credits = scan.get('credits', {}) if isinstance(scan, dict) else {}
+    def amount(key):
+        value = credits.get(key)
+        return f'{value:g}' if type(value) in (int, float) and 0 <= value <= 2000 else 'unknown'
+    used, released, held = (amount(k) for k in ('used', 'released', 'held'))
+    credit_line = f'{used} used; {released} returned; {held} held.'
+    state = scan.get('state') if isinstance(scan, dict) else None
+    fallback = {'uncertain':'The scan did not complete; provider processing is uncertain.',
+                'failed':'The scan failed.', 'canceled':'The scan was canceled.',
+                'expired':'The scan expired.', 'ready':'The scan completed.',
+                'held':'The scan is still processing.'}.get(state, 'The scan report was reviewed.')
+    chunks = [f"{LABEL} · scan review\nReport {r['report_id']}",
+              'Outcome: ' + scan_sentence(r['summary'], 220, fallback),
+              'Credits: ' + credit_line,
+              'Uncertain: ' + scan_sentence(r['uncertainty'], 220, 'The exact cause is not established.'),
+              'Next: ' + scan_sentence(r['recommended_action'], 260, 'Ask Codex to review the saved findings before making changes.'),
+              'Private review; no changes made. Continue in Codex with this report ID. Telegram replies are not monitored.']
+    message = '\n\n'.join(chunks)
+    assert len(message.encode('utf-16-le')) // 2 <= 1200
+    return message
+
+
 def render(review):
-    r = dict(review['result'])
     if review.get('scan_report'):
-        for key,value in r.items():
-            if isinstance(value,str):r[key]=re.sub(r'(?i)(?:https?://|file://|data:image/|/api/scan-feedback/)[^\s<>]+','[link omitted]',value)
+        return render_scan(review)
+    r = dict(review['result'])
     chunks = [f"{LABEL} · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
     if r['category'] == 'appreciation':
         return '\n\n'.join(chunks + [f"No action needed. Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."])
-    for key, label, limit in ([] if review.get('scan_report') else [('evidence','Evidence',600)]) + [ ('uncertainty', 'Still uncertain', 400),
+    for key, label, limit in [('evidence','Evidence',600)] + [ ('uncertainty', 'Still uncertain', 400),
                                ('recommended_action', 'Recommendation', 600), ('validation_needed', 'Check needed', 300)]:
         if r[key].strip():
             chunks.append(label + ': ' + plain(r[key], limit))
-    chunks += [('Private diagnostic review; no changes made.' if review.get('scan_report') else 'Static source review; no changes made.'),
+    chunks += ['Static source review; no changes made.',
                f"Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."]
     # Telegram counts UTF-16 units, including astral emoji as two.
     body = '\n\n'.join(chunks[:-2]).encode('utf-16-le')[:6500].decode('utf-16-le', errors='ignore')
@@ -228,6 +268,10 @@ def run_reviews(db, state=STATE, reviewer=investigate, model='gpt-6-astra'):
         try:
             report = json.loads(row['payload'])
             review = reviewer(report, model=model)
+            if report.get('context', {}).get('scanReport'):
+                scan = report['context']['scanReport']
+                review['scan_report'] = True
+                review['scan_evidence'] = {k:scan[k] for k in ('credits','state') if k in scan}
             message = render(review)
             status = 'suppressed' if review['result']['category'] == 'spam/abuse' else 'notification_pending'
             with db:

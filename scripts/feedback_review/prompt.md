@@ -37,3 +37,11 @@ image/source URLs, document transcription, filenames, credentials or personal
 content in the output. Explain relevant filename-character issues without quoting
 its private content. Keep raw basename evidence within the private report. Use
 correlated stage and verified settlement rather than inventing a cause.
+
+For scan reports, use complete plain sentences in summary (at most 180 characters),
+uncertainty (at most 180 characters), and recommended_action (at most 220 characters).
+Keep technical paths, request IDs, implementation details and detailed validation in
+private evidence/validation_needed. The notification supplies ledger credits itself;
+do not put guesses about credits in the summary. Source bytes enqueued and completed
+server streams do not prove receipt by the remote provider. Error classifications
+based on message patterns are hypotheses, not verified provider explanations.

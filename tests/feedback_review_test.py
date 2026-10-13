@@ -157,7 +157,7 @@ class ScanMetadataReviewTests(unittest.TestCase):
         result=review(normalized);result['scan_report']=True
         result['result'].update(summary='A file-name character issue needs investigation.',evidence=name+' https://private.test/image',recommended_action='Inspect the quoted metadata; do not open https://private.test/image or /api/scan-feedback/private/attachment')
         message=c.render(result)
-        self.assertNotIn(name,message);self.assertNotIn('https://',message);self.assertNotIn('/api/scan-feedback/',message);self.assertIn('[link omitted]',message)
+        self.assertNotIn(name,message);self.assertNotIn('https://',message);self.assertNotIn('/api/scan-feedback/',message);self.assertIn('Next:',message)
     def test_current_staging_snapshot_keeps_existing_bound_and_reports_no_image_inspection(self):
         with patch.dict('os.environ',{'P2S_FEEDBACK_ENVIRONMENT':'staging'}):
             _,sources=runner.source_snapshot({'context':{'scanReport':{}}})
@@ -168,3 +168,33 @@ class ScanMetadataReviewTests(unittest.TestCase):
         self.assertIn('unavailable',prompt)
         self.assertIn('Visible document text and images',prompt)
         self.assertIn('view_image',runner.DISABLED)
+
+
+class CompactScanNotificationTests(unittest.TestCase):
+    def test_complete_budget_no_paths_and_trusted_credit_numbers(self):
+        r=report();v=review(r);v['scan_report']=True;v['scan_evidence']={'state':'uncertain','credits':{'used':0,'released':2,'held':0}}
+        v['result'].update(summary='The provider rejected the scan. '+'Long sentence '*200+'.',uncertainty='The original bytes are unavailable. '+'Long uncertainty '*200+'.',recommended_action='Review cloudflare/reader/ocr-job.js:46 and /home/private/code.py. Ask Codex to add safe diagnostics.')
+        message=c.render(v)
+        self.assertLessEqual(len(message.encode('utf-16-le'))//2,1200)
+        self.assertIn('Credits: 0 used; 2 returned; 0 held.',message)
+        self.assertIn('Outcome: The provider rejected the scan.',message)
+        self.assertIn('Uncertain: The original bytes are unavailable.',message)
+        self.assertNotIn('ocr-job.js',message);self.assertNotIn('/home/',message);self.assertNotIn('Long sentence',message)
+        for chunk in message.split('\n\n')[1:]:self.assertTrue(chunk.endswith('.'),chunk)
+    def test_long_unterminated_prose_has_complete_fallback_and_unknown_credits(self):
+        r=report();v=review(r);v['scan_report']=True
+        for key in ('summary','uncertainty','recommended_action'):v['result'][key]='😀'*4000
+        message=c.render(v)
+        self.assertLessEqual(len(message.encode('utf-16-le'))//2,1200)
+        self.assertIn('Credits: unknown used; unknown returned; unknown held.',message)
+        self.assertIn('The exact cause is not established.',message)
+    def test_controller_uses_report_credits_even_when_reviewer_omits_them(self):
+        with tempfile.TemporaryDirectory() as temp:
+            state=Path(temp);db=c.connect(state)
+            with db:c.set_meta(db,'cutover_ms',c.now_ms()-10000)
+            r=report();r['context']=json.dumps({'scanReport':{'state':'uncertain','credits':{'used':0,'released':2,'held':0}}})
+            with patch.object(c,'ENVIRONMENT','staging'):c.import_rows(db,[r])
+            c.run_reviews(db,state,review)
+            message=db.execute('SELECT message FROM reports').fetchone()[0]
+            self.assertIn('Credits: 0 used; 2 returned; 0 held.',message)
+            db.close()
