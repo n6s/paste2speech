@@ -1,4 +1,4 @@
-"""Run with python3 -m scripts.feedback_review (Python standard library only)."""
+"""Run with python3 -m scripts.feedback_review (standard-library controller; isolated previews use existing Pillow/Poppler)."""
 from __future__ import annotations
 import argparse
 from contextlib import contextmanager
@@ -152,7 +152,7 @@ def render(review):
     r = dict(review['result'])
     if review.get('scan_report'):
         for key,value in r.items():
-            if isinstance(value,str):r[key]=re.sub(r'(?i)(?:https?://|file://|data:image/)[^\s<>]+','[link omitted]',value)
+            if isinstance(value,str):r[key]=re.sub(r'(?i)(?:https?://|file://|data:image/|/api/scan-feedback/)[^\s<>]+','[link omitted]',value)
     chunks = [f"{LABEL} · {r['category']}\nReport {r['report_id']}", plain(r['summary'], 700)]
     if r['category'] == 'appreciation':
         return '\n\n'.join(chunks + [f"No action needed. Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."])
@@ -160,7 +160,7 @@ def render(review):
                                ('recommended_action', 'Recommendation', 600), ('validation_needed', 'Check needed', 300)]:
         if r[key].strip():
             chunks.append(label + ': ' + plain(r[key], limit))
-    chunks += ['Static source review; no changes made.',
+    chunks += [('Private diagnostic review; no changes made.' if review.get('scan_report') else 'Static source review; no changes made.'),
                f"Continue in Codex: Review feedback {r['report_id']}.\nTelegram replies are not monitored."]
     # Telegram counts UTF-16 units, including astral emoji as two.
     body = '\n\n'.join(chunks[:-2]).encode('utf-16-le')[:6500].decode('utf-16-le', errors='ignore')

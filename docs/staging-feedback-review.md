@@ -59,29 +59,40 @@ new storage binding, credential or paid OCR retry is introduced.
 The staging systemd service must run from %h/workarea/paste2speech after integration.
 Its existing timer, queue, recipient, Telegram credentials and production service stay
 unchanged. Review input stays under the existing 350,000-character source bound, with
-relevant files selected first and the partial source scope stated. The present reviewer
-is metadata-only: no private image is retrieved or transmitted. Telegram renders
+relevant files selected first and the partial source scope stated. The reviewer retrieves only an explicitly consented saved report reference when the
+original is still available. Missing/expired originals receive metadata-only analysis. Telegram renders
 findings/recommendations, suppresses raw evidence and removes URLs for scan reports.
 
-### Pending image-analysis approval
+### Bounded image review (approved October 13, 2026)
 
-Automatic approval review blocked retrieval/transmission of private scan previews until
-explicit payload-and-destination approval is confirmed. The concrete proposed recipient
-is OpenAI, using gpt-6-astra through Roger's existing ChatGPT-authenticated Codex CLI;
-there is no additional model provider, recipient or credential. Proposed payload: the
-opted-in original represented by ephemeral previews, at most three initial PDF pages
-or one PNG/JPEG/WebP image, scaled to at most 1,600 pixels per side, plus the sanitized
-correlation metadata and bounded committed source subset already used by the reviewer.
-Local retrieval would use only the existing cached staging Access session (no automatic
-browser login), bounded 50 MB/30-second reads, no redirects or arbitrary URLs. Preview
-conversion would have bounded memory, CPU and time, and local copies would be deleted
-at the end of the review; the R2 original expires after seven days. The model receives
-images as untrusted evidence and has all action tools disabled. Telegram receives no
-image, attachment, image URL, transcription or raw filename.
+The recipient is OpenAI, using gpt-6-astra through Roger's existing ChatGPT-
+authenticated Codex CLI. Payload: an explicitly opted-in original represented by
+at most three initial PDF pages or one PNG/JPEG/WebP image, scaled to at most
+1,600 pixels per side, plus sanitized correlation metadata and the existing bounded
+committed source subset. No additional model provider, recipient or credential.
 
-This image path is not implemented or enabled pending that approval. Tests for the
-current report, retention and browser flows use synthetic files, mocked APIs and local
-workerd only; no old scan has been transmitted.
+Retrieval uses only the current app-specific cached staging Access session; it never
+opens a browser or renews login automatically. Only the fixed authenticated report
+endpoint is requested, with no redirects/arbitrary URLs, a 50 MB bound and 30-second
+wall-time deadline. Size/type/hash are verified when available. An unavailable or
+expired original leaves the reviewer in metadata-only mode with that limitation stated.
+
+Image/PDF conversion runs in a separate namespace with no network, home, credentials,
+repository or sockets. It has 512 MiB memory, 20-second CPU, 25-second wall-time and
+10 MiB per-output bounds; image pixel count is limited to 20 million. Preview metadata
+is stripped, alpha rendered on white, and raw input removed immediately after conversion.
+Only validated PNG previews within the bounds reach the CLI. All local copies disappear
+at review completion; the existing stale-run cleanup handles interrupted runs. Expired
+report references never start a new image transmission. Diagnostic access expires after
+seven days, subject to earlier bucket cleanup; physical deletion is asynchronous.
+
+The model treats filenames, image text and source comments as untrusted evidence and
+has every action tool disabled. Telegram receives findings/recommendations only,
+without images, image URLs, transcription or raw filenames. No paid OCR rerun occurs.
+
+Tests use synthetic files, mocked private retrieval and local workerd. A synthetic
+OpenAI image handoff smoke test verified the same existing transport, including the
+visible test shapes, without any real scan or Telegram message. No old scan is transmitted without its explicit opt-in.
 
 ### Existing lifecycle constraint and retention wording
 
