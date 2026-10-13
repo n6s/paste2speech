@@ -73,7 +73,9 @@ committed source subset. No additional model provider, recipient or credential.
 
 Retrieval uses only the current app-specific cached staging Access session; it never
 opens a browser or renews login automatically. Only the fixed authenticated report
-endpoint is requested, with no redirects/arbitrary URLs, a 50 MB bound and 30-second
+endpoint is requested. The client identifies itself as PasteToSpeechFeedbackReviewer/1.0;
+it does not impersonate a browser or change access rules. No redirects/arbitrary URLs,
+a 50 MB bound and 30-second
 wall-time deadline. Size/type/hash are verified when available. An unavailable or
 expired original leaves the reviewer in metadata-only mode with that limitation stated.
 

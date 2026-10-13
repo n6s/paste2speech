@@ -42,7 +42,7 @@ class ReferenceTests(unittest.TestCase):
         self.assertEqual(data,b'abc');self.assertEqual(evidence['state'],'retrieved')
         self.assertEqual(seen[0][0].full_url,s.ORIGIN+'/api/scan-feedback/'+r['id']+'/attachment')
         self.assertEqual(seen[0][0].get_header('Cookie'),'CF_Authorization=SYNTHETIC-TOKEN')
-        self.assertEqual(seen[0][1]['timeout'],30);self.assertNotIn('TOKEN',json.dumps(evidence))
+        self.assertEqual(seen[0][0].get_header('User-agent'),s.USER_AGENT);self.assertEqual(seen[0][0].get_header('Accept'),'image/png');self.assertEqual(seen[0][1]['timeout'],30);self.assertNotIn('TOKEN',json.dumps(evidence))
         self.assertEqual(s.retrieve(r,lambda *_ ,**kw:Response(b'wrong'),lambda:'token')[1]['state'],'retrieval_failed')
         self.assertEqual(s.retrieve(r,lambda *_ ,**kw:Response(b'abc','text/html'),lambda:'token')[1]['state'],'retrieval_failed')
     def test_bad_reference_no_arbitrary_urls_redirects_or_auth_refresh(self):

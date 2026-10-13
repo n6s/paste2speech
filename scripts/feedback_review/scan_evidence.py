@@ -18,6 +18,7 @@ ORIGIN='https://staging.pastetospeech.com'
 MAX_BYTES=50_000_000
 MAX_PREVIEWS=3
 POLICY='private-scan-review-7-days-v1'
+USER_AGENT='PasteToSpeechFeedbackReviewer/1.0'
 
 class NoRedirect(urllib.request.HTTPRedirectHandler):
     def redirect_request(self,*args,**kwargs):return None
@@ -65,7 +66,7 @@ def retrieve(report,fetcher=None,token_reader=access_token,clock=time.time):
     token=token_reader()
     if not token:return None,{'state':'access_expired','previews':0}
     request=urllib.request.Request(ORIGIN+'/api/scan-feedback/'+identity+'/attachment',
-        headers={'Cookie':'CF_Authorization='+token,'Sec-Fetch-Site':'same-origin'})
+        headers={'Cookie':'CF_Authorization='+token,'Sec-Fetch-Site':'same-origin','User-Agent':USER_AGENT,'Accept':mime})
     fetcher=fetcher or urllib.request.build_opener(NoRedirect()).open
     try:
         with deadline(30),fetcher(request,timeout=30) as response:
