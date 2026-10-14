@@ -1177,3 +1177,46 @@ native workerd; hosted browser completion also intercepts all paid APIs. Disting
 these proofs from actual Mistral URL processing. Physical-phone foreground upload,
 lock/reload after acceptance, memory/responsiveness and final OS file-save behavior
 remain separate checks.
+
+
+## Staging bounded source reads (October 14, 2026)
+
+Roger approved implementing and deploying the bounded source-read change on staging.
+New explicit consent uses `mistral-temporary-original-2-credit-v2-bounded3`.
+Only a matching immutable D1 consent receipt plus the accepted DO policy authorizes
+`bounded-read-3-v2`. Existing grants and legacy jobs keep one GET. The additive
+`0014_ocr_bounded_read_consent.sql` creates only the new immutable receipt table and
+triggers; the original upload storage/price policy and every old financial identity
+remain unchanged. Admission inserts the hold/job and consent receipt in one batch.
+Before migration, export staging D1 privately, restore/check integrity and foreign
+keys locally, and prove every old row unchanged when applying only this migration.
+Do not backfill consent or restore a whole backup over later activity.
+
+A new grant permits at most three complete-file GET admissions and two concurrent
+streams. Each admission reserves the whole exact source byte count durably before
+R2 access, for at most 150,000,000 bytes at the 50,000,000-byte file limit. Interrupted,
+failed, or acknowledgement-uncertain reads do not replenish that budget. Grant
+expiry is fixed at the earliest of ten minutes from issuance, the accepted job
+deadline, or original expiry; streams also stop at that cutoff. No renewed grant
+or extra original retention is introduced. HEAD, Range, queries, redirects and
+foreign/private session headers remain disallowed at the gateway.
+
+After asynchronous R2 lookup, recheck source state, capability, active dispatch,
+account/debt and deadlines; a local revocation generation prevents delayed reads
+from leaking bytes after cancellation. Close admission and all active streams on
+provider rejection before examining its bounded error body. Successful output still
+requires complete validation and original deletion before settlement. Financial
+hold/release/settlement and the single OCR dispatch fence remain unchanged; neither
+source refetch nor restart makes another provider OCR POST. Vendor-side billing and
+successful live compatibility are not proved by mocks.
+
+Update all UI/config/privacy disclosures together; invalidate remembered old OCR
+consent and require a fresh explicit choice. Per-read diagnostics contain only
+bounded numeric/status facts, never source URLs, bearer tokens or arbitrary vendor
+text. Local native workerd exercises three byte-identical reads of a 50MB/1000-page
+source, two concurrent streams, exhausted budget, and cancellation/expiry during a
+pending immutable R2 lookup. Test providers are synthetic. Hosted browser APIs are
+intercepted, so verification requires no paid OCR or customer payment. Preserve the
+public release/config and installed extension hashes; no public promotion or
+unrelated gateway, lifecycle, Access, recipient or scheduled-review change is part
+of this release.
