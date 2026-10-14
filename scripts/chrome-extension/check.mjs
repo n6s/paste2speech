@@ -13,9 +13,12 @@ const origin=environment==='staging'?'https://staging.pastetospeech.com':'https:
 const site=environment==='staging'?'work/private-reader/site':'work/production-reader/site';
 const profile=await mkdtemp(tmpdir()+'/pastetospeech-extension-');
 const extension=profile+'/extension';
-await cp(resolve('dist/chrome-extension/'+environment),extension,{recursive:true});
+const rootIndex=process.argv.indexOf('--extension-root');
+const extensionRoot=rootIndex===-1?'dist/chrome-extension':process.argv[rootIndex+1];
+if(!extensionRoot)throw new Error('--extension-root requires a directory');
+await cp(resolve(extensionRoot+'/'+environment),extension,{recursive:true});
 // Test-only entry point calls the exact context-menu handler; never packaged.
-await appendFile(extension+'/background.js','\nglobalThis.__readSelection = readSelection;\n');
+await appendFile(extension+'/background.js','\nglobalThis.__readSelection = readSelection; globalThis.__readMenuSelection = readMenuSelection;\n');
 // Chrome's extension-created initial navigation can precede Playwright routing.
 // Resolve the real test hostname to a local TLS server so it cannot hit live data.
 execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',profile+'/key.pem','-out',profile+'/cert.pem','-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
@@ -127,6 +130,34 @@ try {
   await next.close();
   const reopenedPromise=context.waitForEvent('page');await send('After closing.');const reopened=await reopenedPromise;
   await reopened.waitForFunction(()=>document.getElementById('text')?.value==='After closing.');
+  // Exercise the packaged context-menu capture path in Chrome's isolated world.
+  // This fixture uses the existing reader-origin grant; native menu invocation
+  // grants activeTab on ordinary external pages (manual acceptance remains).
+  const source=await context.newPage();
+  await source.goto(origin+'/selection-fixture');
+  await source.setContent('<div id="selected"><p>First paragraph</p><p>Second paragraph</p><ul><li>One item</li><li>Two items</li></ul></div>');
+  await source.bringToFront();
+  const snapshot=await source.evaluate(()=>{
+    const range=document.createRange();range.selectNodeContents(document.querySelector('#selected'));
+    getSelection().removeAllRanges();getSelection().addRange(range);
+    addEventListener('blur',()=>getSelection().removeAllRanges(),{once:true});
+    return getSelection().toString().replace(/[\n\r\t\u2028\u2029]/g,' ').trim();
+  });
+  await worker.evaluate(async({url,snapshot})=>{
+    const [tab]=await chrome.tabs.query({url});
+    return globalThis.__readMenuSelection({menuItemId:'read',selectionText:snapshot,frameId:0},tab);
+  },{url:origin+'/selection-fixture',snapshot});
+  const formatted='First paragraph\n\nSecond paragraph\n\n- One item\n- Two items';
+  await reopened.waitForFunction(text=>document.getElementById('text')?.value===text,formatted);
+  assert.equal(await reopened.locator('#text').inputValue(),formatted);
+  // Restricted pages must still deliver Chrome's snapshot without broader access.
+  await worker.evaluate(async()=>{
+    const tab=await chrome.tabs.create({url:'chrome://version',active:false});
+    try {return await globalThis.__readMenuSelection({menuItemId:'read',selectionText:'Restricted selected snapshot.',frameId:0},tab);}
+    finally {await chrome.tabs.remove(tab.id);}
+  });
+  await reopened.waitForFunction(()=>document.getElementById('text')?.value==='Restricted selected snapshot.');
+  console.log('Context-menu capture: paragraphs/list boundaries survive real scripting + handoff; chrome:// denial falls back intact.');
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('Unpacked extension passed: real messaging, ownership, replacement, cleanup, worker restart, navigation and closed-tab recovery. No provider calls.');
 } catch(error) {console.error('Open pages:',context.pages().map(p=>{const u=new URL(p.url());return u.origin+u.pathname;}));console.error(error);throw error;} finally {await context.close();server.closeAllConnections();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true});}

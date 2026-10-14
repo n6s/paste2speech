@@ -29,10 +29,20 @@ outside this trial. Incognito is disabled for this version.
 
 ## Behavior and privacy
 
-- Captures plain selected text only when you invoke the context menu. No source
-  page scripts, clipboard access, browsing history, source URLs, or HTML capture.
-- Access is limited to the configured reader origin, context menus, and extension
-  storage. The icon reuses the approved PasteToSpeech site artwork.
+- Captures selected visible text only when you invoke the context menu. A short
+  isolated script reads the selection in that frame before the reader opens,
+  preserving paragraphs, explicit line breaks, and list markers. It reads no
+  clipboard, browsing history, source URLs, or HTML attributes.
+- `activeTab` and `scripting` provide temporary access following your menu action;
+  persistent host access remains limited to the configured reader origin. No
+  all-sites host permission or persistent source-page script is added. The icon
+  reuses the approved PasteToSpeech site artwork.
+- Chrome flattens line breaks in its context-menu text snapshot. If source capture
+  is restricted, unavailable, stale, or takes over 1.5 seconds once delivery is
+  ready, the original snapshot remains the fallback. Such selections may remain
+  flattened; use Paste for full clipboard structure on those pages. Cross-origin
+  frames and document viewers may require this fallback. Selection text stays
+  bounded to two million code units; complex layouts use native selected text.
 - Keeps one pending selection in extension session memory until accepted. Pending
   selections become undeliverable after ten minutes and are removed on the next
   extension wake/access (including the live reader's retry timer). Closing the
@@ -53,8 +63,9 @@ outside this trial. Incognito is disabled for this version.
 
 ## Implementation and validation
 
-The context-menu handler stores a versioned request with a unique ID and sequence,
-then opens/focuses its owned tab. A top-frame content script bridges extension
+The context-menu handler starts source capture immediately, checks the selected
+text against the menu snapshot, and serializes delivery in click order. It stores
+a versioned request with a unique ID and sequence, then opens/focuses its owned tab. A top-frame content script bridges extension
 messages to the initialized reader through same-origin page messages. The worker
 checks the owned tab, top frame, and reader URL before accepting acknowledgments;
 the reader validates protocol and rejects stale/duplicate requests. Popup replies
@@ -81,6 +92,37 @@ reader tabs with normal autoplay policy, forced playback denial and recovery,
 saved preferences, replacement, worker restart, closed/navigated tabs, cleanup,
 and late clipboard/PDF completion. Headless checks establish playback progression,
 not human listening quality or a manual click on Chrome's native context menu.
+
+## Local formatting candidate (October 14, 2026)
+
+Build outside the installed extension folders and validate with synthetic Chrome
+fixtures (no account, provider, or Cloudflare Access session required):
+
+```sh
+node scripts/chrome-extension/build.mjs --output work/extension-formatting-2026-10-14/extension
+node --test tests/extension.test.js tests/extension-selection.test.js
+node tests/extension-selection-browser.mjs
+node scripts/chrome-extension/check.mjs --extension-root work/extension-formatting-2026-10-14/extension
+node scripts/chrome-extension/check.mjs --staging --extension-root work/extension-formatting-2026-10-14/extension
+```
+
+To try this candidate, open `chrome://extensions`, disable the existing
+PasteToSpeech extension to avoid duplicate menu items, choose **Load unpacked**,
+and select the absolute folder
+`/home/roger/workarea/paste2speech/work/extension-formatting-2026-10-14/extension/production`.
+Close the old extension reader tab and invoke the menu on a fresh selection.
+Use the sibling `staging` folder for staging instead; that reader still requires
+its normal Access sign-in. Keep the candidate folder in place while installed.
+To revert, disable the candidate and re-enable the existing extension. A native
+menu click on an ordinary webpage remains the final manual acceptance check;
+automation invokes the same handler and tests real script injection on a local
+fixture covered by the existing reader-origin grant.
+
+The installed `dist/chrome-extension/production` remains untouched by this
+candidate workflow. This extension-only fix uses the existing reader protocol;
+it needs no reader deployment, billing change, or Chrome Store publication.
+Future regular builds include version 0.1.1 and the two temporary-access API
+permissions above. Reload an installed package after rebuilding it.
 
 ## Release
 

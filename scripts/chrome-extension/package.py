@@ -9,7 +9,7 @@ source = root / 'dist/chrome-extension/production'
 manifest = json.loads((source / 'manifest.json').read_text())
 assert manifest['name'] == 'PasteToSpeech'
 assert manifest['host_permissions'] == ['https://pastetospeech.com/*']
-files = ['manifest.json', 'config.js', 'background.js', 'controller.js', 'content.js',
+files = ['manifest.json', 'config.js', 'background.js', 'controller.js', 'selection.js', 'content.js',
          'popup.html', 'popup.js', 'icon-16.png', 'icon-32.png', 'icon-48.png', 'icon-128.png']
 assert {p.name for p in source.iterdir()} == set(files), 'Unexpected extension files'
 assert '__readSelection' not in (source / 'background.js').read_text(), 'Test entry point must not ship'

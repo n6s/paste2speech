@@ -1,4 +1,5 @@
 import {createController} from './controller.js';
+import {createMenuSelectionHandler} from './selection.js';
 import {ORIGIN} from './config.js';
 const controller = createController(chrome, ORIGIN);
 chrome.runtime.onInstalled.addListener(() => {
@@ -18,8 +19,9 @@ export async function readSelection(text) {
     return result;
   } catch { await showError('Could not open PasteToSpeech. Open the extension to retry.'); }
 }
-chrome.contextMenus.onClicked.addListener(info => {
-  if (info.menuItemId === 'read') void readSelection(info.selectionText);
+export const readMenuSelection = createMenuSelectionHandler(chrome, readSelection, async error => { await showError(error); return {error}; });
+chrome.contextMenus.onClicked.addListener((info, tab) => {
+  void readMenuSelection(info, tab);
 });
 chrome.runtime.onMessage.addListener((message, sender, respond) => {
   if (!message || !['ready', 'accepted', 'status', 'open', 'retry'].includes(message.type)) return;
