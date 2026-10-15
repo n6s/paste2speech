@@ -8,3 +8,12 @@ __pycache__/
 dist/
 .wrangler/
 .dev.vars
+
+# Keep future local credentials out of publication; existing history is intact.
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.pfx
+*.key

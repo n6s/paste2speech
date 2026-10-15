@@ -1,5 +1,61 @@
 # PasteToSpeech
 
+
+PasteToSpeech turns pasted text and documents into a mobile-friendly listening
+experience. It combines browser speech, a paid cloud reader, optional local
+Kokoro inference, and a Chrome selection-to-reader extension.
+
+This is the complete working repository, including its development history.
+Operational notes below describe real past deployments; their presence does not
+provide access to the hosted service or authorize deployment.
+
+## Start here
+
+- [Project map and architecture](docs/project-map.md): components, state and trust boundaries.
+- [Third-party licensing review](docs/third-party-licenses.md): dependencies, embedded engines, models, fonts and assets.
+- [Publication readiness](docs/open-source-readiness.md): reviewed history, accepted disclosures and pending decisions.
+- [Reader release workflow](docs/reader-release.md): local checks and separately authorized deployments.
+- [Chrome extension](docs/chrome-extension.md): selected-text capture, reader discovery and local installation.
+
+**Project license decision is pending.** No new first-party license grant has
+been applied. Third-party components retain their own terms.
+
+## Run checks without provider credentials
+
+Core JavaScript regression tests need Node.js 20 or later and make no paid
+provider requests:
+
+```sh
+npm test
+```
+
+The current shared reader uses generated HTML and bundled modules. To build its
+staging variant and run an isolated browser check with synthetic APIs/audio:
+
+```sh
+npm ci
+npm run build:reader:staging
+node tests/playback-interruption-browser.mjs
+```
+
+The browser check needs Google Chrome (`/usr/bin/google-chrome` by default).
+Building can download pinned encoder source archives; this is not model inference,
+provider billing, deployment or a real Bluetooth device test. It preserves the
+installed extension directory. The fixture check starts its own loopback server,
+blocks external requests, and closes its isolated browser afterward.
+
+For an interactive demonstration, use the [live reader](https://pastetospeech.com)
+and select Browser voices. Cloud voices and document AI have separate account,
+consent and billing requirements. Operating your own backend also requires your
+own configuration and credentials; the deployment guide is not a one-command
+unauthenticated local service.
+
+The original static/workstation recipes below are retained as deployment history.
+Serving raw `public/` alone is not a supported startup path for the current shared
+UI; its required controls/modules are assembled by the reader build.
+
+## Maintainer workspace and deployment history
+
 The canonical source checkout is **`/home/roger/workarea/paste2speech` on `main`**.
 It contains the current public/staging reader, private workstation reader, and
 Chrome extension source. The previously separate shared release history was merged

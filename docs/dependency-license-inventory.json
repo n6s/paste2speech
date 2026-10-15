@@ -1,0 +1,4212 @@
+{
+  "reviewDate": "2026-10-15",
+  "reviewedSourceCommit": "e112832ad43b8521276a3f66c1204dcfc959c2b1",
+  "scope": "Inventory evidence, not a license grant or compatibility certification. Metadata is not sufficient to clear embedded components. Installed Python environments are observations, not lockfile licenses.",
+  "inputHashes": {
+    "package-lock.json": "6b9be207e33dbd1c7215beebb0c9f90306ee6c6b65fec8fe7926acb17b726671",
+    "server/requirements.txt": "05de564f38fbd6bf476bb37173ab02a8ca89a5ff595daa1a72e505e577cfa17a",
+    "server/requirements.lock.txt": "9187459ac1c11940b504b6191a2958ffdfd9ef6baaebc5716975fb02fbd6ed06",
+    "server/requirements-cuda.lock.txt": "07e2b96f8615eb88503366855814146c52bc029b46bf316965a792c6207203f1",
+    "cloudflare/reader/licenses/sources.json": "265fa975fa826220807e7a8d98ecd9dada1366ba454ad45fe58a74dcc25cd6cf"
+  },
+  "npm": [
+    {
+      "path": "node_modules/@cloudflare/kv-asset-handler",
+      "name": "@cloudflare/kv-asset-handler",
+      "version": "0.5.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/kv-asset-handler"
+      }
+    },
+    {
+      "path": "node_modules/@cloudflare/unenv-preset",
+      "name": "@cloudflare/unenv-preset",
+      "version": "2.16.1",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/unenv-preset"
+      }
+    },
+    {
+      "path": "node_modules/@cloudflare/workerd-darwin-64",
+      "name": "@cloudflare/workerd-darwin-64",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@cloudflare/workerd-darwin-arm64",
+      "name": "@cloudflare/workerd-darwin-arm64",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@cloudflare/workerd-linux-64",
+      "name": "@cloudflare/workerd-linux-64",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/cloudflare/workerd"
+    },
+    {
+      "path": "node_modules/@cloudflare/workerd-linux-arm64",
+      "name": "@cloudflare/workerd-linux-arm64",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@cloudflare/workerd-windows-64",
+      "name": "@cloudflare/workerd-windows-64",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@cspotcode/source-map-support",
+      "name": "@cspotcode/source-map-support",
+      "version": "0.8.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cspotcode/node-source-map-support"
+      }
+    },
+    {
+      "path": "node_modules/@emnapi/runtime",
+      "name": "@emnapi/runtime",
+      "version": "1.11.3",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/aix-ppc64",
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/android-arm",
+      "name": "@esbuild/android-arm",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/android-arm64",
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/android-x64",
+      "name": "@esbuild/android-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/darwin-arm64",
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/darwin-x64",
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/freebsd-arm64",
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/freebsd-x64",
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-arm",
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-arm64",
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-ia32",
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-loong64",
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-mips64el",
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-ppc64",
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-riscv64",
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-s390x",
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/linux-x64",
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      }
+    },
+    {
+      "path": "node_modules/@esbuild/netbsd-arm64",
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/netbsd-x64",
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/openbsd-arm64",
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/openbsd-x64",
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/openharmony-arm64",
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/sunos-x64",
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/win32-arm64",
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/win32-ia32",
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@esbuild/win32-x64",
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@ffmpeg/core",
+      "name": "@ffmpeg/core",
+      "version": "0.12.10",
+      "declaredLicense": "GPL-2.0-or-later",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+      }
+    },
+    {
+      "path": "node_modules/@ffmpeg/ffmpeg",
+      "name": "@ffmpeg/ffmpeg",
+      "version": "0.12.15",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+      }
+    },
+    {
+      "path": "node_modules/@ffmpeg/types",
+      "name": "@ffmpeg/types",
+      "version": "0.12.4",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ffmpegwasm/ffmpeg.wasm.git"
+      }
+    },
+    {
+      "path": "node_modules/@huggingface/jinja",
+      "name": "@huggingface/jinja",
+      "version": "0.5.10",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/huggingface/huggingface.js.git"
+    },
+    {
+      "path": "node_modules/@huggingface/transformers",
+      "name": "@huggingface/transformers",
+      "version": "3.8.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/huggingface/transformers.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@img/colour",
+      "name": "@img/colour",
+      "version": "1.1.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/colour.git"
+      }
+    },
+    {
+      "path": "node_modules/@img/sharp-darwin-arm64",
+      "name": "@img/sharp-darwin-arm64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-darwin-x64",
+      "name": "@img/sharp-darwin-x64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-freebsd-wasm32",
+      "name": "@img/sharp-freebsd-wasm32",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-darwin-arm64",
+      "name": "@img/sharp-libvips-darwin-arm64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-darwin-x64",
+      "name": "@img/sharp-libvips-darwin-x64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-arm",
+      "name": "@img/sharp-libvips-linux-arm",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-arm64",
+      "name": "@img/sharp-libvips-linux-arm64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-ppc64",
+      "name": "@img/sharp-libvips-linux-ppc64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-riscv64",
+      "name": "@img/sharp-libvips-linux-riscv64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-s390x",
+      "name": "@img/sharp-libvips-linux-s390x",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linux-x64",
+      "name": "@img/sharp-libvips-linux-x64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp-libvips.git",
+        "directory": "npm/linux-x64"
+      }
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linuxmusl-arm64",
+      "name": "@img/sharp-libvips-linuxmusl-arm64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-libvips-linuxmusl-x64",
+      "name": "@img/sharp-libvips-linuxmusl-x64",
+      "version": "1.3.3",
+      "declaredLicense": "LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-arm",
+      "name": "@img/sharp-linux-arm",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-arm64",
+      "name": "@img/sharp-linux-arm64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-ppc64",
+      "name": "@img/sharp-linux-ppc64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-riscv64",
+      "name": "@img/sharp-linux-riscv64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-s390x",
+      "name": "@img/sharp-linux-s390x",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linux-x64",
+      "name": "@img/sharp-linux-x64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp.git",
+        "directory": "npm/linux-x64"
+      }
+    },
+    {
+      "path": "node_modules/@img/sharp-linuxmusl-arm64",
+      "name": "@img/sharp-linuxmusl-arm64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-linuxmusl-x64",
+      "name": "@img/sharp-linuxmusl-x64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-wasm32",
+      "name": "@img/sharp-wasm32",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later AND MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-webcontainers-wasm32",
+      "name": "@img/sharp-webcontainers-wasm32",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-win32-arm64",
+      "name": "@img/sharp-win32-arm64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-win32-ia32",
+      "name": "@img/sharp-win32-ia32",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@img/sharp-win32-x64",
+      "name": "@img/sharp-win32-x64",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0 AND LGPL-3.0-or-later",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@isaacs/fs-minipass",
+      "name": "@isaacs/fs-minipass",
+      "version": "4.0.1",
+      "declaredLicense": "ISC",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/npm/fs-minipass.git"
+      }
+    },
+    {
+      "path": "node_modules/@jridgewell/resolve-uri",
+      "name": "@jridgewell/resolve-uri",
+      "version": "3.1.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/jridgewell/resolve-uri"
+    },
+    {
+      "path": "node_modules/@jridgewell/sourcemap-codec",
+      "name": "@jridgewell/sourcemap-codec",
+      "version": "1.6.0",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/sourcemaps.git",
+        "directory": "packages/sourcemap-codec"
+      }
+    },
+    {
+      "path": "node_modules/@jridgewell/trace-mapping",
+      "name": "@jridgewell/trace-mapping",
+      "version": "0.3.9",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/jridgewell/trace-mapping.git"
+      }
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas",
+      "name": "@napi-rs/canvas",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Brooooooklyn/canvas.git"
+      }
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-android-arm64",
+      "name": "@napi-rs/canvas-android-arm64",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-darwin-arm64",
+      "name": "@napi-rs/canvas-darwin-arm64",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-darwin-x64",
+      "name": "@napi-rs/canvas-darwin-x64",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-arm-gnueabihf",
+      "name": "@napi-rs/canvas-linux-arm-gnueabihf",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-arm64-gnu",
+      "name": "@napi-rs/canvas-linux-arm64-gnu",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-arm64-musl",
+      "name": "@napi-rs/canvas-linux-arm64-musl",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-riscv64-gnu",
+      "name": "@napi-rs/canvas-linux-riscv64-gnu",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-x64-gnu",
+      "name": "@napi-rs/canvas-linux-x64-gnu",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/Brooooooklyn/canvas.git"
+      }
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-linux-x64-musl",
+      "name": "@napi-rs/canvas-linux-x64-musl",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-win32-arm64-msvc",
+      "name": "@napi-rs/canvas-win32-arm64-msvc",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@napi-rs/canvas-win32-x64-msvc",
+      "name": "@napi-rs/canvas-win32-x64-msvc",
+      "version": "1.0.9",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/@pdf-lib/standard-fonts",
+      "name": "@pdf-lib/standard-fonts",
+      "version": "1.0.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/Hopding/standard-fonts.git"
+    },
+    {
+      "path": "node_modules/@pdf-lib/upng",
+      "name": "@pdf-lib/upng",
+      "version": "1.0.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/Hopding/upng"
+      }
+    },
+    {
+      "path": "node_modules/@poppinss/colors",
+      "name": "@poppinss/colors",
+      "version": "4.1.6",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/colors.git"
+      }
+    },
+    {
+      "path": "node_modules/@poppinss/dumper",
+      "name": "@poppinss/dumper",
+      "version": "0.6.5",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/dumper.git"
+      }
+    },
+    {
+      "path": "node_modules/@poppinss/exception",
+      "name": "@poppinss/exception",
+      "version": "1.2.3",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/exception.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/aspromise",
+      "name": "@protobufjs/aspromise",
+      "version": "1.1.2",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/base64",
+      "name": "@protobufjs/base64",
+      "version": "1.1.2",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/codegen",
+      "name": "@protobufjs/codegen",
+      "version": "2.0.5",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/eventemitter",
+      "name": "@protobufjs/eventemitter",
+      "version": "1.1.1",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/fetch",
+      "name": "@protobufjs/fetch",
+      "version": "1.1.1",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/float",
+      "name": "@protobufjs/float",
+      "version": "1.0.2",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/path",
+      "name": "@protobufjs/path",
+      "version": "1.1.2",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/pool",
+      "name": "@protobufjs/pool",
+      "version": "1.1.0",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@protobufjs/utf8",
+      "name": "@protobufjs/utf8",
+      "version": "1.1.2",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/protobufjs/protobuf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/@sindresorhus/is",
+      "name": "@sindresorhus/is",
+      "version": "7.2.0",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "sindresorhus/is"
+    },
+    {
+      "path": "node_modules/@speed-highlight/core",
+      "name": "@speed-highlight/core",
+      "version": "1.2.24",
+      "declaredLicense": "CC0-1.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/speed-highlight/core.git"
+      }
+    },
+    {
+      "path": "node_modules/@types/node",
+      "name": "@types/node",
+      "version": "26.6.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/DefinitelyTyped/DefinitelyTyped.git",
+        "directory": "types/node"
+      }
+    },
+    {
+      "path": "node_modules/blake3-wasm",
+      "name": "blake3-wasm",
+      "version": "2.1.5",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/connor4312/blake3.git"
+      }
+    },
+    {
+      "path": "node_modules/boolean",
+      "name": "boolean",
+      "version": "3.2.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/thenativeweb/boolean.git"
+      }
+    },
+    {
+      "path": "node_modules/chownr",
+      "name": "chownr",
+      "version": "3.0.0",
+      "declaredLicense": "BlueOak-1.0.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/isaacs/chownr.git"
+      }
+    },
+    {
+      "path": "node_modules/cookie",
+      "name": "cookie",
+      "version": "1.1.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "jshttp/cookie"
+    },
+    {
+      "path": "node_modules/define-data-property",
+      "name": "define-data-property",
+      "version": "1.1.4",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ljharb/define-data-property.git"
+      }
+    },
+    {
+      "path": "node_modules/define-properties",
+      "name": "define-properties",
+      "version": "1.2.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/ljharb/define-properties.git"
+      }
+    },
+    {
+      "path": "node_modules/detect-libc",
+      "name": "detect-libc",
+      "version": "2.1.2",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/lovell/detect-libc.git"
+      }
+    },
+    {
+      "path": "node_modules/detect-node",
+      "name": "detect-node",
+      "version": "2.1.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/iliakan/detect-node"
+      }
+    },
+    {
+      "path": "node_modules/error-stack-parser-es",
+      "name": "error-stack-parser-es",
+      "version": "1.0.5",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/antfu/error-stack-parser-es.git"
+      }
+    },
+    {
+      "path": "node_modules/es-define-property",
+      "name": "es-define-property",
+      "version": "1.0.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ljharb/es-define-property.git"
+      }
+    },
+    {
+      "path": "node_modules/es-errors",
+      "name": "es-errors",
+      "version": "1.3.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ljharb/es-errors.git"
+      }
+    },
+    {
+      "path": "node_modules/es6-error",
+      "name": "es6-error",
+      "version": "4.1.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/bjyoungblood/es6-error.git"
+      }
+    },
+    {
+      "path": "node_modules/esbuild",
+      "name": "esbuild",
+      "version": "0.28.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      }
+    },
+    {
+      "path": "node_modules/escape-string-regexp",
+      "name": "escape-string-regexp",
+      "version": "4.0.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "sindresorhus/escape-string-regexp"
+    },
+    {
+      "path": "node_modules/fflate",
+      "name": "fflate",
+      "version": "0.8.3",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/101arrowz/fflate"
+    },
+    {
+      "path": "node_modules/flatbuffers",
+      "name": "flatbuffers",
+      "version": "25.9.23",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/google/flatbuffers.git"
+      }
+    },
+    {
+      "path": "node_modules/fsevents",
+      "name": "fsevents",
+      "version": "2.3.3",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/global-agent",
+      "name": "global-agent",
+      "version": "3.0.0",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/gajus/global-agent"
+      }
+    },
+    {
+      "path": "node_modules/globalthis",
+      "name": "globalthis",
+      "version": "1.0.4",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/ljharb/System.global.git"
+      }
+    },
+    {
+      "path": "node_modules/gopd",
+      "name": "gopd",
+      "version": "1.2.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/ljharb/gopd.git"
+      }
+    },
+    {
+      "path": "node_modules/guid-typescript",
+      "name": "guid-typescript",
+      "version": "1.0.9",
+      "declaredLicense": "ISC",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/NicolasDeveloper/guid-typescript"
+      }
+    },
+    {
+      "path": "node_modules/has-property-descriptors",
+      "name": "has-property-descriptors",
+      "version": "1.0.2",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/inspect-js/has-property-descriptors.git"
+      }
+    },
+    {
+      "path": "node_modules/json-stringify-safe",
+      "name": "json-stringify-safe",
+      "version": "5.0.1",
+      "declaredLicense": "ISC",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/isaacs/json-stringify-safe"
+      }
+    },
+    {
+      "path": "node_modules/kleur",
+      "name": "kleur",
+      "version": "4.1.5",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "lukeed/kleur"
+    },
+    {
+      "path": "node_modules/long",
+      "name": "long",
+      "version": "5.3.2",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/dcodeIO/long.js.git"
+      }
+    },
+    {
+      "path": "node_modules/matcher",
+      "name": "matcher",
+      "version": "3.0.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "sindresorhus/matcher"
+    },
+    {
+      "path": "node_modules/miniflare",
+      "name": "miniflare",
+      "version": "5.20260918.0-alpha",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/miniflare"
+      }
+    },
+    {
+      "path": "node_modules/minipass",
+      "name": "minipass",
+      "version": "7.1.3",
+      "declaredLicense": "BlueOak-1.0.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/isaacs/minipass"
+    },
+    {
+      "path": "node_modules/minizlib",
+      "name": "minizlib",
+      "version": "3.1.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/isaacs/minizlib.git"
+      }
+    },
+    {
+      "path": "node_modules/object-keys",
+      "name": "object-keys",
+      "version": "1.1.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/ljharb/object-keys.git"
+      }
+    },
+    {
+      "path": "node_modules/onnxruntime-common",
+      "name": "onnxruntime-common",
+      "version": "1.21.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "url": "https://github.com/Microsoft/onnxruntime.git",
+        "type": "git"
+      }
+    },
+    {
+      "path": "node_modules/onnxruntime-node",
+      "name": "onnxruntime-node",
+      "version": "1.21.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "url": "https://github.com/Microsoft/onnxruntime.git",
+        "type": "git"
+      }
+    },
+    {
+      "path": "node_modules/onnxruntime-web",
+      "name": "onnxruntime-web",
+      "version": "1.22.0-dev.20250409-89f8206ba4",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "url": "https://github.com/Microsoft/onnxruntime.git",
+        "type": "git"
+      }
+    },
+    {
+      "path": "node_modules/onnxruntime-web/node_modules/onnxruntime-common",
+      "name": "onnxruntime-common",
+      "version": "1.22.0-dev.20250409-89f8206ba4",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "url": "https://github.com/Microsoft/onnxruntime.git",
+        "type": "git"
+      }
+    },
+    {
+      "path": "node_modules/pako",
+      "name": "pako",
+      "version": "1.0.11",
+      "declaredLicense": "(MIT AND Zlib)",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "nodeca/pako"
+    },
+    {
+      "path": "node_modules/path-to-regexp",
+      "name": "path-to-regexp",
+      "version": "6.3.0",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/pillarjs/path-to-regexp.git"
+      }
+    },
+    {
+      "path": "node_modules/pathe",
+      "name": "pathe",
+      "version": "2.0.3",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "unjs/pathe"
+    },
+    {
+      "path": "node_modules/pdf-lib",
+      "name": "pdf-lib",
+      "version": "1.17.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "git+https://github.com/Hopding/pdf-lib.git"
+    },
+    {
+      "path": "node_modules/pdf-lib/node_modules/tslib",
+      "name": "tslib",
+      "version": "1.14.1",
+      "declaredLicense": "0BSD",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/Microsoft/tslib.git"
+      }
+    },
+    {
+      "path": "node_modules/pdfjs-dist",
+      "name": "pdfjs-dist",
+      "version": "6.3.289",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/mozilla/pdf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/phonemizer",
+      "name": "phonemizer",
+      "version": "1.2.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/xenova/phonemizer.js.git"
+      }
+    },
+    {
+      "path": "node_modules/platform",
+      "name": "platform",
+      "version": "1.3.6",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "bestiejs/platform.js"
+    },
+    {
+      "path": "node_modules/playwright",
+      "name": "playwright",
+      "version": "1.63.0",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/microsoft/playwright.git"
+      }
+    },
+    {
+      "path": "node_modules/playwright-core",
+      "name": "playwright-core",
+      "version": "1.63.0",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/microsoft/playwright.git"
+      }
+    },
+    {
+      "path": "node_modules/protobufjs",
+      "name": "protobufjs",
+      "version": "7.6.6",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "protobufjs/protobuf.js"
+    },
+    {
+      "path": "node_modules/roarr",
+      "name": "roarr",
+      "version": "2.15.4",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git@github.com:gajus/roarr.git"
+      }
+    },
+    {
+      "path": "node_modules/semver",
+      "name": "semver",
+      "version": "7.8.5",
+      "declaredLicense": "ISC",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/npm/node-semver.git"
+      }
+    },
+    {
+      "path": "node_modules/semver-compare",
+      "name": "semver-compare",
+      "version": "1.0.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git://github.com/substack/semver-compare.git"
+      }
+    },
+    {
+      "path": "node_modules/serialize-error",
+      "name": "serialize-error",
+      "version": "7.0.1",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "sindresorhus/serialize-error"
+    },
+    {
+      "path": "node_modules/sharp",
+      "name": "sharp",
+      "version": "0.35.4",
+      "declaredLicense": "Apache-2.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/lovell/sharp.git"
+      }
+    },
+    {
+      "path": "node_modules/sprintf-js",
+      "name": "sprintf-js",
+      "version": "1.1.3",
+      "declaredLicense": "BSD-3-Clause",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/alexei/sprintf.js.git"
+      }
+    },
+    {
+      "path": "node_modules/supports-color",
+      "name": "supports-color",
+      "version": "10.2.2",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "chalk/supports-color"
+    },
+    {
+      "path": "node_modules/tar",
+      "name": "tar",
+      "version": "7.5.22",
+      "declaredLicense": "BlueOak-1.0.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/isaacs/node-tar.git"
+      }
+    },
+    {
+      "path": "node_modules/tslib",
+      "name": "tslib",
+      "version": "2.8.1",
+      "declaredLicense": "0BSD",
+      "dev": false,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/type-fest",
+      "name": "type-fest",
+      "version": "0.13.1",
+      "declaredLicense": "(MIT OR CC0-1.0)",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "sindresorhus/type-fest"
+    },
+    {
+      "path": "node_modules/undici",
+      "name": "undici",
+      "version": "7.29.0",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nodejs/undici.git"
+      }
+    },
+    {
+      "path": "node_modules/undici-types",
+      "name": "undici-types",
+      "version": "8.9.0",
+      "declaredLicense": "MIT",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/nodejs/undici.git"
+      }
+    },
+    {
+      "path": "node_modules/unenv",
+      "name": "unenv",
+      "version": "2.0.0-rc.24",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "unjs/unenv"
+    },
+    {
+      "path": "node_modules/workerd",
+      "name": "workerd",
+      "version": "1.20260918.1",
+      "declaredLicense": "Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": "https://github.com/cloudflare/workerd"
+    },
+    {
+      "path": "node_modules/wrangler",
+      "name": "wrangler",
+      "version": "4.135.0",
+      "declaredLicense": "MIT OR Apache-2.0",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "https://github.com/cloudflare/workers-sdk.git",
+        "directory": "packages/wrangler"
+      }
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/aix-ppc64",
+      "name": "@esbuild/aix-ppc64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/android-arm",
+      "name": "@esbuild/android-arm",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/android-arm64",
+      "name": "@esbuild/android-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/android-x64",
+      "name": "@esbuild/android-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/darwin-arm64",
+      "name": "@esbuild/darwin-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/darwin-x64",
+      "name": "@esbuild/darwin-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/freebsd-arm64",
+      "name": "@esbuild/freebsd-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/freebsd-x64",
+      "name": "@esbuild/freebsd-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-arm",
+      "name": "@esbuild/linux-arm",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-arm64",
+      "name": "@esbuild/linux-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-ia32",
+      "name": "@esbuild/linux-ia32",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-loong64",
+      "name": "@esbuild/linux-loong64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-mips64el",
+      "name": "@esbuild/linux-mips64el",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-ppc64",
+      "name": "@esbuild/linux-ppc64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-riscv64",
+      "name": "@esbuild/linux-riscv64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-s390x",
+      "name": "@esbuild/linux-s390x",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/linux-x64",
+      "name": "@esbuild/linux-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      }
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/netbsd-arm64",
+      "name": "@esbuild/netbsd-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/netbsd-x64",
+      "name": "@esbuild/netbsd-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/openbsd-arm64",
+      "name": "@esbuild/openbsd-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/openbsd-x64",
+      "name": "@esbuild/openbsd-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/openharmony-arm64",
+      "name": "@esbuild/openharmony-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/sunos-x64",
+      "name": "@esbuild/sunos-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/win32-arm64",
+      "name": "@esbuild/win32-arm64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/win32-ia32",
+      "name": "@esbuild/win32-ia32",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/@esbuild/win32-x64",
+      "name": "@esbuild/win32-x64",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": true,
+      "installedPackageMetadataChecked": false,
+      "repository": null
+    },
+    {
+      "path": "node_modules/wrangler/node_modules/esbuild",
+      "name": "esbuild",
+      "version": "0.28.1",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/evanw/esbuild.git"
+      }
+    },
+    {
+      "path": "node_modules/ws",
+      "name": "ws",
+      "version": "8.21.0",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/websockets/ws.git"
+      }
+    },
+    {
+      "path": "node_modules/yallist",
+      "name": "yallist",
+      "version": "5.0.0",
+      "declaredLicense": "BlueOak-1.0.0",
+      "dev": false,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/isaacs/yallist.git"
+      }
+    },
+    {
+      "path": "node_modules/youch",
+      "name": "youch",
+      "version": "4.1.0-beta.10",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/youch.git"
+      }
+    },
+    {
+      "path": "node_modules/youch-core",
+      "name": "youch-core",
+      "version": "0.3.3",
+      "declaredLicense": "MIT",
+      "dev": true,
+      "optional": false,
+      "installedPackageMetadataChecked": true,
+      "repository": {
+        "type": "git",
+        "url": "git+https://github.com/poppinss/youch-core.git"
+      }
+    }
+  ],
+  "pythonCPU": [
+    {
+      "name": "addict",
+      "version": "2.4.0",
+      "declaredLicenseSummary": "UNKNOWN",
+      "licenseFiles": [
+        "addict-2.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "annotated_doc-0.0.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "annotated_types-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "4.15.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "anyio-4.15.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "attrs-26.1.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "babel",
+      "version": "2.18.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "babel-2.18.0.dist-info/licenses/LICENSE",
+        "babel/locale-data/LICENSE.unicode"
+      ]
+    },
+    {
+      "name": "blis",
+      "version": "1.3.3",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "blis-1.3.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "catalogue",
+      "version": "2.0.10",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "catalogue-2.0.10.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "declaredLicenseSummary": "MPL-2.0",
+      "licenseFiles": [
+        "certifi-2026.7.22.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "declaredLicenseSummary": "MIT-0",
+      "licenseFiles": [
+        "cffi-2.1.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "charset_normalizer-3.5.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "click-8.5.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "cloudpathlib",
+      "version": "0.25.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "cloudpathlib-0.25.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cloudpickle",
+      "version": "3.1.2",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "cloudpickle-3.1.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "confection",
+      "version": "1.3.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "confection-1.3.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.1",
+      "declaredLicenseSummary": "Apache-2.0 OR BSD-3-Clause",
+      "licenseFiles": [
+        "cryptography-50.0.1.dist-info/licenses/LICENSE",
+        "cryptography-50.0.1.dist-info/licenses/LICENSE.APACHE",
+        "cryptography-50.0.1.dist-info/licenses/LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "csvw",
+      "version": "4.1.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "csvw-4.1.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "curated-tokenizers",
+      "version": "0.0.10",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "curated_tokenizers-0.0.10.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "curated-transformers",
+      "version": "0.1.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "curated_transformers-0.1.1.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "cymem",
+      "version": "2.0.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "cymem-2.0.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "dlinfo",
+      "version": "2.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "dlinfo-2.0.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "docopt",
+      "version": "0.6.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "docopt-0.6.2.dist-info/licenses/LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "en_core_web_sm",
+      "version": "3.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "en_core_web_sm-3.8.0.dist-info/LICENSE",
+        "en_core_web_sm-3.8.0.dist-info/LICENSES_SOURCES",
+        "en_core_web_sm/en_core_web_sm-3.8.0/LICENSE",
+        "en_core_web_sm/en_core_web_sm-3.8.0/LICENSES_SOURCES"
+      ]
+    },
+    {
+      "name": "espeakng-loader",
+      "version": "0.2.4",
+      "declaredLicenseSummary": "UNDECLARED",
+      "licenseFiles": []
+    },
+    {
+      "name": "fastapi",
+      "version": "0.116.1",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "fastapi-0.116.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "filelock",
+      "version": "3.32.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "filelock-3.32.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.7.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "fsspec-2026.7.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "google-auth",
+      "version": "2.58.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "google_auth-2.58.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "h11-0.16.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "hf-xet",
+      "version": "1.6.0",
+      "declaredLicenseSummary": "Apache-2.0",
+      "licenseFiles": [
+        "hf_xet-1.6.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpcore-1.0.9.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpx-0.28.1.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "0.36.2",
+      "declaredLicenseSummary": "Apache",
+      "licenseFiles": [
+        "huggingface_hub-0.36.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.19",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "idna-3.19.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "isodate",
+      "version": "0.7.2",
+      "declaredLicenseSummary": "Copyright (c) 2021, Hugo van Kemenade and contributors",
+      "licenseFiles": [
+        "isodate-0.7.2.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "declaredLicenseSummary": "License :: OSI Approved :: BSD License",
+      "licenseFiles": [
+        "jinja2-3.1.6.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "joblib",
+      "version": "1.6.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "joblib-1.6.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "jsonschema-4.26.0.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "jsonschema_specifications-2025.9.1.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "kokoro",
+      "version": "0.9.4",
+      "declaredLicenseSummary": "Apache License",
+      "licenseFiles": [
+        "kokoro-0.9.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "language-tags",
+      "version": "1.3.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "language_tags-1.3.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "loguru",
+      "version": "0.7.3",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": []
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE",
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE.markdown-it"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "markupsafe-3.0.3.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "mdurl-0.1.2.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "misaki",
+      "version": "0.9.4",
+      "declaredLicenseSummary": "Apache License",
+      "licenseFiles": [
+        "misaki-0.9.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "mpmath-1.3.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "murmurhash",
+      "version": "1.0.15",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "murmurhash-1.0.15.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "networkx",
+      "version": "3.6.1",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "networkx-3.6.1.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "num2words",
+      "version": "0.5.14",
+      "declaredLicenseSummary": "LGPL",
+      "licenseFiles": [
+        "num2words-0.5.14.dist-info/COPYING"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.3",
+      "declaredLicenseSummary": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "licenseFiles": [
+        "numpy-2.5.3.dist-info/licenses/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/ma/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+        "numpy/_core/include/numpy/random/LICENSE.txt",
+        "numpy/ma/LICENSE",
+        "numpy/random/LICENSE.md"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "declaredLicenseSummary": "Apache-2.0 OR BSD-2-Clause",
+      "licenseFiles": [
+        "packaging-26.3.dist-info/licenses/LICENSE",
+        "packaging-26.3.dist-info/licenses/LICENSE.APACHE",
+        "packaging-26.3.dist-info/licenses/LICENSE.BSD",
+        "packaging/licenses/__init__.py",
+        "packaging/licenses/__pycache__/__init__.cpython-312.pyc",
+        "packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
+        "packaging/licenses/_spdx.py"
+      ]
+    },
+    {
+      "name": "phonemizer-fork",
+      "version": "3.3.2",
+      "declaredLicenseSummary": "GNU GENERAL PUBLIC LICENSE",
+      "licenseFiles": [
+        "phonemizer_fork-3.3.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "24.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pip-24.0.dist-info/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "preshed",
+      "version": "3.0.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "preshed-3.0.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.4",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "pyasn1-0.6.4.dist-info/licenses/LICENSE.rst"
+      ]
+    },
+    {
+      "name": "pyasn1_modules",
+      "version": "0.4.2",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "pycparser-3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pydantic-2.13.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.46.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pydantic_core-2.46.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "pygments-2.21.0.dist-info/licenses/AUTHORS",
+        "pygments-2.21.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pyparsing-3.3.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "declaredLicenseSummary": "Dual License",
+      "licenseFiles": [
+        "python_dateutil-2.9.0.post0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pyyaml-6.0.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "rdflib",
+      "version": "7.6.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "rdflib-7.6.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "referencing-0.37.0.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "2026.9.10",
+      "declaredLicenseSummary": "Apache-2.0 AND CNRI-Python",
+      "licenseFiles": [
+        "regex-2026.9.10.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "declaredLicenseSummary": "Apache-2.0",
+      "licenseFiles": [
+        "requests-2.34.2.dist-info/licenses/LICENSE",
+        "requests-2.34.2.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "rfc3986",
+      "version": "1.5.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "rfc3986-1.5.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "rich",
+      "version": "15.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "rich-15.0.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "rpds-py",
+      "version": "2026.6.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "rpds_py-2026.6.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "safetensors",
+      "version": "0.8.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: Apache Software License",
+      "licenseFiles": [
+        "safetensors-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "segments",
+      "version": "2.4.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "segments-2.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "78.1.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "setuptools-78.1.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/autocommand-2.2.2.dist-info/LICENSE",
+        "setuptools/_vendor/backports.tarfile-1.2.0.dist-info/LICENSE",
+        "setuptools/_vendor/importlib_metadata-8.0.0.dist-info/LICENSE",
+        "setuptools/_vendor/inflect-7.3.1.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.collections-5.1.0.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.context-5.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.functools-4.0.1.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.text-3.12.1.dist-info/LICENSE",
+        "setuptools/_vendor/more_itertools-10.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE.APACHE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE.BSD",
+        "setuptools/_vendor/packaging/licenses/__init__.py",
+        "setuptools/_vendor/packaging/licenses/__pycache__/__init__.cpython-312.pyc",
+        "setuptools/_vendor/packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
+        "setuptools/_vendor/packaging/licenses/_spdx.py",
+        "setuptools/_vendor/platformdirs-4.2.2.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/tomli-2.0.1.dist-info/LICENSE",
+        "setuptools/_vendor/typeguard-4.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/typing_extensions-4.12.2.dist-info/LICENSE",
+        "setuptools/_vendor/wheel-0.45.1.dist-info/LICENSE.txt",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE.APACHE",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE.BSD",
+        "setuptools/_vendor/zipp-3.19.2.dist-info/LICENSE",
+        "setuptools/config/NOTICE",
+        "setuptools/config/_validate_pyproject/NOTICE"
+      ]
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "declaredLicenseSummary": "ISC License",
+      "licenseFiles": [
+        "shellingham-1.5.4.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "six-1.17.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "smart_open",
+      "version": "8.0.1",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "smart_open-8.0.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "soundfile",
+      "version": "0.13.1",
+      "declaredLicenseSummary": "BSD 3-Clause License",
+      "licenseFiles": [
+        "_soundfile_data/COPYING",
+        "soundfile-0.13.1.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy",
+      "version": "3.8.16",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy-3.8.16.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-curated-transformers",
+      "version": "0.3.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_curated_transformers-0.3.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-legacy",
+      "version": "3.0.12",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_legacy-3.0.12.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-loggers",
+      "version": "1.0.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_loggers-1.0.5.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "srsly",
+      "version": "2.5.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "srsly-2.5.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "0.47.3",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "starlette-0.47.3.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "sympy-1.14.0.dist-info/licenses/AUTHORS",
+        "sympy-1.14.0.dist-info/licenses/LICENSE",
+        "sympy/parsing/latex/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "termcolor",
+      "version": "3.3.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "termcolor-3.3.0.dist-info/licenses/COPYING.txt"
+      ]
+    },
+    {
+      "name": "thinc",
+      "version": "8.3.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "thinc-8.3.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "declaredLicenseSummary": "License :: OSI Approved :: Apache Software License",
+      "licenseFiles": []
+    },
+    {
+      "name": "torch",
+      "version": "2.8.0+cpu",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "torch-2.8.0+cpu.dist-info/licenses/LICENSE",
+        "torch-2.8.0+cpu.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "declaredLicenseSummary": "MPL-2.0 AND MIT",
+      "licenseFiles": [
+        "tqdm-4.70.1.dist-info/licenses/LICENCE"
+      ]
+    },
+    {
+      "name": "transformers",
+      "version": "4.57.6",
+      "declaredLicenseSummary": "Apache 2.0 License",
+      "licenseFiles": [
+        "transformers-4.57.6.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typer",
+      "version": "0.27.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "typer-0.27.2.dist-info/licenses/LICENSE",
+        "typer/_click/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "typing_inspection-0.4.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "declaredLicenseSummary": "PSF-2.0",
+      "licenseFiles": [
+        "typing_extensions-4.16.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "uritemplate",
+      "version": "4.2.0",
+      "declaredLicenseSummary": "BSD 3-Clause OR Apache-2.0",
+      "licenseFiles": [
+        "uritemplate-4.2.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "urllib3-2.8.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.35.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "uvicorn-0.35.0.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "wasabi",
+      "version": "1.1.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "wasabi-1.1.3.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "weasel",
+      "version": "1.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "weasel-1.0.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "wrapt",
+      "version": "2.4.1",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "wrapt-2.4.1.dist-info/licenses/LICENSE"
+      ]
+    }
+  ],
+  "pythonCUDA": [
+    {
+      "name": "addict",
+      "version": "2.4.0",
+      "declaredLicenseSummary": "UNKNOWN",
+      "licenseFiles": [
+        "addict-2.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-doc",
+      "version": "0.0.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "annotated_doc-0.0.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "annotated-types",
+      "version": "0.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "annotated_types-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "anyio",
+      "version": "4.15.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "anyio-4.15.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "attrs",
+      "version": "26.1.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "attrs-26.1.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "babel",
+      "version": "2.18.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "babel-2.18.0.dist-info/licenses/LICENSE",
+        "babel/locale-data/LICENSE.unicode"
+      ]
+    },
+    {
+      "name": "blis",
+      "version": "1.3.3",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "blis-1.3.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "catalogue",
+      "version": "2.0.10",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "catalogue-2.0.10.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "certifi",
+      "version": "2026.7.22",
+      "declaredLicenseSummary": "MPL-2.0",
+      "licenseFiles": [
+        "certifi-2026.7.22.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cffi",
+      "version": "2.1.1",
+      "declaredLicenseSummary": "MIT-0",
+      "licenseFiles": [
+        "cffi-2.1.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "charset-normalizer",
+      "version": "3.5.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "charset_normalizer-3.5.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "click",
+      "version": "8.5.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "click-8.5.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "cloudpathlib",
+      "version": "0.25.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "cloudpathlib-0.25.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cloudpickle",
+      "version": "3.1.2",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "cloudpickle-3.1.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "confection",
+      "version": "1.3.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "confection-1.3.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "cryptography",
+      "version": "50.0.1",
+      "declaredLicenseSummary": "Apache-2.0 OR BSD-3-Clause",
+      "licenseFiles": [
+        "cryptography-50.0.1.dist-info/licenses/LICENSE",
+        "cryptography-50.0.1.dist-info/licenses/LICENSE.APACHE",
+        "cryptography-50.0.1.dist-info/licenses/LICENSE.BSD"
+      ]
+    },
+    {
+      "name": "csvw",
+      "version": "4.1.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "csvw-4.1.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "curated-tokenizers",
+      "version": "0.0.10",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "curated_tokenizers-0.0.10.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "curated-transformers",
+      "version": "0.1.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "curated_transformers-0.1.1.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "cymem",
+      "version": "2.0.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "cymem-2.0.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "dlinfo",
+      "version": "2.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "dlinfo-2.0.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "docopt",
+      "version": "0.6.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "docopt-0.6.2.dist-info/licenses/LICENSE-MIT"
+      ]
+    },
+    {
+      "name": "en_core_web_sm",
+      "version": "3.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "en_core_web_sm-3.8.0.dist-info/LICENSE",
+        "en_core_web_sm-3.8.0.dist-info/LICENSES_SOURCES",
+        "en_core_web_sm/en_core_web_sm-3.8.0/LICENSE",
+        "en_core_web_sm/en_core_web_sm-3.8.0/LICENSES_SOURCES"
+      ]
+    },
+    {
+      "name": "espeakng-loader",
+      "version": "0.2.4",
+      "declaredLicenseSummary": "UNDECLARED",
+      "licenseFiles": []
+    },
+    {
+      "name": "fastapi",
+      "version": "0.116.1",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "fastapi-0.116.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "filelock",
+      "version": "3.32.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "filelock-3.32.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "fsspec",
+      "version": "2026.7.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "fsspec-2026.7.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "google-auth",
+      "version": "2.58.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "google_auth-2.58.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "h11",
+      "version": "0.16.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "h11-0.16.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "hf-xet",
+      "version": "1.6.0",
+      "declaredLicenseSummary": "Apache-2.0",
+      "licenseFiles": [
+        "hf_xet-1.6.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "httpcore",
+      "version": "1.0.9",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpcore-1.0.9.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "httpx",
+      "version": "0.28.1",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "httpx-0.28.1.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "huggingface_hub",
+      "version": "0.36.2",
+      "declaredLicenseSummary": "Apache",
+      "licenseFiles": [
+        "huggingface_hub-0.36.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "idna",
+      "version": "3.19",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "idna-3.19.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "isodate",
+      "version": "0.7.2",
+      "declaredLicenseSummary": "Copyright (c) 2021, Hugo van Kemenade and contributors",
+      "licenseFiles": [
+        "isodate-0.7.2.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "Jinja2",
+      "version": "3.1.6",
+      "declaredLicenseSummary": "License :: OSI Approved :: BSD License",
+      "licenseFiles": [
+        "jinja2-3.1.6.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "joblib",
+      "version": "1.6.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "joblib-1.6.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "jsonschema",
+      "version": "4.26.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "jsonschema-4.26.0.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "jsonschema-specifications",
+      "version": "2025.9.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "jsonschema_specifications-2025.9.1.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "kokoro",
+      "version": "0.9.4",
+      "declaredLicenseSummary": "Apache License",
+      "licenseFiles": [
+        "kokoro-0.9.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "language-tags",
+      "version": "1.3.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "language_tags-1.3.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "loguru",
+      "version": "0.7.3",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": []
+    },
+    {
+      "name": "markdown-it-py",
+      "version": "4.2.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE",
+        "markdown_it_py-4.2.0.dist-info/licenses/LICENSE.markdown-it"
+      ]
+    },
+    {
+      "name": "MarkupSafe",
+      "version": "3.0.3",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "markupsafe-3.0.3.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "mdurl",
+      "version": "0.1.2",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "mdurl-0.1.2.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "misaki",
+      "version": "0.9.4",
+      "declaredLicenseSummary": "Apache License",
+      "licenseFiles": [
+        "misaki-0.9.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "mpmath",
+      "version": "1.3.0",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "mpmath-1.3.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "murmurhash",
+      "version": "1.0.15",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "murmurhash-1.0.15.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "networkx",
+      "version": "3.6.1",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "networkx-3.6.1.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "num2words",
+      "version": "0.5.14",
+      "declaredLicenseSummary": "LGPL",
+      "licenseFiles": [
+        "num2words-0.5.14.dist-info/COPYING"
+      ]
+    },
+    {
+      "name": "numpy",
+      "version": "2.5.3",
+      "declaredLicenseSummary": "BSD-3-Clause AND 0BSD AND MIT AND Zlib AND CC0-1.0",
+      "licenseFiles": [
+        "numpy-2.5.3.dist-info/licenses/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/include/numpy/libdivide/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/common/pythoncapi-compat/COPYING",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/highway/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/multiarray/dragon4_LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/npysort/x86-simd-sort/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/_core/src/umath/svml/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/fft/pocketfft/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/linalg/lapack_lite/LICENSE.txt",
+        "numpy-2.5.3.dist-info/licenses/numpy/ma/LICENSE",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/distributions/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/mt19937/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/pcg64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/philox/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/sfc64/LICENSE.md",
+        "numpy-2.5.3.dist-info/licenses/numpy/random/src/splitmix64/LICENSE.md",
+        "numpy/_core/include/numpy/random/LICENSE.txt",
+        "numpy/ma/LICENSE",
+        "numpy/random/LICENSE.md"
+      ]
+    },
+    {
+      "name": "nvidia-cublas-cu12",
+      "version": "12.8.4.1",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cublas_cu12-12.8.4.1.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cuda-cupti-cu12",
+      "version": "12.8.90",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cuda_cupti_cu12-12.8.90.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cuda-nvrtc-cu12",
+      "version": "12.8.93",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cuda_nvrtc_cu12-12.8.93.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cuda-runtime-cu12",
+      "version": "12.8.90",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cuda_runtime_cu12-12.8.90.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cudnn-cu12",
+      "version": "9.10.2.21",
+      "declaredLicenseSummary": "LicenseRef-NVIDIA-Proprietary",
+      "licenseFiles": [
+        "nvidia_cudnn_cu12-9.10.2.21.dist-info/licenses/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cufft-cu12",
+      "version": "11.3.3.83",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cufft_cu12-11.3.3.83.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cufile-cu12",
+      "version": "1.13.1.3",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cufile_cu12-1.13.1.3.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-curand-cu12",
+      "version": "10.3.9.90",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_curand_cu12-10.3.9.90.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cusolver-cu12",
+      "version": "11.7.3.90",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cusolver_cu12-11.7.3.90.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cusparse-cu12",
+      "version": "12.5.8.93",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_cusparse_cu12-12.5.8.93.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-cusparselt-cu12",
+      "version": "0.7.1",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia/cusparselt/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "nvidia-nccl-cu12",
+      "version": "2.27.3",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "nvidia_nccl_cu12-2.27.3.dist-info/licenses/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-nvjitlink-cu12",
+      "version": "12.8.93",
+      "declaredLicenseSummary": "NVIDIA Proprietary Software",
+      "licenseFiles": [
+        "nvidia_nvjitlink_cu12-12.8.93.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "nvidia-nvtx-cu12",
+      "version": "12.8.90",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "nvidia_nvtx_cu12-12.8.90.dist-info/License.txt"
+      ]
+    },
+    {
+      "name": "packaging",
+      "version": "26.3",
+      "declaredLicenseSummary": "Apache-2.0 OR BSD-2-Clause",
+      "licenseFiles": [
+        "packaging-26.3.dist-info/licenses/LICENSE",
+        "packaging-26.3.dist-info/licenses/LICENSE.APACHE",
+        "packaging-26.3.dist-info/licenses/LICENSE.BSD",
+        "packaging/licenses/__init__.py",
+        "packaging/licenses/__pycache__/__init__.cpython-312.pyc",
+        "packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
+        "packaging/licenses/_spdx.py"
+      ]
+    },
+    {
+      "name": "phonemizer-fork",
+      "version": "3.3.2",
+      "declaredLicenseSummary": "GNU GENERAL PUBLIC LICENSE",
+      "licenseFiles": [
+        "phonemizer_fork-3.3.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pip",
+      "version": "24.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pip-24.0.dist-info/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "preshed",
+      "version": "3.0.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "preshed-3.0.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pyasn1",
+      "version": "0.6.4",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "pyasn1-0.6.4.dist-info/licenses/LICENSE.rst"
+      ]
+    },
+    {
+      "name": "pyasn1_modules",
+      "version": "0.4.2",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "pyasn1_modules-0.4.2.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "pycparser",
+      "version": "3.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "pycparser-3.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic",
+      "version": "2.13.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pydantic-2.13.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pydantic_core",
+      "version": "2.46.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pydantic_core-2.46.5.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "Pygments",
+      "version": "2.21.0",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "pygments-2.21.0.dist-info/licenses/AUTHORS",
+        "pygments-2.21.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "pyparsing",
+      "version": "3.3.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pyparsing-3.3.2.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "python-dateutil",
+      "version": "2.9.0.post0",
+      "declaredLicenseSummary": "Dual License",
+      "licenseFiles": [
+        "python_dateutil-2.9.0.post0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "PyYAML",
+      "version": "6.0.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "pyyaml-6.0.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "rdflib",
+      "version": "7.6.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "rdflib-7.6.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "referencing",
+      "version": "0.37.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "referencing-0.37.0.dist-info/licenses/COPYING"
+      ]
+    },
+    {
+      "name": "regex",
+      "version": "2026.9.10",
+      "declaredLicenseSummary": "Apache-2.0 AND CNRI-Python",
+      "licenseFiles": [
+        "regex-2026.9.10.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "requests",
+      "version": "2.34.2",
+      "declaredLicenseSummary": "Apache-2.0",
+      "licenseFiles": [
+        "requests-2.34.2.dist-info/licenses/LICENSE",
+        "requests-2.34.2.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "rfc3986",
+      "version": "1.5.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "rfc3986-1.5.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "rich",
+      "version": "15.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "rich-15.0.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "rpds-py",
+      "version": "2026.6.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "rpds_py-2026.6.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "safetensors",
+      "version": "0.8.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: Apache Software License",
+      "licenseFiles": [
+        "safetensors-0.8.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "segments",
+      "version": "2.4.0",
+      "declaredLicenseSummary": "Apache 2.0",
+      "licenseFiles": [
+        "segments-2.4.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "setuptools",
+      "version": "78.1.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "setuptools-78.1.0.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/autocommand-2.2.2.dist-info/LICENSE",
+        "setuptools/_vendor/backports.tarfile-1.2.0.dist-info/LICENSE",
+        "setuptools/_vendor/importlib_metadata-8.0.0.dist-info/LICENSE",
+        "setuptools/_vendor/inflect-7.3.1.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.collections-5.1.0.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.context-5.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.functools-4.0.1.dist-info/LICENSE",
+        "setuptools/_vendor/jaraco.text-3.12.1.dist-info/LICENSE",
+        "setuptools/_vendor/more_itertools-10.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE.APACHE",
+        "setuptools/_vendor/packaging-24.2.dist-info/LICENSE.BSD",
+        "setuptools/_vendor/packaging/licenses/__init__.py",
+        "setuptools/_vendor/packaging/licenses/__pycache__/__init__.cpython-312.pyc",
+        "setuptools/_vendor/packaging/licenses/__pycache__/_spdx.cpython-312.pyc",
+        "setuptools/_vendor/packaging/licenses/_spdx.py",
+        "setuptools/_vendor/platformdirs-4.2.2.dist-info/licenses/LICENSE",
+        "setuptools/_vendor/tomli-2.0.1.dist-info/LICENSE",
+        "setuptools/_vendor/typeguard-4.3.0.dist-info/LICENSE",
+        "setuptools/_vendor/typing_extensions-4.12.2.dist-info/LICENSE",
+        "setuptools/_vendor/wheel-0.45.1.dist-info/LICENSE.txt",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE.APACHE",
+        "setuptools/_vendor/wheel/vendored/packaging/LICENSE.BSD",
+        "setuptools/_vendor/zipp-3.19.2.dist-info/LICENSE",
+        "setuptools/config/NOTICE",
+        "setuptools/config/_validate_pyproject/NOTICE"
+      ]
+    },
+    {
+      "name": "shellingham",
+      "version": "1.5.4",
+      "declaredLicenseSummary": "ISC License",
+      "licenseFiles": [
+        "shellingham-1.5.4.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "six",
+      "version": "1.17.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "six-1.17.0.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "smart_open",
+      "version": "8.0.1",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "smart_open-8.0.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "soundfile",
+      "version": "0.13.1",
+      "declaredLicenseSummary": "BSD 3-Clause License",
+      "licenseFiles": [
+        "_soundfile_data/COPYING",
+        "soundfile-0.13.1.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy",
+      "version": "3.8.16",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy-3.8.16.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-curated-transformers",
+      "version": "0.3.1",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_curated_transformers-0.3.1.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-legacy",
+      "version": "3.0.12",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_legacy-3.0.12.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "spacy-loggers",
+      "version": "1.0.5",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "spacy_loggers-1.0.5.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "srsly",
+      "version": "2.5.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "srsly-2.5.3.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "starlette",
+      "version": "0.47.3",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "starlette-0.47.3.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "sympy",
+      "version": "1.14.0",
+      "declaredLicenseSummary": "BSD",
+      "licenseFiles": [
+        "sympy-1.14.0.dist-info/licenses/AUTHORS",
+        "sympy-1.14.0.dist-info/licenses/LICENSE",
+        "sympy/parsing/latex/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "termcolor",
+      "version": "3.3.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "termcolor-3.3.0.dist-info/licenses/COPYING.txt"
+      ]
+    },
+    {
+      "name": "thinc",
+      "version": "8.3.13",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "thinc-8.3.13.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "tokenizers",
+      "version": "0.22.2",
+      "declaredLicenseSummary": "License :: OSI Approved :: Apache Software License",
+      "licenseFiles": []
+    },
+    {
+      "name": "torch",
+      "version": "2.8.0+cu128",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "torch-2.8.0+cu128.dist-info/licenses/LICENSE",
+        "torch-2.8.0+cu128.dist-info/licenses/NOTICE"
+      ]
+    },
+    {
+      "name": "tqdm",
+      "version": "4.70.1",
+      "declaredLicenseSummary": "MPL-2.0 AND MIT",
+      "licenseFiles": [
+        "tqdm-4.70.1.dist-info/licenses/LICENCE"
+      ]
+    },
+    {
+      "name": "transformers",
+      "version": "4.57.6",
+      "declaredLicenseSummary": "Apache 2.0 License",
+      "licenseFiles": [
+        "transformers-4.57.6.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "triton",
+      "version": "3.4.0",
+      "declaredLicenseSummary": "License :: OSI Approved :: MIT License",
+      "licenseFiles": [
+        "triton-3.4.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typer",
+      "version": "0.27.2",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "typer-0.27.2.dist-info/licenses/LICENSE",
+        "typer/_click/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "typing-inspection",
+      "version": "0.4.4",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "typing_inspection-0.4.4.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "typing_extensions",
+      "version": "4.16.0",
+      "declaredLicenseSummary": "PSF-2.0",
+      "licenseFiles": [
+        "typing_extensions-4.16.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "uritemplate",
+      "version": "4.2.0",
+      "declaredLicenseSummary": "BSD 3-Clause OR Apache-2.0",
+      "licenseFiles": [
+        "uritemplate-4.2.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "urllib3",
+      "version": "2.8.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "urllib3-2.8.0.dist-info/licenses/LICENSE.txt"
+      ]
+    },
+    {
+      "name": "uvicorn",
+      "version": "0.35.0",
+      "declaredLicenseSummary": "BSD-3-Clause",
+      "licenseFiles": [
+        "uvicorn-0.35.0.dist-info/licenses/LICENSE.md"
+      ]
+    },
+    {
+      "name": "wasabi",
+      "version": "1.1.3",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "wasabi-1.1.3.dist-info/LICENSE"
+      ]
+    },
+    {
+      "name": "weasel",
+      "version": "1.0.0",
+      "declaredLicenseSummary": "MIT",
+      "licenseFiles": [
+        "weasel-1.0.0.dist-info/licenses/LICENSE"
+      ]
+    },
+    {
+      "name": "wrapt",
+      "version": "2.4.1",
+      "declaredLicenseSummary": "BSD-2-Clause",
+      "licenseFiles": [
+        "wrapt-2.4.1.dist-info/licenses/LICENSE"
+      ]
+    }
+  ],
+  "encoderArchives": [
+    {
+      "name": "encoder-build",
+      "file": "encoder-build-71aa99d37c02.tar.gz",
+      "revision": "71aa99d37c02a7b4c435275ca9ef50e612f6efa1",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "ffmpeg.wasm-71aa99d37c02a7b4c435275ca9ef50e612f6efa1/LICENSE"
+      ]
+    },
+    {
+      "name": "browser-wrapper",
+      "file": "browser-wrapper-f78aed147c41.tar.gz",
+      "revision": "f78aed147c4185484da8eba1d97c51354a5e3352",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "ffmpeg.wasm-f78aed147c4185484da8eba1d97c51354a5e3352/LICENSE"
+      ]
+    },
+    {
+      "name": "x264",
+      "file": "x264-33cac6b77d5b.tar.gz",
+      "revision": "33cac6b77d5b9259c552156013a817ab23119612",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "x264-33cac6b77d5b9259c552156013a817ab23119612/COPYING"
+      ]
+    },
+    {
+      "name": "x265",
+      "file": "x265-2bb5520e9596.tar.gz",
+      "revision": "2bb5520e9596f361bf0ed81b3b8da0d7fd999069",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "x265-2bb5520e9596f361bf0ed81b3b8da0d7fd999069/COPYING"
+      ]
+    },
+    {
+      "name": "libvpx",
+      "file": "libvpx-10b9492dcf05.tar.gz",
+      "revision": "10b9492dcf05b652e2e4b370e205bd605d421972",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "libvpx-10b9492dcf05b652e2e4b370e205bd605d421972/LICENSE"
+      ]
+    },
+    {
+      "name": "lame",
+      "file": "lame-2badea1974ae.tar.gz",
+      "revision": "2badea1974ae36cb8312afe99cff1e6b3b5decee",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "lame-2badea1974ae36cb8312afe99cff1e6b3b5decee/COPYING",
+        "lame-2badea1974ae36cb8312afe99cff1e6b3b5decee/LICENSE",
+        "lame-2badea1974ae36cb8312afe99cff1e6b3b5decee/debian/copyright"
+      ]
+    },
+    {
+      "name": "ogg",
+      "file": "ogg-bada45718453.tar.gz",
+      "revision": "bada45718453ac27b56773ae663f7e65112f6a6e",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "Ogg-bada45718453ac27b56773ae663f7e65112f6a6e/COPYING"
+      ]
+    },
+    {
+      "name": "theora",
+      "file": "theora-7ffd8b2ecfc2.tar.gz",
+      "revision": "7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "theora-7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf/COPYING",
+        "theora-7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf/LICENSE",
+        "theora-7ffd8b2ecfc2d93ae5e16028e7528e609266bfbf/debian/copyright"
+      ]
+    },
+    {
+      "name": "opus",
+      "file": "opus-e85ed7726db5.tar.gz",
+      "revision": "e85ed7726db5d677c9c0677298ea0cb9c65bdd23",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "opus-e85ed7726db5d677c9c0677298ea0cb9c65bdd23/COPYING",
+        "opus-e85ed7726db5d677c9c0677298ea0cb9c65bdd23/LICENSE_PLEASE_READ.txt"
+      ]
+    },
+    {
+      "name": "vorbis",
+      "file": "vorbis-779816404319.tar.gz",
+      "revision": "7798164043197d7e33f02de4353ce2aa5b248225",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "vorbis-7798164043197d7e33f02de4353ce2aa5b248225/COPYING",
+        "vorbis-7798164043197d7e33f02de4353ce2aa5b248225/debian/copyright"
+      ]
+    },
+    {
+      "name": "zlib",
+      "file": "zlib-cacf7f1d4e3d.tar.gz",
+      "revision": "cacf7f1d4e3d44d871b605da3b647f07d718623f",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "zlib-cacf7f1d4e3d44d871b605da3b647f07d718623f/README"
+      ],
+      "noticeLocation": "license notice appears in README"
+    },
+    {
+      "name": "libwebp",
+      "file": "libwebp-ca332209cb55.tar.gz",
+      "revision": "ca332209cb5567c9b249c86788cb2dbf8847e760",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "libwebp-ca332209cb5567c9b249c86788cb2dbf8847e760/COPYING"
+      ]
+    },
+    {
+      "name": "freetype2",
+      "file": "freetype2-6a2b3e4007e7.tar.gz",
+      "revision": "6a2b3e4007e794bfc6c91030d0ed987f925164a8",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "freetype2-6a2b3e4007e794bfc6c91030d0ed987f925164a8/docs/LICENSE.TXT"
+      ]
+    },
+    {
+      "name": "fribidi",
+      "file": "fribidi-f9e8e71a6fbf.tar.gz",
+      "revision": "f9e8e71a6fbf4a4619481284c9f484d10e559995",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "fribidi-f9e8e71a6fbf4a4619481284c9f484d10e559995/COPYING"
+      ]
+    },
+    {
+      "name": "harfbuzz",
+      "file": "harfbuzz-4a1d891c6317.tar.xz",
+      "revision": "4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "harfbuzz-4a1d891c6317d2c83e5f3c2607ec5f5ccedffcde/COPYING"
+      ]
+    },
+    {
+      "name": "libass",
+      "file": "libass-d149636f502f.tar.gz",
+      "revision": "d149636f502f5774ae1a8fb4c554b122674393b2",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "libass-d149636f502f5774ae1a8fb4c554b122674393b2/COPYING"
+      ]
+    },
+    {
+      "name": "ffmpeg",
+      "file": "ffmpeg-4729204c17f7.tar.gz",
+      "revision": "4729204c17f756e186d622060088371d10b34f7e",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "FFmpeg-4729204c17f756e186d622060088371d10b34f7e/COPYING.GPLv2",
+        "FFmpeg-4729204c17f756e186d622060088371d10b34f7e/COPYING.GPLv3",
+        "FFmpeg-4729204c17f756e186d622060088371d10b34f7e/COPYING.LGPLv2.1",
+        "FFmpeg-4729204c17f756e186d622060088371d10b34f7e/COPYING.LGPLv3",
+        "FFmpeg-4729204c17f756e186d622060088371d10b34f7e/LICENSE.md"
+      ]
+    },
+    {
+      "name": "zimg",
+      "file": "zimg-e5b0de6bebbc.tar.gz",
+      "revision": "e5b0de6bebbcbc66732ed5afaafef6b2c7dfef87",
+      "present": true,
+      "sha256_verified": true,
+      "license_files": [
+        "zimg-e5b0de6bebbcbc66732ed5afaafef6b2c7dfef87/COPYING"
+      ]
+    }
+  ],
+  "knownUnresolved": [
+    "phonemizer embedded eSpeak source/build provenance and combined-distribution terms",
+    "espeakng-loader native binary/data provenance and absent license metadata",
+    "original branding/audio ownership confirmation before broad asset reuse grant",
+    "no project license approved or applied"
+  ]
+}
