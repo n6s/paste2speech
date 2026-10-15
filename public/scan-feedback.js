@@ -1,9 +1,10 @@
-import {BUILD_COMMIT} from './config.js';
+import {BUILD_COMMIT,RELEASE} from './config.js';
 export const SCAN_FEEDBACK_POLICY='private-scan-review-7-days-v1';
 export {filenameBasename,scanPlatform,scanFileMetadata} from '../shared/scan-diagnostics.js';
 import {scanPlatform} from '../shared/scan-diagnostics.js';
 // No file bytes, editor content, clipboard reread, auth or URLs enter this form.
 export function createScanFeedback({jobId=null,inputRoute='unknown',errorCode='scan_incomplete',metadata=null,fetcher=fetch}={}){
+ if(RELEASE==='production-public'){const link=document.createElement('a');link.className='scan-feedback-public';link.href='#feedback';link.textContent='Report this problem using Send feedback';link.onclick=()=>{const feedback=document.getElementById('feedback');if(feedback)feedback.open=true;};return link;}
  if(metadata){metadata=structuredClone(metadata);metadata.clientFailureObservedAt=Date.now();}const details=document.createElement('details');details.id='scan-feedback';const heading=document.createElement('summary');heading.textContent='Report scan problem';
  const form=document.createElement('form'),notice=document.createElement('p'),label=document.createElement('label'),include=document.createElement('input');
  include.type='checkbox';include.id='scan-feedback-include';label.append(include,document.createTextNode(' Include my scan with this report'));
