@@ -5,7 +5,7 @@ import {readFile,mkdir,writeFile} from 'node:fs/promises';
 import assert from 'node:assert/strict';
 import {OCR_TEMPORARY_POLICY,SUMMARY_CREDIT_POLICY} from '../public/cloud-choices.js';
 import {OCR_MODEL} from '../public/document-format.js';
-const root='work/private-reader/site',out='work/compact-summary-followup-2026-10-15';await mkdir(out,{recursive:true});
+const root=process.env.READER_VARIANT==='public'?'work/production-reader/site':'work/private-reader/site',out=process.env.INTAKE_UI_OUT||'work/compact-summary-followup-2026-10-15';await mkdir(out,{recursive:true});
 const server=createServer(async(req,res)=>{try{const file=new URL(req.url,'http://local').pathname.slice(1)||'index.html';res.setHeader('Content-Type',file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html');res.end(await readFile(root+'/'+file));}catch{res.writeHead(404).end();}});await new Promise(resolve=>server.listen(0,'127.0.0.1',resolve));const origin=`http://127.0.0.1:${server.address().port}`;
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true});
 const wallet=()=>({walletVersion:'unified-v1',balance:1000000,held:0,debt:0,unitsPerCredit:1000});const jobs=new Map(),summaries=new Map(),errors=[],external=[],reports=[];let uploads=0,admissions=0,summaryCalls=0,charges=0,mode='held',summaryHeld=false,releaseSummary,last,duplicate=null,summaryFail=false;

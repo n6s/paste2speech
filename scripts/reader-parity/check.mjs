@@ -19,7 +19,7 @@ const sections=bytes.map((b,index)=>{const m=inspectMp3(b),part={index,start:dur
 let baseline;
 try{
  for(const [environment,path] of Object.entries(sites)){
-  assets=path;
+  assets=path;const reviewedLayout=environment==='staging'||publicBuild;
   const context=await browser.newContext({viewport:{width:412,height:915}});
   const page=await context.newPage();const errors=[];page.on('pageerror',e=>errors.push(e.message));let started,creates=0,deletes=0,reject=false,readingId;
   await page.addInitScript(()=>{const Original=window.Audio;window.__audio=[];window.Audio=function(...args){const a=new Original(...args);window.__audio.push(a);a.__loads=0;a.addEventListener('loadstart',()=>a.__loads++);return a;};window.__appends=0;const append=SourceBuffer.prototype.appendBuffer;SourceBuffer.prototype.appendBuffer=function(b){window.__appends++;return append.call(this,b);};});
@@ -40,13 +40,13 @@ try{
    }
    await route.fulfill({json:data});
   });
-  await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);assert.equal(await page.locator('#paste').count(),environment==='staging'||publicBuild?1:0);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+  await page.goto(origin);assert.equal(await page.locator('#paste-check').count(),0);assert.equal(await page.locator('#paste').count(),environment==='staging'||publicBuild?1:0);assert.equal(await page.locator('#progress, #position').count(),0);assert.ok(await page.locator('#seek').isVisible());assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'0 / 0');await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
   assert.equal(await page.locator('#mse-delivery').inputValue(),'mse');
   assert.equal(await page.locator('#playback-options').evaluate(e=>e.open),false);
   assert.equal(await page.locator('#mse-delivery').isVisible(),false);
   assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');
   assert.equal(await page.locator('#staging-checks').isVisible(),false);
-  assert.equal(await page.getByText(environment==='staging'?'Download text-to-speech recording':'Download recording',{exact:true}).count(),1);
+  assert.equal(await page.getByText(reviewedLayout?'Download text-to-speech recording':'Download recording',{exact:true}).count(),1);
   if(environment==='staging')assert.equal(await page.locator('.download-card > #video-download').count(),1);
   const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download','offline-progress','recording-progress'].includes(c.id)).map(c=>c.outerHTML).join(''));
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
@@ -117,17 +117,17 @@ try{
   await page.goto(origin);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','browser');
   await page.fill('#text','First section.\n\nSecond section.\n\nThird section.');await page.click('#play');
   assert.equal(await page.locator('#seek').getAttribute('max'),'2');
-  await page.click('#next-section');assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'2 / 3');assert.equal(await page.locator('#seek').inputValue(),'1');
+  await page.click('#next-section');assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'2 / 3');assert.equal(await page.locator('#seek').inputValue(),'1');
   await page.click('#pause');await page.locator('#seek').focus();await page.keyboard.press('ArrowRight');
-  assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');assert.ok(await page.locator('#next-section').isDisabled());
+  assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');assert.ok(await page.locator('#next-section').isDisabled());
   await page.locator('#seek').evaluate(e=>{e.value=0;e.dispatchEvent(new Event('input',{bubbles:true}));});
-  assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
-  await page.locator('#seek').dispatchEvent('pointercancel');assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');
+  assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
+  await page.locator('#seek').dispatchEvent('pointercancel');assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');
   await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());await page.click('#play');
-  assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
+  assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
   await page.setViewportSize({width:1280,height:900});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-desktop.png`});
   await page.setViewportSize({width:412,height:915});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-mobile.png`});
-  await page.click('#stop');assert.ok(await page.locator('#seek').isDisabled());assert.equal(await page.locator('#seek-time').textContent(),environment==='staging'?'— / —':'0 / 0');
+  await page.click('#stop');assert.ok(await page.locator('#seek').isDisabled());assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'0 / 0');
   await page.click('#clear');assert.ok(await page.locator('#previous-section').isDisabled());assert.ok(await page.locator('#next-section').isDisabled());
   assert.deepEqual(errors,[]);
   await context.close();

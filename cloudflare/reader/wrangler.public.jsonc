@@ -43,7 +43,13 @@
     "ENABLE_UNIFIED_PAYMENTS": "1",
     "PADDLE_UNIFIED_PRODUCT_ID": "pro_01m4p9ggf6sm4hy4nz41hqjmnf",
     "PADDLE_UNIFIED_PRICE_ID": "pri_01m4p9rrgrcwscvx2q0bqwc00j",
-    "PAID_ADMISSIONS_PAUSED": "0"
+    "PAID_ADMISSIONS_PAUSED": "0",
+    "REVIEWED_READER_LIVE_APPROVED": "1",
+    "OCR_DURABLE_JOBS": "1",
+    "OCR_LIVE_APPROVED": "1",
+    "OCR_SOURCE_ORIGIN": "https://pastetospeech.com",
+    "OCR_SOURCE_GATEWAY_APPROVED": "1",
+    "SUMMARY_PRICE_CREDITS": "1"
   },
   "assets": {
     "directory": "../../work/production-reader/site",
@@ -63,6 +69,10 @@
       {
         "name": "OCR_PAYMENTS",
         "class_name": "OcrPaymentCoordinator"
+      },
+      {
+        "name": "OCR_JOBS",
+        "class_name": "OcrJob"
       }
     ]
   },
@@ -78,6 +88,12 @@
       "tag": "v2-ocr-retail",
       "new_sqlite_classes": [
         "OcrPaymentCoordinator"
+      ]
+    },
+    {
+      "tag": "v3-ocr-jobs",
+      "new_sqlite_classes": [
+        "OcrJob"
       ]
     }
   ],

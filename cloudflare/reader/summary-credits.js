@@ -1,6 +1,7 @@
+import {reviewedReaderLive} from './modes.js';
 import {UnifiedWallet,assertUnifiedEnvironment} from './unified-wallet.js';
 export const SUMMARY_CREDIT_UNITS=1000;
-export const summaryPriced=env=>env.READER_MODE==='staging'&&env.SUMMARY_PRICE_CREDITS==='1'&&env.UNIFIED_CREDITS==='1';
+export const summaryPriced=env=>(env.READER_MODE==='staging'||reviewedReaderLive(env))&&env.SUMMARY_PRICE_CREDITS==='1'&&env.UNIFIED_CREDITS==='1';
 export class SummaryCredits {
  constructor(env,now=Date.now){this.env=env;this.db=env.LEDGER;this.now=now;this.wallet=new UnifiedWallet(this.db,env);}
  query(sql,...values){return this.db.prepare(sql).bind(...values);}

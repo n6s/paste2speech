@@ -1,3 +1,4 @@
+import {reviewedReaderLive} from './modes.js';
 import {OcrSourceStore,sourceDeliveryDiagnostics,OCR_JOB_ID_PATTERN} from './ocr-source.js';
 import {verifyOcrSource} from './ocr-verification.js';
 import {largePdfAdmissionMessage} from './pdf-admission.js';
@@ -9,7 +10,7 @@ const FETCH_BINDING_VERSION='native-fetch-wrapped-v2';
 // This one receipt ran the deployed v1 default native fetch with a wrong receiver.
 // Native workerd reproduces rejection before networking; no marker/token is exposed.
 const LEGACY_FETCH_FAILURE='81ba8bf4-8251-40c6-8e2c-aec05887c674';
-export const durableOcrEnabled=env=>env.READER_MODE==='staging'&&env.OCR_DURABLE_JOBS==='1'&&env.UNIFIED_CREDITS==='1';
+export const durableOcrEnabled=env=>(env.READER_MODE==='staging'||reviewedReaderLive(env))&&env.OCR_DURABLE_JOBS==='1'&&env.UNIFIED_CREDITS==='1';
 export class OcrJob {
  constructor(ctx,env,{now=Date.now,fetcher=fetch,timeoutMs=600000,sourceFactory}={}){this.ctx=ctx;this.env=env;this.now=now;this.fetcher=(...args)=>fetcher(...args);this.timeoutMs=timeoutMs;this.running=false;this.ledger=new OcrJobLedger(env,now);const options={now,waitUntil:p=>this.ctx.waitUntil?.(p),dispatchDeadline:async()=>{const m=await this.ctx.storage.get('job');return m?(await this.ledger.job(m.id,m.account))?.deadline||0:0;},repeatConsent:async()=>{const m=await this.ctx.storage.get('job');return m?.acceptedPolicy===OCR_JOB_POLICY&&(await this.ledger.consent(m.id,m.account))?.policy===OCR_JOB_POLICY;},dispatchAuthorized:async(tx)=>{const m=await tx.get('job');if(m?.phase!=='dispatched')return false;const row=await this.ledger.job(m.id,m.account),wallet=await this.ledger.balance(m.account),account=await this.ledger.query('SELECT enabled FROM accounts WHERE id=?',m.account).first();return row?.state==='held'&&row.dispatched!==null&&row.deadline>this.now()&&wallet.debt===0&&account?.enabled===1;}};this.source=sourceFactory?sourceFactory(ctx.storage,env.AUDIO,options):new OcrSourceStore(ctx.storage,env.AUDIO,options);}
  result(m){return new OcrJobResults(this.env.AUDIO,m.id,m.account,this.now);}

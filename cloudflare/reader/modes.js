@@ -1,4 +1,5 @@
 export const publicMode=env=>env.READER_MODE==='production-public';
+export const reviewedReaderLive=env=>publicMode(env)&&env.REVIEWED_READER_LIVE_APPROVED==='1'&&env.UNIFIED_LIVE_APPROVED==='1'&&env.UNIFIED_CREDITS==='1';
 export const trialMode=env=>env.READER_MODE==='production-trial';
 export const production=env=>publicMode(env)||trialMode(env);
 export const verifiedCustomer=account=>!!account?.email&&account.enabled===1&&!account.legacyPilot;

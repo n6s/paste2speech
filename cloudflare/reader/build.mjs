@@ -21,6 +21,8 @@ const progressive=mse||mseProduction||(publicLaunch&&configVars.PROGRESSIVE_READ
 const unifiedBuild=configVars.UNIFIED_CREDITS==='1';
 if(unifiedBuild&&(production&&!publicLaunch||publicLaunch&&(configVars.UNIFIED_LIVE_APPROVED!=='1'||configVars.PADDLE_ENVIRONMENT!=='live')))throw Error('Shared wallet build environment is not approved');
 const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
+const reviewedLayout=!production||publicLaunch&&configVars.REVIEWED_READER_LIVE_APPROVED==='1';
+const durableOcr=reviewedLayout&&configVars.OCR_DURABLE_JOBS==='1';
 // Public promotion keeps reader features independent of staging test controls.
 const sharedReaderFeatures=mse||publicLaunch;
 const videoDownload=configVars.VIDEO_DOWNLOAD==='1';
@@ -28,7 +30,7 @@ const longReadings=configVars.LONG_READINGS==='1'||videoDownload;
 const root=production?'work/production-reader/site':'work/private-reader/site';await rm(root,{recursive:true,force:true});await mkdir(root+'/samples',{recursive:true});
 const common={bundle:true,format:'esm',platform:'browser',target:'es2022',logLevel:'warning'};
 await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',external:['./pdf.js','./word.js','./video-export.js'],plugins:[{name:'private-reader-config',setup(b){
- b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const STAGING_READER_LAYOUT=${!production},OCR_DURABLE_JOBS=${!production&&configVars.OCR_DURABLE_JOBS==='1'},SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},UNIFIED_CREDITS=${unifiedBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${sharedReaderFeatures},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
+ b.onLoad({filter:/public\/config\.js$/},()=>({contents:`export const STAGING_READER_LAYOUT=${reviewedLayout},OCR_DURABLE_JOBS=${durableOcr},SUMMARY_ENABLED=${(!production||publicLaunch)&&configVars.ENABLE_SUMMARY_UI==='1'},DOCUMENT_IMPORT=${retailBuild},UNIFIED_CREDITS=${unifiedBuild},WORKSTATION=false,KOKORO_ENABLED=false,CLOUD_READER=true,MSE_STAGING=${mse ? "new URLSearchParams(location.search).get('testing')==='1'" : 'false'},MSE_ENABLED=${progressive},SECTION_PROGRESS=${sharedReaderFeatures},VIDEO_DOWNLOAD=${videoDownload},LONG_READINGS=${longReadings},FULL_AUDIO_PREFETCH=${sharedReaderFeatures},MSE_FIXTURE_VERSION='${fixtureVersion}',API_ORIGIN='',BUILD_COMMIT='${buildCommit}',RELEASE='${publicLaunch?'production-public':production?'production-trial':'private-reader'}';`}));
  if(production&&!publicLaunch)b.onLoad({filter:/public\/summary-ui\.js$/},()=>({contents:'export function setupSummary() {}'}));
  if(!videoDownload)b.onLoad({filter:/public\/video-ui\.js$/},()=>({contents:'export function setupVideoDownload() {}'}));
  if(!progressive)b.onLoad({filter:/public\/staging-player\.js$/},()=>({contents:'export class StagingPlayer {}'}));
@@ -36,7 +38,7 @@ await build({...common,entryPoints:['public/app.js'],outfile:root+'/app.js',exte
  b.onLoad({filter:/public\/local-kokoro\.js$/},()=>({contents:'export class LocalKokoro {resetMetrics(){} cancel(){} }'}));
 }}]});
 await build({...common,entryPoints:['browser/pdf.js'],outfile:root+'/pdf.js'});
-if(!production){await build({...common,entryPoints:['public/word.js'],outfile:root+'/word.js',banner:{js:'// Includes fflate (MIT); license: /word-LICENSE.txt'}});await copyFile('node_modules/fflate/LICENSE',root+'/word-LICENSE.txt');}
+if(reviewedLayout){await build({...common,entryPoints:['public/word.js'],outfile:root+'/word.js',banner:{js:'// Includes fflate (MIT); license: /word-LICENSE.txt'}});await copyFile('node_modules/fflate/LICENSE',root+'/word-LICENSE.txt');}
 await copyFile('node_modules/pdfjs-dist/build/pdf.worker.min.mjs',root+'/pdf.worker.min.mjs');
 let sourceAssets=[];
 if(videoDownload){
@@ -52,13 +54,13 @@ if(videoDownload){
  await writeFile(root+'/video/core.json',JSON.stringify({parts}));
 }
 await copyFile('public/style.css',root+'/style.css');
-if(!production)await copyFile('public/staging-reader-layout.css',root+'/staging-reader-layout.css');
+if(reviewedLayout)await copyFile('public/staging-reader-layout.css',root+'/staging-reader-layout.css');
 if(sharedReaderFeatures)await copyFile('public/section-progress.css',root+'/section-progress.css');
 await copyFile('public/domain-move.js',root+'/domain-move.js');
 const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
 for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
 let html=await readFile('public/index.html','utf8');
-if(!production)html=html.replace('</head>','<link rel="stylesheet" href="staging-reader-layout.css"></head>');
+if(reviewedLayout)html=html.replace('</head>','<link rel="stylesheet" href="staging-reader-layout.css"></head>');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
 // Keep the reader next to its controls, with optional settings following playback.
 const settingsCard=html.match(/<section class="card voice-settings-card"[\s\S]*?<\/section>/)[0];
@@ -180,7 +182,7 @@ if(unifiedBuild){
  await copyFile('public/balance-capacity.css',root+'/balance-capacity.css');
  html=html.replace('</head>','<link rel="stylesheet" href="balance-capacity.css"></head>');
 }
-const pricedSummary=!production&&configVars.SUMMARY_PRICE_CREDITS==='1';
+const pricedSummary=reviewedLayout&&configVars.SUMMARY_PRICE_CREDITS==='1';
 if(pricedSummary)html=html.replaceAll('Creating summaries uses no credits','Each accepted summary uses 1 shared credit ($0.01)').replace('Using either reduces the same balance.','Using cloud voices, scanning or summaries reduces the same balance.');
 await writeFile(root+'/index.html',html);
 for(const name of ['signin.html','signin.js','signin.css'])await copyFile('server/billing/'+name,root+'/'+name);
@@ -217,4 +219,4 @@ for(const page of ['terms','pricing']){
 }
 
 const sha=bytes=>createHash('sha256').update(bytes).digest('hex');
-await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...(!production?['staging-reader-layout.css','word.js','word-LICENSE.txt']:[]),'billing.html','billing.js','signin.html','signin.js','signin.css',...(sharedReaderFeatures?['section-progress.css']:[]),'domain-move.js',...(unifiedBuild?['balance-capacity.js','balance-capacity.css']:[]),...(retailBuild&&!unifiedBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');
+await writeFile(root+'/release.json',JSON.stringify({commit:execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),environment:production?'production':'staging',dirty:!!execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),configSHA256:sha(await readFile(configPath)),assets:Object.fromEntries(await Promise.all(['index.html','app.js','style.css',...(reviewedLayout?['staging-reader-layout.css','word.js','word-LICENSE.txt']:[]),'billing.html','billing.js','signin.html','signin.js','signin.css',...(sharedReaderFeatures?['section-progress.css']:[]),'domain-move.js',...(unifiedBuild?['balance-capacity.js','balance-capacity.css']:[]),...(retailBuild&&!unifiedBuild?['ocr-account.js']:[]),'pdf.js','pdf.worker.min.mjs',...previewAssets,...iconAssets,...(videoDownload?[...sourceAssets,'licenses/sources.json','licenses/SOURCE-NOTES.txt','licenses/index.html','licenses/GPL-2.0.txt','licenses/MIT-ffmpeg-wasm.txt','licenses/upstream-Dockerfile.txt','video-export.js','video/worker.js','video/ffmpeg-core.js','video/core.json',...Array.from({length:4},(_,i)=>`video/core-${i}.bin`)]:[])].map(async name=>[name,sha(await readFile(root+'/'+name))])))})+'\n');

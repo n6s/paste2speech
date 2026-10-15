@@ -1,3 +1,4 @@
+import {reviewedReaderLive} from './modes.js';
 import {digest} from '../prepared/ledger.js';
 import {UnifiedWallet,assertUnifiedEnvironment} from './unified-wallet.js';
 export const OCR_JOB_PROVIDER_MODEL='mistral-ocr-4-1';
@@ -11,7 +12,7 @@ export const OCR_JOB_UNITS_PER_PAGE=2000;
 export class OcrJobLedger {
  constructor(env,now=Date.now){this.env=env;this.db=env.LEDGER;this.now=now;this.wallet=new UnifiedWallet(this.db,env);}
  query(sql,...values){return this.db.prepare(sql).bind(...values);}
- async check(){if(this.env.READER_MODE!=='staging'||this.env.UNIFIED_CREDITS!=='1')throw Error('Staging OCR jobs unavailable');await assertUnifiedEnvironment(this.db,this.env);await this.query('SELECT id FROM ocr_jobs LIMIT 1').first();await this.query('SELECT job FROM ocr_job_consents LIMIT 1').first();}
+ async check(){if(!(this.env.READER_MODE==='staging'||reviewedReaderLive(this.env))||this.env.UNIFIED_CREDITS!=='1')throw Error('Staging OCR jobs unavailable');await assertUnifiedEnvironment(this.db,this.env);await this.query('SELECT id FROM ocr_jobs LIMIT 1').first();await this.query('SELECT job FROM ocr_job_consents LIMIT 1').first();}
  async upload(id,account){return this.query('SELECT * FROM ocr_job_uploads WHERE id=? AND account=?',id,account).first();}
  async job(id,account){return this.query('SELECT * FROM ocr_jobs WHERE id=? AND account=?',id,account).first();}
  async createUpload({id,account,mime,bytes,name,started=this.now()}){await this.query('INSERT INTO ocr_job_uploads(id,account,model,mime,bytes,name,started,expires,policy) VALUES(?,?,\'mistral-ocr-4-1\',?,?,?,?,?,?)',id,account,mime,bytes,name,started,started+3600000,OCR_JOB_STORAGE_POLICY).run();return this.upload(id,account);}

@@ -1,3 +1,4 @@
+import {reviewedReaderLive} from './modes.js';
 import {UsageLedger,CreditError} from '../prepared/ledger.js';
 import {publicMode,customerAllowed} from './modes.js';
 export const UNITS_PER_CREDIT=1000,OCR_PAGE_UNITS=2000,PACK_UNITS=1000000;
@@ -24,8 +25,8 @@ export class UnifiedWallet extends UsageLedger {
  async balance(account){
   const row=await this.query('SELECT balance,debt FROM unified_wallets WHERE account=?',account).first();
   const held=await this.query("SELECT COALESCE(SUM(units),0) held FROM (SELECT remaining units FROM reservations WHERE account=? AND state='open' AND wallet_version='unified-v1' UNION ALL SELECT pages*2000 units FROM ocr_attempts WHERE account=? AND state='held' AND wallet_version='unified-v1')",account,account).first();
-  if(this.env.READER_MODE==='staging'&&this.env.SUMMARY_PRICE_CREDITS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM summary_credit_attempts WHERE account=? AND state IN('held','prepared')",account).first()).held;
-  if(this.env.READER_MODE==='staging'&&this.env.OCR_DURABLE_JOBS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM ocr_jobs WHERE account=? AND state='held'",account).first()).held;
+  if((this.env.READER_MODE==='staging'||reviewedReaderLive(this.env))&&this.env.SUMMARY_PRICE_CREDITS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM summary_credit_attempts WHERE account=? AND state IN('held','prepared')",account).first()).held;
+  if((this.env.READER_MODE==='staging'||reviewedReaderLive(this.env))&&this.env.OCR_DURABLE_JOBS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM ocr_jobs WHERE account=? AND state='held'",account).first()).held;
   return {...(row||{balance:0,debt:0}),held:held.held,unitsPerCredit:UNITS_PER_CREDIT,walletVersion:'unified-v1'};
  }
  async newOrder(account,offer){

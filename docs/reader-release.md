@@ -1236,3 +1236,33 @@ interruption. It does not verify a physical Android Bluetooth disconnection.
 For device acceptance, turn the speaker off during a staging reading: controls
 should offer Resume, stay paused on reconnection, and continue from the saved
 place after one explicit tap. No new speech job should be needed.
+
+## Reviewed reader production promotion — October 15, 2026
+
+Roger approved promoting the reviewed reader and explicitly authorized its supporting
+production schema, OCR service, private temporary source access, and Summary credit
+accounting. `REVIEWED_READER_LIVE_APPROVED=1` includes the compact reader layout,
+stylesheet and local Word importer in the public build. Historical trial builds
+remain separate. Staging-only diagnostic/test controls remain excluded publicly.
+
+The public OCR job namespace uses the existing production R2 bucket and Mistral
+credential. `/v1/<job>/<capability>` on the existing production origin serves only
+authorized immutable sources: verified dispatch, hashed random capability, one-hour
+original access limit, no more than three reads/two concurrently, and a maximum
+ten-minute grant. The route has no account/session API and rejects ranges and
+non-GET methods. Public job admission retains verified eligible account, launch,
+paid-pause, wallet/debt, consent, whole-file verification and reading-rate gates.
+
+Apply additive public migrations 0019–0022 before deploying the enabled Worker.
+They mirror the tested staging Summary and OCR/recovery/consent journals, preserve
+existing financial rows and introduce no grants or provider allowances. OCR remains
+2 credits/page; accepted Summary uses 1 credit, with unaccepted holds released.
+Paddle catalog, pack prices, existing balances/history and credentials are unchanged.
+The deployment adds the `OcrJob` class via the v3 Durable Object migration. No
+extension rebuild is required. The private seven-day scan diagnostic attachment
+workflow remains owner-only staging; it is not enabled as part of this promotion.
+
+Public release gates additionally run the native synthetic production OCR lifecycle
+and both builds' durable OCR/intake/Summary browser contracts. Native proof state
+and providers are entirely local/synthetic. Inspect hosted public mobile/desktop
+screens, verify release asset hashes and compare installed extension hashes.
