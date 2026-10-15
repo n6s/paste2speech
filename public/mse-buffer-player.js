@@ -19,6 +19,14 @@ export class MsePlayer {
       if(name==='error'&&this.job&&audio.error)this.mediaFailed();
       if(name==='loadeddata'&&this.mode==='mse'){this.capability.decoded=true;this.log('decode-verified');}
       if(name==='playing'&&this.job&&this.wantPlay&&!audio.paused&&!this.fatal&&!this.mediaRecovery){this.state='playing';clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;}
+      // OS/audio-route pauses bypass our Pause button. Retire playback intent so
+      // controls offer Resume and later buffer/status events cannot restart audio.
+      // Source setup is preparing; queued pauses after resume see paused=false.
+      if(name==='pause'&&this.job&&audio.paused&&!audio.ended&&this.wantPlay&&['playing','buffering'].includes(this.state)){
+        this.playSequence++;this.wantPlay=false;this.state='paused';
+        clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
+        this.log('playback-interrupted');
+      }
       if(name==='waiting'&&this.wantPlay){
         if(this.connectionInterrupted&&!this.hasPlayableAudio())this.pauseForConnection();
         else if(this.status?.state==='credit-paused'&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.wantPlay=false;this.audio.pause();this.state='paused';}

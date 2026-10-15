@@ -1220,3 +1220,19 @@ intercepted, so verification requires no paid OCR or customer payment. Preserve 
 public release/config and installed extension hashes; no public promotion or
 unrelated gateway, lifecycle, Access, recipient or scheduled-review change is part
 of this release.
+
+## Playback interruption regression (October 15, 2026)
+
+`check:reader:recovery` includes `tests/playback-interruption-browser.mjs`.
+It plays real fixture audio through MSE and completed-file delivery, invokes the
+media element's native pause outside the UI, checks Resume and Media Session,
+and verifies that later preparation events cannot restart playback. One explicit
+Resume reuses the same recording and position. Ordinary media loading suspension
+is not treated as an interruption. Unit coverage includes late play rejections,
+buffering, source preparation and completion.
+
+This simulates the browser media pause produced by an OS or audio-route
+interruption. It does not verify a physical Android Bluetooth disconnection.
+For device acceptance, turn the speaker off during a staging reading: controls
+should offer Resume, stay paused on reconnection, and continue from the saved
+place after one explicit tap. No new speech job should be needed.
