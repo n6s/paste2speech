@@ -1,3 +1,4 @@
+import {isLocalClipboardReference} from './clipboard-payload.js';
 import {clipboardMarkdown} from './paste.js';
 import {setupScreenshotRecovery} from './screenshot-recovery.js';
 const imageFile=file=>file?.type?.startsWith('image/')||!file?.type&&/\.(?:png|jpe?g|webp)$/i.test(file?.name||'');
@@ -7,18 +8,19 @@ export function pastedImages(data){
 }
 // Clipboard bytes are read only by a foreground user gesture. All document
 // validation and explicit paid-upload consent stay in the existing importer.
-export function setupClipboardImage({root,target,importFile,getBusy,status,createReport,read=()=>navigator.clipboard.read(),canRead=()=>globalThis.isSecureContext&&document.hasFocus()&&typeof navigator.clipboard?.read==='function'}){
+export function setupClipboardImage({root,target,importFile,getBusy,status,createReport,openFile=null,onCancelPicker=null,imageOnlyInInfo=false,read=()=>navigator.clipboard.read(),canRead=()=>globalThis.isSecureContext&&document.hasFocus()&&typeof navigator.clipboard?.read==='function'}){
  const button=document.createElement('button');button.type='button';button.id='document-paste-image';button.textContent='Paste screenshot';if((document.getElementById('document-context')||document.getElementById('document-tools'))&&document.getElementById('paste')&&document.getElementById('document-choose-file')?.textContent==='Open file')button.hidden=true;
  const hint=document.createElement('p');hint.id='document-clipboard-hint';hint.textContent='Paste works when your browser can read the copied image. On phones, Choose file is the reliable way to open a saved screenshot.';button.setAttribute('aria-describedby',hint.id);hint.hidden=button.hidden;const sources=root.querySelector('.document-sources');if(sources){sources.prepend(button);sources.after(hint);}else root.append(button,hint);
  const pasteHint=document.createElement('p');pasteHint.hidden=button.hidden;pasteHint.id='document-paste-hint';pasteHint.className='hint';pasteHint.textContent='Paste text or an image into the text box, or use Clear, Paste & Play. That button plays text; images open OCR options. Nothing is uploaded for OCR until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';if((document.getElementById('document-context')||document.getElementById('document-tools')))root.append(pasteHint);else target?.after(pasteHint);if(target)target.setAttribute('aria-describedby',[target.getAttribute('aria-describedby'),pasteHint.id].filter(Boolean).join(' '));
+ if(imageOnlyInInfo){const info=document.getElementById('document-processing-details');if(info){button.hidden=false;hint.hidden=false;hint.textContent='Paste screenshot checks for image bytes only and never pastes clipboard text. Some phone browsers do not expose screenshots; use Open file for a saved screenshot instead.';info.append(button,hint);}}
  let sequence=0,reading=false,pickerRequest=null;
  // document-tools is created only by the staging layout.
- const recovery=(document.getElementById('document-context')||document.getElementById('document-tools'))?setupScreenshotRecovery({root,status,createReport,onDismiss:()=>{cancelRead();(document.getElementById('paste')||button).focus({preventScroll:true});}}):null;
+ const recovery=(document.getElementById('document-context')||document.getElementById('document-tools'))?setupScreenshotRecovery({root,status,createReport,openFile:!!openFile,onDismiss:()=>{cancelRead();(document.getElementById('paste')||button).focus({preventScroll:true});}}):null;
  const render=()=>{button.disabled=reading||getBusy();recovery?.setBusy(reading||getBusy());};
- const cancelRead=(clearOutcome=true)=>{sequence++;reading=false;pickerRequest=null;if(clearOutcome)recovery?.hide();render();};
+ const cancelRead=(clearOutcome=true)=>{sequence++;reading=false;pickerRequest=null;onCancelPicker?.();if(clearOutcome)recovery?.hide();render();};
  const problem=(reason,legacy)=>{if(recovery)recovery.show(reason);else status.textContent=legacy;};
  if(recovery){
-  recovery.choose.onclick=()=>{if(reading||getBusy())return;pickerRequest={sequence:++sequence,text:target?.value};recovery.input.value='';recovery.input.click();};
+  recovery.choose.onclick=()=>{if(reading||getBusy())return;if(openFile){openFile();return;}pickerRequest={sequence:++sequence,text:target?.value};recovery.input.value='';recovery.input.click();};
   recovery.input.addEventListener('cancel',()=>{pickerRequest=null;});
   recovery.input.addEventListener('change',()=>{const request=pickerRequest,file=recovery.input.files[0];pickerRequest=null;recovery.input.value='';if(!file||!request||request.sequence!==sequence||target?.value!==request.text||getBusy())return;if(!imageFile(file)){problem('failed','Choose a PNG, JPEG or WebP screenshot. Your text is unchanged.');return;}void load([file],'screenshot_picker');});
  }
@@ -35,12 +37,12 @@ export function setupClipboardImage({root,target,importFile,getBusy,status,creat
   if(getBusy()){event.preventDefault();event.stopImmediatePropagation();root.open=true;status.textContent='A document is being processed. Clear it before pasting another image or text.';return;}
   let files,text;
   try{files=pastedImages(event.clipboardData);if(files.length)text=event.clipboardData?.getData('text/plain')||clipboardMarkdown(event.clipboardData?.getData('text/html'));}catch{status.textContent='The pasted image could not be opened. Use Choose file.';return;}
-  if(!files.length)return; // The editor retains its normal text/HTML paste and undo behavior.
+  if(!files.length){if(imageOnlyInInfo){const data=event.clipboardData,plain=data?.getData('text/plain')||'',html=data?.getData('text/html')||'',unreadableImage=Array.from(data?.items||[]).some(item=>item.kind==='file'&&item.type?.startsWith('image/'))||Array.from(data?.types||[]).some(type=>type.startsWith('image/'));if(unreadableImage||isLocalClipboardReference(plain)||!plain.trim()&&/<(?:img|svg|picture)\b/i.test(html)){event.preventDefault();event.stopImmediatePropagation();problem('missing','No screenshot image bytes were provided. Use Open file. Your text is unchanged.');}}return;} // Keep ordinary text/HTML paste and undo behavior.
   if(text){root.open=true;status.textContent='This paste includes text and an image. Keeping the text paste; to extract the image too, paste it by itself or use Choose file. Nothing was uploaded.';return;}
   event.preventDefault();event.stopImmediatePropagation();void load(files,'native_paste');
  },{capture:true});
  button.onclick=async()=>{
-  if(reading||getBusy())return;
+  if(reading||getBusy())return;const popup=button.closest('[popover]');if(popup?.matches(':popover-open'))popup.hidePopover();
   const request=++sequence,previous=target?.value;pickerRequest=null;
   if(!canRead()){problem('unavailable','Clipboard image paste is unavailable here. Use Choose file, or paste a copied image into the text box.');return;}
   recovery?.hide();

@@ -45,7 +45,8 @@
     "PADDLE_UNIFIED_PRODUCT_ID": "pro_01m4ntya23sa7g6mr4kv7yepyc",
     "PADDLE_UNIFIED_PRICE_ID": "pri_01m4nv10a0b8nq3tpnp78shzbj",
     "OCR_DURABLE_JOBS": "1",
-    "OCR_SOURCE_ORIGIN": "https://private-wavenet-ocr-source-staging.rogerpbrown.workers.dev"
+    "OCR_SOURCE_ORIGIN": "https://private-wavenet-ocr-source-staging.rogerpbrown.workers.dev",
+    "OCR_PICKER_AUTOSCAN": "1"
   },
   "ai": {
     "binding": "AI"

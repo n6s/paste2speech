@@ -1266,3 +1266,37 @@ Public release gates additionally run the native synthetic production OCR lifecy
 and both builds' durable OCR/intake/Summary browser contracts. Native proof state
 and providers are entirely local/synthetic. Inspect hosted public mobile/desktop
 screens, verify release asset hashes and compare installed extension hashes.
+
+## Mobile OCR picker follow-up — staging only, October 15, 2026
+
+Roger reported two redundant actions after choosing a mobile file. The existing
+client always set `auto=false`: the first button uploaded/verified without credit,
+and a second button accepted the quoted scan. Remembered preferences did not skip
+either action. The staging-only `OCR_PICKER_AUTOSCAN=1` experiment captures one
+foreground file-picker intent, bound to the current account/policy/editor state.
+Choosing a file checks local text, uploads if OCR is needed, verifies the whole-file
+cost and current balance, accepts once, then loads the complete result. Pricing and
+private-upload/retention terms stay in File Info; there is no cost banner, required
+Info opening, or normal-path confirmation button. The existing balance updates.
+
+Paid admission still requires the verified page count, 2 credits/page, current
+account/policy, sufficient balance/no debt, file/page bounds and unchanged source.
+Cancellation and newer edits retire pending intent. Failed/uncertain or explicitly
+recoverable prior attempts never trigger an automatic paid retry. Cached results
+reuse the existing hash-verified path. At zero balance, no file is uploaded: a
+matching-name older saved result may be offered for explicit free loading; it is
+not silently treated as the newly chosen file. This preserves the pre-upload
+balance guard required by automatic approval review. No new server permissions,
+ledger changes or provider calls are needed.
+
+Screenshot handling also remains staging-only. Advertised image bytes that fail
+to load, image-only HTML without usable bytes, and local content/image-file URIs
+produce a prominent no-image outcome with Open file, rather than falling back to
+unrelated `readText` data. File Info exposes the existing image-only Paste screenshot
+action; it never pastes clipboard text. Recovery uses the canonical Open file flow.
+Ordinary text paste/fallback and supported desktop image paste remain available.
+If a browser exposes only old text with no image evidence, generic paste cannot
+distinguish that from legitimate text; the image-only action or Open file is the
+reliable alternative. Synthetic desktop Chrome/phone-width tests are not a real
+Android clipboard reproduction. Production stays on its approved deployment until
+Roger separately approves this follow-up.

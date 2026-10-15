@@ -102,3 +102,5 @@ button.reader-info-button,button.reader-popover-close{display:inline-flex!import
 
 .input-cleanup-row{display:flex;align-items:center;flex-wrap:wrap;gap:2px 3px;margin:8px 0 4px;padding:0;min-width:0}.cleanup-row-heading{display:inline-flex;align-items:center;gap:5px;font-size:.74rem;min-height:32px}.input-cleanup-row #options{display:contents}.input-cleanup-row #options label{display:inline-flex;align-items:center;gap:5px;min-height:32px;margin:0;padding:0;font-size:.74rem;font-weight:450;white-space:nowrap}.input-cleanup-row #options input{width:16px;height:16px;flex:none;margin:0}.staging-reader-layout #extension-tooltip{pointer-events:none}
 @media(max-width:480px){.staging-reader-layout #text{height:clamp(180px,calc(100dvh - 650px),300px)}.staging-reader-layout #preview{height:clamp(150px,calc(100dvh - 710px),300px)}}
+
+.document-picker-actions{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}

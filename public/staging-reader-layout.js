@@ -1,4 +1,4 @@
-import {OCR_DURABLE_JOBS} from './config.js';
+import {OCR_DURABLE_JOBS,OCR_PICKER_AUTOSCAN} from './config.js';
 import {attachReaderPopover,createReaderInfo} from './reader-popover.js';
 // Staging layout only. Keep reading controls together and secondary tools separate.
 export function setupStagingReaderLayout(){
@@ -27,7 +27,7 @@ export function setupStagingReaderLayout(){
  const visible=document.createElement('p');visible.id='document-visible-status';visible.className='sr-only';visible.setAttribute('aria-hidden','true');visible.textContent=status.textContent;(OCR_DURABLE_JOBS?tools:scan).append(visible);status.classList.add('sr-only');(OCR_DURABLE_JOBS?card:tools).append(status);
  new MutationObserver(()=>{visible.textContent=status.textContent;}).observe(status,{childList:true,subtree:true,characterData:true});
  const cancel=document.getElementById('cancel-pdf');if(cancel)(OCR_DURABLE_JOBS?tools:scan).append(cancel);
- const inputText=document.createElement('p');inputText.textContent='Formatted paste keeps headings and lists when available. Original editing text stays in this tab. Paste inserts text; Clear, Paste & Play replaces it and starts playback. Opening a file does not upload it.';
+ const inputText=document.createElement('p');inputText.textContent='Formatted paste keeps headings and lists when available. Original editing text stays in this tab. Paste inserts text; Clear, Paste & Play replaces it and starts playback. '+(OCR_PICKER_AUTOSCAN?'Choosing an image or scanned PDF starts upload and scanning; File processing information explains privacy, pricing and limits.':'Opening a file does not upload it.');
  createReaderInfo({id:'input-info',label:'Pasting and editing',nodes:[inputText],mount:document.getElementById('text-title')});
  const speechText=document.createElement('p');speechText.textContent='Prepared WaveNet text and audio expire after 24 hours. WaveNet sends the cleaned reading text to Google Cloud. Browser voices use your device’s speech service, which may connect to the internet.';document.getElementById('voice-info-details')?.append(speechText);
  for(const paragraph of document.querySelectorAll('p'))if(paragraph.textContent.startsWith('Formatted paste keeps headings and lists when available.')){if(paragraph!==inputText)paragraph.remove();}

@@ -13,7 +13,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
@@ -469,7 +469,7 @@ async function pasteFromClipboard({replace=false}={}){
   documentImport?.cancelClipboardRead();
   try {
     pasteDiagnostics?.record('paste-button-start',$('text').value);
-    const payload = await clipboardPayload(navigator.clipboard, (stage,text,details)=>pasteDiagnostics?.record(stage,text,details));
+    const payload = await clipboardPayload(navigator.clipboard, (stage,text,details)=>pasteDiagnostics?.record(stage,text,details),{guardImages:OCR_PICKER_AUTOSCAN});
     pasteDiagnostics?.record('paste-button-payload',payload.text);
     if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy || $('text').readOnly) return;
     if(payload.image){
@@ -505,7 +505,7 @@ async function pasteFromClipboard({replace=false}={}){
         ? 'Chrome blocked clipboard access. Your text and playback are unchanged. Allow clipboard access if Chrome asks, or switch to Edit and use Android’s long-press Paste in the text box (keyboard Paste on desktop). For a saved screenshot, use Open file.'
         : 'Chrome could not read the clipboard. Your text and playback are unchanged. Switch to Edit and use Android’s long-press Paste in the text box, or your keyboard’s Paste command on desktop. For a saved screenshot, use Open file.';
     $('paste-status').hidden = false;
-    if(STAGING_READER_LAYOUT&&documentImport?.showClipboardProblem){documentImport.showClipboardProblem(error.message==='empty'?'missing':error.message==='multiple-images'?'multiple':['NotAllowedError','SecurityError'].includes(error.name)?'denied':error.name==='NotSupportedError'?'unavailable':'failed');$('paste-status').hidden=true;}
+    if(STAGING_READER_LAYOUT&&documentImport?.showClipboardProblem){documentImport.showClipboardProblem(['empty','clipboard-image-unavailable'].includes(error.message)?'missing':error.message==='multiple-images'?'multiple':['NotAllowedError','SecurityError'].includes(error.name)?'denied':error.name==='NotSupportedError'?'unavailable':'failed');$('paste-status').hidden=true;}
   } finally {
     if(activePasteRequest===request){activePasteRequest=0;disablePasteButtons(!!documentImport?.busy||$('text').readOnly);}
   }

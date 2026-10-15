@@ -67,3 +67,6 @@ test('a failed or empty plain fallback remains unsuccessful without retries',asy
   assert.deepEqual(calls,['read','readText']);
  }
 });
+
+test('image-aware clipboard reads never substitute stale readText for advertised or image-only HTML data',async()=>{for(const kind of ['image-bytes-fail','image-html']){let plainReads=0;const clipboard={read:async()=>[kind==='image-bytes-fail'?{types:['image/png'],getType:async()=>{throw new TypeError('image bytes unavailable');}}:item('text/html','<img src="content://media/external/images/media/1">')],readText:async()=>{plainReads++;return 'Old copied text';}};await assert.rejects(clipboardPayload(clipboard,null,{guardImages:true}),/clipboard-image-unavailable/);assert.equal(plainReads,0);}});
+test('image-aware mode rejects local content references while retaining ordinary text fallback and real mixed text',async()=>{await assert.rejects(clipboardPayload({read:async()=>[item('text/plain','content://media/external/images/media/1')]},null,{guardImages:true}),/clipboard-image-unavailable/);assert.equal((await clipboardPayload({readText:async()=>'Ordinary copied text.'},null,{guardImages:true})).text,'Ordinary copied text.');assert.equal((await clipboardPayload({read:async()=>[item('text/plain','A real caption'),item('image/png','pixels')]},null,{guardImages:true})).text,'A real caption');});
