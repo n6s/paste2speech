@@ -337,7 +337,8 @@ function render(p, message) {
   $('playback-note').textContent = isWorkstation()
     ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours. Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
-  if(sectionProgress&&isWorkstation())$('playback-note').textContent='Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Recordings expire after 24 hours. Clear or a new reading may use speech credit.';
+  if(sectionProgress&&isWorkstation())$('playback-note').textContent=STAGING_READER_LAYOUT?'Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Clear or a new reading may use speech credit.':'Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Recordings expire after 24 hours. Clear or a new reading may use speech credit.';
+  if(STAGING_READER_LAYOUT&&!isWorkstation())$('playback-note').textContent='Browser voices are free and need the page visible.';
   $('recording-progress').textContent = isWorkstation() && p.id ? (p.complete ? 'Recording ready to download · original speed' : `${p.starts.length} of ${p.chunks.length} sections prepared`) : '';
   if(sectionProgress)$('recording-progress').hidden=true;
   if($('offline-progress')&&!sectionProgress){
@@ -401,6 +402,7 @@ function loadVoices() {
     $('voice').value = availableVoices.some(v => v.id === selectedVoice) ? selectedVoice : availableVoices[0]?.id || '';
     workstationVoice = $('voice').value;
     $('voice-note').textContent = isGoogle() ? (LONG_READINGS?'WaveNet · text is sent to Google Cloud. Long readings are prepared in parts automatically. Default pronunciation and pauses.':'WaveNet · text is sent to Google Cloud. Up to 20,000 characters per reading. Default pronunciation and pauses.') + (MSE_ENABLED ? ' Playback starts as audio arrives where supported.' : ' Full preparation before playback.') : !isWorkstation() ? 'Experimental · generated on this device. Kokoro loads automatically after the first download. Preparation may be slow on phones.' : isDeepInfra() ? 'Private test · text is sent to DeepInfra and uses the project’s prepaid credit. Up to 20,000 characters per reading; shared pronunciation and pause rules are applied.' : 'Generated privately on your workstation. English voices; no cloud speech service.';
+    if(STAGING_READER_LAYOUT&&isGoogle())$('voice-note').textContent=$('voice-note').textContent.replace('text is sent to Google Cloud. ','');
   } else {
     voices = supported ? speechSynthesis.getVoices() : [];
     $('voice').add(new Option('Device default', ''));

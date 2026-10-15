@@ -26,7 +26,7 @@ await context.route('**/*',async route=>{const req=route.request(),url=new URL(r
  throw Error('Unexpected intercepted API '+req.method()+' '+p);
 });
 const outcome=page.locator('#processing-scan-outcome');
-const open=()=>page.locator('.pdf-import').evaluate(e=>e.open=true);
+const open=async()=>{};
 const native=async()=>{await page.click('#edit-mode');const canceled=await page.evaluate(bytes=>{const data=new DataTransfer();data.items.add(new File([new Uint8Array(bytes)],'image.png',{type:'image/png'}));return !document.getElementById('text').dispatchEvent(new ClipboardEvent('paste',{bubbles:true,cancelable:true,clipboardData:data}));},[...png]);assert.equal(canceled,true);await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);};
 const confirm=async()=>{await open();await page.click('#document-ocr');await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);if(await page.locator('#document-ocr').isVisible()){await page.click('#document-ocr');await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);}};
 const refresh=async()=>{await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(150);};

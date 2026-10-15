@@ -4,7 +4,7 @@ export function setupProcessingIndicator({delayMs=200}={}) {
  if(indicator)return indicator;
  const panel=document.createElement('aside');
  panel.id='processing-indicator';panel.hidden=true;panel.setAttribute('role','status');panel.setAttribute('aria-live','polite');panel.setAttribute('aria-atomic','false');
- const modes=document.querySelector('.mode-controls');if(modes)modes.before(panel);else document.body.prepend(panel);
+ const modes=document.getElementById('document-context')||document.querySelector('.mode-controls');if(modes)modes.before(panel);else document.body.prepend(panel);
  const entries=new Map();
  const paint=()=>{
   const focused=document.activeElement,focusedRow=panel.contains(focused)?focused.closest('.processing-indicator-row'):null,focusedIndex=focusedRow?Array.from(focusedRow.querySelectorAll('button')).indexOf(focused):-1;

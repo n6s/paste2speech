@@ -62,7 +62,7 @@ await context.route('**/*',async route=>{
 });
 const hidden=()=>page.waitForFunction(()=>document.getElementById('processing-indicator').hidden);
 const notice=async(kind,message)=>{await page.locator('#processing-'+kind).waitFor({state:'visible'});if(message)assert.match(await page.locator('#processing-'+kind).textContent(),message);};
-const openScans=async()=>{await page.locator('.pdf-import').evaluate(e=>e.open=true);};
+const openScans=async()=>{};
 const refresh=async()=>{await page.evaluate(()=>window.dispatchEvent(new Event('focus')));await page.waitForTimeout(150);};
 let imageIndex=0;
 const choose=async()=>{await page.locator('#pdf-file').setInputFiles({name:'synthetic-'+(++imageIndex)+'.png',mimeType:'image/png',buffer:Buffer.from([137,80,78,71,13,10,26,10,0,0,0,imageIndex])});await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);};
@@ -86,7 +86,7 @@ try{
  await page.evaluate(()=>{const a=audioElements.find(a=>a.src.startsWith('blob:'));a.dispatchEvent(new Event('playing'));window.dispatchEvent(new Event('offline'));});await hidden();await page.click('#pause');await hidden();await page.evaluate(()=>holdMediaStart=true);await page.click('#play');await notice('audio',/Starting audio/);assert.equal(await page.locator('#pause').isEnabled(),true);await page.evaluate(()=>{holdMediaStart=false;releaseMediaStart();});await page.waitForFunction(()=>document.getElementById('status').textContent==='Reading aloud');await hidden();await page.click('#stop');
  // Upload/cost, acceptance and server waiting have distinct temporary phases.
  await page.click('#edit-mode');await page.fill('#text','Preserve my document.');await choose();arm('upload');await page.click('#document-ocr');await waitGate('upload');await notice('ocr',/Uploading document/);release('upload');await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);await hidden();
- arm('accept');await page.click('#document-ocr');await waitGate('accept');await notice('ocr',/Submitting scan/);release('accept');await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);await notice('ocr',/Scanning document/);assert.equal(await page.locator('.pdf-import').evaluate(e=>e.open),false);
+ arm('accept');await page.click('#document-ocr');await waitGate('accept');await notice('ocr',/Submitting scan/);release('accept');await page.waitForFunction(()=>!document.getElementById('pdf-file').disabled);await notice('ocr',/Scanning document/);assert.equal(await page.locator('.pdf-import').count(),0);assert.ok(await page.locator('#document-context').isVisible());
  await page.click('#edit-mode');assert.equal(await page.locator('#text').evaluate(e=>e.readOnly),false);await page.fill('#text','Edits while the scan runs.');assert.equal(await page.locator('#text').inputValue(),'Edits while the scan runs.');
  await page.selectOption('#engine','browser');await page.click('#play');await notice('audio');assert.equal(await page.locator('.processing-indicator-row').count(),2);await page.click('#pause');assert.equal(await page.locator('#processing-ocr').isVisible(),true);await page.click('#stop');
  await page.screenshot({path:out+'/scan-wait-'+(hosted?'hosted':'built')+'.png'});

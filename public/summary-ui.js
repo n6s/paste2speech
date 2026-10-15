@@ -1,3 +1,4 @@
+import {attachReaderPopover} from './reader-popover.js';
 import {configureCloudChoice} from './cloud-choices.js';
 import {UNIFIED_CREDITS,STAGING_READER_LAYOUT} from './config.js';
 import {showProcessing,hideProcessing,showProcessingOutcome} from './processing-indicator.js';
@@ -11,14 +12,19 @@ export function setupSummary({getText,setText,setMode,fetcher=fetch}){
  const remember=document.createElement('input');remember.type='checkbox';remember.id='summary-remember';const rememberLabel=document.createElement('label');rememberLabel.append(remember,document.createTextNode(' Remember: next time, create a summary with one tap.'));panel.querySelector('#summarize').before(rememberLabel);
  const el=id=>document.getElementById(id);let checkingPrice=false,priced=false,canSubmit=true,priceConfig={},activeReceipt=null,resultScope=null,resultPolicy=null;const receipts=new Map();
  if(STAGING_READER_LAYOUT){
-  const controls=document.createElement('div');controls.className='summary-action-controls';controls.id='summary-action-controls';
-  const type=el('summary-length').closest('label');const typeLabel=document.createElement('span');typeLabel.className='sr-only';typeLabel.textContent='Summary type';type.firstChild.replaceWith(typeLabel);controls.append(type);
-  const disclosure=document.createElement('span');disclosure.id='summary-action-disclosure';disclosure.textContent='Uses Cloudflare AI';controls.append(disclosure);
-  const info=document.createElement('button');info.type='button';info.id='summary-info';info.textContent='ⓘ';info.setAttribute('aria-label','Summary information');info.setAttribute('aria-expanded','false');info.setAttribute('aria-controls','summary-info-details');controls.append(info);
-  const details=document.createElement('div');details.id='summary-info-details';details.hidden=true;info.onclick=()=>{details.hidden=!details.hidden;info.setAttribute('aria-expanded',String(!details.hidden));};
+  const group=document.createElement('div');group.className='summary-split';button.before(group);group.append(button);
+  const toggle=document.createElement('button');toggle.id='summary-options-toggle';toggle.textContent='▾';toggle.setAttribute('aria-label','Summary options: Standard selected');group.append(toggle);
+  const options=document.createElement('div');options.id='summary-options';const optionPopup=attachReaderPopover(toggle,options,{label:'Summary options',info:false});
+  const select=el('summary-length');select.hidden=true;options.append(select);const choices=document.createElement('div');choices.className='summary-choices';choices.setAttribute('role','group');choices.setAttribute('aria-label','Summary type');options.append(choices);
+  const supported=[['brief','Brief','3–5 sentences'],['standard','Standard','1–3 paragraphs'],['detailed','Detailed','More detail within the same short limit']];
+  const syncChoices=()=>{for(const input of choices.querySelectorAll('input'))input.checked=input.value===select.value;toggle.setAttribute('aria-label','Summary options: '+select.value[0].toUpperCase()+select.value.slice(1)+' selected');};
+  for(const [value,name,description] of supported){const label=document.createElement('label');const radio=document.createElement('input');radio.type='radio';radio.name='summary-type';radio.value=value;radio.id='summary-choice-'+value;const copy=document.createElement('span');const title=document.createElement('strong');title.textContent=name;const note=document.createElement('small');note.textContent=description;copy.append(title,note);label.append(radio,copy);choices.append(label);radio.onchange=()=>{select.value=value;select.dispatchEvent(new Event('change',{bubbles:true}));syncChoices();optionPopup.close(true);};}select.addEventListener('change',syncChoices);syncChoices();
+  const disclosure=document.createElement('p');disclosure.id='summary-action-disclosure';disclosure.textContent='Uses Cloudflare AI';
+  const info=document.createElement('button');info.type='button';info.id='summary-info';info.textContent='ⓘ';info.setAttribute('aria-label','Summary information');options.querySelector('.reader-popover-heading').append(info);
+  const details=document.createElement('div');details.id='summary-info-details';details.append(disclosure);attachReaderPopover(info,details,{label:'Summary information',anchor:toggle,returnFocus:toggle});
   const settings=el('summary-settings');for(const node of [el('summary-source'),el('summary-limit-reason'),el('summary-allowance'),el('summary-disclosure')])details.append(node);
-  const limit=document.createElement('p');limit.textContent='Brief, Standard and Detailed use the existing 24,000-byte source and 512-token output limits. Detailed adds explanation within that same limit; it is not a long-document digest.';details.append(limit);
-  document.querySelector('.mode-controls').before(controls,details);settings.remove();rememberLabel.hidden=true;el('summarize').hidden=true;
+  const limit=document.createElement('p');limit.textContent='Brief, Standard and Detailed use the existing 24,000-byte source and 512-token output limits. Detailed adds explanation within that same limit.';details.append(limit);
+  settings.remove();rememberLabel.hidden=true;el('summarize').hidden=true;
   panel.querySelector('h2').remove();panel.querySelector('p').remove();
   const box=document.createElement('div');box.className='summary-content-box';box.id='summary-content-box';
   const result=el('summary-result'),label=panel.querySelector('label[for="summary-result"]');label.id='summary-output-label';label.textContent='Summary';box.append(label,result);panel.prepend(box);
