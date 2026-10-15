@@ -22,11 +22,7 @@ export class MsePlayer {
       // OS/audio-route pauses bypass our Pause button. Retire playback intent so
       // controls offer Resume and later buffer/status events cannot restart audio.
       // Source setup is preparing; queued pauses after resume see paused=false.
-      if(name==='pause'&&this.job&&audio.paused&&!audio.ended&&this.wantPlay&&['playing','buffering'].includes(this.state)){
-        this.playSequence++;this.wantPlay=false;this.state='paused';
-        clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
-        this.log('playback-interrupted');
-      }
+      if(name==='pause')this.syncNativePause();
       if(name==='waiting'&&this.wantPlay){
         if(this.connectionInterrupted&&!this.hasPlayableAudio())this.pauseForConnection();
         else if(this.status?.state==='credit-paused'&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.wantPlay=false;this.audio.pause();this.state='paused';}
@@ -37,6 +33,12 @@ export class MsePlayer {
     });
     audio.addEventListener('timeupdate',()=>this.emit());
     window.addEventListener('online',()=>{if(this.job&&this.connectionInterrupted&&!this.fatal&&!this.mediaRecovery)void this.pump();});
+  }
+  syncNativePause(){
+    if(!this.job||!this.audio.paused||this.audio.ended||!this.wantPlay||!['playing','buffering'].includes(this.state))return false;
+    this.playSequence++;this.wantPlay=false;this.state='paused';
+    clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
+    this.log('playback-interrupted');return true;
   }
   ranges(){return Array.from({length:this.audio.buffered.length},(_,i)=>[this.audio.buffered.start(i),this.audio.buffered.end(i)]);}
   log(type,extra={}){
@@ -242,7 +244,7 @@ export class MsePlayer {
             this.log('append',{index:this.next,start:section.start,samples:info.samples,bufferTimestampOffset:this.buffer.timestampOffset});
             this.next++;this.emit();
             if(this.next===1)this.log('first-buffer-ready');
-            if(this.wantPlay&&this.pendingIndex==null&&this.audio.paused&&this.hasPlayableAudio())void this.play();
+            if(this.wantPlay&&this.pendingIndex==null&&this.audio.paused&&this.hasPlayableAudio()&&!this.syncNativePause())void this.play();
           }
           if(this.windowSeek)continue;
           if(!status.connectionUnavailable)this.connectionRestored();

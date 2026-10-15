@@ -34,7 +34,7 @@ export class StagingPlayer extends MsePlayer {
    // Keep the saved position pending until the new source has metadata.
    if(this.mode==='full'?this.finalized&&this.audio.readyState>=1:this.ranges().some(([a,b])=>a<=target&&b>target)){
     this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;this.audio.currentTime=target;
-    if(this.wantPlay)void this.play();
+    if(this.wantPlay&&!this.syncNativePause())void this.play();
    }
   }
   super.emit();

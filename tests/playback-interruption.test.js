@@ -37,13 +37,13 @@ test('source preparation, explicit pause, completion, failure and stopped-player
  const ended=fixture();ended.audio.ended=true;ended.audio.pause();await tick();ended.audio.dispatchEvent(new Event('ended'));assert.equal(ended.player.state,'done');assert.equal(ended.player.wantPlay,false);
 });
 
-test('a new buffered section completing after native interruption cannot automatically restart playback',async()=>{
+for(const queuedPause of [false,true])test(`new audio cannot restart a native interruption ${queuedPause?'before':'after'} the pause event`,async()=>{
  const {audio,player}=fixture();
  const bytes=await readFile(new URL('./fixtures/wavenet/en-US-Wavenet-F-00.mp3',import.meta.url)),info=inspectMp3(bytes),duration=info.samples/24000;
  audio.currentTime=.1;audio.buffered={length:1,start:()=>0,end:()=>duration};
  let plays=0;audio.play=async()=>{plays++;};
  Object.assign(player,{mode:'mse',next:0,finalized:false,controller:new AbortController(),source:{endOfStream(){}},buffer:{appendBuffer(){}}});
  player.request=async(path,options)=>options?.binary?bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength):{state:'ready',starts:[0],duration,total:1,sections:[{start:0,samples:info.samples,bytes:info.bytes}]};
- player.bufferOperation=async operation=>{audio.pause();await tick();operation();};
- await player.pump();assert.equal(player.next,1);assert.equal(player.finalized,true);assert.equal(plays,0);assert.equal(player.wantPlay,false);assert.equal(player.state,'paused');assert.equal(player.job,'saved-job');
+ player.bufferOperation=async operation=>{if(queuedPause)audio.paused=true;else{audio.pause();await tick();}operation();};
+ await player.pump();if(queuedPause)audio.dispatchEvent(new Event('pause'));assert.equal(player.next,1);assert.equal(player.finalized,true);assert.equal(plays,0);assert.equal(player.wantPlay,false);assert.equal(player.state,'paused');assert.equal(player.job,'saved-job');
 });
