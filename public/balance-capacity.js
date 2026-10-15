@@ -14,5 +14,5 @@ export function listeningHours(units){
 }
 export function balanceCapacity(units){
  const hours=listeningHours(units),pages=capacityEstimate(units).scannedPages;
- return `≈ ${hours} hours or ${pages.toLocaleString()} ${pages===1?'page':'pages'}`;
+ return `≈ ${hours} hours of speech or ${pages.toLocaleString()} scanned ${pages===1?'page':'pages'}`;
 }

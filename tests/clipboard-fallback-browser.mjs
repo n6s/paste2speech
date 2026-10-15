@@ -44,7 +44,7 @@ try{
    };
   });
   await page.goto(origin);await page.locator('#voice-settings').evaluate(el=>el.open=true);await page.locator('#engine').selectOption('browser');
-  if(retail)await page.waitForFunction(durable=>document.querySelector('#document-ocr-balance').textContent.includes(durable?'500 pages':'500 OCR pages'),durable);blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
+  if(retail)await page.waitForFunction(durable=>document.querySelector('#document-ocr-balance').textContent.includes(durable?'500 scanned pages':'500 OCR pages'),durable);blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
   const checkpoint=requests.length;
   const select=async(text,start=text.length,end=start)=>{if(await page.locator('#stop').isEnabled())await page.locator('#stop').click();await page.locator('#edit-mode').click();await page.locator('#text').fill(text);await page.locator('#text').focus();await page.locator('#text').evaluate((el,{start,end})=>el.setSelectionRange(start,end,'backward'),{start,end});};
   const settled=()=>page.waitForFunction(()=>!document.querySelector('#paste').disabled&&!document.querySelector('#paste-play').disabled);

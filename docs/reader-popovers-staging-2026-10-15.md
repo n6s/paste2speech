@@ -41,3 +41,30 @@ interruption and wallet regressions retain their synthetic/provider-free checks.
 Private evidence is under work/ui-popover-correction-2026-10-15/.
 Only staging is authorized for this correction. No installed extension rebuild,
 production deployment, payments or paid provider calls are part of this work.
+
+## Follow-up sizing correction
+
+Roger requested intrinsic, non-growing mode tabs and the plain Summary label.
+The attached split action now sizes to its text and caret on desktop and mobile,
+with wrapping only when enlarged text needs it. The one-credit accepted-summary
+explanation remains in Summary Information and the action's accessible description.
+Text cleanup uses left alignment with its disclosure marker; Info stays at the
+right edge. One-click generation, supported choices and all credit accounting are
+unchanged. Screenshot checks assert compact widths, zero flex growth and the
+heading's text position in addition to the existing popup/behavior proofs.
+
+The remaining-balance estimate now explicitly names hours of speech and scanned
+pages, retaining the same approximate speech estimate, page rounding and either/or
+shared spending calculation. Its former Details disclosure is the seventh compact
+Info popup beside the estimate; existing balance and cost detail content stays
+inside it. An obsolete free-summary fragment in per-reading copy is removed; the
+existing Summary price explanation is retained. Text cleanup precedes recording
+download, with all existing DOM controls and state preserved.
+
+Roger's later flow instruction supersedes a separate cleanup section: the same
+eight cleanup controls now appear as a compact wrapping input row before the
+mode buttons. Labels are concise, with the full names preserved for accessibility.
+The old cleanup card is removed; explanations and savings remain in its Info
+popup. Existing checkbox IDs, values, listeners and original-text handling stay
+unchanged. The download section follows playback, and its existing controls stay
+intact. Phone content viewports scroll to keep Play reachable with the new row.
