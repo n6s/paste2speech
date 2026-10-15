@@ -24,7 +24,7 @@ export function cleanSummaryPreamble(text,source=''){
 }
 const reply=(value,status=200,retryAfter)=>Response.json(value,{status,headers:{'Cache-Control':'no-store',...(retryAfter?{'Retry-After':String(retryAfter)}:{})}});
 export const nextSummaryReset=now=>Date.UTC(new Date(now).getUTCFullYear(),new Date(now).getUTCMonth(),new Date(now).getUTCDate()+1);
-export function summaryAvailable(env,account){return (env.READER_MODE==='staging'?account?.email===env.OWNER_EMAIL:publicMode(env)&&customerAllowed(env,account))&&(!env.SUMMARY_PRICE_CREDITS||env.SUMMARY_PRICE_CREDITS==='0'||summaryPriced(env))&&env.SUMMARY_LIVE_APPROVED==='1'&&env.SUMMARY_ALLOWANCE_MODE==='upstream-free-daily'&&env.SUMMARY_WORKERS_PLAN==='free'&&!!env.AI&&account?.summaryVerified===true&&account.enabled===1&&!!account.email&&!account.legacyPilot;}
+export function summaryAvailable(env,account){return (env.READER_MODE==='staging'?account?.email===env.OWNER_EMAIL:publicMode(env)&&customerAllowed(env,account))&&(!summaryPriced(env)||env.PAID_ADMISSIONS_PAUSED!=='1')&&(!env.SUMMARY_PRICE_CREDITS||env.SUMMARY_PRICE_CREDITS==='0'||summaryPriced(env))&&env.SUMMARY_LIVE_APPROVED==='1'&&env.SUMMARY_ALLOWANCE_MODE==='upstream-free-daily'&&env.SUMMARY_WORKERS_PLAN==='free'&&!!env.AI&&account?.summaryVerified===true&&account.enabled===1&&!!account.email&&!account.legacyPilot;}
 function dailyReply(until,now,status=429){return reply({reason:'daily_quota',detail:'The shared daily free Summary allowance is used up. Summaries become available again at 00:00 UTC. Your existing text and summaries remain usable.',resetAt:new Date(until).toISOString(),...(status===200?{available:false,model:SUMMARY_MODEL,maxSourceBytes:SUMMARY_SOURCE_BYTES,maxOutputTokens:512}:{})},status,Math.max(1,Math.ceil((until-now)/1000)));}
 async function boundedJSON(stream,max){if(!stream)throw Error('invalid response');const reader=stream.getReader();let count=0,chunks=[];while(true){const {value,done}=await reader.read();if(done)break;count+=value.byteLength;if(count>max){await reader.cancel();throw Error('invalid response');}chunks.push(value);}const data=new Uint8Array(count);let offset=0;for(const chunk of chunks){data.set(chunk,offset);offset+=chunk.length;}return JSON.parse(new TextDecoder().decode(data));}
 export function classifySummaryError(status,data){
@@ -44,7 +44,7 @@ export async function summaryResponse(request,env,account,{now=Date.now,timeoutM
  const path=new URL(request.url).pathname,receiptRequest=path!=='/api/summary'&&path!=='/api/summary/config';
  if(receiptRequest){
   if(!priced||!['/api/summary/accept','/api/summary/cancel','/api/summary/result'].includes(path))return reply({detail:'Not found.'},404);
-  if(!account?.summaryVerified||account.email!==env.OWNER_EMAIL)return reply({detail:'Verified account required.'},403);
+  if(!account?.summaryVerified||(publicMode(env)?!customerAllowed(env,account):account.email!==env.OWNER_EMAIL))return reply({detail:'Verified account required.'},403);
   try{
    await credits.check();await credits.expire();let input;
    if(path==='/api/summary/result'&&request.method==='GET')input={requestId:new URL(request.url).searchParams.get('requestId')};

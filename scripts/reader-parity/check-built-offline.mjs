@@ -41,7 +41,7 @@ try{for(const [environment,root] of Object.entries({staging:'work/private-reader
  for(const index of [88,0,50]){
   await page.locator('#seek').evaluate((el,index)=>{el.value=String(index);el.dispatchEvent(new Event('change',{bubbles:true}));},index);
   await page.waitForFunction(start=>__audio.some(a=>a.src.startsWith('blob:')&&Math.abs(a.currentTime-start)<.5),sections[index].start);
-  assert.equal(await page.locator('#seek-time').textContent(),`${index+1} / 90`);
+  if(await page.locator('main.staging-reader-layout').count()){const clock=n=>`${Math.floor(n/60)}:${String(Math.floor(n)%60).padStart(2,'0')}`;assert.equal(await page.locator('#seek-time').textContent(),`${clock(sections[index].start)} / ${clock(duration)}`);}else assert.equal(await page.locator('#seek-time').textContent(),`${index+1} / 90`);
   const before=await page.evaluate(()=>__audio.find(a=>a.src.startsWith('blob:')).currentTime);
   await page.locator('#play').click();await page.waitForFunction(before=>__audio.some(a=>a.currentTime>before+.05&&!a.paused),before);await page.locator('#pause').click();
  }
