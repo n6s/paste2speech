@@ -3,7 +3,7 @@
   "reviewedSourceCommit": "e112832ad43b8521276a3f66c1204dcfc959c2b1",
   "scope": "Inventory evidence, not a license grant or compatibility certification. Metadata is not sufficient to clear embedded components. Installed Python environments are observations, not lockfile licenses.",
   "inputHashes": {
-    "package-lock.json": "6b9be207e33dbd1c7215beebb0c9f90306ee6c6b65fec8fe7926acb17b726671",
+    "package-lock.json": "9d31cf209d63742b1c5e60d382f61edd7e55c89b78d34b21dd18361aa141ea3b",
     "server/requirements.txt": "05de564f38fbd6bf476bb37173ab02a8ca89a5ff595daa1a72e505e577cfa17a",
     "server/requirements.lock.txt": "9187459ac1c11940b504b6191a2958ffdfd9ef6baaebc5716975fb02fbd6ed06",
     "server/requirements-cuda.lock.txt": "07e2b96f8615eb88503366855814146c52bc029b46bf316965a792c6207203f1",
@@ -4206,7 +4206,12 @@
   "knownUnresolved": [
     "phonemizer embedded eSpeak source/build provenance and combined-distribution terms",
     "espeakng-loader native binary/data provenance and absent license metadata",
-    "original branding/audio ownership confirmation before broad asset reuse grant",
-    "no project license approved or applied"
-  ]
+    "Twenty tracked Google WaveNet recordings have established project provenance, but unrestricted MIT audio sublicensing is not asserted; see LICENSING.md."
+  ],
+  "firstPartyLicense": {
+    "identifier": "MIT",
+    "approvedBy": "Roger Brown",
+    "approvalDate": "2026-10-15",
+    "scope": "Original code/documentation/sample text; artwork only to the extent rights can be granted. Distinct third-party and audio exceptions in LICENSING.md."
+  }
 }

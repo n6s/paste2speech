@@ -17,8 +17,10 @@ provide access to the hosted service or authorize deployment.
 - [Reader release workflow](docs/reader-release.md): local checks and separately authorized deployments.
 - [Chrome extension](docs/chrome-extension.md): selected-text capture, reader discovery and local installation.
 
-**Project license decision is pending.** No new first-party license grant has
-been applied. Third-party components retain their own terms.
+**Original code and documentation are MIT licensed:** see [LICENSE](LICENSE)
+and [license scope / asset provenance](LICENSING.md). Third-party components and
+provider-generated recordings retain the distinct terms described there.
+Repository publication is still awaiting separate confirmation.
 
 ## Run checks without provider credentials
 

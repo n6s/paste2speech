@@ -14,3 +14,7 @@ characters total. Preview playback does not call Google.
 Both reader builds copy these assets and include their hashes in release metadata.
 `npm run check:reader:previews` checks free playback, errors, account messaging,
 and preserving prepared readings in real Chrome with fixture speech APIs.
+
+Provenance and reuse scope are recorded in [LICENSING.md](../../LICENSING.md).
+The original sample text is MIT; synthesized recordings are not represented as
+unrestricted MIT audio or a grant over Google voices/models.

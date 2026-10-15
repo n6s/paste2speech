@@ -1,7 +1,7 @@
 # Single-repository publication readiness
 
 Preparation date: 2026-10-15. Existing repository: `n6s/paste2speech`.
-Publication is pending; this document grants no license. No separate curated
+Publication is pending; the approved original-code MIT grant is in the root LICENSE. No separate curated
 repository, history rewrite, force-push, deployment or visibility change is part
 of this preparation.
 
@@ -44,24 +44,27 @@ rotation or removal of historic operational records is indicated by this review.
 - Upstream provenance/attribution for the vendored phonemization helper.
 - Additional ignore patterns for future local environment/key files.
 
-## Decisions still required
+## Current decisions and remaining publication step
 
-1. Approve a project license. Recommendation: **MIT for original code and
-   documentation**, explicitly excluding third-party code/materials and
-   branding/audio rights not yet confirmed. No LICENSE file or package license
-   declaration has been added. See the [licensing review](third-party-licenses.md).
-2. Confirm ownership/reuse authority for first-party source, branding and the
-   input passages used for generated demo audio. Commit authorship alone does
-   not prove all underlying rights; no outside contributor agreement is assumed.
-3. Decide how to handle binary redistribution whose embedded-engine provenance
-   remains unresolved, especially optional browser Kokoro/phonemizer and the
-   Python eSpeak loader. This is distinct from publishing our readable source
-   and dependency declarations. Do not label every assembled build MIT.
-4. Before shipping new binaries, satisfy the notices/corresponding-source
-   checklist in the licensing review. Existing ffmpeg archives are hash-pinned,
-   but byte-for-byte reproduction of the upstream binary has not been proven.
-5. Obtain the separate publication approval and confirm GitHub remains on the
-   intended existing repository. Public copies/forks cannot reliably be recalled.
+Roger approved MIT on 2026-10-15 and confirmed the artwork was generated at his
+request without copied third-party art. Root LICENSE/package metadata now apply
+MIT to original code/documentation; [LICENSING.md](../LICENSING.md) records the
+scope, artwork rights caveat and distinct third-party terms.
+
+Repository/generator history establishes the original passages and provenance
+of all twenty tracked WaveNet MP3s. No additional owner confirmation of those
+records is needed. The recordings themselves remain outside a blanket MIT audio
+sublicense; exact tracked paths, evidence and provider-term limits are listed in
+LICENSING.md. This is distinct from optional downloaded model/engine artifacts.
+
+Optional browser/Python eSpeak binary provenance and future binary-distribution
+notice/source obligations remain unresolved as recorded in the licensing review.
+No compiled package is being published or certified. The original code license
+does not override those terms, and no historic record has been removed.
+
+**Next step is separate final confirmation before changing this existing
+repository's visibility.** Preparation does not authorize a visibility change,
+force-push, deployment, inference request or binary release.
 
 No live billing or provider authorization should depend on repository secrecy.
 Public source must not weaken the existing server-enforced checks.

@@ -1,24 +1,25 @@
 # Third-party licensing review
 
 Reviewed 2026-10-15 against `e112832ad43b8521276a3f66c1204dcfc959c2b1`.
-This is an inventory and release recommendation, **not a first-party license
-grant or a certification that every possible combined binary is cleared**.
+This inventory records third-party obligations alongside the approved original-code
+MIT license. It is **not certification that every possible combined binary is cleared**.
 The [machine-readable inventory](dependency-license-inventory.json) records 191
 npm lockfile entries, 100 observed CPU-environment distributions, 115 observed
 CUDA-environment distributions, and 18 verified encoder source archives. Input
 hashes identify the exact manifests reviewed. Recheck after dependency changes.
 
-## Recommended first-party license
+## Approved first-party license
 
-Recommend [MIT](https://opensource.org/license/mit) for Roger's original source
-and documentation, subject to approval. MIT permits commercial use and reuse
+Roger approved [MIT](https://opensource.org/license/mit) for original source
+and documentation on 2026-10-15. MIT permits commercial use and reuse
 with its copyright/permission notice. It does not change third-party rights,
 service terms, trademarks or ownership of other people's input documents.
-No root LICENSE or package license field has been applied during preparation.
+The root `LICENSE` and package metadata now record MIT; [license scope](../LICENSING.md)
+retains third-party exceptions.
 
 Use explicit third-party exceptions: `vendor/phonemize.js` remains Apache-2.0;
-models, engines, fonts, third-party libraries and any unverified branding/audio
-remain under their applicable terms. An MIT grant for our contributions must
+models, engines, fonts, third-party libraries and provider-generated audio
+retain the distinct terms in the scope notice. An MIT grant for our contributions must
 not be presented as MIT-only licensing of a combined GPL-containing build.
 Where a distributed combination is subject to GPL, retain our MIT notice and
 satisfy the combination's GPL requirements. Choosing GPL for our code instead
@@ -122,21 +123,22 @@ separate from version requirements; metadata can be incomplete or abbreviated.
   Current build scripts do not copy that directory. If redistributing those font
   files, preserve their actual notices, exceptions and applicable source terms.
 - Text-to-sound SVG/PNG/ICO site and extension artwork appears in project history
-  as approved custom artwork. External provenance/ownership has not independently
-  been proven. Obtain Roger's confirmation before granting reuse rights over
-  branding; a software license is not permission to imply service endorsement.
+  as approved custom artwork. Roger confirmed it was generated at his request with no copied third-party art.
+  [The scope notice](../LICENSING.md) permits reuse to the extent he can grant
+  rights, without asserting exclusive human copyright or service endorsement.
 - Four WaveNet previews and sixteen cached test MP3s have documented generation
   and input text in `assets/voice-previews/` and the fixture manifests. They are
-  synthetic speech, not recordings of customers. Confirm the passage rights and
-  relevant provider output-use terms before putting audio under a broad reuse
-  grant; no claim of exclusive rights over a provider's voice is made here.
+  synthetic speech, not recordings of customers. Generation history and matching attempt/manifests establish project sample-text
+  provenance; the original text is MIT. The twenty tracked recordings remain
+  outside a blanket MIT audio grant; see [the exact scope and evidence](../LICENSING.md).
+  No exclusive rights over a provider's voice are claimed.
 - OCR PDFs reviewed are labeled synthetic proof documents. No real customer scan
   or feedback screenshot was found in the tracked history. User-provided reading
   content is not licensed by this repository.
 
 ## Publication versus artifact-release checklist
 
-1. Approve an explicit license for original source; retain the vendored helper's
+1. MIT has been approved for original source; retain the vendored helper's
    Apache terms and distinct asset/model/third-party exceptions.
 2. Keep required upstream licenses/copyrights and any NOTICE files; mark changes
    to Apache/GPL-covered files. Preserve notices in minified and worker bundles,
@@ -148,7 +150,8 @@ separate from version requirements; metadata can be incomplete or abbreviated.
    distributions until resolved. Do not claim a license change fixes provenance.
 5. Verify and retain the applicable corresponding-source delivery for ffmpeg and
    other copyleft binaries. Recheck whenever binaries, flags or dependencies change.
-6. Confirm first-party source/asset authority and voice-passage rights. Keep
+6. Preserve the recorded artwork and sample-generation provenance and the audio
+   exception; do not infer model/voice rights from an MIT code grant. Keep
    generated environments, model caches, credentials and private user material out
    of source uploads. Do not bundle proprietary CUDA wheels by accident.
 
