@@ -74,3 +74,5 @@
 
 /* Keep Play reachable beside the reading viewport on shorter phones. Text remains scrollable. */
 @media(max-width:480px){.staging-reader-layout #preview{height:clamp(180px,calc(100dvh - 640px),300px)}}
+
+.staging-reader-layout .mode-controls #summary-mode{white-space:normal;max-width:100%;overflow-wrap:anywhere;flex-shrink:1}
