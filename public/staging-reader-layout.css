@@ -46,3 +46,31 @@
 #scan-feedback{margin-top:12px;overflow-wrap:anywhere}#scan-feedback form{display:grid;gap:10px}#scan-feedback label{display:block}#scan-feedback textarea{box-sizing:border-box;width:100%;min-height:70px}#scan-feedback input[type=file]{max-width:100%;box-sizing:border-box}#scan-feedback-status{overflow-wrap:anywhere}
 
 #scan-feedback button,#scan-feedback>summary{min-height:44px;box-sizing:border-box}#scan-feedback>summary{padding:10px 0}
+
+/* One in-flow location for processing and its persistent outcome. */
+.staging-reader-layout #processing-indicator{position:static;transform:none;inset:auto;width:auto;margin:12px 0;pointer-events:auto;max-height:none}
+.processing-outcome-icon{font-size:1.7rem;line-height:1;flex:none;color:#945000}
+.processing-outcome-row{display:flex;align-items:flex-start}
+.disclosed-processing-action,.summary-action-controls,.summary-result-actions{display:flex;align-items:center;flex-wrap:wrap;gap:8px}
+.disclosed-processing-action button,.summary-action-controls button{min-width:44px;min-height:44px}
+.disclosed-processing-action>span,.summary-action-controls>span{font-size:.86rem}
+.summary-action-controls{margin:8px 0}
+.summary-action-controls label{display:flex;align-items:center;gap:8px;font-size:.86rem;min-width:0}
+.summary-action-controls select{width:auto;max-width:100%;margin:0;min-height:44px}
+#summary-view .summary-content-box{border:1px solid #c8d3c8;border-radius:10px;background:#fffef8;padding:12px;min-width:0}
+#summary-view #summary-result{box-sizing:border-box;width:100%;min-height:260px;max-height:65vh;resize:vertical;overflow:auto;padding:10px 0;border:0;background:transparent}
+#summary-view .summary-result-actions{margin-top:10px}
+#summary-view .summary-result-status{font-size:.85rem;margin:8px 0}
+#summary-info-details,#document-processing-details{padding:12px;border:1px solid #c8d3c8;border-radius:10px;font-size:.9rem}
+@media(max-width:480px){.summary-action-controls label{flex:1 1 100%}.summary-action-controls select{flex:1}#summary-view #summary-result{min-height:240px}.disclosed-processing-action>button:first-child{flex:1 1 100%;white-space:normal}}
+
+#playback-info{min-width:44px;min-height:44px;margin-left:8px}#timeline-note{display:block} .text-action-row>#document-choose-file{flex-shrink:0} .text-action-row{flex-wrap:wrap}
+
+#reader-start-guide{padding:12px;border:1px solid #a5c9b6;border-radius:8px;margin-bottom:12px}#reader-start-guide ol{padding-left:24px;margin:8px 0}#reader-start-guide button,#reader-help,#voice-info,#cleanup-info{min-height:44px;min-width:44px}.guide-highlight{outline:2px solid #43826a;outline-offset:2px}
+
+.timeline-heading{display:flex;align-items:center;justify-content:space-between;gap:8px}.timeline-heading label{min-width:0}.timeline-heading #playback-info{flex:none}
+
+.reader-title-row{display:flex;align-items:center;justify-content:space-between;gap:8px}.reader-title-row h1{min-width:0} .summary-action-controls label{flex:0 1 auto}.summary-action-controls select{width:112px}.summary-action-controls>span{font-size:.78rem}
+
+/* Keep Play reachable beside the reading viewport on shorter phones. Text remains scrollable. */
+@media(max-width:480px){.staging-reader-layout #preview{height:clamp(180px,calc(100dvh - 640px),300px)}}

@@ -1,25 +1,26 @@
-// Visual status only: the existing audio and document live regions announce it.
+// Shared, persistent processing and outcome status beside the reader content.
 let indicator;
 export function setupProcessingIndicator({delayMs=200}={}) {
  if(indicator)return indicator;
  const panel=document.createElement('aside');
- panel.id='processing-indicator';panel.hidden=true;panel.setAttribute('aria-hidden','true');
+ panel.id='processing-indicator';panel.hidden=true;panel.setAttribute('role','status');panel.setAttribute('aria-live','polite');panel.setAttribute('aria-atomic','false');
  const modes=document.querySelector('.mode-controls');if(modes)modes.before(panel);else document.body.prepend(panel);
  const entries=new Map();
  const paint=()=>{
+  const focused=document.activeElement,focusedRow=panel.contains(focused)?focused.closest('.processing-indicator-row'):null,focusedIndex=focusedRow?Array.from(focusedRow.querySelectorAll('button')).indexOf(focused):-1;
   panel.replaceChildren();let outcome=false;
   for(const [kind,entry] of entries)if(entry.visible){
    const row=document.createElement('div');row.className='processing-indicator-row';row.id='processing-'+kind;
    const copy=document.createElement('div'),title=document.createElement('strong'),note=document.createElement('span');title.textContent=entry.message;
    if(entry.outcome){
-    outcome=true;row.classList.add('processing-outcome-row');row.setAttribute('role','group');title.id=row.id+'-title';row.setAttribute('aria-labelledby',title.id);note.textContent=entry.body;
+    outcome=true;row.classList.add('processing-outcome-row');const icon=document.createElement('span');icon.className='processing-outcome-icon';icon.setAttribute('aria-hidden','true');icon.textContent='⚠';row.append(icon);row.setAttribute('role','group');title.id=row.id+'-title';row.setAttribute('aria-labelledby',title.id);note.textContent=entry.body;
     copy.append(title,note);const credit=document.createElement('p');credit.className='processing-outcome-credit';credit.textContent=entry.credit;copy.append(credit);
     const actions=document.createElement('div');actions.className='processing-outcome-actions';if(entry.onAction){const action=document.createElement('button');action.type='button';action.textContent=entry.actionLabel;action.onclick=entry.onAction;actions.append(action);}
     const dismiss=document.createElement('button');dismiss.type='button';dismiss.textContent='Dismiss';dismiss.onclick=()=>{indicator.clear(kind,entry.token);entry.onDismiss?.();document.getElementById('edit-mode')?.focus({preventScroll:true});};actions.append(dismiss);copy.append(actions);if(entry.extra)copy.append(entry.extra);
-   }else{row.setAttribute('aria-hidden','true');const spinner=document.createElement('span');spinner.className='processing-spinner';row.append(spinner);note.textContent='You can keep using the reader.';copy.append(title,note);}
+   }else{const spinner=document.createElement('span');spinner.className='processing-spinner';row.append(spinner);note.textContent='You can keep using the reader.';copy.append(title,note);}
    row.append(copy);panel.append(row);
   }
-  panel.classList.toggle('has-outcome',outcome);panel.setAttribute('aria-hidden',String(!outcome));panel.hidden=!panel.childElementCount;
+  panel.classList.toggle('has-outcome',outcome);panel.removeAttribute('aria-hidden');panel.hidden=!panel.childElementCount;if(focusedRow){const target=focused.isConnected?focused:document.getElementById(focusedRow.id)?.querySelectorAll('button')[focusedIndex];target?.focus({preventScroll:true});}
  };
  indicator={
   update(kind,token,message){
@@ -48,7 +49,7 @@ export function setupProcessingIndicator({delayMs=200}={}) {
 }
 export function showProcessing(kind,token,message){indicator?.update(kind,token,message);}
 export function hideProcessing(kind,token){indicator?.clear(kind,token);}
-export function showProcessingOutcome(kind,token,details){indicator?.outcome(kind,token,details);}
+export function showProcessingOutcome(kind,token,details){if(!indicator)return false;indicator.outcome(kind,token,details);return true;}
 export function audioWaitMessage(player,{browser=false,creditPaused=false}={}){
  if(!player)return '';
  if(browser)return player.state==='playing'&&player.starting?'Starting your device voice…':'';

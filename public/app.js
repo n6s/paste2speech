@@ -9,7 +9,7 @@ import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
 import {setupExtensionHandoff} from './extension-handoff.js';
-import {SPEED_PRESETS, presetRate, preparedChunkCount} from './playback-controls.js';
+import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from './playback-controls.js';
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
@@ -363,7 +363,7 @@ function render(p, message) {
     const total=p.state==='idle'?0:p.chunks.length||(sectionProgress&&p.state==='preparing'?chunks.length:0);
     seek.setAttribute('aria-valuetext',`Section ${available?Number(seek.value)+1:0} of ${total}`);
     const selected=seek.dataset.dragging==='true'?Number(seek.value):index;
-    $('seek-time').textContent=`${total&&(!sectionProgress||available)?selected+1:0} / ${total}`;
+    if(STAGING_READER_LAYOUT){const timing=playbackTimeline(p,{rate:settings().rate,natural:isWorkstation(),selected:seek.dataset.dragging==='true'?selected:null});seek.setAttribute('aria-valuetext',timing.label+' · '+timing.detail+` · Section ${available?Number(seek.value)+1:0} of ${total}`);$('seek-time').textContent=timing.label;$('seek-time').title=timing.detail;$('seek-time').setAttribute('aria-label',timing.label+' · '+timing.detail);let note=$('timeline-note');if(!note){note=document.createElement('span');note.id='timeline-note';note.className='hint';$('seek-time').after(note);}note.textContent=timing.detail;}else $('seek-time').textContent=`${total&&(!sectionProgress||available)?selected+1:0} / ${total}`;
     const playbackIndex=sectionProgress&&p===workstationPlayer&&p.starts.length?Math.max(0,p.starts.findLastIndex(t=>t<=(p.audio?.currentTime||0)+1/24000)):index;
     sectionProgress?.({total,available,index:playbackIndex,natural:isWorkstation(),retained:p.retainedSections||[],info:p.id?p.offlineInfo:null,offline:navigator.onLine===false});
     $('previous-section').disabled=!available||index===0;
@@ -379,7 +379,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;if(key==='math'){input.title='Skip balanced LaTeX delimiters and math environments in playback. Original document exports are kept.';}
   input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; save(); preview(); });
   wrapper.append(input, label); $('options').append(wrapper);
-  if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);$('options').append(note);}
+  if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);(STAGING_READER_LAYOUT?$('cleanup-info-details')||$('options'):$('options')).append(note);}
 }
 function updateVoiceSummary() {
   const voice = $('voice').selectedOptions[0]?.textContent.split(' · ')[0] || 'Device default';
@@ -485,7 +485,7 @@ async function pasteFromClipboard({replace=false}={}){
       setMode('edit');insertEditorText(text,range);rememberPasteSelection();pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
     }
     if(payload.hasImage){
-      $('paste-status').textContent=UNIFIED_CREDITS?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its text-scanning options. No scanning was started.':documentImport?'Pasted the text. The clipboard also contains an image; use Paste screenshot to open its OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
+      $('paste-status').textContent=UNIFIED_CREDITS?'Pasted the text. The clipboard also contains an image; use Open file to open the image’s text-scanning options. No scanning was started.':documentImport?'Pasted the text. The clipboard also contains an image; use Open file to open the image’s OCR options separately. No OCR was started.':'Pasted the text. The clipboard also contains an image, but image OCR is unavailable here.';
       $('paste-status').hidden=false;
     }
     if (!cleaned) {
@@ -496,13 +496,14 @@ async function pasteFromClipboard({replace=false}={}){
     if (request !== pasteRequest) return;
     if(range&&$('text').value===previousText)$('text').setSelectionRange(range.start,range.end,range.direction);
     $('paste-status').textContent = error.message === 'empty'
-      ? 'Chrome did not provide text or an image to paste. Your text and playback are unchanged. For text, switch to Edit, then long-press the text box and choose Paste on Android, or use your keyboard’s Paste command. For a saved screenshot, use Choose file.'
-      : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Choose file. Your current text is unchanged.'
+      ? 'Chrome did not provide text or an image to paste. Your text and playback are unchanged. For text, switch to Edit, then long-press the text box and choose Paste on Android, or use your keyboard’s Paste command. For a saved screenshot, use Open file.'
+      : error.message==='multiple-images' ? 'The clipboard contains multiple images. Paste one image at a time, or use Open file. Your current text is unchanged.'
       : error.message==='image-unavailable' ? (UNIFIED_CREDITS?'Image text scanning is unavailable here. Your current text is unchanged.':'Image OCR is unavailable here. Your current text is unchanged.')
       : ['NotAllowedError','SecurityError'].includes(error.name)
-        ? 'Chrome blocked clipboard access. Your text and playback are unchanged. Allow clipboard access if Chrome asks, or switch to Edit and use Android’s long-press Paste in the text box (keyboard Paste on desktop). For a saved screenshot, use Choose file.'
-        : 'Chrome could not read the clipboard. Your text and playback are unchanged. Switch to Edit and use Android’s long-press Paste in the text box, or your keyboard’s Paste command on desktop. For a saved screenshot, use Choose file.';
+        ? 'Chrome blocked clipboard access. Your text and playback are unchanged. Allow clipboard access if Chrome asks, or switch to Edit and use Android’s long-press Paste in the text box (keyboard Paste on desktop). For a saved screenshot, use Open file.'
+        : 'Chrome could not read the clipboard. Your text and playback are unchanged. Switch to Edit and use Android’s long-press Paste in the text box, or your keyboard’s Paste command on desktop. For a saved screenshot, use Open file.';
     $('paste-status').hidden = false;
+    if(STAGING_READER_LAYOUT&&documentImport?.showClipboardProblem){documentImport.showClipboardProblem(error.message==='empty'?'missing':error.message==='multiple-images'?'multiple':['NotAllowedError','SecurityError'].includes(error.name)?'denied':error.name==='NotSupportedError'?'unavailable':'failed');$('paste-status').hidden=true;}
   } finally {
     if(activePasteRequest===request){activePasteRequest=0;disablePasteButtons(!!documentImport?.busy||$('text').readOnly);}
   }
@@ -510,8 +511,8 @@ async function pasteFromClipboard({replace=false}={}){
 $('paste')?.addEventListener('click',()=>void pasteFromClipboard());
 $('paste-play').addEventListener('click',()=>void pasteFromClipboard({replace:true}));
 $('clear').addEventListener('click', () => { summaryMode?.clearSource(); documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
-$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
-$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); save(); });
+$('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
+$('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
 function seekSection(index){
   const available=navigableSections(player);
@@ -555,7 +556,7 @@ if(CLOUD_READER){
     $('rate').value=SPEED_PRESETS[(SPEED_PRESETS.indexOf(Number($('rate').value))+1)%SPEED_PRESETS.length];
     if(isWorkstation())workstationPlayer.setRate(settings().rate);
     else if(player?.state==='playing'){player.pause();player.resume(settings());}
-    updateSpeed();save();
+    updateSpeed();render(player);save();
   });
   updateSpeed();save();
 }
@@ -652,7 +653,7 @@ if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),paste
  pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;disablePasteButtons(value);$('clear').disabled=false;if(!value)preview();if(player)render(player);}
 });
-if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=UNIFIED_CREDITS?'Paste inserts text without playing it. Clear, Paste & Play replaces the text and starts speech. Images open text-scanning options; nothing is uploaded until you agree. Use Choose file if your phone does not provide the image.':'Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Choose file for the saved screenshot.';
+if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=UNIFIED_CREDITS?'Paste inserts text without playing it. Clear, Paste & Play replaces the text and starts speech. Images open text-scanning options; nothing is uploaded until you agree. Use Choose file if your phone does not provide the image.':'Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Open file for the saved screenshot.';
 if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;

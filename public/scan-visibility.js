@@ -11,8 +11,8 @@ export function scanCreditOutcome({job,receipt}={}){
 export function setupScanVisibility({editor,onDismiss=()=>{}}){
  const placeholder=editor?.placeholder,mirror=document.getElementById('document-visible-status');let notice=false;
  const clear=()=>{hideProcessing('scan-outcome');if(mirror)mirror.hidden=false;if(notice&&editor){editor.placeholder=placeholder;notice=false;}onDismiss();};
- editor?.addEventListener('input',clear);editor?.addEventListener('paste',clear,{capture:true});
- document.addEventListener('click',e=>{if(['clear','paste','paste-play','document-paste-image','document-choose-file','pdf-file','screenshot-recovery-choose'].includes(e.target.closest?.('button,input')?.id))clear();},{capture:true});
+ // Keep failures visible while the user edits; only explicit dismissal or a new attempt clears them.
+
  return {clear,
   failure({title='Scan did not finish',message,job,receipt,noReadable=false,onAction,actionLabel='Choose another file',report=null}){
    if(mirror)mirror.hidden=true;
