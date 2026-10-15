@@ -46,7 +46,7 @@ try{
   assert.equal(await page.locator('#mse-delivery').isVisible(),false);
   assert.equal(await page.evaluate(()=>typeof window.__stagingReader),'undefined');
   assert.equal(await page.locator('#staging-checks').isVisible(),false);
-  assert.equal(await page.getByText('Download recording',{exact:true}).count(),1);
+  assert.equal(await page.getByText(environment==='staging'?'Download text-to-speech recording':'Download recording',{exact:true}).count(),1);
   if(environment==='staging')assert.equal(await page.locator('.download-card > #video-download').count(),1);
   const controls=await page.locator('#recording-controls').evaluate(e=>Array.from(e.children).filter(c=>!['staging-checks','video-download','recording-download','offline-progress','recording-progress'].includes(c.id)).map(c=>c.outerHTML).join(''));
   if(baseline)assert.equal(controls,baseline,'Normal reader controls must match');else baseline=controls;
