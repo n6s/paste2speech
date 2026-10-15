@@ -1300,3 +1300,19 @@ distinguish that from legitimate text; the image-only action or Open file is the
 reliable alternative. Synthetic desktop Chrome/phone-width tests are not a real
 Android clipboard reproduction. Production stays on its approved deployment until
 Roger separately approves this follow-up.
+
+## Approved picker-flow production promotion — October 15, 2026
+
+Roger reviewed staging cdca877 and approved promoting that flow. The public
+configuration now enables `OCR_PICKER_AUTOSCAN=1` for the already approved reader
+layout. This carries the tested foreground picker and screenshot recovery behavior;
+pricing stays in File Info, with no cost banner or required Info opening. Existing
+paid admission, zero-balance no-upload/cache offer, source preservation, cancellation,
+no-automatic-retry, and private diagnostic restrictions remain unchanged.
+
+No schema, ledger, Paddle catalog/pricing, credential, storage-binding or extension
+changes are required. Public release gates exercise both builds' real picker
+gestures and image clipboard failures with intercepted synthetic APIs. Hosted
+verification preserves CSP and uses browser automation for synthetic clipboard
+setup. Desktop/phone-width Chrome tests still do not establish real Android
+clipboard exposure.

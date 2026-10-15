@@ -27,6 +27,7 @@ execFileSync('npm',['run','check:reader:documents'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:previews'],{stdio:'inherit'});
 if(settings.vars.REVIEWED_READER_LIVE_APPROVED==='1')execFileSync('node',['tests/ocr-job-native.mjs'],{stdio:'inherit',env:{...process.env,PUBLIC_PROMOTION_PROOF:'1'}});
 if(settings.vars.REVIEWED_READER_LIVE_APPROVED==='1')for(const variant of ['staging','public'])for(const file of ['tests/ocr-jobs-browser.mjs','tests/intake-summary-ui-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant,INTAKE_UI_OUT:`work/production-promotion-2026-10-15/${variant}-ui`}});
+if(settings.vars.OCR_PICKER_AUTOSCAN==='1')for(const variant of ['staging','public'])execFileSync('node',['tests/ocr-picker-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant,OCR_PICKER_OUT:`work/ocr-picker-production-2026-10-15/${variant}-built`}});
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
 if(readdirSync(site+'/samples').length)throw Error('Test audio must not ship');
