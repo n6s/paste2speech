@@ -7,8 +7,10 @@ import {resolve} from 'node:path';
 import assert from 'node:assert/strict';
 import {createServer} from 'node:https';
 import {execFileSync} from 'node:child_process';
+import {createHash} from 'node:crypto';
 import {inspectMp3} from '../../cloudflare/prepared/mp3.js';
 const environment=process.argv.includes('--staging')?'staging':'production';
+const reuseExisting=process.argv.includes('--reuse-existing');
 const origin=environment==='staging'?'https://staging.pastetospeech.com':'https://pastetospeech.com';
 const site=environment==='staging'?'work/private-reader/site':'work/production-reader/site';
 const profile=await mkdtemp(tmpdir()+'/pastetospeech-extension-');
@@ -22,6 +24,10 @@ await appendFile(extension+'/background.js','\nglobalThis.__readSelection = read
 // Chrome's extension-created initial navigation can precede Playwright routing.
 // Resolve the real test hostname to a local TLS server so it cannot hit live data.
 execFileSync('openssl',['req','-x509','-newkey','rsa:2048','-nodes','-keyout',profile+'/key.pem','-out',profile+'/cert.pem','-days','1','-subj','/CN=localhost'],{stdio:'ignore'});
+// Extension-created tabs can navigate before Playwright applies its TLS policy.
+// Trust only this test's ephemeral certificate in the isolated Chrome profile.
+const publicKey=execFileSync('openssl',['x509','-pubkey','-noout','-in',profile+'/cert.pem']);
+const spki=createHash('sha256').update(execFileSync('openssl',['pkey','-pubin','-outform','DER'],{input:publicKey})).digest('base64');
 const server=createServer({key:await readFile(profile+'/key.pem'),cert:await readFile(profile+'/cert.pem')},async(req,res)=>{
   try {
     const path=new URL(req.url,origin).pathname;
@@ -33,7 +39,7 @@ const server=createServer({key:await readFile(profile+'/key.pem'),cert:await rea
 });
 await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const mapping=`MAP ${new URL(origin).hostname} 127.0.0.1:${server.address().port}`;
-const context=await chromium.launchPersistentContext(profile,{executablePath:'/usr/bin/google-chrome',headless:true,ignoreHTTPSErrors:true,ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--no-proxy-server',`--host-resolver-rules=${mapping}`]});
+const context=await chromium.launchPersistentContext(profile,{executablePath:'/usr/bin/google-chrome',headless:true,ignoreHTTPSErrors:true,ignoreDefaultArgs:['--disable-extensions'],args:['--enable-unsafe-extension-debugging','--no-proxy-server',`--ignore-certificate-errors-spki-list=${spki}`,`--host-resolver-rules=${mapping}`]});
 const errors=[];context.on('page',p=>p.on('pageerror',e=>errors.push(e.message)));
 let creates=0;const jobs=new Map();
 const bytes=await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3'),mp3=inspectMp3(bytes);
@@ -57,6 +63,15 @@ try {
     }
     try{const file=path==='/'?'index.html':path.slice(1);return route.fulfill({body:await readFile(site+'/'+file),contentType:file.endsWith('.js')?'text/javascript':file.endsWith('.css')?'text/css':'text/html'});}catch{return route.fulfill({status:404,body:'not found'});}
   });
+  // A real pinned reader loaded before installation has no content-script relay.
+  // Its older handoff counter also survives extension session-storage resets.
+  let existing;
+  if(reuseExisting){
+    await context.addInitScript(origin=>{if(location.origin===origin)sessionStorage.setItem('pastetospeech.extension.accepted',JSON.stringify({sequence:77,id:'previous-extension-session'}));},origin);
+    existing=await context.newPage();await existing.goto(origin+'/');
+    await existing.waitForFunction(()=>document.getElementById('text'));
+    await existing.locator('#text').fill('Untouched fixture text before explicit Read.');
+  }
   const cdp=await context.browser().newBrowserCDPSession();
   const workerPromise=context.waitForEvent('serviceworker');
   workerPromise.catch(()=>{});
@@ -64,9 +79,23 @@ try {
   let worker=context.serviceWorkers().find(w=>w.url().includes(id))||await workerPromise;
   const send=text=>worker.evaluate(text=>globalThis.__readSelection(text),text);
   const state=()=>worker.evaluate(async()=>(await chrome.storage.session.get('handoff')).handoff);
-  const firstPage=context.waitForEvent('page');firstPage.catch(()=>{});
+  let expectedExistingId;
+  if(reuseExisting){
+    expectedExistingId=await worker.evaluate(async origin=>{
+      const [tab]=await chrome.tabs.query({url:origin+'/*'});
+      await chrome.tabs.update(tab.id,{pinned:true});return tab.id;
+    },origin);
+    assert.equal(await existing.locator('#text').inputValue(),'Untouched fixture text before explicit Read.');
+  }
+  const firstPage=existing?Promise.resolve(existing):context.waitForEvent('page');firstPage.catch(()=>{});
   await send('First selection.');
   const page=await firstPage;
+  if(reuseExisting){
+    assert.equal((await state()).tabId,expectedExistingId);
+    const tab=await worker.evaluate(async id=>{const tab=await chrome.tabs.get(id);return {pinned:tab.pinned,url:tab.url};},expectedExistingId);
+    assert.equal(tab.pinned,true);assert.equal(tab.url,origin+'/');
+    console.log('Existing pinned reader adopted without reload/navigation; missing relay recovered and prior sequence 77 superseded.');
+  }
   await page.waitForURL(origin+'/');
   await page.waitForFunction(()=>document.getElementById('text')?.value==='First selection.');
   await page.waitForFunction(()=>/Press Play to start|Reading aloud/.test(document.getElementById('status').textContent));
@@ -158,6 +187,25 @@ try {
   });
   await reopened.waitForFunction(()=>document.getElementById('text')?.value==='Restricted selected snapshot.');
   console.log('Context-menu capture: paragraphs/list boundaries survive real scripting + handoff; chrome:// denial falls back intact.');
+  if(reuseExisting){
+    const retainedId=(await state()).tabId;
+    await worker.evaluate(id=>chrome.tabs.update(id,{pinned:true}),retainedId);
+    const newWorker=context.waitForEvent('serviceworker');newWorker.catch(()=>{});
+    // CDP-installed test extensions are session-owned. Unload/load that same
+    // package explicitly rather than relying on runtime.reload's installation
+    // lifecycle; this resets extension state and invalidates the old relay.
+    await cdp.send('Extensions.uninstall',{id});
+    const reinstalled=await cdp.send('Extensions.loadUnpacked',{path:extension});
+    assert.equal(reinstalled.id,id);
+    worker=context.serviceWorkers().filter(w=>w.url().includes(id)).at(-1)||await newWorker;
+    assert.equal(await reopened.locator('#text').inputValue(),'Restricted selected snapshot.','Extension reload preserves the reader text');
+    await send('After extension reload.');
+    await reopened.waitForFunction(()=>document.getElementById('text')?.value==='After extension reload.');
+    assert.equal((await state()).tabId,retainedId);
+    assert.equal(await worker.evaluate(async id=>(await chrome.tabs.get(id)).pinned,retainedId),true);
+    console.log('Extension unload/reinstall: pinned reader and text retained; next explicit selection delivered without page reload.');
+  }
+
   assert.equal(errors.length,0,errors.join('\n'));
   console.log('Unpacked extension passed: real messaging, ownership, replacement, cleanup, worker restart, navigation and closed-tab recovery. No provider calls.');
-} catch(error) {console.error('Open pages:',context.pages().map(p=>{const u=new URL(p.url());return u.origin+u.pathname;}));console.error(error);throw error;} finally {await context.close();server.closeAllConnections();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true});}
+} catch(error) {console.error('Open pages:',context.pages().map(p=>p.url()));console.error(error);throw error;} finally {await context.close();server.closeAllConnections();await new Promise(r=>server.close(r));await rm(profile,{recursive:true,force:true});}

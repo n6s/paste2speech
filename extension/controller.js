@@ -15,19 +15,32 @@ export function createController(api, origin, {now = Date.now, uuid = () => cryp
   }
   const write = state => api.storage.session.set({handoff: state});
   async function tabFor(state, focus = false) {
-    let tab;
-    if (state.tabId) try { tab = await api.tabs.get(state.tabId); } catch {}
-    if (!tab || !allowed(tab.url)) {
-      tab = await api.tabs.create({url: origin + '/', active: true}); state.tabId = tab.id; await write(state);
-    }
+    let saved;
+    if (state.tabId) try { saved = await api.tabs.get(state.tabId); } catch {}
+    if (saved && (!allowed(saved.url) || saved.incognito)) saved = undefined;
+    // Existing host access exposes only reader URLs; no tabs/all-sites permission.
+    const matching = (await api.tabs.query({url: origin + '/*'})).filter(tab => allowed(tab.url) && !tab.incognito);
+    const pinned = matching.filter(tab => tab.pinned);
+    let tab = pinned.find(tab => tab.id === saved?.id) || pinned[0] || saved || matching.find(tab => tab.active) || matching[0];
+    if (!tab) tab = await api.tabs.create({url: origin + '/', active: true});
+    state.tabId = tab.id; await write(state);
+    // Activating never changes the URL, pin, or reader text. Explicit delivery does.
     if (focus) { await api.tabs.update(tab.id, {active: true}); await api.windows.update(tab.windowId, {focused: true}); }
     return tab;
   }
   async function deliver(state) {
     if (!state.pending) return;
+    const send = () => api.tabs.sendMessage(state.tabId, {type: 'deliver', version: 1, ...state.pending}, {frameId: 0});
     try {
-      // The content script acknowledges receipt immediately; page acceptance is separate.
-      await api.tabs.sendMessage(state.tabId, {type: 'deliver', version: 1, ...state.pending}, {frameId: 0});
+      try { await send(); }
+      catch {
+        // A reader already open before extension installation/reload may lack a
+        // live relay. Attach only our reader bridge; never reload its user text.
+        const tab = await api.tabs.get(state.tabId);
+        if (!allowed(tab.url) || tab.incognito || tab.status === 'loading') throw new Error('Reader not ready');
+        await api.scripting.executeScript({target: {tabId: tab.id, frameIds: [0]}, files: ['content.js']});
+        await send();
+      }
       state.status = 'Waiting for the reader to accept your selection…';
     } catch { state.status = 'Waiting for PasteToSpeech. Finish signing in if needed, or open the extension to retry.'; }
     await write(state);
@@ -37,7 +50,10 @@ export function createController(api, origin, {now = Date.now, uuid = () => cryp
       const state = await read();
       const error = typeof text !== 'string' || !text.trim() ? 'Select some readable text first.' : text.length > MAX_TEXT ? 'This selection is too large for the extension. Copy and paste it into PasteToSpeech instead.' : '';
       if (error) { state.status = error; await write(state); return {error}; }
-      const pending = {id: uuid(), text, created: now(), sequence: (state.sequence || 0) + 1};
+      // An adopted reader may retain acceptance metadata after extension session
+      // storage resets. Seed from time so a new handoff outranks old counters.
+      const created = now();
+      const pending = {id: uuid(), text, created, sequence: Math.max(state.sequence || 0, created) + 1};
       state.sequence = pending.sequence; state.pending = pending;
       state.status = 'Opening PasteToSpeech…';
       // Save before browser operations so a failed open does not lose the selection.

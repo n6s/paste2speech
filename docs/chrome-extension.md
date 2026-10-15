@@ -3,7 +3,10 @@
 Highlight text on a webpage, right-click **Read with PasteToSpeech**, and the
 reader comes forward and attempts playback with your saved voice and speed.
 Sending another selection replaces the reading in the extension's reader tab.
-Tabs you opened independently are left alone. If Chrome blocks playback, press
+An existing pinned reader on the configured site is preferred; otherwise the
+extension reuses its previous reader or another existing root reader. A normal
+Read invocation replaces text in that reader. Other sites and reader subpages
+are left alone; pinning is preserved. If Chrome blocks playback, press
 **Play**; already-prepared audio is reused.
 
 ## Install
@@ -65,7 +68,11 @@ outside this trial. Incognito is disabled for this version.
 
 The context-menu handler starts source capture immediately, checks the selected
 text against the menu snapshot, and serializes delivery in click order. It stores
-a versioned request with a unique ID and sequence, then opens/focuses its owned tab. A top-frame content script bridges extension
+a versioned request with a unique ID and sequence, then opens/focuses its selected reader tab. Discovery uses only the existing
+reader-origin host permission, and never navigates or unpins an existing tab.
+A missing relay on an already-open reader is attached without reloading the page.
+Handoff sequence numbers start from the current time so an adopted reader accepts
+new selections after extension session state resets. A top-frame content script bridges extension
 messages to the initialized reader through same-origin page messages. The worker
 checks the owned tab, top frame, and reader URL before accepting acknowledgments;
 the reader validates protocol and rejects stale/duplicate requests. Popup replies
@@ -121,7 +128,7 @@ fixture covered by the existing reader-origin grant.
 The installed `dist/chrome-extension/production` remains untouched by this
 candidate workflow. This extension-only fix uses the existing reader protocol;
 it needs no reader deployment, billing change, or Chrome Store publication.
-Future regular builds include version 0.1.1 and the two temporary-access API
+Future regular builds include version 0.1.2 and the two temporary-access API
 permissions above. Reload an installed package after rebuilding it.
 
 ## Release
@@ -142,3 +149,20 @@ Forced autoplay denial displayed the Play fallback and resumed the existing job.
 The shared reader parity and interrupted-reading resume checks also passed.
 All speech checks used fixtures; no provider credit was consumed. Native-menu
 manual interaction and human listening remain personal-trial acceptance checks.
+
+### Staging update: existing pinned reader reuse
+
+Version 0.1.2 includes both selection formatting and existing reader discovery.
+Build staging alone without rewriting the production installation:
+
+```sh
+node scripts/chrome-extension/build.mjs --environment staging --output work/extension-tab-reuse-2026-10-15/extension
+node scripts/chrome-extension/check.mjs --staging --reuse-existing --extension-root work/extension-tab-reuse-2026-10-15/extension
+```
+
+After copying the validated staging files into `dist/chrome-extension/staging`
+with a rollback copy, click the circular **Reload** arrow on **PasteToSpeech —
+Staging** in `chrome://extensions`. Keep the pinned reader open; no reader reload
+or closing of its tab is needed. Reloading the extension does not send a
+selection. The next explicit **Read with PasteToSpeech** action replaces the
+selected staging reader's text as requested.

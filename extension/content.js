@@ -1,5 +1,9 @@
 // Runs only in the configured reader's top frame. It never runs on source pages.
 (() => {
+  if (window !== window.top || location.pathname !== '/') return;
+  // Programmatic recovery and manifest injection may meet on a loading tab.
+  if (globalThis.__pastetospeechBridgeRuntime === chrome.runtime) return;
+  globalThis.__pastetospeechBridgeRuntime = chrome.runtime;
   const channel = crypto.randomUUID();
   let pending, ready = false;
   const post = data => window.postMessage({bridge: 'pastetospeech-extension', version: 1, channel, ...data}, location.origin);
