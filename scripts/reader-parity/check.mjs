@@ -180,6 +180,8 @@ try{
   await fresh.locator('#video-split-limit').evaluate(e=>{e.value='1200';});
   await fresh.fill('#text','A'.repeat(1100)+'.\n\n'+'B'.repeat(1100)+'.');await fresh.click('#play');
   await fresh.waitForFunction(()=>Object.keys(sessionStorage).some(k=>k.startsWith('paste2speech.video.')&&JSON.parse(sessionStorage.getItem(k)).filter(r=>r.id).length===2));
+  // Saved request IDs can be written before the second mocked POST is dispatched.
+  for(let attempt=0;attempt<100&&freshCreates<2;attempt++)await fresh.waitForTimeout(20);
   assert.equal(freshCreates,2);await cleared.close();
   console.log(`PASS ${environment}: Clear, refresh, and fresh long-reading preparation in Chrome`);
 
