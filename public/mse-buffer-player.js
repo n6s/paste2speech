@@ -18,6 +18,7 @@ export class MsePlayer {
       this.log(name);
       if(name==='error'&&this.job&&audio.error)this.mediaFailed();
       if(name==='loadeddata'&&this.mode==='mse'){this.capability.decoded=true;this.log('decode-verified');}
+      if(name==='playing')this.syncNativePlaying();
       if(name==='playing'&&this.job&&this.wantPlay&&!audio.paused&&!this.fatal&&!this.mediaRecovery){this.state='playing';clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;}
       // OS/audio-route pauses bypass our Pause button. Retire playback intent so
       // controls offer Resume and later buffer/status events cannot restart audio.
@@ -36,9 +37,21 @@ export class MsePlayer {
   }
   syncNativePause(){
     if(!this.job||!this.audio.paused||this.audio.ended||!this.wantPlay||!['playing','buffering'].includes(this.state))return false;
+    this.mediaPause={kind:'native',serial:this.serial,job:this.job,src:this.audio.src||'',currentSrc:this.audio.currentSrc||''};
     this.playSequence++;this.wantPlay=false;this.state='paused';
     clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
     this.log('playback-interrupted');return true;
+  }
+  syncNativePlaying(){
+    const interrupted=this.mediaPause;
+    // A real playing element can be resumed by the browser after audio focus
+    // returns. Reconcile only the native interruption of this exact resource;
+    // explicit Pause, a new job/source, and stale paused-element events cannot opt in.
+    if(!interrupted||!this.job||this.state!=='paused'||this.audio.paused||this.audio.ended||this.audio.error||this.fatal||this.mediaRecovery||this.connectionPaused||this.connectionInterrupted)return false;
+    if(interrupted.serial!==this.serial||interrupted.job!==this.job||interrupted.src!==(this.audio.src||'')||interrupted.currentSrc&&this.audio.currentSrc&&interrupted.currentSrc!==this.audio.currentSrc)return false;
+    if(interrupted.kind==='user'){this.audio.pause();this.log('explicit-pause-preserved');return false;}
+    this.mediaPause=null;this.playSequence++;this.wantPlay=true;
+    this.log('playback-resumed-externally');return true;
   }
   ranges(){return Array.from({length:this.audio.buffered.length},(_,i)=>[this.audio.buffered.start(i),this.audio.buffered.end(i)]);}
   log(type,extra={}){
@@ -115,7 +128,7 @@ export class MsePlayer {
     if(!this.job||!this.mediaRecovery)return;
     const time=this.mediaRecovery.time;
     this.serial++;this.controller?.abort();const serial=this.serial;
-    this.controller=new AbortController();this.playSequence++;this.wantPlay=true;this.audio.pause();
+    this.controller=new AbortController();this.mediaPause=null;this.playSequence++;this.wantPlay=true;this.audio.pause();
     this.audio.removeAttribute('src');this.audio.load();
     if(this.objectURL)URL.revokeObjectURL(this.objectURL);
     this.objectURL=null;this.source=null;this.buffer=null;this.mediaRecovery=null;
@@ -165,6 +178,7 @@ export class MsePlayer {
     },500);
   }
   pauseForConnection(){
+    this.mediaPause=null;
     clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
     this.playSequence++;this.wantPlay=false;this.connectionPaused=true;this.audio.pause();this.state='disconnected';
     this.error='Connection interrupted. Buffered audio has ended. Reconnect, then tap Resume to continue.';
@@ -281,15 +295,16 @@ export class MsePlayer {
   fail(error){
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;
     this.error=error.name==='QuotaExceededError'?'This browser could not buffer the audio. The completed recording remains available.':error.message;
-    this.playSequence++;this.fatal=!error.reconnect;if(this.fatal)this.controller?.abort(error);this.state=error.reconnect?'disconnected':'failed';this.wantPlay=false;this.audio.pause();this.log('failure',{message:this.error,reconnect:!!error.reconnect});this.emit();
+    this.mediaPause=null;this.playSequence++;this.fatal=!error.reconnect;if(this.fatal)this.controller?.abort(error);this.state=error.reconnect?'disconnected':'failed';this.wantPlay=false;this.audio.pause();this.log('failure',{message:this.error,reconnect:!!error.reconnect});this.emit();
   }
   async play(){
-    const serial=this.serial,sequence=++this.playSequence;this.wantPlay=true;
+    this.mediaPause=null;const serial=this.serial,sequence=++this.playSequence;this.wantPlay=true;
     try{await this.audio.play();if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay&&!this.connectionInterrupted&&this.status?.state!=='credit-paused')this.error='';}
     catch(error){if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
-  pause(){this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
+  pause(){this.mediaPause={kind:'user',serial:this.serial,job:this.job,src:this.audio.src||'',currentSrc:this.audio.currentSrc||''};this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
   resume(){
+    this.mediaPause=null;
     if(this.mediaRecovery)return this.recoverMedia();
     if(!this.job||this.fatal)return;
     this.wantPlay=true;this.connectionPaused=false;
@@ -315,7 +330,7 @@ export class MsePlayer {
   setRate(value){this.rate=Math.max(.5,Math.min(2,Number(value)||1));this.audio.playbackRate=this.rate;this.audio.defaultPlaybackRate=this.rate;this.audio.preservesPitch=true;this.emit();}
   invalidate({preserveReady=false}={}){
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;this.connectionInterrupted=false;this.connectionPaused=false;
-    this.serial++;this.playSequence++;this.controller?.abort();this.wantPlay=false;this.mediaRecovery=null;this.recovering=null;this.mediaActive=false;this.audio.pause();
+    this.mediaPause=null;this.serial++;this.playSequence++;this.controller?.abort();this.wantPlay=false;this.mediaRecovery=null;this.recovering=null;this.mediaActive=false;this.audio.pause();
     const id=this.job,keep=preserveReady&&this.status?.state==='ready';this.job=null;this.audio.removeAttribute('src');this.audio.load();
     if(this.objectURL)URL.revokeObjectURL(this.objectURL);
     this.objectURL=null;this.source=null;this.buffer=null;this.status=null;this.texts=[];this.next=0;this.windowSeek=null;this.quotaBlockedAt=null;this.state='idle';this.error='';this.pumping=false;this.fatal=false;this.finalized=false;

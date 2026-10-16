@@ -1316,3 +1316,29 @@ gestures and image clipboard failures with intercepted synthetic APIs. Hosted
 verification preserves CSP and uses browser automation for synthetic clipboard
 setup. Desktop/phone-width Chrome tests still do not establish real Android
 clipboard exposure.
+
+## Native audio-focus resume reconciliation — staging, October 16, 2026
+
+Roger reported that Android WaveNet could sound again after microphone use while
+the page still displayed Paused/Resume. The workstation Chrome regression reproduces
+that exact mismatch by pausing and then directly resuming the existing native audio
+element, with all speech requests intercepted. The Bluetooth fix correctly clears
+`wantPlay` on native pause, but the old `playing` handler requires `wantPlay` already
+true, so it ignores real browser-driven resumption.
+
+The player now records pause provenance for the current media epoch, saved job,
+`src` and `currentSrc`. A genuine non-paused `playing` event can restore playback
+intent only for that same natively interrupted resource. This reconciliation never
+calls `play()` or creates a speech job. Explicit app Pause records user intent and
+continues to stop an unsolicited external start; Resume, failure, invalidation and
+media recovery retire old pause provenance. Stale events, changed sources/jobs,
+connection pauses, and ended/failed media cannot adopt native-resume intent.
+
+Unit regressions cover native resume, explicit pause, stale resource/epoch events
+and late play-promise rejection. Browser checks use isolated headless Google Chrome
+(`/usr/bin/google-chrome`) on Roger's pop-os workstation, actual decoded existing
+MP3 fixtures, native media events and synthetic APIs in both streaming and completed
+file delivery. They verify DOM buttons/status, Media Session, clock/source/job reuse
+and no additional synthesis. They do not reproduce physical Android microphone or
+Bluetooth audio-focus events; that event sequence remains a later device check.
+No production deployment or paid synthesis/OCR is part of this staging fix.
