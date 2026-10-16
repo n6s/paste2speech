@@ -1342,3 +1342,28 @@ file delivery. They verify DOM buttons/status, Media Session, clock/source/job r
 and no additional synthesis. They do not reproduce physical Android microphone or
 Bluetooth audio-focus events; that event sequence remains a later device check.
 No production deployment or paid synthesis/OCR is part of this staging fix.
+
+
+## Native-resume hosted verification follow-up — October 16, 2026
+
+After the approved production upload of `388d2cf`, all 58 hosted asset hashes
+matched, but the first synthetic hosted native-resume assertion saw Paused while
+the audio clock advanced. That run did not retain an event trace, so its cause
+cannot be established retrospectively. Repeated unchanged-assertion hosted checks
+passed in both delivery modes without an application change; this is insufficient
+to claim that the original one-off failure was conclusively a test race.
+
+The interruption browser check now supports `READER_VARIANT=public` locally and
+with `READER_ORIGIN=https://pastetospeech.com`, without staging Access credentials.
+The public release gates run this check against the built public site as well as
+the existing staging recovery check. Public completed-file fallback disables MSE
+in the isolated test context; constructor counts verify the actual delivery path.
+Both variants verify the exact browser-loaded app hash, current audio, UI and Media
+Session together within three seconds, plus explicit Pause and saved-job reuse.
+Failures retain native event timing, audio state, loaded code hashes and a screenshot.
+The bounded assertion still fails against a local mutation restoring the previous
+`playing` handler in both modes, while the actual deployed code passes.
+
+This follow-up changes test coverage only. It requires no production deployment,
+Paddle, configuration, database, extension, or credential changes. Physical Android
+microphone/Bluetooth behavior and the initial untraced failure remain unverified.

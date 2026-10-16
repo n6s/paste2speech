@@ -21,6 +21,7 @@ for(const variant of ['staging','public'])for(const check of ['check:reader:prog
 if(settings.vars.UNIFIED_CREDITS==='1')for(const variant of ['staging','public'])execFileSync('npm',['run','check:reader:unified'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant,BILLING_UX_OUT:`work/production-shared-candidate-2026-10-11/${variant}-browser`}});
 execFileSync('npm',['run','check:reader:resume'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:recovery'],{stdio:'inherit'});
+execFileSync('node',['tests/playback-interruption-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:'public',PLAYBACK_INTERRUPTION_OUT:'work/playback-interruption-public'}});
 execFileSync('node',['scripts/reader-parity/check-built-offline.mjs'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:reload'],{stdio:'inherit'});
 execFileSync('npm',['run','check:reader:documents'],{stdio:'inherit'});
