@@ -1443,3 +1443,16 @@ autoplay, and delivery to the queue. Recovery dismissal returns to a visible inp
 control. `tests/input-copy.test.js` and `tests/input-copy-browser.mjs` check both
 contexts, including rendered hidden help and accessibility labels, without altering
 source text or calling paid APIs.
+
+
+### October 18 approved queue and MP4 public promotion
+
+Roger approved promotion of the tested input queue and shared WaveNet MP4 voice
+fix, without the subsequent proposed menu or placement refinements. Public
+`INPUT_QUEUE_UI=1` now enables the same durable queue; the historical owner trial
+continues to exclude it. No payment, provider, schema, or account policy changes
+are included. The support@pastetospeech.com contact cleanup remains included.
+Public preparation runs queue behavior on both actual builds using test-side
+native audio observation, with all APIs intercepted and no production debug
+object exposed. Contextual wording is audited in both builds. Restage the clean
+promotion commit and verify its served metadata/hashes before public deployment.

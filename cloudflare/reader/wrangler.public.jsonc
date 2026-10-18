@@ -50,7 +50,8 @@
     "OCR_SOURCE_ORIGIN": "https://pastetospeech.com",
     "OCR_SOURCE_GATEWAY_APPROVED": "1",
     "SUMMARY_PRICE_CREDITS": "1",
-    "OCR_PICKER_AUTOSCAN": "1"
+    "OCR_PICKER_AUTOSCAN": "1",
+    "INPUT_QUEUE_UI": "1"
   },
   "assets": {
     "directory": "../../work/production-reader/site",

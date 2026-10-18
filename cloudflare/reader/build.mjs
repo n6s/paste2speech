@@ -23,7 +23,7 @@ if(unifiedBuild&&(production&&!publicLaunch||publicLaunch&&(configVars.UNIFIED_L
 const retailBuild=!production||publicLaunch&&configVars.OCR_RETAIL_LIVE_APPROVED==='1';
 const reviewedLayout=!production||publicLaunch&&configVars.REVIEWED_READER_LIVE_APPROVED==='1';
 const durableOcr=reviewedLayout&&configVars.OCR_DURABLE_JOBS==='1';
-const queueUI=!production&&durableOcr&&configVars.INPUT_QUEUE_UI==='1';
+const queueUI=(!production||publicLaunch)&&durableOcr&&configVars.INPUT_QUEUE_UI==='1';
 // Public promotion keeps reader features independent of staging test controls.
 const sharedReaderFeatures=mse||publicLaunch;
 const videoDownload=configVars.VIDEO_DOWNLOAD==='1';
