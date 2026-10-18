@@ -32,3 +32,5 @@ export const OCR_DURABLE_JOBS = false;
 export const STAGING_READER_LAYOUT = false;
 
 export const OCR_PICKER_AUTOSCAN = false;
+
+export const INPUT_QUEUE_UI = false;

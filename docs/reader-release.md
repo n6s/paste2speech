@@ -1392,3 +1392,44 @@ audio. A staging fix does not update code already loaded in his production tab.
 The protected hosted staging verification still requires a usable standard
 Cloudflare Access session; an upload or local browser test alone does not prove
 the deployed staging assets or Android behavior.
+
+
+## Unified inputs and tab-local queue — staging trial, October 18, 2026
+
+Roger approved trying split Paste & Play and Open file controls, keeping Clear.
+`INPUT_QUEUE_UI=1` is enabled only in staging. The build requires durable document
+intake and excludes this trial from all production builds even if their variables
+contain that flag. The verified MP4 shared-voice fix remains included.
+
+Paste & Play replaces the editor and starts a reading; its dropdown offers Paste
+only, Play next, and Add to queue. Open file keeps its existing local extraction /
+disclosed whole-file scanning flow without autoplay; its dropdown adds Open & Play,
+Play next, and Add to queue. Queue gestures reserve a position immediately, retain
+voice/engine, speed and cleanup options, and leave the editor/current audio alone.
+Only the complete result resolves that position. Up next is hidden when empty and
+offers keyboard-accessible reorder, remove, next-item playback, and added-item Undo.
+Up to 50 items are held only in tab memory; reload discards them.
+
+Paid speech is deferred until an item's turn. A fresh account-scope check prevents
+charging a different account, and Clear or Stop during that check prevents late
+admission. Pause holds current playback; Resume permits subsequent queue progress.
+Stop halts progression and retires pending Open & Play autoplay; the completed file
+can still load for explicit Play. Clear removes the editor, current reading and
+queue. Natural completion advances only a ready head item. Processing/failed heads
+retain their position; failures never cause automatic paid retries or silent skips.
+
+Queued OCR keeps the existing consent, verified quote, reservation, complete-result
+settlement and cached-replay rules. Destination sets allow one saved OCR job to
+resolve multiple queued uses of the same file. Removing one destination does not
+cancel a scan needed by another; only queue-owned scans are cancelled on last
+removal. Late completion cannot resurrect a removed/Cleared item or replace the
+editor. Ordinary file, summary and export paths remain available. Processing and
+queue details live in the existing input/File Info popovers.
+
+`tests/reading-queue.test.js` covers pure ordering, snapshots and handoff races.
+`tests/input-queue-browser.mjs` uses isolated headless Chrome, actual decoded MP3
+fixtures and fully intercepted speech/OCR APIs to verify native completion, menus,
+Stop/Pause, asynchronous and duplicate-file results, cancellation/errors, local
+DOCX, account changes and 320/390/780px layouts through 200% text size. Existing
+paste tests open the new menu through `tests/reader-actions.mjs`. No paid provider
+calls or global desktop keyboard/mouse automation are part of this trial.

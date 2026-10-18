@@ -13,8 +13,9 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
+import {setupInputQueue} from './input-queue-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
 import { event, setupFeedback } from './public-features.js';
 import { clipboardMarkdown } from './paste.js?v=20260917-answer-labels-1';
@@ -99,6 +100,8 @@ const READING_WINDOW_THRESHOLD = 1000;
 let stagingSampleText='';
 let videoDownload;
 let documentImport;
+let inputQueue,intakeContext,nextFileIntent;
+const intakeContexts=new Map();
 let voicePreviews;
 const supported = 'speechSynthesis' in window && 'SpeechSynthesisUtterance' in window;
 const browserPlayer = supported ? new Player(window.speechSynthesis, window.SpeechSynthesisUtterance, render,{trackStart:STAGING_READER_LAYOUT}) : null;
@@ -124,7 +127,7 @@ function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { if(pasteDiagnostics?.active)return false; if(documentImport?.busy)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
+function canPlay() { if(pasteDiagnostics?.active)return false; if(documentImport?.busy&&!intakeContext?.background)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
   workstationPlayer.release();
@@ -254,13 +257,15 @@ function setMode(mode) {
 }
 $('edit-mode').addEventListener('click', () => setMode('edit'));
 function readAndPlay() {
+  inputQueue?.model.resume();
   voicePreviews?.stop();
   $('text').blur();
   setMode('read');
-  if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return;
+  if (!player || !canPlay() || !cleaned || ['playing', 'preparing', 'buffering'].includes(player.state)) return false;
   if (['paused', 'ready', 'failed', 'disconnected'].includes(player.state)) player.resume(settings());
   else { countNextPlayback=true; player.start(chunks, settings()); }
   if(STAGING_READER_LAYOUT&&player!==browserPlayer&&audioWaitMessage(player))render(player,player.error||'');
+  return true;
 }
 $('credit-resume').onclick=()=>{window.dispatchEvent(new Event('speech-credit-change'));if(videoDownload?.creditPaused&&!workstationPlayer.getVideoPreparation?.()?.error)void videoDownload.resume();else void player?.resume(settings());};
 $('credit-browser').onclick=()=>{$('engine').value='browser';changeEngine();};
@@ -319,6 +324,7 @@ function render(p, message) {
     if(!CLOUD_READER && p.state==='ready' && previousState==='preparing') event('kokoro_ready','kokoro','none',performance.now()-preparationStarted);
     if(!CLOUD_READER && p.state==='failed') event('kokoro_failure','kokoro','generation');
     if(p.state==='playing' && countNextPlayback){event('playback_start',isGoogle()?'google':isKokoro()?'kokoro':'browser');countNextPlayback=false;}
+    inputQueue?.model.observe(p.state);
     previousState=p.state;
   }
   const blocked = message === 'Press Play to start';
@@ -456,7 +462,7 @@ $('text').addEventListener('paste', event => {
 // Read first: denied, empty, or unreadable clipboards must not erase a reading.
 let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
-$('text').addEventListener('input',()=>{pasteRequest++;});
+$('text').addEventListener('input',()=>{pasteRequest++;inputQueue?.model.stop();if(intakeContext?.intent==='play')intakeContext.intent='editor';});
 $('text').addEventListener('paste',event=>{summaryMode?.clearSource();pasteRequest++;if(!documentImport?.busy&&Array.from(event.clipboardData?.types||[]).some(type=>type==='text/plain'||type==='text/html'))documentImport?.clear();},{capture:true});
 async function pasteFromClipboard({replace=false}={}){
   if(documentImport?.busy||$('text').readOnly)return;
@@ -474,6 +480,7 @@ async function pasteFromClipboard({replace=false}={}){
     if (request !== pasteRequest || $('text').value !== previousText || documentImport?.busy || $('text').readOnly) return;
     if(payload.image){
       if(!documentImport)throw Error('image-unavailable');
+      if(INPUT_QUEUE_UI)beginInputIntake(replace?'play':'editor',payload.image.name,'clipboard');
       await documentImport.openImage(payload.image,replace?'clear_paste_play':'paste_button');
       return;
     }
@@ -482,7 +489,7 @@ async function pasteFromClipboard({replace=false}={}){
     documentImport?.clear();
     summaryMode?.clearSource();
     if(replace){
-      resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();readAndPlay();
+      inputQueue?.model.stop();resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();readAndPlay();
     }else{
       setMode('edit');insertEditorText(text,range);rememberPasteSelection();pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
     }
@@ -512,7 +519,7 @@ async function pasteFromClipboard({replace=false}={}){
 }
 $('paste')?.addEventListener('click',()=>void pasteFromClipboard());
 $('paste-play').addEventListener('click',()=>void pasteFromClipboard({replace:true}));
-$('clear').addEventListener('click', () => { summaryMode?.clearSource(); documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
+$('clear').addEventListener('click', () => { inputQueue?.clear();if(INPUT_QUEUE_UI)for(const context of intakeContexts.values())context.cancelled=true;summaryMode?.clearSource(); documentImport?.clear(); workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
 $('voice').addEventListener('change', () => { selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate(); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
@@ -525,9 +532,9 @@ function seekSection(index){
 $('previous-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index-1):workstationPlayer.move(-1));
 $('next-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index+1):workstationPlayer.move(1));
 $('include-captions')?.addEventListener('change',()=>render(player));
-$('play').addEventListener('click', readAndPlay);
-$('pause').addEventListener('click', () => player?.pause());
-$('stop').addEventListener('click', () => player?.stop());
+$('play').addEventListener('click',()=>{inputQueue?.model.stop();readAndPlay();});
+$('pause').addEventListener('click',()=>{inputQueue?.model.stop();player?.pause();});
+$('stop').addEventListener('click',()=>{inputQueue?.model.stop();if(INPUT_QUEUE_UI){pasteRequest++;for(const context of intakeContexts.values())if(context.intent==='play')context.intent='editor';}player?.stop();});
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 // Chrome may restore form values after startup without firing input. Reconcile
 // after returning to the page, preserving live audio and tab-saved preparation.
@@ -651,10 +658,45 @@ if (WORKSTATION) {
 }
 
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
- accept(data){summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');},
- pauseReading(){if(['playing','preparing','buffering'].includes(player?.state))player.pause();},
- onBusy(value){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;disablePasteButtons(value);$('clear').disabled=false;if(!value)preview();if(player)render(player);}
+ intake:INPUT_QUEUE_UI?{
+  capture(file,route){if(!intakeContext?.awaitingFile||!['picker','file_upload','clear_paste_play','paste_button','queue_next','queue_last'].includes(route))beginInputIntake('editor',file?.name||'File','file');const context=intakeContext;if(file){context.awaitingFile=false;context.title=file.name;const item=inputQueue.model.items.find(item=>item.id===context.queueId);if(item){item.title=file.name;inputQueue.announce(item);inputQueue.model.changed();}}return context;},
+  alive:context=>!context.cancelled&&(!context.background||inputQueue.model.has(context.queueId)),
+  fail(context,message){if(context?.background&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
+  cancel(context){if(!context)return;context.cancelled=true;if(context.background)inputQueue.model.remove(context.queueId);}
+ }:undefined,
+ accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(context?.intent==='play')requestAnimationFrame(()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);readAndPlay();}});},
+ pauseReading(){if(!intakeContext?.background&&['playing','preparing','buffering'].includes(player?.state))player.pause();},
+ onBusy(value){if(!intakeContext?.background){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;}disablePasteButtons(value);$('clear').disabled=false;if(!value&&!intakeContext?.background)preview();if(player)render(player);}
 });
+function inputSnapshot(){return {engine:$('engine').value,voice:$('voice').value,rate:Number($('rate').value),cleanup:{...options},scope:documentImport?.scope||null};}
+function applyInputSnapshot(snapshot){
+ if(snapshot.engine==='browser'&&snapshot.voice&&!speechSynthesis.getVoices().some(voice=>voice.voiceURI===snapshot.voice))throw Error('The queued browser voice is unavailable. Remove this item or select an available voice for a new item.');
+ Object.assign(options,snapshot.cleanup);for(const [key,value]of Object.entries(options))if($('clean-'+key))$('clean-'+key).checked=value;
+ $('engine').value=snapshot.engine;$('rate').value=String(snapshot.rate);$('rate-value').textContent=snapshot.rate+'×';
+ if(snapshot.engine==='browser')browserVoice=snapshot.voice;else workstationVoice=snapshot.voice;
+ changeEngine();$('voice').value=snapshot.voice;selectedVoice=snapshot.voice;updateVoiceSummary();save();
+}
+function beginInputIntake(intent,title='Choosing file…',source='file',existingItem=null){
+ const background=['next','last'].includes(intent);if(!background)inputQueue?.model.stop();const item=background?(existingItem||inputQueue.reserve(intent,title,source)):null;
+ const context={key:item?'queue-'+item.id:'editor-'+crypto.randomUUID(),queueId:item?.id,background,intent,title,snapshot:item?.snapshot||inputSnapshot(),awaitingFile:true,cancelled:false};
+ intakeContexts.set(context.key,context);intakeContext=context;return context;
+}
+async function readQueuedClipboard(intent){
+ let item;try{item=inputQueue.reserve(intent,'Clipboard text');const payload=await clipboardPayload(navigator.clipboard,undefined,{guardImages:OCR_PICKER_AUTOSCAN});if(!inputQueue.model.has(item.id))return;
+  if(payload.image){if(documentImport.busy)throw Error('Finish or cancel the current file upload, then add this image again.');beginInputIntake(intent,payload.image.name,'clipboard',item);await documentImport.openImage(payload.image,'queue_'+intent);return;}
+  if(!payload.text.trim())throw Error('The clipboard did not provide text. Your editor and playback are unchanged.');
+  item.title=payload.text.trim().split(/\r?\n/)[0].replace(/[#*_`]/g,'').slice(0,72)||'Clipboard text';inputQueue.model.resolve(item.id,payload.text);inputQueue.announce(item);
+ }catch(error){if(item)inputQueue.model.fail(item.id,error.message||'Clipboard access failed. Your editor and playback are unchanged.');inputQueue.error(error.message||'Clipboard access failed.');}
+}
+if(INPUT_QUEUE_UI){
+ inputQueue=setupInputQueue({snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
+  async start(item,current){if(item.snapshot.engine==='google'){if(!item.snapshot.scope)throw Error('Account checks were still loading when this item was added. Add it again after checking your account.');const response=await fetch('/api/ocr/jobs/config');if(!response.ok)throw Error('The account could not be confirmed. No speech was started.');const config=await response.json();if(!current())return false;if(config.consentScope!==item.snapshot.scope)throw Error('The account changed after this item was queued. Add it again for the current account. No speech was started.');}if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(!readAndPlay())throw Error('This item cannot start yet. No automatic retry was made.');return true;},
+  cancelItem(item){for(const [key,context]of intakeContexts)if(context.queueId===item.id){context.cancelled=true;documentImport.cancelDestination?.(context);intakeContexts.delete(key);}},
+  clearAll(){for(const context of intakeContexts.values())context.cancelled=true;intakeContexts.clear();intakeContext=null;}
+ });
+ $('document-choose-file').addEventListener('click',()=>{beginInputIntake(nextFileIntent||'editor');nextFileIntent=null;},{capture:true});
+}
+
 if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=UNIFIED_CREDITS?'Paste inserts text without playing it. Clear, Paste & Play replaces the text and starts speech. Images open text-scanning options; nothing is uploaded until you agree. Use Choose file if your phone does not provide the image.':'Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Open file for the saved screenshot.';
 if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];

@@ -1,3 +1,4 @@
+import {pasteOnly,pasteAction} from './reader-actions.mjs';
 // Desktop Chrome only: synthetic clipboard/speech; network disabled after load.
 import {chromium} from 'playwright';
 import {createServer} from 'node:http';
@@ -52,7 +53,7 @@ try{
    for(const mode of ['rich','absent','unsupported','failure','empty','blank','unknown','representation']){
     await select('Before selected after',7,15);await page.evaluate(mode=>installClipboard(mode),mode);
     const speechBefore=await page.evaluate(()=>spoken.length),actionCheckpoint=requests.length;
-    await page.locator(button).click();await settled();
+    await pasteAction(page,button);await settled();
     if(button==='#paste')assert.deepEqual(textActionRequests(requests.slice(actionCheckpoint)).filter(path=>!(retail&&path==='/api/ocr/config')),[],'Paste needs no network; only existing background OCR balance refresh and incidental browser icons are allowed');
     const text=mode==='rich'?'**Rich offline.**':'Fallback offline.';
     assert.equal(await page.locator('#text').inputValue(),button==='#paste'?'Before '+text+' after':text);
@@ -70,7 +71,7 @@ try{
     await page.evaluate(mode=>installClipboard(mode),mode);
     const actionCheckpoint=requests.length;
     const before=await page.evaluate(()=>({spoken:spoken.length,cancels,speaking:speechSynthesis.speaking,status:document.querySelector('#status').textContent}));
-    await page.locator(button).click();await settled();
+    await pasteAction(page,button);await settled();
     assert.deepEqual(textActionRequests(requests.slice(actionCheckpoint)),[],'Unsuccessful clipboard action must make no requests');
     assert.equal(await page.locator('#text').inputValue(),'Keep selected source.');
     assert.deepEqual(await page.locator('#text').evaluate(el=>[el.selectionStart,el.selectionEnd]),[5,13]);
@@ -80,12 +81,12 @@ try{
     checks.push({configuration,startupUnavailable,button,mode,preservesTextSelectionAndPlayback:true,calls,message});
    }
    // Native paste uses its event payload, independently of denied async reads.
-   await select('Keep.',5,5);await page.evaluate(()=>installClipboard('denied'));await page.locator(button).click();await settled();
+   await select('Keep.',5,5);await page.evaluate(()=>installClipboard('denied'));await pasteAction(page,button);await settled();
    await page.evaluate(()=>{const data=new DataTransfer();data.setData('text/html','<strong>Native.</strong>');data.setData('text/plain','Native.');document.querySelector('#text').dispatchEvent(new ClipboardEvent('paste',{clipboardData:data,bubbles:true,cancelable:true}));});
    assert.equal(await page.locator('#text').inputValue(),'Keep.**Native.**');assert.deepEqual(await page.evaluate(()=>clipboardCalls.map(c=>c.method)),['read']);
    for(const intervention of ['selection','edit','clear']){
     await select('abcdef',1,4);await page.evaluate(()=>installClipboard('hold','XYZ'));
-    const speechBefore=await page.evaluate(()=>spoken.length);await page.locator(button).click();await page.waitForFunction(()=>typeof releaseFallback==='function');
+    const speechBefore=await page.evaluate(()=>spoken.length);await pasteAction(page,button);await page.waitForFunction(()=>typeof releaseFallback==='function');
     assert.equal(await page.locator('#paste').isDisabled(),true);assert.equal(await page.locator('#paste-play').isDisabled(),true);
     if(intervention==='selection')await page.locator('#text').evaluate(el=>el.setSelectionRange(0,0));
     if(intervention==='edit'){await page.locator('#text').focus();await page.keyboard.insertText('EDIT');}
