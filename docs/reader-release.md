@@ -1367,3 +1367,28 @@ The bounded assertion still fails against a local mutation restoring the previou
 This follow-up changes test coverage only. It requires no production deployment,
 Paddle, configuration, database, extension, or credential changes. Physical Android
 microphone/Bluetooth behavior and the initial untraced failure remain unverified.
+
+
+## MP4 export voice validation — staging, October 18, 2026
+
+Roger approved fixing and testing the Download error shown for an existing US
+female H recording. The reader and Google admission share twelve WaveNet voices,
+but the export UI retained an independent four-voice allowlist and rejected H
+before checking the ready recording. Export now validates with the same
+`WAVENET_VOICE_IDS` catalog. Cached-recording matching, admission, cancellation and
+encoding behavior are unchanged. This approval covers staging only.
+
+`tests/video-voices-browser.mjs` exercises the real export UI with all twelve
+voices, exact existing session/assets reuse, zero API requests, invalid voice
+rejection, and native playback continuing after cancellation during preparation
+and encoding. Its encoder is stubbed. `scripts/video-download/check.mjs` separately
+uses H with real browser WASM H.264/AAC/mov_text conversion, complete captions,
+existing reader-job reuse, long readings, and intercepted synthetic audio. Both
+checks run in staging and public release gates. No test calls a paid provider.
+
+Do not switch the voice or reload Roger's existing production recording as a
+workaround: a voice change invalidates the reader, and reloading discards local
+audio. A staging fix does not update code already loaded in his production tab.
+The protected hosted staging verification still requires a usable standard
+Cloudflare Access session; an upload or local browser test alone does not prove
+the deployed staging assets or Android behavior.

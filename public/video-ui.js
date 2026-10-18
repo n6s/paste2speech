@@ -1,5 +1,6 @@
 import {planPlaylist} from './playlist-plan.js';
 import {PlaylistSession} from './playlist-session.js';
+import {WAVENET_VOICE_IDS} from './wavenet-voices.js';
 
 export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, onChange = () => {}}) {
   const $ = id => document.getElementById(id);
@@ -40,7 +41,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       await new Promise(resolve => setTimeout(resolve, 250));
     }
     if (waitingForCreation && !prepared.id) throw Error('The current audio preparation could not be confirmed. No replacement speech was started.');
-    if (!['en-US-Wavenet-F', 'en-GB-Wavenet-F', 'en-US-Wavenet-D', 'en-GB-Wavenet-D'].includes(voice)) throw Error('Choose a WaveNet voice first.');
+    if (!WAVENET_VOICE_IDS.includes(voice)) throw Error('Choose a WaveNet voice first.');
     const reuse = prepared?.id && prepared.settings?.voice === voice &&
       JSON.stringify(parts.flatMap(p => p.chunks)) === JSON.stringify(prepared.chunks);
     if(reuse)borrowedPreparation=true;

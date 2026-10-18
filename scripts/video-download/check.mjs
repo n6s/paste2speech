@@ -46,7 +46,7 @@ try{
   return route.fulfill({json:p==='/api/reader'?{eligible:true,account:{balance:1000000}}:{}});
  });
  await page.goto(remote||`http://127.0.0.1:${server.address().port}/`);
- await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+ await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');await page.selectOption('#voice','en-US-Wavenet-H');
  await page.fill('#text',Array(60).fill(source.text).join('\n\n'));
  await page.locator('#video-download').evaluate(e=>e.open=true);
  assert.equal(await page.locator('#prepare-video, #include-captions, #download-audio, #download-captions, #video-parts').count(),0);
@@ -86,7 +86,7 @@ try{
  execFileSync('ffmpeg',['-v','error','-y','-i',output,'-frames:v','1',folder+'/title.png']);
  // Borrow a running 44-section reader job with only six sections ready.
  partial=true;await page.reload();
- await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+ await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');await page.selectOption('#voice','en-US-Wavenet-H');
  await page.fill('#text',Array(44).fill(source.text).join('\n\n'));await page.click('#play');
  await page.waitForFunction(()=>document.getElementById('recording-progress').textContent.includes('6 of 44'));
  const priorPosts=posts,priorAudioDownloads=audioDownloads,priorTools=toolLoads;
@@ -106,7 +106,7 @@ try{
  // Actual over-limit document: preserve all 21,347 submitted characters.
  longMode=true;partial=true;allowComplete=false;partialPolls=0;
  await page.goto((remote||`http://127.0.0.1:${server.address().port}`)+'/?testing=1');
- await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');
+ await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','google');await page.selectOption('#voice','en-US-Wavenet-H');
  await page.locator('#mse-cached').evaluate(e=>{e.checked=false;e.dispatchEvent(new Event('change'));});
  await page.locator('#video-split-limit').evaluate(e=>e.value='20000');
  const longText=[...Array(42).fill('Reading '+'a'.repeat(491)+'.'),'Ending '+'b'.repeat(339)+'.'].join('\n\n');
