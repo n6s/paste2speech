@@ -1456,3 +1456,21 @@ Public preparation runs queue behavior on both actual builds using test-side
 native audio observation, with all APIs intercepted and no production debug
 object exposed. Contextual wording is audited in both builds. Restage the clean
 promotion commit and verify its served metadata/hashes before public deployment.
+
+
+### October 18 staging action wording and queue position
+
+Roger approved clearer one-time menu actions and the compact queue immediately
+below the input buttons, keeping Paste & Play fixed. Staging alone enables
+`INPUT_QUEUE_REFINEMENTS=1`; public/trial builds force it off, independently of
+the already-live queue. Paste actions say Paste without playing, Paste to play
+next, and Paste at end of queue. File actions say Open and play now, Open file to
+play next, and Open file at end of queue. Collapsed queue text is Up next · N items
+(with singular item); the panel remains hidden when empty. Expanded reorder,
+remove, Undo and playback semantics are unchanged. Contextual help names these
+actions and clarifies that they do not change the main action. No clipboard
+preview, processing, provider, payment, or production release is included.
+
+The queue browser gate verifies both wording modes, adjacent placement, counts,
+keyboard expansion/reordering, action-button roles, Enter/Escape focus, 44px menu
+targets, and 320/390/780/1280 layouts through 200% text, with intercepted APIs.

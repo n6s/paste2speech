@@ -14,7 +14,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import {setupInputQueue} from './input-queue-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
@@ -429,7 +429,7 @@ $('text').addEventListener('input', () => {
   }
   resetReading(); preview();
 });
-if(RELEASE==='private-reader'&&MSE_STAGING)pasteDiagnostics=setupPasteDiagnostics({queueUI:INPUT_QUEUE_UI,target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
+if(RELEASE==='private-reader'&&MSE_STAGING)pasteDiagnostics=setupPasteDiagnostics({queueUI:INPUT_QUEUE_UI,queueRefinements:INPUT_QUEUE_REFINEMENTS,target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
 // Both native rich paste and the foreground Paste button use the editor's
 // native insertion/undo path. Clipboard conversion stays in the shared importer.
 function insertEditorText(text,range){
@@ -690,7 +690,7 @@ async function readQueuedClipboard(intent){
  }catch(error){if(item)inputQueue.model.fail(item.id,error.message||'Clipboard access failed. Your editor and playback are unchanged.');inputQueue.error(error.message||'Clipboard access failed.');}
 }
 if(INPUT_QUEUE_UI){
- inputQueue=setupInputQueue({snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
+ inputQueue=setupInputQueue({refined:INPUT_QUEUE_REFINEMENTS,snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
   async start(item,current){if(item.snapshot.engine==='google'){if(!item.snapshot.scope)throw Error('Account checks were still loading when this item was added. Add it again after checking your account.');const response=await fetch('/api/ocr/jobs/config');if(!response.ok)throw Error('The account could not be confirmed. No speech was started.');const config=await response.json();if(!current())return false;if(config.consentScope!==item.snapshot.scope)throw Error('The account changed after this item was queued. Add it again for the current account. No speech was started.');}if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(!readAndPlay())throw Error('This item cannot start yet. No automatic retry was made.');return true;},
   cancelItem(item){for(const [key,context]of intakeContexts)if(context.queueId===item.id){context.cancelled=true;documentImport.cancelDestination?.(context);intakeContexts.delete(key);}},
   clearAll(){for(const context of intakeContexts.values())context.cancelled=true;intakeContexts.clear();intakeContext=null;}
@@ -698,7 +698,7 @@ if(INPUT_QUEUE_UI){
  $('document-choose-file').addEventListener('click',()=>{beginInputIntake(nextFileIntent||'editor');nextFileIntent=null;},{capture:true});
 }
 
-if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=inputActionCopy({queue:INPUT_QUEUE_UI,unified:UNIFIED_CREDITS,fileLabel:$('document-choose-file')?.textContent||'Choose file'}).documentHint;
+if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=inputActionCopy({refined:INPUT_QUEUE_REFINEMENTS,queue:INPUT_QUEUE_UI,unified:UNIFIED_CREDITS,fileLabel:$('document-choose-file')?.textContent||'Choose file'}).documentHint;
 if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;

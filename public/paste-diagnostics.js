@@ -20,8 +20,8 @@ function weatherAnchorSignature(html){
  }
  return anchors;
 }
-export function setupPasteDiagnostics({target,preview,getOptions,build,onStateChange,queueUI=false,fetchRelease=()=>fetch('/release.json',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(6000)})}){
- const inputCopy=inputActionCopy({queue:queueUI});
+export function setupPasteDiagnostics({target,preview,getOptions,build,onStateChange,queueUI=false,queueRefinements=false,fetchRelease=()=>fetch('/release.json',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(6000)})}){
+ const inputCopy=inputActionCopy({refined:queueRefinements,queue:queueUI});
  const panel=document.createElement('details');panel.id='paste-check';
  panel.innerHTML='<summary>Troubleshoot this paste</summary><p class="hint"></p><button type="button" id="paste-check-start">Start paste check</button> <button type="button" id="paste-check-copy" disabled>Copy report</button> <button type="button" id="paste-check-discard">Discard report</button><p id="paste-check-status" class="hint" role="status">Off. Nothing is being recorded.</p><label for="paste-check-report">Local diagnostic report</label><textarea id="paste-check-report" readonly rows="8"></textarea>';
  panel.querySelector('p.hint').textContent=inputCopy.diagnosticGuide;

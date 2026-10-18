@@ -1,9 +1,9 @@
 import {inputActionCopy} from './input-copy.js';
-import {OCR_DURABLE_JOBS,OCR_PICKER_AUTOSCAN,INPUT_QUEUE_UI} from './config.js';
+import {OCR_DURABLE_JOBS,OCR_PICKER_AUTOSCAN,INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS} from './config.js';
 import {attachReaderPopover,createReaderInfo} from './reader-popover.js';
 // Staging layout only. Keep reading controls together and secondary tools separate.
 export function setupStagingReaderLayout(){
- const inputCopy=inputActionCopy({queue:INPUT_QUEUE_UI});
+ const inputCopy=inputActionCopy({refined:INPUT_QUEUE_REFINEMENTS,queue:INPUT_QUEUE_UI});
  const modes=document.querySelector('.mode-controls'),card=modes?.closest('section'),scan=document.querySelector('.pdf-import'),player=document.querySelector('.player');
  if(!card||!scan||!player||document.getElementById('document-tools'))return;
  document.querySelector('main').classList.add('staging-reader-layout');

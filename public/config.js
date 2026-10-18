@@ -34,3 +34,6 @@ export const STAGING_READER_LAYOUT = false;
 export const OCR_PICKER_AUTOSCAN = false;
 
 export const INPUT_QUEUE_UI = false;
+
+// Staging-only wording and queue placement trial.
+export const INPUT_QUEUE_REFINEMENTS = false;
