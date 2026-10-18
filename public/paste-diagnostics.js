@@ -1,3 +1,4 @@
+import {inputActionCopy} from './input-copy.js';
 // Staging-only, opt-in evidence. Source text is never retained in the report.
 export const WEATHER_SOURCE='For updated conditions, the most useful resources are the [National Weather Service Grand Junction office](https://www.weather.gov/gjt/?utm_source=chatgpt.com) and the [Salt Lake City forecast office](https://www.weather.gov/slc/?utm_source=chatgpt.com).';
 const knownSentences=[WEATHER_SOURCE,
@@ -19,9 +20,11 @@ function weatherAnchorSignature(html){
  }
  return anchors;
 }
-export function setupPasteDiagnostics({target,preview,getOptions,build,onStateChange,fetchRelease=()=>fetch('/release.json',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(6000)})}){
+export function setupPasteDiagnostics({target,preview,getOptions,build,onStateChange,queueUI=false,fetchRelease=()=>fetch('/release.json',{cache:'no-store',credentials:'same-origin',signal:AbortSignal.timeout(6000)})}){
+ const inputCopy=inputActionCopy({queue:queueUI});
  const panel=document.createElement('details');panel.id='paste-check';
- panel.innerHTML='<summary>Troubleshoot this paste</summary><p class="hint">1. Copy the weather sentence from ChatGPT. 2. Start a check. 3. Use either your keyboard paste or Clear, Paste &amp; Play. 4. Copy report. This check skips speech playback. The report contains counts, event timing and checks for the two known office labels. It never includes your document, clipboard HTML, other URLs or account details. Nothing is uploaded. Reload discards the report.</p><button type="button" id="paste-check-start">Start paste check</button> <button type="button" id="paste-check-copy" disabled>Copy report</button> <button type="button" id="paste-check-discard">Discard report</button><p id="paste-check-status" class="hint" role="status">Off. Nothing is being recorded.</p><label for="paste-check-report">Local diagnostic report</label><textarea id="paste-check-report" readonly rows="8"></textarea>';
+ panel.innerHTML='<summary>Troubleshoot this paste</summary><p class="hint"></p><button type="button" id="paste-check-start">Start paste check</button> <button type="button" id="paste-check-copy" disabled>Copy report</button> <button type="button" id="paste-check-discard">Discard report</button><p id="paste-check-status" class="hint" role="status">Off. Nothing is being recorded.</p><label for="paste-check-report">Local diagnostic report</label><textarea id="paste-check-report" readonly rows="8"></textarea>';
+ panel.querySelector('p.hint').textContent=inputCopy.diagnosticGuide;
  target.closest('.card').append(panel);
  const el=id=>panel.querySelector('#paste-check-'+id);
  let active=false,report=null,started=0,lastTime=0,generation=0;
@@ -46,7 +49,7 @@ export function setupPasteDiagnostics({target,preview,getOptions,build,onStateCh
  el('start').onclick=async()=>{
   if(active){record('stop-editor',target.value);record('stop-preview',preview.textContent);report.final={editor:pasteSignature(target.value),preview:pasteSignature(preview.textContent)};stop();render();el('status').textContent='Stopped. Copy or discard the local report.';return;}
   const run=++generation;started=lastTime=performance.now();
-  report={format:'paste-evidence-1',runningBuild:build,servedBuild:null,versionCheck:'pending',environment:{android:/Android/.test(navigator.userAgent),chromeMajor:/Chrome\/(\d+)/.exec(navigator.userAgent)?.[1]||null,clipboardRead:typeof navigator.clipboard?.read==='function',clipboardReadText:typeof navigator.clipboard?.readText==='function'},cleanup:{...getOptions()},events:[],eventCounts:{},nativeInput:{count:0,firstMs:null,lastMs:null},maximumEditorCharacters:target.value.length,omittedEvents:0};active=true;el('start').textContent='Stop paste check';el('status').textContent='Checking locally. Playback is paused for this check. Paste into Edit, or use Clear, Paste & Play.';onStateChange?.();record('start-editor',target.value);record('start-preview',preview.textContent);
+  report={format:'paste-evidence-1',runningBuild:build,servedBuild:null,versionCheck:'pending',environment:{android:/Android/.test(navigator.userAgent),chromeMajor:/Chrome\/(\d+)/.exec(navigator.userAgent)?.[1]||null,clipboardRead:typeof navigator.clipboard?.read==='function',clipboardReadText:typeof navigator.clipboard?.readText==='function'},cleanup:{...getOptions()},events:[],eventCounts:{},nativeInput:{count:0,firstMs:null,lastMs:null},maximumEditorCharacters:target.value.length,omittedEvents:0};active=true;el('start').textContent='Stop paste check';el('status').textContent=inputCopy.diagnosticStatus;onStateChange?.();record('start-editor',target.value);record('start-preview',preview.textContent);
   try{const response=await fetchRelease();if(!response.ok)throw Error();const release=await response.json();if(generation!==run||!report)return;report.servedBuild=/^[a-f0-9]{40}$/.test(release.commit)?release.commit:null;report.versionCheck=report.servedBuild===build?'match':'mismatch';if(report.versionCheck==='mismatch')el('status').textContent='This tab runs a different build from the current release. Copy this report before reloading; reloading may discard your editor text.';}catch{if(generation===run&&report)report.versionCheck='unavailable';}render();
  };
  el('copy').onclick=async()=>{

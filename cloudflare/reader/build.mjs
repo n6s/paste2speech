@@ -61,6 +61,7 @@ await copyFile('public/domain-move.js',root+'/domain-move.js');
 const iconAssets=['favicon.svg','favicon.ico','favicon.png','apple-touch-icon.png'];
 for(const name of iconAssets)await copyFile('public/'+name,root+'/'+name);
 let html=await readFile('public/index.html','utf8');
+if(queueUI)html=html.replace('Clear, Paste &amp; Play</button>','Paste &amp; Play</button>');
 if(reviewedLayout)html=html.replace('</head>','<link rel="stylesheet" href="staging-reader-layout.css"></head>');
 html=html.replace(/(style\.css|app\.js)\?[^" ]+/g,'$1');
 // Keep the reader next to its controls, with optional settings following playback.

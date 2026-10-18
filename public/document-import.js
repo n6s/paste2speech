@@ -1,7 +1,7 @@
 import {ocrExportParts,ocrExportBlob} from './ocr-result-export.js';
 import {configureCloudChoice,CLOUD_POLICIES} from './cloud-choices.js';
 import {formatCredits,sharedCredits} from './credit-units.js';
-import {UNIFIED_CREDITS,OCR_DURABLE_JOBS} from './config.js';
+import {UNIFIED_CREDITS,OCR_DURABLE_JOBS,INPUT_QUEUE_UI} from './config.js';
 import {balanceCapacity} from './balance-capacity.js';
 import {setupClipboardImage} from './clipboard-image.js';
 import {documentType,DOCUMENT_LIMIT,validateDocumentBytes,OCR_MODEL} from './document-format.js';
@@ -106,6 +106,6 @@ export function setupDocumentImport({input,status,cancel,getText,accept,onBusy,p
   finally{clearInterval(ticker);if(activeTimer===ticker)activeTimer=null;if(request===sequence){elapsed.textContent='';cloud.hidden=true;setBusy(false);if(attempt.retail)await refreshBalance();}}
  };
  run.onclick=()=>scan();document.addEventListener('cloud-choice-change',()=>{remember.checked=choice?.allowed()===true;});
- clipboard=setupClipboardImage({root,target:pasteTarget,importFile,getBusy:()=>busy,status});
+ clipboard=setupClipboardImage({queueUI:INPUT_QUEUE_UI,root,target:pasteTarget,importFile,getBusy:()=>busy,status});
  return {get busy(){return busy;},cancelClipboardRead(){clipboard.clear();},async openImage(file){if(busy)return;root.open=true;await importFile(file);},clear(){clipboard.clear();const interrupted=!!activeTimer;++sequence;controller?.abort();clearInterval(activeTimer);activeTimer=null;elapsed.textContent='';pending=null;localCandidate=null;localChoice.hidden=true;imported=null;selectedHash=null;selectedName=null;cleared=true;cache.clear();input.value='';cloud.hidden=true;exports.hidden=true;notes.hidden=true;noteText.textContent='';notice.textContent='';consent.checked=false;run.textContent='Use cloud OCR';scanLabel();status.textContent=interrupted?'Document cleared. Cloud processing may still finish; its reservation and saved result are kept.':'Document cleared. Saved OCR results are kept.';setBusy(false);if(retailBalance)void refreshBalance();}};
 }

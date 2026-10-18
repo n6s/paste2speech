@@ -1,3 +1,4 @@
+import {inputActionCopy} from './input-copy.js';
 import {clipboardPayload} from './clipboard-payload.js';
 import {setupSectionProgress} from './section-progress.js';
 import {setupPasteDiagnostics} from './paste-diagnostics.js';
@@ -428,7 +429,7 @@ $('text').addEventListener('input', () => {
   }
   resetReading(); preview();
 });
-if(RELEASE==='private-reader'&&MSE_STAGING)pasteDiagnostics=setupPasteDiagnostics({target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
+if(RELEASE==='private-reader'&&MSE_STAGING)pasteDiagnostics=setupPasteDiagnostics({queueUI:INPUT_QUEUE_UI,target:$('text'),preview:$('preview'),getOptions:()=>options,build:BUILD_COMMIT,onStateChange(){player?.pause();$('play').disabled=!canPlay()||!cleaned;}});
 // Both native rich paste and the foreground Paste button use the editor's
 // native insertion/undo path. Clipboard conversion stays in the shared importer.
 function insertEditorText(text,range){
@@ -697,7 +698,7 @@ if(INPUT_QUEUE_UI){
  $('document-choose-file').addEventListener('click',()=>{beginInputIntake(nextFileIntent||'editor');nextFileIntent=null;},{capture:true});
 }
 
-if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=UNIFIED_CREDITS?'Paste inserts text without playing it. Clear, Paste & Play replaces the text and starts speech. Images open text-scanning options; nothing is uploaded until you agree. Use Choose file if your phone does not provide the image.':'Paste inserts text at the cursor without playing it. Clear, Paste & Play replaces the text and starts speech. Images open OCR options; nothing is uploaded until you agree. If your phone does not provide the image, use Open file for the saved screenshot.';
+if($('paste')&&$('document-paste-hint'))$('document-paste-hint').textContent=inputActionCopy({queue:INPUT_QUEUE_UI,unified:UNIFIED_CREDITS,fileLabel:$('document-choose-file')?.textContent||'Choose file'}).documentHint;
 if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
   const file = $('pdf-file').files[0];
   if (!file) return;

@@ -1433,3 +1433,13 @@ Stop/Pause, asynchronous and duplicate-file results, cancellation/errors, local
 DOCX, account changes and 320/390/780px layouts through 200% text size. Existing
 paste tests open the new menu through `tests/reader-actions.mjs`. No paid provider
 calls or global desktop keyboard/mouse automation are part of this trial.
+
+
+The follow-up wording audit shares contextual names through `public/input-copy.js`.
+Walkthrough, input/File Info, clipboard descriptions, and opt-in paste diagnostics
+name Paste & Play / Paste only only when the trial is enabled; flag-off builds
+retain Clear, Paste & Play. Processing messages distinguish editor load, requested
+autoplay, and delivery to the queue. Recovery dismissal returns to a visible input
+control. `tests/input-copy.test.js` and `tests/input-copy-browser.mjs` check both
+contexts, including rendered hidden help and accessibility labels, without altering
+source text or calling paid APIs.
