@@ -4,15 +4,17 @@ export function ocrReservationCents(pages){if(!Number.isInteger(pages)||pages<1|
 export const DOCUMENT_LIMIT=20*1024*1024;
 export const DOCX_MIME='application/vnd.openxmlformats-officedocument.wordprocessingml.document';
 export const DOC_MIME='application/msword';
-export function documentType(file,{allowWord=false}={}) {
+export function documentType(file,{allowWord=false,allowText=false}={}) {
  const mime=String(file.type||'').toLowerCase(),name=String(file.name||'').toLowerCase();
+ if(allowText&&name.endsWith('.txt')){if(!['','application/octet-stream','text/plain'].includes(mime))throw Error('This TXT file has an unsupported file type. Export it as UTF-8 plain text.');return {kind:'text',mime:'text/plain'};}
+ if(allowText&&mime==='text/plain'&&!/[.][^./\\]+$/.test(name))return {kind:'text',mime:'text/plain'};
  if(mime==='application/pdf'||!mime&&name.endsWith('.pdf'))return {kind:'pdf',mime:'application/pdf'};
  if(allowWord&&name.endsWith('.docx')&&['','application/octet-stream','application/zip','application/x-zip-compressed',DOCX_MIME].includes(mime))return {kind:'word',format:'docx',mime:DOCX_MIME};
  if(allowWord&&name.endsWith('.doc')&&['','application/octet-stream',DOC_MIME,'application/x-msword','application/vnd.ms-word'].includes(mime))return {kind:'word',format:'doc',mime:DOC_MIME};
  const images={'image/png':'.png','image/jpeg':'.jpg','image/webp':'.webp'};
  if(images[mime])return {kind:'image',mime};
  if(!mime){if(/\.jpe?g$/.test(name))return {kind:'image',mime:'image/jpeg'};if(name.endsWith('.png'))return {kind:'image',mime:'image/png'};if(name.endsWith('.webp'))return {kind:'image',mime:'image/webp'};}
- throw Error(allowWord?'Choose a PDF, DOCX Word file, PNG, JPEG or WebP image. Legacy DOC needs conversion to DOCX or PDF.':'Choose a PDF, PNG, JPEG or WebP image.');
+ throw Error(allowText?'Choose a TXT text file, PDF, DOCX Word file, PNG, JPEG or WebP image. Legacy DOC needs conversion to DOCX or PDF.':allowWord?'Choose a PDF, DOCX Word file, PNG, JPEG or WebP image. Legacy DOC needs conversion to DOCX or PDF.':'Choose a PDF, PNG, JPEG or WebP image.');
 }
 export function validateDocumentBytes(bytes,mime) {
  if(!bytes.length||bytes.length>DOCUMENT_LIMIT)throw Error('Choose a document smaller than 20 MB.');

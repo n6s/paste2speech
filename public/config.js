@@ -39,3 +39,6 @@ export const INPUT_QUEUE_UI = false;
 export const INPUT_QUEUE_REFINEMENTS = false;
 
 export const SPEECH_SECTION_RECOVERY = false;
+
+// Staging-only local plain-text import trial.
+export const LOCAL_TEXT_IMPORT = false;

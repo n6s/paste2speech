@@ -50,7 +50,8 @@
     "INPUT_QUEUE_UI": "1",
     "INPUT_QUEUE_REFINEMENTS": "1",
     "SPEECH_SECTION_RECOVERY": "1",
-    "LOGIN_FAIR_ALLOWANCE": "1"
+    "LOGIN_FAIR_ALLOWANCE": "1",
+    "LOCAL_TEXT_IMPORT": "1"
   },
   "ai": {
     "binding": "AI"
