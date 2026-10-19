@@ -37,3 +37,5 @@ export const INPUT_QUEUE_UI = false;
 
 // Staging-only wording and queue placement trial.
 export const INPUT_QUEUE_REFINEMENTS = false;
+
+export const SPEECH_SECTION_RECOVERY = false;

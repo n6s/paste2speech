@@ -1,3 +1,4 @@
+import {sectionRecoveryEnabled,sectionRecovery,verifiedSection,RecoveryBlocked} from './section-recovery.js';
 import {production,publicMode,customerAllowed} from '../reader/modes.js';
 import {progressiveReader,fixtureDelay,fixtureChunks,mseStaging} from '../reader/mse-staging.js';
 import {dispatchBudget} from '../reader/budget.js';
@@ -108,7 +109,7 @@ export class PreparedReading {
           this.googleAuthorization=await accessToken(this.env.GOOGLE_SERVICE_ACCOUNT_JSON,{includeExpiry:true});
         token=this.googleAuthorization.token;
       }
-      await prepareJob(job,{maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:progressiveReader(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER,this.env).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
+      await prepareJob(job,{diagnostics:sectionRecoveryEnabled(this.env),maxBatches:1,concurrency:job.mseOptions?.concurrency||3,publishEach:!!job.mseOptions,stagingLive:progressiveReader(this.env),beforeBatch:()=>this.env.LEDGER&&!this.cachedStage()?new (this.env.PRIVATE_READER==='1'||production(this.env)?ReaderLedger:UsageLedger)(this.env.LEDGER,this.env).assertOpen(job.id,job.owner):Promise.resolve(),save:j=>this.save(j),store:this.env.AUDIO,isCancelled:()=>job.state==='cancelled',
         speech:async(text,voice,index)=>{
           if(job.mode==='live'){
             if(this.env.ENABLE_LIVE_SYNTHESIS!=='1')throw Error('Synthesis paused');
@@ -233,12 +234,23 @@ export class PreparedReading {
     }
     if(!this.running&&job.state!=='preparing'&&!job.settlementDone){try{await this.settle();}catch(error){await this.recover(error);return json({detail:'Reading settlement is recovering.'},503);}}
     if(url.pathname==='/status')return json(publicStatus(job));
+    if(url.pathname==='/recovery'){
+      if(!sectionRecoveryEnabled(this.env)||request.method!=='GET')return json({},404);
+      if(this.running)return json({code:'preparation_active',detail:'Preparation is still active. No replacement speech was started.'},409);
+      try{const ledger=new ReaderLedger(this.env.LEDGER,this.env),receipt=await ledger.receipt(job.id,owner),usage=(await ledger.query('SELECT section,characters FROM usage WHERE job=? ORDER BY section',job.id).all()).results;
+       return json(await sectionRecovery(job,{store:this.env.AUDIO,receipt,usage}));
+      }catch(error){return error instanceof RecoveryBlocked?json({code:error.code,detail:error.message},error.status):json({code:'recovery_check_unavailable',detail:'Saved audio could not be checked right now. No replacement speech was started.'},503);}
+    }
     const section=/^\/sections\/(0|[1-9]\d*)$/.exec(url.pathname);
     if(section){
       if(!job.mseOptions)return json({detail:'Section delivery unavailable'},404);
-      if(job.state==='failed')return json({detail:'Preparation failed'},422);
+      if(job.state==='failed'&&!sectionRecoveryEnabled(this.env))return json({code:'preparation_failed',detail:'Preparation failed'},422);
       const part=job.parts[Number(section[1])];if(!part)return json({},404);
       if(part.state!=='ready')return json({detail:'Section pending'},409);
+      if(job.state==='failed'){
+        try{const {bytes}=await verifiedSection(this.env.AUDIO,job,Number(section[1]));return new Response(request.method==='HEAD'?null:bytes,{headers:{'Content-Type':'audio/mpeg','Content-Length':String(bytes.length),'Cache-Control':'no-store'}});}
+        catch(error){return json({code:error instanceof RecoveryBlocked?error.code:'saved_section_unavailable',detail:'Saved audio could not be verified. No speech was regenerated.'},error instanceof RecoveryBlocked?error.status:503);}
+      }
       const object=await this.env.AUDIO.get(`${job.id}/part-${section[1]}`);
       if(!object)return json({detail:'Section missing'},404);
       return new Response(request.method==='HEAD'?null:object.body,{headers:{'Content-Type':'audio/mpeg','Content-Length':String(object.size),'Cache-Control':'no-store'}});

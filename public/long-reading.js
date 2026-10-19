@@ -1,3 +1,4 @@
+import {recoveryProof,recoverySegments} from './section-recovery.js';
 import {splitReadingChunks,joinCaptions} from './playlist-plan.js';
 import {PlaylistSession} from './playlist-session.js';
 import {ReadingAssets} from './reading-assets.js';
@@ -6,8 +7,8 @@ import {loadPreparedMedia} from './prepared-media.js';
 // A tab-local logical reading presents bounded durable jobs as one timeline to
 // the existing player. Paid creation stays in PlaylistSession, once per part.
 export class LongReadingTransport {
-  constructor(fetcher, {rawFetch=(...args)=>fetch(...args), fullAudio=false,limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
-    this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.groups=new Map();this.assets=fullAudio?new ReadingAssets((url,options)=>this.upstream(new URL(url,location.href),options)):null;
+  constructor(fetcher, {rawFetch=(...args)=>fetch(...args), fullAudio=false,sectionRecovery=false,limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
+    this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.sectionRecovery=sectionRecovery;this.groups=new Map();this.assets=fullAudio?new ReadingAssets((url,options)=>this.assetFetch(url,options)):null;
   }
   clearSavedReadings() {
     // Clear is synchronous: a reload must not retain IDs awaiting network cleanup.
@@ -29,7 +30,7 @@ export class LongReadingTransport {
       const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
       const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
-      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,
+      group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
         save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
@@ -56,7 +57,7 @@ export class LongReadingTransport {
       if(!group.forgotten)sessionStorage.removeItem(group.key);
       group.forgotten=true;
       await group.finished;
-      for(const record of group.session.records)if(record.id) {
+      for(const record of group.session.cancellationRecords())if(record.id) {
         const response=await this.rawFetch(`/api/readings/${record.id}`,{method:'DELETE',signal:AbortSignal.timeout(15000)});
         if(!response.ok&&response.status!==404)return response;
       }
@@ -78,6 +79,11 @@ export class LongReadingTransport {
       }
     }
     return Response.json({detail:'Unknown logical reading endpoint'},{status:404});
+  }
+  assetFetch(url,options){
+    const path=new URL(url,location.href).pathname,match=path.match(/^\/api\/readings\/([^/]+)\/sections\/(\d+)$/);
+    if(match)for(const group of this.groups.values()){const i=group.session.records.findIndex(r=>r.id===match[1]),record=group.session.records[i];if(record?.recovery){const index=Number(match[2]),segment=recoverySegments(record,group.parts[i].chunks).find(s=>s.start<=index&&index<s.end);if(!segment?.id)throw Error('Recovered audio section is not ready.');return this.upstream(new URL(`/api/readings/${segment.id}/sections/${index-segment.start}`,location.href),options);}}
+    return this.upstream(new URL(url,location.href),options);
   }
   async sectionResponse(id,index,options){
     if(!this.assets)return this.upstream(new URL(`/api/readings/${id}/sections/${index}`,location.href),options);
@@ -120,7 +126,22 @@ export class LongReadingTransport {
         // A failed GET or lost POST acknowledgement never authorizes new speech.
         const status=await group.session.status(record.id);
         if(group.cancelled)throw Error('This reading was cleared.');
-        if(status.state==='failed') {
+        if(status.state==='failed'&&this.sectionRecovery){
+          const chunks=group.parts[index].chunks,segments=record.recovery?recoverySegments(record,chunks):[{id:record.id,start:0,end:chunks.length}],source=segments.at(-1);
+          if(segments.length>=63)throw Error('This reading needs a separate recovery review. No speech was regenerated.');
+          const proof=await recoveryProof(this.rawFetch,source.id,chunks.slice(source.start,source.end),group.session.voice);
+          if(!this.assets)throw Error('Section recovery requires verified audio retained in this tab. No speech was regenerated.');
+          for(let i=0;i<proof.reusedSections;i++){const blob=await this.assets.section(record.id,source.start+i),digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('');if(digest!==proof.prefix.sections[i].sha256)throw Error('Retained audio does not match the verified saved section. No speech was regenerated.');}
+          if(group.cancelled)throw Error('This reading was cleared.');
+          if(proof.remainingCharacters&&!await confirmRetry({part:index+1,characters:proof.remainingCharacters,reusedSections:proof.reusedSections,reusedCharacters:proof.reusedCharacters}))return {resumed:false};
+          if(group.cancelled)throw Error('This reading was cleared.');
+          const prefixEnd=source.start+proof.reusedSections,next=segments.slice(0,-1);
+          if(proof.reusedSections)next.push({id:source.id,start:source.start,end:prefixEnd,reusePrefix:proof.reusedSections,state:'ready'});
+          if(proof.remainingCharacters)next.push({id:proof.nextRequestId,start:prefixEnd,end:source.end,state:'refused',createOptions:{delivery:'complete'}});
+          record.recovery={version:1,segments:next,history:[...(record.recovery?.history||[]),source.id]};record.state='checking';
+          group.session.recoverySessions.delete(record);group.session.persist();group.statuses.length=index;
+          replacedFrom=proof.remainingCharacters?group.parts.slice(0,index).reduce((n,part)=>n+part.chunks.length,0)+prefixEnd:null;
+        }else if(status.state==='failed') {
           const characters=group.parts[index].chunks.reduce((n,text)=>n+[...text].length,0);
           if(!await confirmRetry({part:index+1,characters}))return {resumed:false};
           if(group.cancelled)throw Error('This reading was cleared.');
@@ -151,7 +172,7 @@ export class LongReadingTransport {
     }
     const total=group.parts.reduce((n,p)=>n+p.chunks.length,0);
     const state=group.cancelled?'cancelled':group.error?.creditPaused?'credit-paused':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
-    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',connectionUnavailable:!!group.connectionError,canResumePreparation:!!group.error&&!group.cancelled,
+    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',failure:group.statuses.find(s=>s?.failure)?.failure||null,connectionUnavailable:!!group.connectionError,canResumePreparation:!!group.error&&!group.cancelled,
       providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0)+group.session.records.reduce((n,r)=>n+(r.previousCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)||group.session.records.some(r=>r.previousCostIncomplete)};
   }
   async downloadURL(id,kind) {

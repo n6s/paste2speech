@@ -48,7 +48,8 @@
     "OCR_SOURCE_ORIGIN": "https://private-wavenet-ocr-source-staging.rogerpbrown.workers.dev",
     "OCR_PICKER_AUTOSCAN": "1",
     "INPUT_QUEUE_UI": "1",
-    "INPUT_QUEUE_REFINEMENTS": "1"
+    "INPUT_QUEUE_REFINEMENTS": "1",
+    "SPEECH_SECTION_RECOVERY": "1"
   },
   "ai": {
     "binding": "AI"

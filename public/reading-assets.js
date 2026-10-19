@@ -1,3 +1,4 @@
+import {checkAudioResponse} from './prepared-response.js';
 import {inspectMp3,captions} from '../cloudflare/prepared/mp3.js';
 
 const waitFor=(promise,signal)=>{
@@ -28,19 +29,20 @@ export class ReadingAssets {
   if(sections.length>job.chunks.length||sections.some((s,i)=>s.index!==i||!Number.isSafeInteger(s.bytes)||s.bytes<=0||!Number.isSafeInteger(s.samples)||s.samples<=0||!Number.isFinite(s.start))){
    job.error='Audio timing could not be verified. Offline listening is not ready.';job.invalid=true;this.onChange();return;
   }
-  for(const [index,entry] of job.data){const section=sections[index];if(!section||section.bytes!==entry.bytes||section.samples!==entry.samples){this.evict(id,index);}}
+  for(const [index,entry] of job.data){const section=sections[index];if(!section||section.bytes!==entry.bytes||section.samples!==entry.samples||section.sha256&&section.sha256!==entry.sha256){this.evict(id,index);}}
   let expected=0;
   if(sections.some((section,index)=>{const valid=Math.abs(section.start-expected)<1/24000&&Math.abs((status.starts?.[index]??NaN)-expected)<1/24000;expected+=section.samples/24000;return !valid;})||sections.length&&Math.abs(status.duration-expected)>1/24000){job.invalid=true;job.error='Audio timing could not be verified. Offline listening is not ready.';this.onChange();return;}
   job.status=status;job.terminal=['failed','cancelled','expired'].includes(status.state);
   if(!job.terminal&&!job.invalid)this.prefetch(job);this.onChange();
  }
  prefetch(job){
-  if(job.controller.signal.aborted||job.terminal||job.invalid||job.storageBlocked)return;
+  if(job.controller.signal.aborted||job.terminal||job.invalid||job.accessBlocked||job.storageBlocked)return;
   if([...this.jobs.values()].reduce((n,j)=>n+(j.status?.sections||[]).reduce((a,s)=>a+s.bytes,0),0)>this.maxBytes){job.storageBlocked=true;job.error='This reading is too large to keep in this tab. Playback can continue, but offline listening is not ready.';this.onChange();return;}
   for(const section of job.status?.sections||[])if(!job.data.has(section.index)&&!job.pending.has(section.index)){
    void this.section(job.id,section.index).catch(error=>{
     if(job.controller.signal.aborted)return;
     if(error.storageLimit){job.storageBlocked=true;job.error='This reading is too large to keep in this tab. Playback can continue, but offline listening is not ready.';}
+    else if(error.authRequired||error.audioUnavailable){job.accessBlocked=true;job.error=error.message;}
     else if(error.invalidAudio){job.invalid=true;job.error='Downloaded audio could not be verified. Offline listening is not ready.';}
     else{job.error='Download interrupted. Saved audio is kept; downloading will retry when connected.';if(!job.retry)job.retry=setTimeout(()=>{job.retry=null;this.prefetch(job);},3000);}
     this.onChange();
@@ -57,7 +59,7 @@ export class ReadingAssets {
   signal?.throwIfAborted();
   const job=this.jobs.get(id),meta=job?.status?.sections[index];
   if(!job||!meta||job.controller.signal.aborted)throw Error('Saved audio section is unavailable.');
-  if(job.data.has(index))return job.data.get(index).blob;
+  if(job.data.has(index)){if(meta.sha256&&job.data.get(index).sha256!==meta.sha256)this.evict(id,index);else return job.data.get(index).blob;}
   let pending=job.pending.get(index);
   if(!pending){
    pending=new Promise((resolve,reject)=>{this.queue.push({resolve,reject,run:async()=>{
@@ -67,23 +69,24 @@ export class ReadingAssets {
     if(retain)this.reserved+=meta.bytes;
     try{
      const response=await this.fetcher(`/api/readings/${id}/sections/${index}`,{signal:AbortSignal.any([job.controller.signal,AbortSignal.timeout(10000)])});
-     if(!response.ok){const error=Error(`Audio download interrupted (${response.status}).`);if(response.status<500&&![408,409,429].includes(response.status))error.invalidAudio=true;throw error;}
+     await checkAudioResponse(response);
      const bytes=new Uint8Array(await response.arrayBuffer());let info;
      try{info=inspectMp3(bytes);}catch(error){error.invalidAudio=true;throw error;}
-     if(info.bytes!==meta.bytes||info.samples!==meta.samples){const error=Error('Downloaded section does not match its declared audio.');error.invalidAudio=true;throw error;}
+     const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',bytes))].map(n=>n.toString(16).padStart(2,'0')).join('');
+     if(info.bytes!==meta.bytes||info.samples!==meta.samples||meta.sha256&&meta.sha256!==digest){const error=Error('Downloaded section does not match its declared audio.');error.invalidAudio=true;throw error;}
      if(job.controller.signal.aborted)throw job.controller.signal.reason;
      const blob=new Blob([bytes],{type:'audio/mpeg'});
-     if(retain){job.data.set(index,{blob,bytes:info.bytes,samples:info.samples});this.bytes+=info.bytes;if(!job.invalid&&!job.terminal)job.error='';this.revoke(job);this.onChange();}
+     if(retain){job.accessBlocked=false;job.data.set(index,{blob,bytes:info.bytes,samples:info.samples,sha256:digest});this.bytes+=info.bytes;if(!job.invalid&&!job.terminal)job.error='';this.revoke(job);this.onChange();}
      return blob;
     }finally{if(retain)this.reserved-=meta.bytes;}
    }});});
    job.pending.set(index,pending);pending.finally(()=>{if(job.pending.get(index)===pending)job.pending.delete(index);}).catch(()=>{});this.drain();
   }
-  return waitFor(pending,signal);
+  const blob=await waitFor(pending,signal);if(meta.sha256&&job.data.get(index)?.sha256!==meta.sha256){const digest=[...new Uint8Array(await crypto.subtle.digest('SHA-256',await blob.arrayBuffer()))].map(n=>n.toString(16).padStart(2,'0')).join('');if(digest!==meta.sha256){const error=Error('Downloaded section does not match its verified digest.');error.invalidAudio=true;throw error;}}return blob;
  }
  complete(id){
   const job=this.jobs.get(id),status=job?.status;
-  return !!job&&!job.invalid&&!job.terminal&&!job.storageBlocked&&status?.state==='ready'&&status.total===job.chunks.length&&status.completed===status.total&&status.sections.length===status.total&&status.starts?.length===status.total&&status.sections.every((s,i)=>job.data.get(i)?.samples===s.samples&&job.data.get(i)?.bytes===s.bytes);
+  return !!job&&!job.invalid&&!job.terminal&&!job.storageBlocked&&status?.state==='ready'&&status.total===job.chunks.length&&status.completed===status.total&&status.sections.length===status.total&&status.starts?.length===status.total&&status.sections.every((s,i)=>job.data.get(i)?.samples===s.samples&&job.data.get(i)?.bytes===s.bytes&&(!s.sha256||job.data.get(i)?.sha256===s.sha256));
  }
  info(ids,total){
   const jobs=ids.map(id=>this.jobs.get(id)),downloaded=jobs.reduce((n,j)=>n+(j?.data.size||0),0);

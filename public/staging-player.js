@@ -4,7 +4,7 @@ import * as readerConfig from './config.js';
 import {MsePlayer} from './mse-buffer-player.js';
 export class StagingPlayer extends MsePlayer {
  constructor(onChange,{audio=new Audio(),fetcher,fullAudio=readerConfig.FULL_AUDIO_PREFETCH}={}){
-  const transport=LONG_READINGS?new LongReadingTransport(fetcher,{fullAudio}):null;
+  const transport=LONG_READINGS?new LongReadingTransport(fetcher,{fullAudio,sectionRecovery:readerConfig.SPEECH_SECTION_RECOVERY}):null;
   super(audio,p=>{onChange(p,p.error||'');const button=document.getElementById('mse-fallback');if(button)button.hidden=!p.job||p.mode!=='mse';},transport?transport.fetch.bind(transport):fetcher);
   this.longReadings=transport;this.boundedBuffer=LONG_READINGS;this.bufferAhead=90;this.bufferBehind=20;if(transport?.assets)transport.assets.onChange=()=>this.emit();
  }
@@ -54,7 +54,7 @@ export class StagingPlayer extends MsePlayer {
    const serial=this.serial,time=this.audio.currentTime,index=this.index;
    const sectionOffset=time-(this.starts[index]||0);
    try{
-    const result=await this.longReadings.resume(this.job,{confirmRetry:({part,characters})=>window.confirm(`Retry part ${part}? This will generate up to ${characters.toLocaleString()} characters again and may use credit for speech already generated in that interrupted part. Completed parts will be reused.`)});
+    const result=await this.longReadings.resume(this.job,{confirmRetry:({part,characters,reusedSections,reusedCharacters})=>window.confirm(reusedSections!==undefined?`Recover part ${part}? Reuse ${reusedSections} verified saved sections (${reusedCharacters.toLocaleString()} characters) without charging again. Prepare only the ${characters.toLocaleString()} remaining characters, using the normal speech credit rate. Completed parts will be reused.`:`Retry part ${part}? This will generate up to ${characters.toLocaleString()} characters again and may use credit for speech already generated in that interrupted part. Completed parts will be reused.`)});
     if(serial!==this.serial||!result.resumed)return;
     this.controller=new AbortController();this.fatal=false;this.error='';this.pumping=false;this.finalized=false;
     if(result.replacedFrom!=null&&this.mode==='mse'){

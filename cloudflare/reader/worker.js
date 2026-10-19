@@ -188,7 +188,7 @@ export default {
     }
     return env.JOBS.get(env.JOBS.idFromName(id)).fetch('https://job/create',{method:'POST',headers:{'X-Proof-Owner':owner},body:JSON.stringify({...input,id,mode:cachedStage?'staging-fixture':local?'fixture':'live'})});
    }
-   const match=path.match(/^\/api\/readings\/([a-f0-9-]{36})(\/audio|\/sections\/\d+|\/download\/(?:mp3|vtt))?$/);
+   const match=path.match(/^\/api\/readings\/([a-f0-9-]{36})(\/audio|\/recovery|\/sections\/\d+|\/download\/(?:mp3|vtt))?$/);
    if(match){
     if(!owner)return json({},404);if(match[2]?.startsWith('/sections/')&&!progressiveReader(env))return json({},404);if(!['GET','HEAD','DELETE'].includes(request.method)||request.method==='DELETE'&&match[2])return json({},405);
     return env.JOBS.get(env.JOBS.idFromName(match[1])).fetch('https://job'+(match[2]||'/status'),{method:request.method,headers:{'X-Proof-Owner':owner,...(request.headers.has('Range')?{Range:request.headers.get('Range')}:{})}});
