@@ -109,3 +109,41 @@ test('production ignores staging queue flag; malformed email and hostile source 
  assert.equal((await v.request('/api/billing/login/request',{email:'a@example.invalid'},'',{Origin:'https://attacker.example.invalid'})).status,403);
  assert.equal(g.sql.prepare('SELECT COUNT(*) n FROM login_links').get().n,0);await v.flush();g.sql.close();
 });
+
+test('hosted staging reuses only its host-protected flow so a suppressed resend preserves an earlier link',async()=>{
+ const f=setup();await exhaustPublic(f);
+ const pair=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
+ const jwk=await crypto.subtle.exportKey('jwk',pair.publicKey);Object.assign(jwk,{kid:'mock-key',alg:'RS256'});
+ const b64=x=>Buffer.from(x).toString('base64url'),seconds=Math.floor(Date.now()/1000),issuer='https://unit.cloudflareaccess.com';
+ const input=b64(JSON.stringify({alg:'RS256',kid:'mock-key'}))+'.'+b64(JSON.stringify({iss:issuer,aud:['test-aud'],iat:seconds,exp:seconds+3600}));
+ const jwt=input+'.'+b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',pair.privateKey,new TextEncoder().encode(input)));
+ const w=localWorker(f,{LOCAL_READER:'0',READER_ORIGIN:'https://staging.example.invalid',ACCESS_ISSUER:issuer,ACCESS_AUD:'test-aud',RESEND_API_KEY:'synthetic-test-only',EMAIL_FROM:'noreply@example.invalid'});
+ const priorFetch=globalThis.fetch,priorError=console.error,mails=[],logs=[];
+ globalThis.fetch=async(url,options)=>{
+  if(String(url)===issuer+'/cdn-cgi/access/certs')return Response.json({keys:[jwk]});
+  if(String(url)==='https://api.resend.com/emails'){mails.push(JSON.parse(options.body));return Response.json({id:'synthetic'});}
+  throw Error('Unexpected external request blocked by fixture');
+ };
+ console.error=s=>logs.push(s);
+ const request=(path,data,cookie='')=>w.request(path,data,cookie,{'Cf-Access-Jwt-Assertion':jwt});
+ try{
+ const planted='p2s_login_flow='+crypto.randomUUID()+crypto.randomUUID();
+ const first=await request('/api/billing/login/request',{email:'a@example.invalid',flow:planted.split('=')[1]},planted);
+ assert.equal(first.status,200);const hostCookie=flowCookie(first);assert.match(hostCookie,/^__Host-p2s_login_flow=/);assert.notEqual(hostCookie.split('=')[1],planted.split('=')[1]);assert.match(first.headers.get('Set-Cookie'),/; Secure/);assert.doesNotMatch(first.headers.get('Set-Cookie'),/Domain=/i);await w.flush();assert.equal(mails.length,1);
+ const token=mails[0].text.match(/signin#([^\s]+)/)[1];
+ for(let i=0;i<5;i++){
+  const retry=await request('/api/billing/login/request',{email:'a@example.invalid'},hostCookie);assert.equal(retry.status,200);assert.deepEqual(await retry.json(),{sent:true});assert.equal(flowCookie(retry),hostCookie);await w.flush();
+ }
+ assert.equal(mails.length,5);assert.equal(logs.length,1);assert.deepEqual(JSON.parse(logs[0]),{event:'signin_link_unavailable',reason:'rate-limit'});
+ // A legacy-cookie-only request must not confirm even a newly issued token.
+ const legacyOnly='p2s_login_flow='+hostCookie.split('=')[1];
+ assert.equal((await request('/api/billing/login/confirm',{token},legacyOnly)).status,400);
+ const confirmed=await request('/api/billing/login/confirm',{token},hostCookie);assert.equal(confirmed.status,200);
+ const cleared=confirmed.headers.getSetCookie();assert.ok(cleared.some(v=>v.startsWith('__Host-p2s_login_flow=;')&&v.includes('Max-Age=0')));assert.ok(cleared.some(v=>v.startsWith('p2s_login_flow=;')&&v.includes('Max-Age=0')));
+ assert.equal((await request('/api/billing/login/confirm',{token},hostCookie)).status,400);
+ const invalid=await request('/api/billing/login/request',{email:'b@example.invalid'},'__Host-p2s_login_flow=planted-invalid');assert.notEqual(flowCookie(invalid),'__Host-p2s_login_flow=planted-invalid');await w.flush();
+ const nextToken=mails.at(-1).text.match(/signin#([^\s]+)/)[1],nextFlow=flowCookie(invalid).split('=')[1];
+ await assert.rejects(f.auth.confirm(nextToken,nextFlow,Date.now()+900001),e=>e.status===400);
+ const logout=await request('/api/billing/logout',{});assert.ok(logout.headers.getSetCookie().some(v=>v.startsWith('__Host-p2s_login_flow=;')&&v.includes('Max-Age=0')));
+ }finally{await w.flush();globalThis.fetch=priorFetch;console.error=priorError;f.sql.close();}
+});

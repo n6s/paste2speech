@@ -24,13 +24,24 @@ involved. There is deliberately no pending production migration in this change.
 
 `LOGIN_FAIR_ALLOWANCE=1` is enabled only in `wrangler.staging.jsonc`, and the
 Worker independently requires `READER_MODE=staging`. Validly formatted requests
-receive the same response and fresh browser-flow cookie before admission or mail
+receive the same response and browser-flow cookie before admission or mail
 delivery finishes. This prevents quota-dependent account enumeration through
 status, response shape, cookie presence, or provider response time. Quota failure
 and mail failure are logged as allowlisted categories without email, tokens or
 provider details. Failed delivery cancels its link but retains attempted-mail
 quota. Malformed addresses and hostile request origins still fail immediately.
 Production ignores this flag and retains its original synchronous behavior.
+
+Hosted staging reuses only a well-formed `__Host-p2s_login_flow` cookie: Secure,
+HttpOnly, SameSite=Strict, Path=/ and no Domain attribute. A suppressed resend
+therefore preserves earlier valid links without trusting a cookie planted by a
+sibling domain. Hosted confirmation also requires that host-only cookie, without
+a legacy-cookie fallback. Old staging links using the ordinary flow cookie need
+a fresh sign-in request after rollout; existing authenticated sessions remain
+valid. Production retains the original cookie behavior. Each
+emailed token still expires independently after 15 minutes and is single-use;
+refreshing the flow cookie does not extend it. Confirmation and logout clear both
+cookie names. Local loopback fixtures use the ordinary cookie name.
 
 The change does not grant authentication through reserve eligibility. A valid,
 unused, unexpired link and its same-browser flow are still required. The queued

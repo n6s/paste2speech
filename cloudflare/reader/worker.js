@@ -23,6 +23,7 @@ import publicWorker from '../worker.js';
 import {privateAccess,allowedRequestSource} from './access.js';
 import {ReaderLedger} from './ledger.js';
 import {EmailIdentity,normalizeEmail} from '../prepared/identity.js';
+import {fairLoginEnabled,loginFlowName,reusableLoginFlow} from './login-flow.js';
 import {CreditError,digest,sourceCounts} from '../prepared/ledger.js';
 import {validateInput} from '../prepared/job.js';
 import {readBounded} from '../prepared/google.js';
@@ -41,6 +42,7 @@ const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Contr
 const cookie=(request,name)=>request.headers.get('cookie')?.split(';').map(s=>s.trim()).find(s=>s.startsWith(name+'='))?.slice(name.length+1)||'';
 const body=async(request,limit=120000)=>{try{return JSON.parse(new TextDecoder().decode(await readBounded(request,limit)));}catch{throw new CreditError('Invalid or oversized request.',422);}};
 function setCookie(response,env,name,value,age){response.headers.append('Set-Cookie',`${name}=${value}; Path=/; HttpOnly; SameSite=Strict; Max-Age=${age}${env.LOCAL_READER==='1'?'':'; Secure'}`);}
+function clearLoginFlow(response,env){setCookie(response,env,'p2s_login_flow','',0);const name=loginFlowName(env);if(name!=='p2s_login_flow')setCookie(response,env,name,'',0);}
 async function asset(request,env,path){
  const url=new URL(request.url);url.pathname=path;const response=await env.ASSETS.fetch(new Request(url,{method:request.method}));
  const headers=new Headers(response.headers);if(!production(env)||['/billing.html','/signin.html','/release.json'].includes(path))headers.set('X-Robots-Tag','noindex, nofollow');if(['/terms','/pricing'].includes(path))headers.set('Content-Type','text/html; charset=utf-8');headers.set('Cache-Control','no-store');headers.set('Referrer-Policy','no-referrer');headers.set('X-Content-Type-Options','nosniff');
@@ -89,7 +91,7 @@ export default {
    if(url.pathname==='/api/owner'||url.pathname.startsWith('/api/owner/'))return await ownerResponse(request,env,token);
    const ledger=new ReaderLedger(env.LEDGER,env),session=await ledger.session(token),account=session?await ledger.account(session.id):null;
    if(url.pathname==='/api/summary'||url.pathname.startsWith('/api/summary/')){const verified=token?await ledger.query("SELECT 1 AS verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(token),Date.now()).first():null;return await summaryResponse(request,env,account?{...account,summaryVerified:!!verified}:null,{ctx});}
-   const owner=account?.id,flow=cookie(request,'p2s_login_flow'),path=url.pathname;
+   const owner=account?.id,flowName=loginFlowName(env),flow=cookie(request,flowName),path=url.pathname;
    if(path==='/api/billing/session'&&request.method==='POST'){
     if(production(env)&&!owner)await rateLimit(env,'ACCOUNT_LIMIT',request);
     const response=json({ready:true});if(!owner)setCookie(response,env,'p2s_private_reader',await ledger.newAccount(),2592000);return response;
@@ -115,15 +117,15 @@ export default {
     if(!local&&env.ENABLE_EMAIL!=='1')throw new CreditError('Email delivery is disabled. Your credit is safe.',503);
     // Staging trial: respond uniformly before account/quota lookup or delivery.
     // A full public pool must neither lock out another member nor disclose whether
-    // an address is registered. Only the random browser flow is set synchronously.
-    if(env.READER_MODE==='staging'&&env.LOGIN_FAIR_ALLOWANCE==='1'){
-     const email=normalizeEmail(input.email),flow=crypto.randomUUID()+crypto.randomUUID();
+    // an address is registered. A host-only browser flow preserves earlier links.
+    if(fairLoginEnabled(env)){
+     const email=normalizeEmail(input.email),flow=reusableLoginFlow(cookie(request,flowName));
      ctx.waitUntil((async()=>{let link;try{
       link=await auth.request(email,owner,request.headers.get('CF-Connecting-IP')||'local',Date.now(),{flow});
       if(local)await env.AUDIO.put(`mail/${await digest(flow)}`,JSON.stringify({url:url.origin+'/api/billing/signin#'+link.token,expires:Date.now()+900000}));
       else await sendLink(env,link);
      }catch(error){if(link)await auth.cancel(link.token).catch(()=>{});console.error(JSON.stringify({event:'signin_link_unavailable',reason:error instanceof CreditError&&error.status===429?'rate-limit':'delivery'}));}})());
-     const response=json({sent:true});setCookie(response,env,'p2s_login_flow',flow,900);return response;
+     const response=json({sent:true});setCookie(response,env,flowName,flow,900);return response;
     }
     const link=await auth.request(input.email,owner,request.headers.get('CF-Connecting-IP')||'local');
     try{
@@ -139,10 +141,10 @@ export default {
    if(path==='/api/billing/login/confirm'&&request.method==='POST'){
     const issued=await new EmailIdentity(env.LEDGER).confirm((await body(request,2048)).token,flow);
     if(local&&flow)await env.AUDIO.delete(`mail/${await digest(flow)}`).catch(()=>{});
-    const response=json({signedIn:true});setCookie(response,env,'p2s_private_reader',issued,2592000);setCookie(response,env,'p2s_login_flow','',0);return response;
+    const response=json({signedIn:true});setCookie(response,env,'p2s_private_reader',issued,2592000);clearLoginFlow(response,env);return response;
    }
    if(path==='/api/billing/logout'&&request.method==='POST'){
-    await ledger.logout(token);const response=json({signedOut:true});setCookie(response,env,'p2s_private_reader','',0);setCookie(response,env,'p2s_sandbox','',0);setCookie(response,env,'p2s_login_flow','',0);return response;
+    await ledger.logout(token);const response=json({signedOut:true});setCookie(response,env,'p2s_private_reader','',0);setCookie(response,env,'p2s_sandbox','',0);clearLoginFlow(response,env);return response;
    }
    if(path==='/api/billing/mode')return json({detail:'Speech credit is required for WaveNet.'},403);
    if(['/api/billing/order','/api/billing/reconcile'].includes(path)&&request.method==='POST'){
