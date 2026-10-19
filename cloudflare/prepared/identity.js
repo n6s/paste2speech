@@ -5,8 +5,8 @@ export function normalizeEmail(value){
  return value.toLowerCase();
 }
 export class EmailIdentity extends UsageLedger {
- async request(email,source,ip,now=Date.now()){
-  email=normalizeEmail(email);const token=random(),flow=random();
+ async request(email,source,ip,now=Date.now(),{flow=random()}={}){
+  email=normalizeEmail(email);const token=random();
   try{await this.db.batch([
    this.query('DELETE FROM login_links WHERE expires<=?',now),
    this.query('DELETE FROM sessions WHERE expires<=?',now),

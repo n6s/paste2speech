@@ -22,7 +22,7 @@ import {receiveWebhook} from './webhooks.js';
 import publicWorker from '../worker.js';
 import {privateAccess,allowedRequestSource} from './access.js';
 import {ReaderLedger} from './ledger.js';
-import {EmailIdentity} from '../prepared/identity.js';
+import {EmailIdentity,normalizeEmail} from '../prepared/identity.js';
 import {CreditError,digest,sourceCounts} from '../prepared/ledger.js';
 import {validateInput} from '../prepared/job.js';
 import {readBounded} from '../prepared/google.js';
@@ -113,6 +113,18 @@ export default {
     const input=await body(request,2048),auth=new EmailIdentity(env.LEDGER);
     if(local&&!input.email?.endsWith('@example.invalid'))throw new CreditError('Use an example.invalid address for local testing.',422);
     if(!local&&env.ENABLE_EMAIL!=='1')throw new CreditError('Email delivery is disabled. Your credit is safe.',503);
+    // Staging trial: respond uniformly before account/quota lookup or delivery.
+    // A full public pool must neither lock out another member nor disclose whether
+    // an address is registered. Only the random browser flow is set synchronously.
+    if(env.READER_MODE==='staging'&&env.LOGIN_FAIR_ALLOWANCE==='1'){
+     const email=normalizeEmail(input.email),flow=crypto.randomUUID()+crypto.randomUUID();
+     ctx.waitUntil((async()=>{let link;try{
+      link=await auth.request(email,owner,request.headers.get('CF-Connecting-IP')||'local',Date.now(),{flow});
+      if(local)await env.AUDIO.put(`mail/${await digest(flow)}`,JSON.stringify({url:url.origin+'/api/billing/signin#'+link.token,expires:Date.now()+900000}));
+      else await sendLink(env,link);
+     }catch(error){if(link)await auth.cancel(link.token).catch(()=>{});console.error(JSON.stringify({event:'signin_link_unavailable',reason:error instanceof CreditError&&error.status===429?'rate-limit':'delivery'}));}})());
+     const response=json({sent:true});setCookie(response,env,'p2s_login_flow',flow,900);return response;
+    }
     const link=await auth.request(input.email,owner,request.headers.get('CF-Connecting-IP')||'local');
     try{
      if(local)await env.AUDIO.put(`mail/${await digest(link.flow)}`,JSON.stringify({url:url.origin+'/api/billing/signin#'+link.token,expires:Date.now()+900000}));
