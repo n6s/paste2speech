@@ -157,6 +157,38 @@ export class LongReadingTransport {
       }
     }
   }
+  async continuationDetails(id) {
+    const group=this.groups.get(id);
+    if(!group||!group.localOnly||group.cancelled||group.ownerScope!==this.assets?.scope)throw Error('Open the saved reading for the current account first. No speech was started.');
+    const records=structuredClone(group.session.records),saved=await this.assets.store.reading(group.deviceReference.readingId);
+    if(!saved||saved.generation!==group.deviceReference.generation)throw Error('The reading was removed or replaced. No speech was started.');
+    let cached=[];try{cached=JSON.parse(sessionStorage.getItem(group.key)||'[]');}catch{}
+    for(let index=0;index<records.length;index++)if(!records[index].id){
+      const candidate=saved.records?.[index]?.id?saved.records[index]:cached[index];
+      if(candidate?.id)records[index]=structuredClone(candidate);
+    }
+    const characters=group.parts.reduce((total,part,index)=>total+(!records[index]?.id||['refused','credit-paused'].includes(records[index].state)?part.chunks.reduce((sum,text)=>sum+[...text].length,0):0),0);
+    return {characters,records};
+  }
+  async continueLocal(id,{confirmedCharacters=0}={}) {
+    const details=await this.continuationDetails(id),group=this.groups.get(id);
+    if(details.characters>confirmedCharacters)throw Error('The unprepared amount changed. Confirm it again before using speech credit.');
+    if(group.ownerScope!==this.assets.scope||group.cancelled)throw Error('The account or reading changed. No speech was started.');
+    const owner=group.ownerScope;
+    const fetcher=(url,options={})=>{
+      if(group.ownerScope!==this.assets.scope)throw Error('The account changed. No speech was started.');
+      const match=new URL(url,location.href).pathname.match(/^\/api\/readings\/([^/]+)$/);
+      if(!options.method&&match&&this.assets.complete(match[1]))return Promise.resolve(Response.json(this.assets.jobs.get(match[1]).status));
+      return this.rawFetch(url,options);
+    };
+    group.session=new PlaylistSession(group.parts,group.session.voice,{records:details.records,fetcher,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
+      createOptions:{delivery:'complete'},connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
+      save:records=>{if(!group.cancelled&&owner===this.assets.scope){sessionStorage.setItem(group.key,JSON.stringify(records));group.deviceRevision++;group.deviceChanged?.();}},
+      statusChanged:(index,status)=>{group.statuses[index]=status;group.deviceRevision++;if(owner===this.assets.scope){const part=group.session.records[index];this.assets.allow(part.id,group.deviceReference);this.assets.register(part.id,group.parts[index].chunks,group.session.voice);this.assets.observe(part.id,status);}group.deviceChanged?.();}
+    });
+    group.session.assets=this.assets;group.localOnly=false;group.localSave=true;this.prepare(group);this.assets.onChange();
+    return {characters:details.characters};
+  }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;
     group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));

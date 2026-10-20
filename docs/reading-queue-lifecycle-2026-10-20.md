@@ -57,22 +57,25 @@ Current local checkpoint:
   All browser APIs are synthetic except actual local storage/media/encoder engines;
   no real private reading or paid provider was used.
 
-Mandatory remaining checks before any staging release:
+Additional maintained browser coverage now passes:
 
-1. Add a full two-Natural-reading UI test, including switching during multipart
-   preparation and returning after later part IDs were admitted. Test pressure in
-   the actual coordinator, all-protected/export cases, audio-only reclamation,
-   missing-audio re-download and explicit re-keep. The existing lifecycle test
-   proves transactions and real cross-tab locks, not this whole UI path.
-2. Cover native startup when a Natural bookmark also exists; signed-out/native
-   account transitions; missing native voices; mixed-engine round trips.
-3. Review cold reload of a multipart reading with truly unadmitted suffix parts:
-   current readonly restoration never creates those parts. It may need an explicit
-   Continue preparation action that reconciles session-cached IDs and reuses all
-   completed audio, never silent regeneration. This is not implemented yet.
-4. Run all maintained browser/release gates on one clean commit, verify public
-   forced-off behavior and installed extension hashes, then deploy only staging
-   through the established workflow and verify hosted hashes/flags/smoke.
+- Two Natural readings, switching during multipart preparation, later admissions
+  saved in the background, offline round trips and preserved bookmarks.
+- Actual MP4 export holds protection across a reading switch. Storage pressure
+  skips protected audio, then reclaims only Finished audio after export releases
+  it. Text/place survive; playing the reclaimed reading resumes saving all parts.
+  Explicit Remove/Keep again works without new synthesis.
+- Native cold reopening after an interrupted app-shell download, native startup
+  preference with Natural history present, signed-out playback and account
+  transitions without merging histories. Browser voice availability remains
+  platform dependent; audible Pixel output was not tested.
+- Explicit Continue preparation on cold reload reconciles already admitted IDs,
+  confirms only genuinely unprepared suffix characters, never autoplays and never
+  silently replaces an expired prefix. Tests cover new suffix, lost acknowledgement
+  and expired prefix with synthetic admissions and no real provider charges.
 
-Staging is still bd532af; production is still 300e1ca. This local iteration has
-not been deployed. Deferred cleanup-panel/button-spacing work remains untouched.
+The release workflow runs these maintained tests together with the existing full
+release gates before upload. Public forced-off behavior and both preserved
+extension variants are checked separately. Deployment receipts identify the live
+staging revision; production remains 300e1ca. Deferred cleanup-panel/button-spacing
+work remains untouched.

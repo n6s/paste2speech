@@ -18,6 +18,7 @@ await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const origin = "http://127.0.0.1:" + server.address().port;
 const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true });
 const requests = [], errors = [];
+let accountScope="native-fixture";
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
   await context.route("**/*", async (route) => {
@@ -25,8 +26,8 @@ try {
     if (url.origin !== origin) return route.abort();
     if (!url.pathname.startsWith("/api/")) return route.continue();
     requests.push({ path: url.pathname, method: request.method() });
-    let body = url.pathname === "/api/reader" ? { eligible: true, accessAllowed: true, account: { balance: 0, creditRequired: true } } : url.pathname === "/api/ocr/jobs/config" ? { enabled: false, durable: true, consentScope: "native-fixture" } : {};
-    return route.fulfill({ status: url.pathname === "/api/events" ? 204 : 200, contentType: "application/json", body: url.pathname === "/api/events" ? "" : JSON.stringify(body) });
+    let body = url.pathname === "/api/reader" ? { eligible: true, accessAllowed: true, account: { balance: 0, creditRequired: true } } : url.pathname === "/api/ocr/jobs/config" ? { enabled: false, durable: true, consentScope: accountScope } : {};
+    return route.fulfill({ status: url.pathname === "/api/events" ? 204 : url.pathname === "/api/ocr/jobs/config" && !accountScope ? 401 : 200, contentType: "application/json", body: url.pathname === "/api/events" ? "" : JSON.stringify(body) });
   });
   await context.addInitScript(() => {
     const synth = new EventTarget();
@@ -146,10 +147,24 @@ try {
   assert.equal(disk.sections, 0);
   assert.deepEqual(requests.filter((r) => r.path.startsWith("/api/readings") || r.path.includes("synth") || r.method === "POST" && r.path !== "/api/events"), []);
   assert.deepEqual(errors, []);
-  await page.reload();
-  await page.waitForFunction(() => document.querySelector("#engine").value === "browser" && !document.querySelector("#play").disabled && document.querySelector("#text").value === "Queued native newsletter.");
-  assert.equal(await page.evaluate(() => __spoken.length), 0);
-  const proof = { nativeTwoReadingRoundTrip: true, offlineNativeSwitching: true, nativeReloadWithoutAutoplay: true, commit: release.commit, syntheticNativeSpeech: true, actualAudibleOutputTested: false, pauseResumeWordOffset: true, pausedSectionSeek: true, queuedNativeVoiceAndRateRestored: true, missingQueuedVoiceStopsWithoutFallback: true, noPreparedAudioDiskCopies: disk, noSpeechCreditApiCalls: true, pageErrors: errors, physicalPixel: false };
+  // A newer Natural bookmark must not override a browser-engine preference.
+  await page.evaluate(async()=>{
+    const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});
+    const record={id:"synthetic-natural",key:"synthetic-natural",scope:"native-fixture",generation:"natural-g",engine:"google",text:"Saved Natural book.",voice:"en-US-Wavenet-H",parts:[{chunks:["Saved Natural book."]}],records:[{state:"unprepared"}],statuses:[],options:{engine:"google",cleanup:{},rate:1},createdAt:Date.now(),updated:Date.now()};
+    const bytes=new TextEncoder().encode(JSON.stringify(record));record.sha256=[...new Uint8Array(await crypto.subtle.digest("SHA-256",bytes))].map(value=>value.toString(16).padStart(2,"0")).join("");
+    await new Promise(resolve=>{const tx=db.transaction("readings","readwrite");tx.objectStore("readings").put(record,[record.scope,record.id]);tx.oncomplete=resolve;});db.close();localStorage.setItem("paste2speech.device-audio.latest.native-fixture",record.id);
+  });
+  const end=Date.now()+90000;
+  for(;;){const ready=await page.evaluate(async()=>{const registration=await navigator.serviceWorker.getRegistration("/");if(!registration?.active||!navigator.serviceWorker.controller)return false;return new Promise(resolve=>{const channel=new MessageChannel(),timer=setTimeout(()=>resolve(false),10000);channel.port1.onmessage=event=>{clearTimeout(timer);resolve(event.data.ok===true);};registration.active.postMessage({type:"CHECK_OFFLINE_SHELL"},[channel.port2]);});});if(ready)break;if(Date.now()>end)throw Error("Native offline shell did not finish");await page.waitForTimeout(100);}
+  await context.setOffline(true);await page.reload();
+  await page.waitForFunction(()=>document.querySelector("#engine").value==="browser"&&!document.querySelector("#play").disabled&&document.querySelector("#text").value==="Queued native newsletter.");
+  assert.equal(await page.evaluate(()=>__spoken.length),0);assert.equal(await page.locator("#voice").inputValue(),"native-b");await page.click("#play");assert.ok(await page.evaluate(()=>__spoken.length)>0);await page.click("#pause");
+  await context.setOffline(false);accountScope=null;await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===0);
+  await page.click("#edit-mode");await page.fill("#text","Signed-out native reading.");await page.click("#play");await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===1);
+  accountScope="different-owner";await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===0);
+  const isolation=await page.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});const records=await new Promise(resolve=>{const r=db.transaction("readings").objectStore("readings").getAll();r.onsuccess=()=>resolve(r.result);});db.close();return{old:records.filter(record=>record.scope==="native-fixture").length,anonymous:records.filter(record=>record.scope.startsWith("browser-profile:")).length,newAccount:records.filter(record=>record.scope==="different-owner").length};});
+  assert.deepEqual(isolation,{old:3,anonymous:1,newAccount:0});assert.deepEqual(requests.filter(request=>request.path.startsWith("/api/readings")||request.path.includes("synth")),[]);assert.deepEqual(errors,[]);
+  const proof = { signedOutNativePlayback:true,accountHistoriesNotMerged:isolation,nativeOfflineColdReload:true,naturalHistoryDoesNotOverrideNative:true,nativeTwoReadingRoundTrip: true, offlineNativeSwitching: true, nativeReloadWithoutAutoplay: true, commit: release.commit, syntheticNativeSpeech: true, actualAudibleOutputTested: false, pauseResumeWordOffset: true, pausedSectionSeek: true, queuedNativeVoiceAndRateRestored: true, missingQueuedVoiceStopsWithoutFallback: true, noPreparedAudioDiskCopies: disk, noSpeechCreditApiCalls: true, pageErrors: errors, physicalPixel: false };
   await writeFile("work/reading-history/native-verification.json", JSON.stringify(proof, null, 2) + "\n");
   console.log(JSON.stringify(proof));
   await context.close();

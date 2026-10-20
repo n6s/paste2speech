@@ -25,7 +25,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   const panel = document.createElement("details");
   panel.id = "device-readings";
   panel.style.overflowWrap = "anywhere";
-  panel.innerHTML = '<summary>Readings and offline storage</summary><p>Text, voice and place are kept in this browser. Natural audio saves automatically as it becomes available; browser voices keep text and bookmarks, not audio files. Other people using this browser profile may access saved readings offline. The browser may remove site data. Up to 20 readings per account and 512 MiB of shared source audio are kept. Only audio you mark Finished may be reclaimed when space is needed; your text and place remain. Current readings, unfinished preparation and active exports are protected.</p><label><input id="automatic-device-audio" type="checkbox" checked> Automatically keep readings on this device</label><div class="controls"><button id="retry-device-reading" type="button">Retry offline saving</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button></div><p id="device-audio-status" role="status"></p><ul id="device-audio-list"></ul>';
+  panel.innerHTML = '<summary>Readings and offline storage</summary><p>Text, voice and place are kept in this browser. Natural audio saves automatically as it becomes available; browser voices keep text and bookmarks, not audio files. Other people using this browser profile may access saved readings offline. The browser may remove site data. Up to 20 readings per account and 512 MiB of shared source audio are kept. Only audio you mark Finished may be reclaimed when space is needed; your text and place remain. Current readings, unfinished preparation and active exports are protected.</p><label><input id="automatic-device-audio" type="checkbox" checked> Automatically keep readings on this device</label><div class="controls"><button id="retry-device-reading" type="button">Retry offline saving</button><button id="continue-device-reading" type="button" hidden>Continue preparation…</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button></div><p id="device-audio-status" role="status"></p><ul id="device-audio-list"></ul>';
   panel.querySelector("summary").style.minHeight = "44px";
   for (const button of [...panel.querySelectorAll("button"), ...nav.querySelectorAll("button")]) button.style.minWidth = "0";
   document.getElementById("section-progress").after(nav, panel);
@@ -317,7 +317,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       if (request !== checking) return;
       if (next !== assets.scope) {
         await flush();
-        if (assets.scope) {
+        if (assets.scope || selected?.engine === "browser") {
           if (getEngine() === "browser") getActive()?.stop();
           else natural.invalidate({ preservePreparation: true });
         }
@@ -449,9 +449,11 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         });
       }
     }
+    const savedGroup=selected&&transport.groups.get(selected.groupId);
+    $("continue-device-reading").hidden=selected?.engine!=="google"||!savedGroup?.localOnly||savedGroup.session.records.every(part=>part.id);
     $("retry-device-reading").disabled = saving;
     $("keep-device-reading").hidden = !!selected || !(getEngine() === "google" ? group : player?.chunks?.length);
-    $("regenerate-device-reading").hidden = selected?.engine !== "google" || !selected.audioMissing && !selected.records?.some((part) => assets.jobs.get(part.id)?.accessBlocked);
+    $("regenerate-device-reading").hidden = selected?.engine !== "google" || !selected.audioMissing && !selected.needsRegeneration && !selected.records?.some((part) => assets.jobs.get(part.id)?.accessBlocked);
     if (selected?.engine === "google" && group?.id === selected.groupId) {
       const info = natural.offlineInfo;
       if (info?.ready) message("Ready offline on this device. " + (persistent ? "Browser persistence is granted." : "The browser may remove this copy if storage runs low."));
@@ -496,6 +498,16 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       message(error.message);
     }
   };
+  $("continue-device-reading").onclick=async()=>{
+    try{
+      if(!selected)return;const group=transport.groups.get(selected.groupId);if(!group)return;
+      await flush();const details=await transport.continuationDetails(group.id);
+      if(details.characters&&!confirm(`Continue preparation of ${details.characters.toLocaleString()} unprepared characters using normal speech credit? Existing prepared parts are reused. Failed or expired audio is not regenerated.`))return;
+      await transport.continueLocal(group.id,{confirmedCharacters:details.characters});
+      message("Continuing only the unprepared parts. Existing audio and your place are kept; playback does not start automatically.");update();
+      void group.finished.then(()=>{if(selected?.groupId!==group.id||!group.error)return;selected.needsRegeneration=/404|410|expired|cancelled|failed/i.test(group.error.message||"");message("Preparation could not continue. "+group.error.message+" No replacement speech was generated.");update();});
+    }catch(error){message(error.message);}
+  };
   $("keep-device-reading").onclick = async () => {
     const player = getActive(), group = natural.getVideoPreparation?.();
     if (getEngine() === "google" && group) await saveNatural(group, { explicit: true });
@@ -527,6 +539,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   window.addEventListener("online", () => void account().then(() => {
     for (const group of transport.groups.values()) if (group.localOnly) void transport.refreshLocal(group);
     assets.retry();
+    if(enabled()&&selected)void shell().catch(error=>message(error.message));
   }));
   window.addEventListener("pagehide", () => void flush());
   document.addEventListener("visibilitychange", () => {

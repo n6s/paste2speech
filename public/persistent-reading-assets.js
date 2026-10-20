@@ -216,10 +216,11 @@ export class PersistentReadingAssets extends ReadingAssets {
     signal?.throwIfAborted();
     if(!background && this.deferred.has(id)) {
       const store=this.store,reference=this.references.get(id);
-      await store.restoreJobs([id],reference,()=>store===this.store);
+      const ids=[...this.deferred].filter(candidate=>{const other=this.references.get(candidate);return other?.readingId===reference?.readingId&&other?.generation===reference?.generation;});
+      await store.restoreJobs(ids,reference,()=>store===this.store);
       if(store!==this.store)throw Error("The account changed.");
-      this.deferred.delete(id);
-      const existing=this.jobs.get(id);if(existing?.status)this.observe(id,existing.status);
+      for(const candidate of ids)this.deferred.delete(candidate);
+      for(const candidate of ids){const existing=this.jobs.get(candidate);if(existing?.status)this.observe(candidate,existing.status);}
     }
     const job = this.jobs.get(id), meta = job?.status?.sections[index], store = this.store;
     if (!job || !meta || job.controller.signal.aborted) throw Error("Saved audio section is unavailable.");
