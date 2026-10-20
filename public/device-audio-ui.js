@@ -28,13 +28,15 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   panel.id = "device-readings";
   panel.innerHTML = '<p class="hint">Unfinished readings expire 24 hours after adding. Finished readings leave when you move on. Download an MP4 to keep one longer.</p><p id="device-audio-status" class="hint" role="status"></p><div class="controls"><button id="retry-device-reading" type="button" hidden>Retry offline saving</button><button id="continue-device-reading" type="button" hidden>Continue preparation…</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button></div><input id="automatic-device-audio" type="checkbox" checked hidden><ul id="device-audio-list" hidden></ul>';
   document.getElementById("section-progress").after(nav, panel);
-  const $ = (id) => panel.querySelector("#" + id), message = (text) => { $("device-audio-status").textContent = text; };
+  const $ = (id) => panel.querySelector("#" + id), message = (text) => { const warning="The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play.";
+    $("device-audio-status").textContent = selected?.voiceUnavailable&&text!==warning?warning+(text?" "+text:""):text; };
   const clock=new RetentionClock();
   let cleaning=null,lastCleanup=0,expiredSource=null,pendingAddedAt=null,shellError=false;
   const rekeep=new Set();
   $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
   assets.writesEnabled = $("automatic-device-audio").checked;
   let selected = null, selectedRelease = null, records = [], opening = false, saving = false, attaching = false, timer = null, checking = 0, serial = 0, restoreScope = null, nativeBlocked = null, shellReady = false, persistent = false, flushing = Promise.resolve(), suppressed = /* @__PURE__ */ new Set();
+  const storedEngine=record=>getEngine()==="google"&&record.engine==="google"?"google":record.playbackEngine||record.engine||"google";
   const enabled = () => $("automatic-device-audio").checked;
   const selectionKey=()=>latestKey()+".active";
   const rememberSelection=id=>{localStorage.setItem(latestKey(),id);localStorage.setItem(selectionKey(),id);};
@@ -51,10 +53,10 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     if (!selected || !enabled()) return;
     const record = selected, target = activeStore(record);
     if (!target) return;
-    const valid = () => target === activeStore(record), place = { ...record.lastPlace || {}, id: record.id, generation: record.generation, updated: Date.now() };
+    const valid = () => selected===record && target === activeStore(record), place = { ...record.lastPlace || {}, id: record.id, generation: record.generation, playbackEngine:record.engine,playbackVoice:record.voice,updated: Date.now() };
     const group = record.engine === "browser" ? null : transport.groups.get(record.groupId);
     const copy = { ...record };
-    for (const key of ["groupId", "lastPlace", "nativeChunks", "storedRevision", "storedReady", "lifecycleSave"]) delete copy[key];
+    for (const key of ["groupId", "lastPlace", "nativeChunks", "storedRevision", "storedReady", "lifecycleSave", "sourceRecord", "voiceUnavailable"]) delete copy[key];
     if (group) {
       copy.manifestRevision = group.deviceRevision || 0;
       copy.records = structuredClone(group.session.records);
@@ -71,7 +73,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           record.storedRevision = revision;
           record.storedReady = copy.offlineReady;
         }
-        await target.save("positions", record.id, place, { valid });
+        const previous=await target.get("positions",record.id);
+        await target.save("positions", record.id, {...(previous?.generation===record.generation?previous:{}),...place}, { valid });
         if (group && selected === record) {
           assets.manifestReady = true;
           if (copy.offlineReady && record.audioMissing) {
@@ -145,28 +148,29 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       if (request !== serial) return;
       if (getText() !== editor) throw Error("The editor changed while opening; your text is kept.");
       if (!current || target !== store()) throw Error("The reading was removed or the account changed.");
-      if (automatic && (current.engine || "google") !== getEngine()) return;
+      if (automatic && storedEngine(current) !== getEngine()) return;
       const release = await protection.hold(current.scope, current.id);
-      if (request !== serial) {
+      if (request !== serial || target !== store()) {
         release();
         return;
       }
       try {
         getActive()?.pause();
-        await apply(current);
-        if (request !== serial) {
+        const playback=await apply(current)||{};
+        const engine=playback.engine||current.engine,voice=playback.voice??current.voice;
+        if (request !== serial || target !== store()) {
           release();
           return;
         }
         let group = null;
-        if (current.engine !== "browser" && current.records?.some((part) => part.id)) group = await transport.restoreLocal(current, { valid: () => request === serial && target === store() && getText() === current.text });
-        if (request !== serial) {
+        if (engine !== "browser" && current.records?.some((part) => part.id)) group = await transport.restoreLocal(current, { valid: () => request === serial && target === store() && getText() === current.text });
+        if (request !== serial || target !== store()) {
           release();
           return;
         }
         selectedRelease?.();
         selectedRelease = release;
-        selected = { ...current, groupId: group?.id, nativeChunks: current.engine === "browser" ? getActive().chunks : null, lastPlace: current.engine === "browser" ? { index: current.nativeIndex || 0, offset: current.nativeOffset || 0, rate: current.options?.rate || 1 } : { position: current.position || 0, rate: current.options?.rate || 1 } };
+        selected = { ...current, engine, voice,voiceUnavailable:playback.voiceUnavailable, sourceRecord:current, groupId: group?.id, nativeChunks: engine === "browser" ? getActive().chunks : null, lastPlace: engine === "browser" ? { index: current.nativeIndex || 0, offset: current.nativeOffset || 0, rate: current.options?.rate || 1 } : { position: current.position || 0, rate: current.options?.rate || 1 } };
         if (group) {
           group.historyRecord = current;
           group.deviceChanged = () => {
@@ -178,7 +182,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           natural.deviceRestoreIndex = Math.max(0, transport.status(group).starts.findLastIndex((time) => time <= natural.deviceRestoreTime));
         }
         rememberSelection(current.id);
-        message(current.engine === "browser" ? "Browser voice · place restored." : current.audioMissing ? "Text and place restored. Audio is not kept on this device; Play retrieves existing audio online. Expired audio requires an explicit new generation." : "Place restored. Press Play.");
+        message(playback.voiceUnavailable ? "The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play." : engine === "browser" ? "Browser voice · place restored." : current.audioMissing ? "Text and place restored. Audio is not kept on this device; Play retrieves existing audio online. Expired audio requires an explicit new generation." : "Place restored. Press Play.");
       } catch (error) {
         release();
         throw error;
@@ -241,7 +245,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       const target=store(),now=clock.now();let count=0;
       const active=getActive(),same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&active?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());
       const busy=same&&['playing','preparing','buffering'].includes(active?.state);
-      const stored=await target.readings(),latest=localStorage.getItem(latestKey()),candidate=stored.find(r=>r.id===latest&&(r.engine||'google')===getEngine())||stored.find(r=>(r.engine||'google')===getEngine());
+      const stored=await target.readings(),latest=localStorage.getItem(latestKey()),candidate=stored.find(r=>r.id===latest&&storedEngine(r)===getEngine())||stored.find(r=>storedEngine(r)===getEngine());
       const restoring=!selected&&!active?.chunks?.length&&candidate&&(!getText().trim()||getText()===candidate.text);
       const moved=localStorage.getItem(selectionKey());
       const currentId=same?selected.finishedAt&&moved&&moved!==selected.id?null:selected.id:restoring?candidate.id:null;
@@ -256,8 +260,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           if(!fresh||fresh.generation!==record.generation||!removalReason(fresh,{now:clock.now(),currentId}))return false;
           const ids=await target.removeReading(record.id,{valid:()=>target===store()&&!(selected?.id===record.id&&["playing","preparing","buffering"].includes(getActive()?.state))});
           if(await target.reading(record.id))return false;
-          suppressed.add(record.id);sessionStorage.removeItem(record.key||record.id);
-          for(const group of transport.groups.values())if(group.key===record.id){group.localSave=false;group.forgotten=true;}
+          suppressed.add(record.id);suppressed.add(record.key);sessionStorage.removeItem(record.key||record.id);
+          for(const group of transport.groups.values())if(group.deviceReference?.readingId===record.id||group.key===record.id){group.localSave=false;group.forgotten=true;}
           assets.forgetLocal(ids);
           if(localStorage.getItem(latestKey())===record.id)localStorage.removeItem(latestKey());
           if(selected?.id===record.id){if(same&&getText()===record.text){expiredSource={text:record.text,id:record.id,engine:record.engine};if(transport.localRestore?.key===record.id)transport.localRestore=null;if(record.engine==="browser")getActive()?.stop();else natural.invalidate({preservePreparation:true});}selected=null;selectedRelease?.();selectedRelease=null;assets.manifestReady=false;}
@@ -277,7 +281,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     renderNavigation();
     if (restore && restoreScope !== currentScope) {
       restoreScope = currentScope;
-      const latest = localStorage.getItem(latestKey()), candidate = records.find((record) => record.id === latest && (record.engine || "google") === getEngine()) || records.find((record) => (record.engine || "google") === getEngine());
+      const latest=localStorage.getItem(latestKey()), candidate = records.find((record) => record.id === latest && storedEngine(record) === getEngine()) || records.find((record) => storedEngine(record) === getEngine());
       if (candidate && !candidate.damaged && !getActive()?.chunks?.length && (!getText().trim() || getText() === candidate.text)) void openReading(candidate, { automatic: true });
     }
   }
@@ -336,17 +340,18 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         }
         group.ownerScope = currentScope;
       }
-      const old = await target.reading(group.key);
+      const logicalId=group.logicalReading?.id||group.key;
+      const old = await target.reading(logicalId);
       if (!valid()) return;
       const revision = group.deviceRevision || 0;
-      const record = { version: 2, engine: "google", manifestRevision: revision, generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), id: group.key, key: group.key, scope: currentScope, parts: structuredClone(group.parts), voice: group.session.voice, text, options: snapshot(), records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), position: natural.audio.currentTime || 0, updated: Date.now(), createdAt: old?.createdAt || old?.updated || group.createdAt || Date.now() };
+      const record = { version: 2, engine: "google", manifestRevision: revision, generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), id: logicalId, key: group.key, scope: currentScope, parts: structuredClone(group.parts), voice: group.session.voice, text, options: snapshot(), records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), position: natural.audio.currentTime || 0, updated: Date.now(), createdAt: old?.createdAt || old?.updated || group.logicalReading?.createdAt || group.createdAt || Date.now() };
       await target.save("readings", record.id, record, { valid, automatic: true, rekeep: explicit });
       rekeep.delete(record.id);
       if (!valid()) return;
       await holdSelected(record);
       selected = { ...record, groupId: group.id, storedRevision: revision, storedReady: false, lastPlace: { position: record.position, rate: natural.rate || 1 } };
       if (old?.finishedAt) await target.setLifecycle(record.id, { finishedAt: null });
-      for (const previous of transport.groups.values()) if (previous !== group && previous.key === group.key) previous.localSave = false;
+      for (const previous of transport.groups.values()) if (previous !== group && (previous.deviceReference?.readingId===record.id||previous.key === group.key)) previous.localSave = false;
       group.localSave = true;
       group.historyRecord = record;
       group.deviceReference = { readingId: record.id, generation: record.generation, automatic: !explicit };
@@ -373,8 +378,9 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     }
   }
   async function saveNative(player, { explicit = false } = {}) {
+    if(!player?.synth)return;
     saving = true;
-    const target = store(), text = getText(), chunks = [...player.chunks], voice = player.settings?.voice?.voiceURI, generation = player.generation;
+    const target = store(), text = getText(), chunks = [...player.chunks], voice = player.settings?.voice?.voiceURI||"", generation = player.generation;
     const valid = () => target === store() && enabled() && getEngine() === "browser" && player.generation === generation && getText() === text;
     let id;
     try {
@@ -432,7 +438,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           attaching = false;
           setTimeout(update, 200);
         });
-      } else if (getEngine() === "browser" && player?.chunks?.length && player.state !== "idle" && (nativeBlocked?.chunks !== player.chunks || nativeBlocked?.voice !== player.settings?.voice?.voiceURI) && (selected?.nativeChunks !== player.chunks || selected?.voice !== player.settings?.voice?.voiceURI)) {
+      } else if (getEngine() === "browser" && player?.synth && player?.chunks?.length && player.state !== "idle" && (nativeBlocked?.chunks !== player.chunks || nativeBlocked?.voice !== player.settings?.voice?.voiceURI) && selected?.nativeChunks !== player.chunks) {
         attaching = true;
         void saveNative(player).finally(() => {
           attaching = false;
@@ -545,7 +551,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           selectedRelease = null;
         }
       }
-      for (const group of transport.groups.values()) if (group.key === data.id) group.localSave = false;
+      for (const group of transport.groups.values()) if (group.deviceReference?.readingId===data.id||group.key === data.id) group.localSave = false;
       assets.forgetLocal((data.jobs || []).filter((id) => typeof id === "string"));
       void list();
     };
@@ -579,7 +585,22 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     }
     return getText()===text&&getEngine()===engine;
   }
-  return { update, flush, capture, list, openReading, rememberCurrent, beforePlay, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time){pendingAddedAt=time;}, get scope() {
+  async function engineChanged({voiceChanged=false}={}){
+    if(natural.getVideoPreparation?.()?.error?.creditPaused)return;
+    const record=selected?.sourceRecord||selected;if(!record||getText()!==record.text)return;
+    if(voiceChanged&&record.engine==='browser'&&getEngine()==='browser'){
+      opening=true;refresh();
+      try{
+        await flush();const target=store(),fresh=await target.reading(record.id);if(!fresh)return;
+        const voice=snapshot().voice;await target.save('readings',fresh.id,{...fresh,voice,options:{...fresh.options,voice}},{updateOnly:true,valid:()=>target===store()});
+        if(selected?.id===fresh.id){selected.voice=voice;selected.voiceUnavailable=false;selected.sourceRecord={...fresh,voice,options:{...fresh.options,voice}};message('Browser voice · choice saved.');}
+      }catch(error){message(error.message);}finally{opening=false;refresh();}
+      return;
+    }
+    if(record.engine==='google')await openReading(record);else if(getEngine()==='google')voiceChanging();
+  }
+  function voiceChanging(){if(selected&&getText()===selected.text)transport.nextLogicalReading={id:selected.id,createdAt:selected.createdAt};}
+  return { update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time){pendingAddedAt=time;}, get scope() {
     return scope();
   }, get opening() {
     return opening;

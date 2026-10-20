@@ -24,15 +24,18 @@ export class LongReadingTransport {
     const path=new URL(url,location.href).pathname;
     if(path==='/api/readings' && options.method==='POST') {
       const input=JSON.parse(options.body);
-      if(this.localRestore){const group=this.localRestore;if(group.ownerScope!==this.assets?.scope)throw Error('The account changed. Open a saved reading for the current account; no new speech was started.');const expected=group.parts.flatMap(p=>p.chunks);if(input.voice!==group.session.voice||JSON.stringify(input.chunks)!==JSON.stringify(expected))throw Error('Saved text or voice changed. Open the saved reading again; no new speech was started.');this.localRestore=null;return Response.json({id:group.id});}
+      if(this.localRestore){const group=this.localRestore;if(group.ownerScope!==this.assets?.scope)throw Error('The account changed. Open a saved reading for the current account; no new speech was started.');const expected=group.parts.flatMap(p=>p.chunks);if(input.voice!==group.session.voice||JSON.stringify(input.chunks)!==JSON.stringify(expected))throw Error('Saved text or voice changed. Open the saved reading again; no new speech was started.');this.localRestore=null;if(this.nextLogicalReading){group.logicalReading=this.nextLogicalReading;this.nextLogicalReading=null;this.nextAddedAt=null;}return Response.json({id:group.id});}
       if(input.mseOptions?.cached){const response=await this.upstream(url,options);if(response.ok){const {id}=await response.clone().json();this.assets?.register(id,input.chunks,input.voice);}return response;}
       const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
 
       const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
-      const key='paste2speech.video.'+hash;let records=[];
+      const key='paste2speech.video.'+hash;
+      const live=this.nextLogicalReading&&[...this.groups.values()].find(group=>!group.cancelled&&!group.forgotten&&!group.localOnly&&group.key===key&&(group.ownerScope||null)===(this.assets?.scope||null));
+      if(live){live.logicalReading=this.nextLogicalReading;this.nextLogicalReading=null;this.nextAddedAt=null;return Response.json({id:live.id});}
+      let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
-      const id=crypto.randomUUID(),group={id,key,createdAt:this.nextAddedAt||Date.now(),ownerScope:this.assets?.scope||null,parts,statuses:[],done:false,error:null,cancelled:false};
-      this.nextAddedAt=null;
+      const id=crypto.randomUUID(),group={id,key,logicalReading:this.nextLogicalReading||null,createdAt:this.nextAddedAt||Date.now(),ownerScope:this.assets?.scope||null,parts,statuses:[],done:false,error:null,cancelled:false};
+      this.nextAddedAt=null;this.nextLogicalReading=null;
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
@@ -124,7 +127,9 @@ export class LongReadingTransport {
       const id=group.session.records[index]?.id;if(!id)continue;
       if(record.audioMissing)this.assets.deferred?.add(id);
       this.assets.allow(id,group.deviceReference);
-      const job=this.assets.register(id,group.parts[index].chunks,record.voice);await job.hydrating;
+      // Full integrity scanning continues in the background. Individual playback
+      // sections are still verified before use; navigation needs only the manifest.
+      const job=this.assets.register(id,group.parts[index].chunks,record.voice);
       if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');
       const status=live?group.statuses[index]:job.status||record.statuses[index];
       if(status){this.assets.observe(id,status);group.statuses[index]=status;Object.assign(group.session.records[index],{state:status.state,completed:status.completed,duration:status.duration});}

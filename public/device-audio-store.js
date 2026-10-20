@@ -202,7 +202,7 @@ export class DeviceAudioStore {
       const position = await this.get("positions", id);
       const lifecycle = await this.get("lifecycle", id);
       const current = lifecycle && (lifecycle.generation || "legacy") === (data.generation || "legacy") ? {...data,...lifecycle,offlineReady:lifecycle.audioMissing ? false : data.offlineReady} : data;
-      return position && (position.generation || "legacy") === (data.generation || "legacy") ? { ...current, position: position.position, nativeIndex:position.index, nativeOffset:position.offset, updated: Math.max(position.updated||0,current.updated||0), options: { ...current.options, rate: position.rate ?? current.options?.rate } } : current;
+      return position && (position.generation || "legacy") === (data.generation || "legacy") ? { ...current, position: position.position, nativeIndex:position.index, nativeOffset:position.offset,playbackEngine:position.playbackEngine,playbackVoice:position.playbackVoice,updated: Math.max(position.updated||0,current.updated||0), options: { ...current.options, rate: position.rate ?? current.options?.rate } } : current;
     } catch {
       return { ...data, position: 0, nativeIndex:0,nativeOffset:0,finishedAt:null,positionUnavailable: true };
     }

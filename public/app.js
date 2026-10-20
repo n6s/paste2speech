@@ -102,6 +102,7 @@ const READING_WINDOW_THRESHOLD = 1000;
 let stagingSampleText='';
 let videoDownload;
 let deviceAudio;
+let preferBrowserReading = saved.engine === "browser";
 let documentImport;
 let inputQueue,intakeContext,nextFileIntent;
 const intakeContexts=new Map();
@@ -280,7 +281,7 @@ function readAndPlay({retentionChecked=false}={}) {
   return true;
 }
 $('credit-resume').onclick=()=>{window.dispatchEvent(new Event('speech-credit-change'));if(videoDownload?.creditPaused&&!workstationPlayer.getVideoPreparation?.()?.error)void videoDownload.resume();else void player?.resume(settings());};
-$('credit-browser').onclick=()=>{$('engine').value='browser';changeEngine();};
+$('credit-browser').onclick=()=>{preferBrowserReading=true;$('engine').value='browser';changeEngine();void deviceAudio?.engineChanged();};
 $('read-mode').addEventListener('click', () => { $('text').blur(); setMode('read'); });
 function followParagraph(button) {
   const pane = $('preview');
@@ -431,7 +432,7 @@ function loadVoices() {
   }
   updateVoiceSummary();
 }
-$('engine').addEventListener('change', changeEngine);
+$('engine').addEventListener('change',()=>{preferBrowserReading=$('engine').value==='browser';changeEngine();void deviceAudio?.engineChanged();});
 $('text').addEventListener('input', () => {
   // Some mobile keyboards emit many input events without changing the value.
   // Keep the existing reading and DOM until there is an actual source edit.
@@ -534,7 +535,7 @@ $('paste')?.addEventListener('click',()=>void pasteFromClipboard());
 $('paste-play').addEventListener('click',()=>void pasteFromClipboard({replace:true}));
 $('clear').addEventListener('click', () => { inputQueue?.clear();if(INPUT_QUEUE_UI)for(const context of intakeContexts.values())context.cancelled=true;summaryMode?.clearSource(); documentImport?.clear(); if(!PERSISTENT_AUDIO)workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading(); $('text').value = ''; preview(); setMode('edit'); $('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
-$('voice').addEventListener('change', () => { deviceAudio?.capture();void deviceAudio?.flush();selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate({preservePreparation:PERSISTENT_AUDIO}); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
+$('voice').addEventListener('change', () => { if(PERSISTENT_AUDIO&&isGoogle())deviceAudio?.voiceChanging();deviceAudio?.capture();void deviceAudio?.flush();selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate({preservePreparation:PERSISTENT_AUDIO}); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save();if(PERSISTENT_AUDIO&&isGoogle()===false)void deviceAudio?.engineChanged({voiceChanged:true}); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
 function seekSection(index){
   const available=navigableSections(player);
@@ -566,7 +567,7 @@ window.addEventListener('focus', reconcileRestoredText);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
-function resetReading(preserveReady=false) { deviceAudio?.capture();void deviceAudio?.flush();browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+function resetReading(preserveReady=false) { if(workstationPlayer.longReadings)workstationPlayer.longReadings.nextLogicalReading=null; deviceAudio?.capture();void deviceAudio?.flush();browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){
   const seek=$('seek');
   seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
@@ -836,12 +837,26 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
  matches:matchesPreparedDeviceReading,refresh:()=>{if(player)render(player);},getQueue:()=>inputQueue?.model,
  snapshot:()=>({engine:$('engine').value,paragraphStarts:[...paragraphStarts],cleanup:{...options},voice:$('voice').value,rate:Number($('rate').value)}),
  async apply(record){
-  const engine=record.engine||'google';
-  if(engine==='browser'&&!speechSynthesis.getVoices().some(voice=>voice.voiceURI===record.voice))throw Error('This saved browser voice is unavailable on this device. Choose an available browser voice explicitly for a new reading; Natural speech will not be started.');
+  const browserOverride=preferBrowserReading&&(record.engine||'google')==='google';
+  const engine=browserOverride?'browser':record.engine||'google';
+  let voice=browserOverride?($('engine').value==='browser'?$('voice').value:browserVoice):(record.voice||'');
+  const voiceUnavailable=engine==='browser'&&!!voice&&!speechSynthesis.getVoices().some(item=>item.voiceURI===voice);
+  if(voiceUnavailable)voice='';
+
   inputQueue?.model.stop();workstationPlayer.invalidate({preserveReady:true,preservePreparation:true});$('engine').value=engine;changeEngine();
   Object.assign(options,record.options?.cleanup);for(const key of Object.keys(options)){const input=$('clean-'+key);if(input)input.checked=options[key];}
-  $('voice').value=record.voice;if(engine==='browser')browserVoice=record.voice;else workstationVoice=record.voice;selectedVoice=record.voice;$('rate').value=record.options?.rate||1;summaryMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();
-  if(engine==='browser')browserPlayer.restore(record.chunks||chunks,settings(),{index:record.nativeIndex,offset:record.nativeOffset});
+  $('voice').value=voice;if(engine==='browser')browserVoice=voice;else workstationVoice=voice;selectedVoice=voice;$('rate').value=record.options?.rate||1;summaryMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();
+  if(engine==='browser'){
+    let index=record.nativeIndex,offset=record.nativeOffset;
+    if(browserOverride&&index==null){
+      let base=0;const starts=[];
+      for(const status of record.statuses||[]){for(const start of status?.starts||[])starts.push(base+start);base+=status?.duration||0;}
+      index=Math.max(0,starts.findLastIndex(start=>start<=(record.position||0)));offset=0;
+    }
+    browserPlayer.restore(record.chunks||chunks,settings(),{index,offset});
+  }
+  if(voiceUnavailable)$("voice-settings").open=true;
+  return {engine,voice,voiceUnavailable};
  },
  async loadQueued(item){
   const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt});model.remove(item.id);save();
