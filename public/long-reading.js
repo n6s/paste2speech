@@ -23,7 +23,7 @@ export class LongReadingTransport {
     const path=new URL(url,location.href).pathname;
     if(path==='/api/readings' && options.method==='POST') {
       const input=JSON.parse(options.body);
-      if(this.localRestore){const group=this.localRestore;const expected=group.parts.flatMap(p=>p.chunks);if(input.voice!==group.session.voice||JSON.stringify(input.chunks)!==JSON.stringify(expected))throw Error('Saved text or voice changed. Open the saved reading again; no new speech was started.');this.localRestore=null;return Response.json({id:group.id});}
+      if(this.localRestore){const group=this.localRestore;if(group.ownerScope!==this.assets?.scope)throw Error('The account changed. Open a saved reading for the current account; no new speech was started.');const expected=group.parts.flatMap(p=>p.chunks);if(input.voice!==group.session.voice||JSON.stringify(input.chunks)!==JSON.stringify(expected))throw Error('Saved text or voice changed. Open the saved reading again; no new speech was started.');this.localRestore=null;return Response.json({id:group.id});}
       if(input.mseOptions?.cached){const response=await this.upstream(url,options);if(response.ok){const {id}=await response.clone().json();this.assets?.register(id,input.chunks,input.voice);}return response;}
       const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
 
@@ -58,6 +58,7 @@ export class LongReadingTransport {
       if(!group.forgotten)sessionStorage.removeItem(group.key);
       group.forgotten=true;
       await group.finished;
+      if(group.localOnly){if(group.audioURL)URL.revokeObjectURL(group.audioURL);if(group.captionURL)URL.revokeObjectURL(group.captionURL);return new Response(null,{status:204});}
       for(const record of group.session.cancellationRecords())if(record.id) {
         const response=await this.rawFetch(`/api/readings/${record.id}`,{method:'DELETE',signal:AbortSignal.timeout(15000)});
         if(!response.ok&&response.status!==404)return response;
@@ -108,12 +109,13 @@ export class LongReadingTransport {
     }
     return indices.sort((a,b)=>a-b);
   }
-  async restoreLocal(record){
-    if(!this.assets?.store||record.scope!==this.assets.scope)throw Error('Confirm the saved reading account first.');
-    const group={id:crypto.randomUUID(),key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
-    group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.finished=Promise.resolve();
-    for(let i=0;i<record.records.length;i++){const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!job.status)this.assets.observe(id,record.statuses[i]);}
-    this.groups.set(group.id,group);this.localRestore=group;return group;
+  async restoreLocal(record,{valid=()=>true}={}){
+    if(!valid()||!this.assets?.store||record.scope!==this.assets.scope)throw Error('Confirm the saved reading account first.');
+    const store=this.assets.store;
+    const group={id:crypto.randomUUID(),localOnly:true,key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
+    group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.session.localOnly=true;group.finished=Promise.resolve();
+    for(let i=0;i<record.records.length;i++){if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');if(!job.status)this.assets.observe(id,record.statuses[i]);}
+    if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');this.groups.set(group.id,group);this.localRestore=group;return group;
   }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;

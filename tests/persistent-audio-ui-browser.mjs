@@ -52,7 +52,10 @@ const server = createServer(async (req, res) => {
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
 const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true });
 try {
-  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage(), errors = [];
+  const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage(), errors = [], deletes = [];
+  page.on("request", (request) => {
+    if (request.method() === "DELETE") deletes.push(request.url());
+  });
   page.on("pageerror", (e) => errors.push(e.message));
   await page.addInitScript(() => {
     window.fixtureAudio = [];
@@ -93,6 +96,7 @@ try {
   await page.reload();
   await page.locator("#device-readings").evaluate((e) => e.open = true);
   await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).click();
+  await page.waitForFunction((source2) => document.querySelector("#text").value === source2, source);
   assert.equal(await page.locator("#text").inputValue(), source);
   assert.equal(await page.locator("#voice").inputValue(), "en-US-Wavenet-H");
   assert.equal(await page.locator("#status").textContent(), "Ready when you are");
@@ -119,7 +123,12 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: out + "/offline-mobile.png", fullPage: true });
-  await writeFile(out + "/verification.json", JSON.stringify({ offlineReloadAppShell: true, textAndVoiceRecovered: true, place, restored, rapidPreviousNext: true, offlineMp4Verified: true, sourceAudioGets: sectionGets, additionalSpeechPosts: posts - before.posts, additionalSectionGets: sectionGets - before.sectionGets, physicalPixel: false, realProviderCalls: 0 }, null, 2) + "\n");
+  await page.click("#clear");
+  await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).dblclick();
+  await page.click("#play");
+  await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
+  await page.click("#pause");
+  assert.deepEqual(deletes, [], "Opening/Clear of a device copy must not delete server jobs");
   await context.setOffline(false);
   scope = "other-owner";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
@@ -136,6 +145,7 @@ try {
   await page.locator("#device-readings").evaluate((e) => e.open = true);
   assert.equal(await page.getByRole("button", { name: /^Open:/ }).count(), 0);
   assert.deepEqual(errors, []);
+  await writeFile(out + "/verification.json", JSON.stringify({ offlineReloadAppShell: true, textAndVoiceRecovered: true, place, restored, rapidPreviousNext: true, offlineMp4Verified: true, sourceAudioGets: sectionGets, additionalSpeechPosts: posts - before.posts, additionalSectionGets: sectionGets - before.sectionGets, physicalPixel: false, realProviderCalls: 0, localClearBackendDeletes: deletes.length, rapidSavedOpen: true, accountSwitchIsolation: true, removalSurvivesOfflineReload: true, mobileWidths: [320, 390, 780] }, null, 2) + "\n");
   console.log("PASS account switch hides old device audio and pauses playback; explicit removal survives reload without late resurrection.");
   console.log("PASS saved device reading: offline shell reload, explicit text/voice/place restore, rapid seeks and MP4 with subtitles reuse the same disk sections; no extra speech or section download.");
   await context.close();

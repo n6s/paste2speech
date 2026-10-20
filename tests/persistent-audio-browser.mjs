@@ -97,7 +97,7 @@ try {
       const backing = new DeviceAudioStore("failure-" + mode, { storage: { estimate: async () => blocked && mode === "quota" ? { quota: 0, usage: 0 } : { quota: 1e9, usage: 0 } } }), transaction = backing.transaction.bind(backing);
       backing.transaction = (name, modeName, operation) => transaction(name, modeName, (store) => {
         const request = operation(store);
-        if (blocked && mode === "abort" && name === "sections" && modeName === "readwrite") store.transaction.abort();
+        if (blocked && mode === "abort" && (Array.isArray(name) ? name.includes("sections") : name === "sections") && modeName === "readwrite") store.transaction.abort();
         return request;
       });
       const assets = new PersistentReadingAssets(async () => {
@@ -176,6 +176,67 @@ try {
     const removed = await shared.removeReading("two");
     if (removed[0] !== "quota" || await shared.section("quota", 0) || await shared.get("jobs", "quota")) throw Error("Explicit removal left orphan audio/text");
     checks.push("atomic removal preserves shared readings and deletes only last device copy");
+    await shared.save("readings", "generation", { id: "generation", generation: "old", text: "Synthetic", records: [{ id: "late" }] });
+    const otherTab = new DeviceAudioStore("failure-quota");
+    await shared.removeReading("generation");
+    for (const operation of [() => otherTab.save("readings", "generation", { id: "generation", generation: "old", text: "Synthetic", records: [{ id: "late" }] }, { updateOnly: true }), () => otherTab.save("positions", "generation", { id: "generation", generation: "old", position: 2 }), () => otherTab.save("jobs", "late", { id: "late" }), () => otherTab.writeSection("late", 0, { blob: new Blob([bytes]), bytes: bytes.length, samples: meta.samples, sha256 })]) {
+      let blocked = false;
+      try {
+        await operation();
+      } catch (e) {
+        blocked = e.name === "LocalCopyRemovedError";
+      }
+      if (!blocked) throw Error("Another tab resurrected a deleted device copy");
+    }
+    await shared.save("readings", "generation", { id: "generation", generation: "new", text: "Synthetic", records: [{ id: "late" }] });
+    await shared.restoreJobs(["late"], { readingId: "generation", generation: "new" });
+    await shared.writeSection("late", 0, { blob: new Blob([bytes]), bytes: bytes.length, samples: meta.samples, sha256 });
+    if (!await shared.section("late", 0)) throw Error("Explicit Save could not create a new copy");
+    checks.push("durable deletion blocks stale tabs; only explicit Save re-enables a new generation");
+    await shared.save("readings", "damaged", { id: "damaged", text: "Original", records: [] });
+    await shared.transaction("readings", "readwrite", (store) => store.put({ id: "wrong-key", scope: "failure-quota", text: "corrupt", sha256: "bad" }, ["failure-quota", "damaged"]));
+    const damaged = (await shared.readings()).find((r) => r.id === "damaged");
+    if (!damaged?.damaged) throw Error("Corrupt book hid the library or was accepted");
+    await shared.removeReading("damaged");
+    if ((await shared.readings()).some((r) => r.id === "damaged")) throw Error("Corrupt book could not be removed");
+    checks.push("corrupt reading is isolated and explicitly removable");
+    const kept = { id: "kept", scope: "upgrade-owner", text: "Synthetic preserved source", updated: 0 }, receipt = await digest(JSON.stringify(kept));
+    await new Promise((resolve, reject) => {
+      const request = indexedDB.open("device-audio-upgrade-proof", 1);
+      request.onupgradeneeded = () => {
+        for (const name of ["jobs", "sections", "readings", "positions"]) request.result.createObjectStore(name);
+      };
+      request.onsuccess = () => {
+        const db = request.result, tx = db.transaction("readings", "readwrite");
+        tx.objectStore("readings").put({ ...kept, sha256: receipt }, ["upgrade-owner", "kept"]);
+        tx.oncomplete = () => {
+          db.close();
+          resolve();
+        };
+        tx.onerror = () => reject(tx.error);
+      };
+      request.onerror = () => reject(request.error);
+    });
+    const upgraded = new DeviceAudioStore("upgrade-owner", { name: "device-audio-upgrade-proof" });
+    if ((await upgraded.get("readings", "kept")).text !== kept.text || !(await upgraded.db()).objectStoreNames.contains("removed")) throw Error("Schema upgrade lost a reading");
+    checks.push("schema upgrade adds deletion journal without changing saved readings");
+    const { LongReadingTransport } = await import("/public/long-reading.js");
+    let restoreRelease;
+    const restoringAssets = new PersistentReadingAssets(async () => {
+      throw Error("No request expected");
+    }, { storeFactory: (scope) => ({ get: () => scope === "restore-a" ? new Promise((resolve) => restoreRelease = () => resolve(null)) : Promise.resolve(null) }) });
+    restoringAssets.setScope("restore-a");
+    const transport = new LongReadingTransport(() => {
+      throw Error("No request expected");
+    });
+    transport.assets = restoringAssets;
+    const restoring = transport.restoreLocal({ scope: "restore-a", key: "synthetic", voice: "F", parts: [{ chunks: ["text"] }], records: [{ id: "restorer", state: "ready" }], statuses: [status] }).then(() => false, () => true);
+    while (!restoreRelease) await new Promise((r) => setTimeout(r, 5));
+    restoringAssets.setScope("restore-b");
+    restoreRelease();
+    if (!await restoring || restoringAssets.jobs.size || transport.groups.size) throw Error("Restore crossed an account boundary");
+    restoringAssets.dispose();
+    checks.push("account switch during Open rejects old manifest before exposing a new group");
     let releaseEstimate;
     const conversion = new PersistentReadingAssets(async () => new Response(bytes), { storeFactory: (scope) => new DeviceAudioStore(scope, { storage: { estimate: () => new Promise((r) => releaseEstimate = () => r({ quota: 1e9, usage: 0 })) } }) });
     conversion.setScope("convert-a");

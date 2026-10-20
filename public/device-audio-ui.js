@@ -1,6 +1,7 @@
 // Saving is explicit. Clear/voice changes detach playback but never remove a
 // device reading. Removal is available only through this account's saved list.
-export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
+export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches = () => true, refresh = () => {
+} }) {
   const player = getPlayer(), transport = player.longReadings, assets = transport?.assets;
   if (!assets?.setScope) return;
   const panel = document.createElement("details");
@@ -12,7 +13,7 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
   for (const button of panel.querySelectorAll("button")) button.style.minWidth = "0";
   document.getElementById("section-progress").after(panel);
   const $ = (id) => panel.querySelector("#" + id), message = (text) => $("device-audio-status").textContent = text;
-  let selected = null, saving = false, timer, checking = 0, shellReady = false, persistentStorage = false;
+  let selected = null, saving = false, timer, checking = 0, shellReady = false, persistentStorage = false, persistenceBusy = false, openSerial = 0, opening = false;
   const lastScopeKey = "paste2speech.device-audio.scope";
   async function shell() {
     if (!navigator.serviceWorker) throw Error("Offline reopening is unavailable in this browser.");
@@ -39,28 +40,46 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
     const records = await store.readings();
     if (scope !== assets.scope) return;
     const items = [];
-    for (const record of records) {
+    for (let record of records) {
       const li = document.createElement("li"), open = document.createElement("button"), remove = document.createElement("button");
       open.type = remove.type = "button";
-      open.textContent = "Open: " + (record.text.trim().split("\n")[0].slice(0, 70) || "Saved reading") + (record.offlineReady ? " (ready offline)" : " (download incomplete)");
+      open.disabled = record.damaged === true;
+      open.textContent = "Open: " + (record.text.trim().split("\n")[0].slice(0, 70) || "Saved reading") + (record.offlineReady ? " (saved copy)" : " (download incomplete)");
       remove.textContent = "Remove from device";
       remove.disabled = saving;
       open.onclick = async () => {
+        const serial = ++openSerial, editorBefore = getText();
+        opening = true;
+        refresh();
         try {
           if (assets.scope !== record.scope) throw Error("The account changed.");
+          const current = await store.reading(record.id);
+          if (serial !== openSerial) return;
+          if (getText() !== editorBefore) throw Error("The editor changed while opening. Your current text is kept.");
+          if (!current || store !== assets.store) throw Error("The saved reading was removed or the account changed.");
+          record = current;
           player.pause();
           await apply(record);
-          const group = await transport.restoreLocal(record);
+          const group = await transport.restoreLocal(record, { valid: () => serial === openSerial && store === assets.store && getText() === record.text && snapshot().voice === record.voice });
+          if (serial !== openSerial) return;
           selected = { ...record, groupId: group.id };
           assets.manifestReady = record.records.length === record.parts.length && record.records.every((r) => r.id && r.state === "ready");
           player.deviceRestoreTime = Math.max(0, Number(record.position) || 0);
           player.deviceRestoreIndex = Math.max(0, transport.status(group).starts.findLastIndex((t) => t <= player.deviceRestoreTime));
-          message("Saved text and place loaded. Press Play to listen. Missing sections need a connection; no new speech is created by opening a saved reading.");
+          message((record.positionUnavailable ? "Saved place could not be verified; starting at the beginning. " : "") + "Saved text and place loaded. Press Play to listen. Missing sections need a connection; no new speech is created by opening a saved reading.");
         } catch (e) {
-          message(e.message);
+          if (serial === openSerial) message(e.message);
+        } finally {
+          if (serial === openSerial) {
+            opening = false;
+            refresh();
+          }
         }
       };
       remove.onclick = async () => {
+        ++openSerial;
+        opening = false;
+        refresh();
         try {
           if (store !== assets.store || record.scope !== assets.scope) throw Error("The account changed.");
           const removingSelected = selected?.id === record.id;
@@ -68,8 +87,14 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
             selected = null;
             assets.manifestReady = false;
           }
-          const ids = await store.removeReading(record.id);
-          if (store === assets.store) assets.forgetLocal(ids);
+          const removingJobs = (record.records || []).map((r) => r.id).filter(Boolean);
+          assets.beginRemoval(removingJobs);
+          try {
+            const ids = await store.removeReading(record.id);
+            if (store === assets.store) assets.forgetLocal(ids);
+          } finally {
+            assets.endRemoval(removingJobs);
+          }
           if (removingSelected) {
             message("Device copy removed. Current tab playback is unchanged.");
           }
@@ -118,36 +143,46 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
   }
   async function persist() {
     timer = null;
-    if (!selected || saving || !assets.store || selected.scope !== assets.scope) return;
+    if (!matches() || persistenceBusy || !selected || saving || !assets.store || selected.scope !== assets.scope) return;
     const group = transport.groups.get(selected.groupId);
     if (!group || player.id !== selected.groupId || getText() !== selected.text) return;
-    const store = assets.store, id = selected.id, scope = selected.scope, valid = () => selected?.id === id && scope === assets.scope;
+    const store = assets.store, id = selected.id, scope = selected.scope, valid = () => selected?.id === id && selected?.groupId === group.id && player.id === group.id && scope === assets.scope;
     const position = Math.max(0, player.pendingTime ?? player.audio.currentTime ?? 0), updated = Date.now();
     const offlineReady = group.session.records.length === group.parts.length && group.session.records.every((r) => r.id && assets.complete(r.id)) && shellReady;
+    persistenceBusy = true;
     try {
       if (!selected.manifestStored || selected.offlineReady !== offlineReady) {
         const next = { ...selected, records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), updated, offlineReady, position };
         delete next.groupId;
         delete next.manifestStored;
-        await store.save("readings", id, next, { valid });
+        await store.save("readings", id, next, { valid, updateOnly: true });
         if (valid()) {
           selected.manifestStored = true;
           selected.offlineReady = offlineReady;
         }
       }
-      await store.save("positions", id, { id, position, rate: player.rate || 1, updated }, { valid });
+      await store.save("positions", id, { id, generation: selected?.generation, position, rate: player.rate || 1, updated }, { valid });
       if (valid()) assets.manifestReady = true;
     } catch (e) {
       if (valid()) {
         assets.manifestReady = false;
+        if (e.name === "LocalCopyRemovedError") {
+          const ids = selected.records.map((r) => r.id).filter(Boolean);
+          selected = null;
+          assets.forgetLocal(ids);
+          await list().catch(() => {
+          });
+        }
         message(assets.storageMessage(e));
       }
+    } finally {
+      persistenceBusy = false;
     }
   }
   function update() {
     if (selected && !timer) timer = setTimeout(() => void persist(), 500);
     const group = player.getVideoPreparation?.(), info = player.offlineInfo;
-    $("save-device-reading").disabled = saving || !assets.scope || !group || !group.done || !!group.error || !!group.ownerScope && group.ownerScope !== assets.scope || group.session.records.some((r) => r.state !== "ready") || !getText().trim();
+    $("save-device-reading").disabled = saving || !matches() || !assets.scope || !group || !group.done || !!group.error || !!group.ownerScope && group.ownerScope !== assets.scope || group.session.records.some((r) => r.state !== "ready") || !getText().trim();
     $("save-device-reading").title = group && !group.done ? "Finish preparing complete audio before saving it offline." : "";
     $("retry-device-reading").disabled = saving || !assets.scope;
     if (selected && info?.retention === "this device") {
@@ -160,6 +195,7 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
     try {
       await account();
       const group = player.getVideoPreparation?.();
+      if (!matches()) throw Error("The text or voice changed. Save only the matching prepared reading.");
       if (!group || !assets.scope) throw Error("Start this reading and confirm your account before saving.");
       if (!group.done || group.error || group.session.records.some((r) => r.state !== "ready")) throw Error("Finish preparing complete audio before saving it offline.");
       if (group.ownerScope && group.ownerScope !== assets.scope) throw Error("This reading belongs to the previous account.");
@@ -171,8 +207,9 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
         }
         group.ownerScope = confirmedScope;
       }
+      if (!matches() || assets.scope !== confirmedScope) throw Error("The reading or account changed. No new speech was started.");
       const parts = structuredClone(group.parts), records = structuredClone(group.session.records);
-      selected = { version: 1, id: group.key, scope: assets.scope, groupId: group.id, key: group.key, parts, voice: group.session.voice, text: getText(), options: snapshot(), records, statuses: structuredClone(group.statuses), position: player.audio.currentTime || 0, updated: Date.now() };
+      selected = { version: 1, generation: crypto.randomUUID(), id: group.key, scope: assets.scope, groupId: group.id, key: group.key, parts, voice: group.session.voice, text: getText(), options: snapshot(), records, statuses: structuredClone(group.statuses), position: player.audio.currentTime || 0, updated: Date.now() };
       group.localSave = true;
       assets.manifestReady = false;
       const initial = { ...selected };
@@ -180,10 +217,14 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
       await assets.store.save("readings", initial.id, initial);
       await list();
       const savingScope = assets.scope;
-      await assets.enable(records.filter((r) => r.id).map((r) => r.id));
+      await assets.enable(records.filter((r) => r.id).map((r) => r.id), { readingId: initial.id, generation: initial.generation });
       if (assets.scope !== savingScope || !selected) throw Error("The account changed.");
       localStorage.setItem(lastScopeKey, assets.scope);
-      persistentStorage = await navigator.storage?.persist?.() === true;
+      try {
+        persistentStorage = await navigator.storage?.persist?.() === true;
+      } catch {
+        persistentStorage = false;
+      }
       await shell();
       saving = false;
       await persist();
@@ -227,8 +268,27 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
       void account();
     }
   });
-  void navigator.storage?.persisted?.().then((value) => {
+  if (globalThis.BroadcastChannel) {
+    const channel = new BroadcastChannel("paste2speech-device-audio");
+    channel.onmessage = (event) => {
+      const data = event.data;
+      if (data?.type !== "removed" || data.scope !== assets.scope || !Array.isArray(data.jobs)) return;
+      ++openSerial;
+      opening = false;
+      refresh();
+      if (selected?.id === data.id) {
+        selected = null;
+        assets.manifestReady = false;
+        message("This device copy was removed in another tab. Current playback can continue.");
+      }
+      assets.forgetLocal(data.jobs.filter((id) => typeof id === "string" && assets.saved(id)));
+      void list().catch(() => {
+      });
+    };
+  }
+  void Promise.resolve(navigator.storage?.persisted?.()).then((value) => {
     persistentStorage = value === true;
+  }).catch(() => {
   });
   void account();
   if (navigator.serviceWorker) void navigator.serviceWorker.getRegistration("/").then(async (registration) => {
@@ -239,6 +299,9 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply }) {
       update();
     };
     registration.active.postMessage({ type: "CHECK_OFFLINE_SHELL" }, [channel.port2]);
+  }).catch(() => {
   });
-  return { update };
+  return { update, get opening() {
+    return opening;
+  } };
 }

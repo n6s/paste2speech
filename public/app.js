@@ -130,7 +130,14 @@ function isGoogle() { return $('engine').value === 'google'; }
 function isDeepInfra() { return $('engine').value === 'deepinfra'; }
 function isWorkstation() { return ['workstation','deepinfra','google'].includes($('engine').value); }
 function isKokoro() { return $('engine').value !== 'browser'; }
-function canPlay() { if(pasteDiagnostics?.active)return false; if(documentImport?.busy&&!intakeContext?.background)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
+let deviceInputChunks,devicePreparedChunks,deviceSourceMatches=false;
+function matchesPreparedDeviceReading(){
+ if(!isGoogle()||$('text').value!==previewedText||settings().voice!==workstationPlayer.settings?.voice)return false;
+ const prepared=workstationPlayer.chunks;
+ if(deviceInputChunks!==chunks||devicePreparedChunks!==prepared){deviceInputChunks=chunks;devicePreparedChunks=prepared;deviceSourceMatches=prepared===chunks||prepared.length===chunks.length&&prepared.every((text,index)=>text===chunks[index]);}
+ return deviceSourceMatches;
+}
+function canPlay() { if(deviceAudio?.opening)return false; if(pasteDiagnostics?.active)return false; if(documentImport?.busy&&!intakeContext?.background)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
   workstationPlayer.release();
@@ -824,6 +831,6 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
 if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});
 
 if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlayer,getText:()=>$('text').value,
- snapshot:()=>({cleanup:{...options},voice:$('voice').value,rate:Number($('rate').value)}),
+ matches:matchesPreparedDeviceReading,refresh:()=>{if(player)render(player);},snapshot:()=>({cleanup:{...options},voice:$('voice').value,rate:Number($('rate').value)}),
  async apply(record){inputQueue?.model.stop();workstationPlayer.invalidate({preserveReady:true});$('engine').value='google';changeEngine();Object.assign(options,record.options.cleanup);for(const key of Object.keys(options)){const input=$('clean-'+key);if(input)input.checked=options[key];}$('voice').value=record.voice;workstationVoice=record.voice;selectedVoice=record.voice;$('rate').value=record.options.rate;summaryMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();}
 });

@@ -128,7 +128,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
     if (busy) return;
     busy = true; creditPaused = false; releaseVideo(); render();
     try {
-      for (const record of (session?.cancellationRecords?.()||session?.records||[])) if (record.id) {
+      for (const record of (session?.localOnly?[]:session?.cancellationRecords?.()||session?.records||[])) if (record.id) {
         const response = await fetch(`/api/readings/${record.id}`, {method:'DELETE', signal:AbortSignal.timeout(15000)});
         if (!response.ok && response.status !== 404) throw Error('Could not confirm removal of the video audio. Try Clear again.');
       }

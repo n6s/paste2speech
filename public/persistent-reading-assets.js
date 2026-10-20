@@ -15,12 +15,14 @@ const wait = (promise, signal) => {
 export class PersistentReadingAssets extends ReadingAssets {
   constructor(fetcher, { ramBytes = 8 * 1024 * 1024, storeFactory = (scope) => new DeviceAudioStore(scope), ...options } = {}) {
     super(fetcher, options);
-    Object.assign(this, { ramBytes, storeFactory, allowed: /* @__PURE__ */ new Set(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
+    Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
   }
   setScope(scope) {
     if (scope === this.scope) return;
     if (this.scope) this.clear();
     this.allowed.clear();
+    this.revoking.clear();
+    this.manifestReady = false;
     this.ram.clear();
     this.ramUsed = 0;
     void this.store?.close?.();
@@ -68,8 +70,8 @@ export class PersistentReadingAssets extends ReadingAssets {
     return { bytes: entry.bytes, samples: entry.samples, sha256: entry.sha256 };
   }
   async hydrate(job) {
-    const store = this.store, record = await store.get("jobs", job.id);
-    if (job.controller.signal.aborted || store !== this.store) return;
+    const store = this.store, epoch = job.localEpoch || 0, record = await store.get("jobs", job.id);
+    if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
     for (const [index, entry] of job.data) if (!entry.blob) job.data.delete(index);
     this.onChange();
     if (!record) return;
@@ -77,12 +79,12 @@ export class PersistentReadingAssets extends ReadingAssets {
     if (!job.status) super.observe(job.id, record.status);
     if (job.invalid) return;
     for (const meta of job.status?.sections || []) {
-      if (job.controller.signal.aborted || store !== this.store) return;
+      if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
       const entry = await store.section(job.id, meta.index);
       if (!entry) continue;
       try {
         await this.verify(entry, meta);
-        if (job.controller.signal.aborted || store !== this.store) return;
+        if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
         job.data.set(meta.index, this.metadata(entry));
         this.remember(job.id, meta.index, entry);
       } catch {
@@ -100,7 +102,7 @@ export class PersistentReadingAssets extends ReadingAssets {
       job.saving = (job.saving || Promise.resolve()).catch(() => {
       }).then(() => {
         if (job.controller.signal.aborted || store !== this.store || !this.saved(id) || epoch !== (job.localEpoch || 0)) return;
-        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { valid: () => !job.controller.signal.aborted && store === this.store && this.saved(id) && epoch === (job.localEpoch || 0) });
+        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
       }).catch((e) => {
         job.storageError = e.message;
         this.onChange();
@@ -138,8 +140,9 @@ export class PersistentReadingAssets extends ReadingAssets {
       if (!job.controller.signal.aborted && !job.storageError && !job.storageBlocked && !job.invalid && !job.accessBlocked && (job.status?.sections || []).some((meta) => !matches(job.data.get(meta.index), meta))) queueMicrotask(() => this.prefetch(job));
     });
   }
-  async enable(ids) {
+  async enable(ids, reference) {
     const store = this.store;
+    if (reference) await store.restoreJobs(ids, reference, () => store === this.store);
     for (const id of ids) {
       if (store !== this.store) throw Error("The account changed.");
       this.allow(id);
@@ -156,7 +159,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
           try {
-            await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && this.saved(id) });
+            await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
             job.controller.signal.throwIfAborted();
             if (store !== this.store) throw Error("The account changed.");
             job.data.set(index, this.metadata(entry));
@@ -181,6 +184,7 @@ export class PersistentReadingAssets extends ReadingAssets {
     this.onChange();
   }
   storageMessage(e) {
+    if (e.name === "LocalCopyRemovedError") return e.message;
     return e.name === "QuotaExceededError" ? "Device storage is full. Saved sections are kept. Online playback can continue; free space and Retry saving." : "Device storage is unavailable or a write was interrupted. Saved sections are kept; Retry saving.";
   }
   async section(id, index, { signal, background = false } = {}) {
@@ -235,19 +239,21 @@ export class PersistentReadingAssets extends ReadingAssets {
           if (!durable) {
             try {
               await job.saving;
-              await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && this.saved(id) && epoch === (job.localEpoch || 0) });
+              await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
               durable = true;
               job.storageError = "";
               job.storageBlocked = false;
             } catch (e) {
-              job.storageBlocked = true;
-              job.storageError = this.storageMessage(e);
+              if (this.saved(id) && !this.revoking.has(id) && epoch === (job.localEpoch || 0)) {
+                job.storageBlocked = true;
+                job.storageError = this.storageMessage(e);
+              }
             }
           }
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
-          if (!this.saved(id) || epoch !== (job.localEpoch || 0)) {
-            if (this.bytes + entry.bytes <= this.maxBytes && !job.data.has(index)) {
+          if (this.revoking.has(id) || !this.saved(id) || epoch !== (job.localEpoch || 0)) {
+            if (!this.saved(id) && this.bytes + entry.bytes <= this.maxBytes && !job.data.has(index)) {
               job.data.set(index, entry);
               this.bytes += entry.bytes;
             }
@@ -281,10 +287,24 @@ export class PersistentReadingAssets extends ReadingAssets {
     const jobs = ids.map((id) => this.jobs.get(id)), downloaded = jobs.reduce((n, j) => n + (j?.data.size || 0), 0);
     return { ready: this.shellReady === true && this.manifestReady === true && jobs.every((j) => j && this.complete(j.id)) && downloaded === total, downloaded, total, bytes: jobs.reduce((n, j) => n + [...j?.data.values() || []].reduce((n2, e) => n2 + e.bytes, 0), 0), ramBytes: this.ramUsed, error: jobs.find((j) => j?.storageError || j?.error)?.storageError || jobs.find((j) => j?.error)?.error || "", retention: "this device" };
   }
+  beginRemoval(ids) {
+    this.manifestReady = false;
+    for (const id of ids) {
+      this.revoking.add(id);
+      const job = this.jobs.get(id);
+      if (job) job.localEpoch = (job.localEpoch || 0) + 1;
+    }
+  }
+  endRemoval(ids) {
+    for (const id of ids) this.revoking.delete(id);
+  }
   forgetLocal(ids) {
     for (const id of ids) {
       const job = this.jobs.get(id);
-      if (!job) continue;
+      if (!job) {
+        this.allowed.delete(id);
+        continue;
+      }
       job.localEpoch = (job.localEpoch || 0) + 1;
       for (const entry of job.data.values()) if (entry.blob) this.bytes -= entry.bytes;
       job.data.clear();

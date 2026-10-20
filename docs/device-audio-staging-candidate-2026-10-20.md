@@ -1,10 +1,13 @@
 # Shared device audio — local staging candidate, October 20, 2026
 
 This is a separate local candidate after production release 300e1ca. Neither
-staging nor production has been deployed for this phase. Full staging release
-preparation remains required before deployment approval. Physical Pixel QA is not
+staging nor production is deployed by preparation. Full staging release
+preparation must pass before deployment approval; current evidence is recorded
+under `work/persistent-audio/`. Physical Pixel QA is not
 available. The staged feature switch is `PERSISTENT_AUDIO=1`; public and historical
-trial builds force it off. No backend, payment, credit or retention change exists.
+trial builds force it off. No backend, payment, credit or retention change exists. Clear of a restored local
+reading/export never deletes server jobs. Play remains disabled until a verified
+Open completes; stale Open operations cannot replace a newer selection or edit.
 
 ## User behavior and lifecycle
 
@@ -24,7 +27,10 @@ listen; opening a saved copy cannot create new speech. Clear, voice changes and
 RAM eviction do not delete saved copies. Remove from device atomically removes
 the selected manifest/place and audio jobs not shared by another saved reading.
 Late metadata/audio writes are invalidated so they cannot resurrect a removed
-copy. Static offline app files remain browser-managed separately.
+copy, including writes from another tab. Small opaque deletion markers remain
+locally until site data is cleared; they contain no reading text or audio. A fresh
+explicit Save creates a new generation and can restore an intentionally removed
+copy. Corrupt records are isolated from other books and can still be removed. Static offline app files remain browser-managed separately.
 
 Saving is opt-in because this introduces local retention of private reading text.
 The disclosure explains browser removal and shared-browser-profile access while
@@ -41,7 +47,8 @@ cached in the offline shell.
 
 ## Implementation
 
-`DeviceAudioStore` uses account-scoped IndexedDB keys, SHA-256 manifest receipts,
+`DeviceAudioStore` schema 2 adds only a deletion journal when upgrading schema 1,
+preserving saved records. It uses account-scoped IndexedDB keys, SHA-256 manifest receipts,
 atomic section writes and atomic reference-aware removal. Positions are small
 separate journals, avoiding copying/hashing a whole book on every timeupdate.
 `PersistentReadingAssets` preserves the existing unsaved path, keeps section
@@ -56,7 +63,10 @@ The opt-in service worker saves a build-specific, SHA-256 checked static allowli
 Offline readiness requires saved sections, reading metadata and a complete
 verified app shell. It never caches account/API responses or redirects, never
 intercepts other origins, and does not delete previous app-shell versions or user
-readings automatically. Old shell versions may consume storage until site data is
+readings automatically. Updates prepare a verified immutable shell before
+installation succeeds, wait for existing clients to close, and preserve the old
+worker on failure. Offline Retry does not invalidate an already-working shell.
+Cached assets are hash-checked on use; readiness checks verify the whole shell. Old shell versions may consume storage until site data is
 cleared; automatic version cleanup needs a compatibility policy before expansion.
 
 The existing MP4 codec/encoder path is unchanged: H.264/AAC/mov_text output still
@@ -82,10 +92,10 @@ working cache. No arbitrary percentage of device RAM is used.
 - All 621 existing JavaScript tests passed against this candidate.
 
 Evidence is ignored under `work/persistent-audio/`, plus the two top-level
-`work/persistent-audio-*-test.log` logs. Both new browser checks are included in
+`work/persistent-audio-*-test.log` logs. The store, UI and service-worker lifecycle browser checks are included in
 staging release preparation when the feature switch is enabled.
 
-## Remaining before readiness/deployment
+## Release gates and operational limits
 
 Run the full prescribed `npm run release:reader:staging` preparation (without
 `--deploy`), including existing parity/recovery/OCR/queue checks and Worker dry run.
