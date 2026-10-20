@@ -121,7 +121,7 @@ export class PersistentReadingAssets extends ReadingAssets {
       for (const meta of job.status?.sections || []) {
         if (this.writesEnabled === false || job.controller.signal.aborted || job.storageBlocked || job.invalid || job.accessBlocked) break;
         await job.writes?.get(meta.index);
-        if (matches(job.data.get(meta.index), meta)) continue;
+        if (matches(job.data.get(meta.index), meta) && !job.data.get(meta.index).blob) continue;
         try {
           await this.section(job.id, meta.index, { background: true });
           await job.writes?.get(meta.index);
@@ -197,8 +197,8 @@ export class PersistentReadingAssets extends ReadingAssets {
     signal?.throwIfAborted();
     const job = this.jobs.get(id), meta = job?.status?.sections[index], store = this.store;
     if (!job || !meta || job.controller.signal.aborted) throw Error("Saved audio section is unavailable.");
-    const epoch = job.localEpoch || 0, key = id + ":" + index, cached = this.ram.get(key);
-    if (cached && matches(cached, meta) && (!background || job.data.has(index))) {
+    const epoch = job.localEpoch || 0, key = id + ":" + index, cached = this.ram.get(key) || (job.data.get(index)?.blob ? job.data.get(index) : null);
+    if (cached && matches(cached, meta) && (!background || job.data.has(index) && !job.data.get(index).blob)) {
       this.remember(id, index, cached);
       return cached.blob;
     }
@@ -304,11 +304,11 @@ export class PersistentReadingAssets extends ReadingAssets {
   complete(id) {
     if (!this.saved(id)) return super.complete(id);
     const job = this.jobs.get(id), status = job?.status;
-    return !!job && !job.invalid && !job.terminal && status?.state === "ready" && status.total === job.chunks.length && status.completed === status.total && status.sections.length === status.total && status.sections.every((s) => matches(job.data.get(s.index), s));
+    return !!job && !job.invalid && !job.terminal && status?.state === "ready" && status.total === job.chunks.length && status.completed === status.total && status.sections.length === status.total && status.sections.every((s) => matches(job.data.get(s.index), s) && !job.data.get(s.index).blob);
   }
   info(ids, total) {
     if (!ids.length || !ids.every((id) => this.saved(id))) return super.info(ids, total);
-    const jobs = ids.map((id) => this.jobs.get(id)), downloaded = jobs.reduce((n, j) => n + (j?.data.size || 0), 0);
+    const jobs = ids.map((id) => this.jobs.get(id)), downloaded = jobs.reduce((n, j) => n + ([...j?.data.values() || []].filter(entry=>!entry.blob).length), 0);
     return { ready: this.shellReady === true && this.manifestReady === true && jobs.every((j) => j && this.complete(j.id)) && downloaded === total, downloaded, total, bytes: jobs.reduce((n, j) => n + [...j?.data.values() || []].reduce((n2, e) => n2 + e.bytes, 0), 0), ramBytes: this.ramUsed, error: jobs.find((j) => j?.storageError || j?.error)?.storageError || jobs.find((j) => j?.error)?.error || "", retention: "this device" };
   }
   beginRemoval(ids) {
