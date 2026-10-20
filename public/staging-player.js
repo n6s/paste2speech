@@ -25,6 +25,12 @@ export class StagingPlayer extends MsePlayer {
   }
   this.settings={...settings};this.pendingIndex=null;
   this.rate=settings.rate;const delivery=settings.delivery==='mse'&&this.capability.mp3?'mse':'complete';
+  const restored=this.longReadings?.localRestore;
+  if(restored&&(settings.voice!==restored.session.voice||JSON.stringify(chunks)!==JSON.stringify(restored.parts.flatMap(part=>part.chunks)))) {
+   // An explicit Play after editing starts the normal new-reading flow. Never
+   // carry a restored book's position into unrelated text or voice.
+   this.longReadings.localRestore=null;this.deviceRestoreTime=null;this.deviceRestoreIndex=null;
+  }
   const deviceTime=this.deviceRestoreTime;this.deviceRestoreTime=null;index=this.deviceRestoreIndex??index;this.deviceRestoreIndex=null;
   await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
   if(deviceTime!=null){this.pendingTime=deviceTime;this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=deviceTime));if(this.status)this.seek(deviceTime);}

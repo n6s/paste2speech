@@ -12,6 +12,7 @@ export class LongReadingTransport {
   }
   clearSavedReadings() {
     // Clear is synchronous: a reload must not retain IDs awaiting network cleanup.
+    this.localRestore=null;
     this.assets?.clear();
     for(const group of this.groups.values())group.forgotten=true;
     for(let i=sessionStorage.length-1;i>=0;i--){

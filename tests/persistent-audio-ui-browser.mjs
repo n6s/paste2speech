@@ -197,6 +197,16 @@ try {
   assert.equal(posts,partialPosts+1,"Interrupted preparation must never admit new speech on reload");
   assert.deepEqual(await partial.evaluate(()=>[...document.querySelectorAll("#save-device-reading")].length),0);
   await writeFile(out+"/incremental-verification.json",JSON.stringify({savedDuringGeneration:true,partialOfflinePlayback:true,automaticReloadWithoutAutoplay:true,resumedExistingJob:true,additionalSpeechPosts:0,realProviderCalls:0},null,2)+"\n");
+  await partial.locator("#next-section").click();await partial.locator("#next-section").click();
+  await partial.waitForTimeout(1200);
+  await partial.reload();await partial.waitForFunction(t=>document.querySelector("#text").value===t,partialText);
+  await partial.waitForFunction(()=>!document.querySelector("#play").disabled);
+  const explicitPosts=posts;
+  await partial.click("#edit-mode");
+  await partial.fill("#text",partialText+" Explicitly edited new source.");await partial.click("#play");
+  await partial.waitForFunction(()=>document.querySelector("#status").textContent==="Reading aloud");
+  assert.equal(posts,explicitPosts+1,"Explicit Play after an edit must use the ordinary new-reading flow exactly once");
+  assert.equal(Number(await partial.locator("#seek").inputValue()),0,"New text must not inherit a restored book position");
   await partialContext.close();
   console.log("PASS automatic incremental saving: preparation interrupted/reloaded offline, saved prefix plays, reconnect resumes existing IDs only; no Save/Open action or new speech.");
 } catch (e) {
