@@ -304,6 +304,12 @@ try {
     if(!result.size||!releaseWrite||nonblocking.complete("nonblocking"))throw Error("Pending disk write reported ready");
     releaseWrite();while(nonblocking.jobs.get("nonblocking").writes?.size)await new Promise(r=>setTimeout(r,5));
     nonblocking.dispose();checks.push("foreground audio never waits for a background disk write or falsely reports offline-ready");
+    let optOutGets=0;
+    const optOut = new PersistentReadingAssets(async()=>{optOutGets++;return new Response(bytes);});
+    optOut.setScope("opt-out");optOut.allow("opt-out");optOut.register("opt-out",["text"],"F");optOut.writesEnabled=false;optOut.observe("opt-out",status);
+    const playable=await optOut.section("opt-out",0);
+    if(!playable.size||optOutGets!==1||await optOut.store.section("opt-out",0)||await optOut.store.get("jobs","opt-out"))throw Error("Opt-out prevented playback or saved new data");
+    optOut.dispose();checks.push("automatic-saving opt-out prevents metadata/audio writes while preserving foreground playback");
     return checks;
   });
   await writeFile(out + "/store-verification.json", JSON.stringify({ first, second, failures, realProviderCalls: 0, physicalPixel: false }, null, 2) + "\n");

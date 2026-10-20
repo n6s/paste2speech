@@ -125,6 +125,14 @@ try {
   }
   await page.setViewportSize({ width: 390, height: 844 });
   await page.screenshot({ path: out + "/offline-mobile.png", fullPage: true });
+  const peer = await context.newPage();await peer.goto(origin);
+  await peer.waitForFunction(t=>document.querySelector("#text").value===t,source);
+  await page.uncheck("#automatic-device-audio");
+  await peer.waitForFunction(()=>!document.querySelector("#automatic-device-audio").checked);
+  assert.equal(await peer.locator("#automatic-device-audio").isChecked(),false);
+  assert.equal(posts,before.posts);assert.equal(sectionGets,before.sectionGets);
+  await peer.close();await page.check("#automatic-device-audio");
+  await page.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"));
   await page.click("#clear");
   await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).dblclick();
   await page.click("#play");

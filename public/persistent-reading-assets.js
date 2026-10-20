@@ -99,12 +99,12 @@ export class PersistentReadingAssets extends ReadingAssets {
   observe(id, status) {
     super.observe(id, status);
     const job = this.jobs.get(id);
-    if (this.saved(id) && job && !job.invalid) {
+    if (this.saved(id) && this.writesEnabled !== false && job && !job.invalid) {
       const store = this.store, epoch = job.localEpoch || 0;
       job.saving = (job.saving || Promise.resolve()).catch(() => {
       }).then(() => {
         if (job.controller.signal.aborted || store !== this.store || !this.saved(id) || epoch !== (job.localEpoch || 0)) return;
-        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
+        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
       }).catch((e) => {
         job.storageError = e.message;
         this.onChange();
@@ -113,12 +113,13 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   prefetch(job) {
     if (!this.saved(job.id)) return super.prefetch(job);
+    if (this.writesEnabled === false) return;
     if (job.controller.signal.aborted || job.terminal || job.invalid || job.accessBlocked || job.storageBlocked || job.loading) return;
     job.loading = true;
     void (async () => {
       await job.hydrating;
       for (const meta of job.status?.sections || []) {
-        if (job.controller.signal.aborted || job.storageBlocked || job.invalid || job.accessBlocked) break;
+        if (this.writesEnabled === false || job.controller.signal.aborted || job.storageBlocked || job.invalid || job.accessBlocked) break;
         await job.writes?.get(meta.index);
         if (matches(job.data.get(meta.index), meta)) continue;
         try {
@@ -141,7 +142,7 @@ export class PersistentReadingAssets extends ReadingAssets {
     })().finally(() => {
       job.loading = false;
       this.onChange();
-      if (!job.controller.signal.aborted && !job.storageError && !job.storageBlocked && !job.invalid && !job.accessBlocked && (job.status?.sections || []).some((meta) => !matches(job.data.get(meta.index), meta))) queueMicrotask(() => this.prefetch(job));
+      if (this.writesEnabled !== false && !job.controller.signal.aborted && !job.storageError && !job.storageBlocked && !job.invalid && !job.accessBlocked && (job.status?.sections || []).some((meta) => !matches(job.data.get(meta.index), meta))) queueMicrotask(() => this.prefetch(job));
     });
   }
   async enable(ids, reference) {
@@ -163,7 +164,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
           try {
-            await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
+            await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
             job.controller.signal.throwIfAborted();
             if (store !== this.store) throw Error("The account changed.");
             job.data.set(index, this.metadata(entry));
@@ -242,6 +243,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           if (store !== this.store) throw Error("The account changed.");
           if (!durable) {
             this.remember(id, index, entry);
+            if (this.writesEnabled === false) return entry.blob;
             if (!background && (this.diskWrites || 0) >= this.concurrency) return entry.blob;
             while (background && (this.diskWrites || 0) >= this.concurrency) {
               const writes = [...this.jobs.values()].flatMap(job => [...(job.writes?.values() || [])]);
@@ -254,7 +256,7 @@ export class PersistentReadingAssets extends ReadingAssets {
             const write = (async () => {
               try {
                 await job.saving;
-                await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
+                await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
                 if (store === this.store && this.saved(id) && epoch === (job.localEpoch || 0)) {
                   job.data.set(index, this.metadata(entry));
                   job.storageError = "";

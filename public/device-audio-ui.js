@@ -17,12 +17,16 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
   const latestKey = () => "paste2speech.device-audio.latest." + assets.scope;
   const preferenceKey = "paste2speech.device-audio.automatic";
   $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
+  assets.writesEnabled = $("automatic-device-audio").checked;
+  function disableSaving() {
+    for(const group of transport.groups.values()) group.localSave=false;
+    assets.writesEnabled=false;
+    selected=null;
+  }
   $("automatic-device-audio").onchange = () => {
     localStorage.setItem(preferenceKey, String($("automatic-device-audio").checked));
-    if (!$("automatic-device-audio").checked) {
-      if(selected) { const group=transport.groups.get(selected.groupId);if(group)group.localSave=false;assets.forgetLocal(selected.records.map(r=>r.id).filter(Boolean)); }
-      selected = null;
-    }
+    assets.writesEnabled = $("automatic-device-audio").checked;
+    if (!$("automatic-device-audio").checked) disableSaving();
     update();
   };
   async function shell() {
@@ -163,7 +167,7 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
   }
   async function persist() {
     timer = null;
-    if (!matches() || persistenceBusy || !selected || saving || !assets.store || selected.scope !== assets.scope) return;
+    if (!$("automatic-device-audio").checked || !matches() || persistenceBusy || !selected || saving || !assets.store || selected.scope !== assets.scope) return;
     const group = transport.groups.get(selected.groupId);
     if (!group || player.id && player.id !== selected.groupId || getText() !== selected.text) return;
     const store = assets.store, id = selected.id, scope = selected.scope, valid = () => selected?.id === id && selected?.groupId === group.id && (!player.id || player.id === group.id) && scope === assets.scope;
@@ -283,9 +287,9 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
   window.addEventListener("storage", (event) => {
     if (event.key === preferenceKey) {
       $("automatic-device-audio").checked = event.newValue !== "false";
+      assets.writesEnabled = event.newValue !== "false";
       if(event.newValue === "false") {
-        if(selected) { const group=transport.groups.get(selected.groupId);if(group)group.localSave=false;assets.forgetLocal(selected.records.map(r=>r.id).filter(Boolean)); }
-        selected=null;
+        disableSaving();
       }
       update();
     }
