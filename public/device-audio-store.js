@@ -277,7 +277,7 @@ export class DeviceAudioStore {
       };
     });
   }
-  async removeReading(id) {
+  async removeReading(id, {valid=()=>true}={}) {
     const db = await this.db();
     return new Promise((resolve, reject) => {
       const tx = db.transaction(["readings", "jobs", "sections", "positions", "removed", "usage", "references", "lifecycle"], "readwrite");
@@ -301,6 +301,7 @@ export class DeviceAudioStore {
       const request = readings.getAll(range);
       request.onsuccess = () => {
         try {
+          if(!valid())return;
           const index = keys.findIndex((key) => key[1] === id), target = request.result[index];
           if (!target) return;
           const referenced = new Set(request.result.filter((_, i) => i !== index).flatMap((r) => (Array.isArray(r.records) ? r.records : []).map((record) => record?.id)));

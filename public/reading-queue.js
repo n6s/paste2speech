@@ -5,7 +5,7 @@ export class ReadingQueue {
   }
   reserve({title='Clipboard text',snapshot,placement='last',source='clipboard'}={}) {
     if(this.items.length>=50)throw Error('The queue has 50 items. Remove an item before adding another.');
-    const item={id:++this.sequence,title,snapshot:structuredClone(snapshot),source,state:'preparing'};
+    const item={id:++this.sequence,title,snapshot:structuredClone(snapshot),source,createdAt:Date.now(),state:'preparing'};
     placement==='next'?this.items.unshift(item):this.items.push(item);this.changed();return item;
   }
   has(id){return this.items.some(item=>item.id===id);}

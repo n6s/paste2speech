@@ -31,7 +31,8 @@ export class LongReadingTransport {
       const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
       const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
-      const id=crypto.randomUUID(),group={id,key,ownerScope:this.assets?.scope||null,parts,statuses:[],done:false,error:null,cancelled:false};
+      const id=crypto.randomUUID(),group={id,key,createdAt:this.nextAddedAt||Date.now(),ownerScope:this.assets?.scope||null,parts,statuses:[],done:false,error:null,cancelled:false};
+      this.nextAddedAt=null;
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},

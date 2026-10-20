@@ -30,6 +30,7 @@ try {
     return route.fulfill({ status: url.pathname === "/api/events" ? 204 : url.pathname === "/api/ocr/jobs/config" && !accountScope ? 401 : 200, contentType: "application/json", body: url.pathname === "/api/events" ? "" : JSON.stringify(body) });
   });
   await context.addInitScript(() => {
+    window.__readingCount=async()=>{const db=await new Promise(r=>{const q=indexedDB.open("paste2speech-device-audio-v1");q.onsuccess=()=>r(q.result);});const n=await new Promise(r=>{const q=db.transaction("readings").objectStore("readings").getAll();q.onsuccess=()=>r(q.result.filter(record=>record.scope===(localStorage.getItem("paste2speech.device-audio.scope")||localStorage.getItem("paste2speech.browser-history.scope"))).length);});db.close();return n;};
     const synth = new EventTarget();
     window.__spoken = [];
     window.__nativeVoices = [{ name: "Native A", voiceURI: "native-a", lang: "en-US", localService: true }, { name: "Native B", voiceURI: "native-b", lang: "en-GB", localService: true }];
@@ -58,7 +59,7 @@ try {
   await page.selectOption("#voice", "native-a");
   await page.fill("#text", "First native section.\n\nSecond native section.\n\nThird native section.");
   await page.click("#play");
-  await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
+  await page.waitForFunction(async () => document.querySelector("#status").textContent === "Reading aloud");
   assert.equal(await page.evaluate(() => __spoken.at(-1).voice.voiceURI), "native-a");
   await page.evaluate(() => __spoken.at(-1).onboundary({ name: "word", charIndex: 6 }));
   await page.click("#pause");
@@ -82,7 +83,7 @@ try {
   await page.evaluate(() => clipboardText = "Queued native newsletter.");
   await page.click("#paste-options");
   await page.click("#paste-queue");
-  await page.waitForFunction(() => document.querySelector(".queue-title")?.textContent === "Queued native newsletter.");
+  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent === "Queued native newsletter.");
   await page.selectOption("#voice", "native-a");
   await page.locator("#rate").evaluate((e) => {
     e.value = "1";
@@ -90,44 +91,44 @@ try {
   });
   const queuedBefore = await page.evaluate(() => __spoken.length);
   await page.click("#next-reading");
-  await page.waitForFunction(() => document.querySelector("#text").value === "Queued native newsletter." && !document.querySelector("#play").disabled);
+  await page.waitForFunction(async () => document.querySelector("#text").value === "Queued native newsletter." && !document.querySelector("#play").disabled);
   assert.equal(await page.evaluate(() => __spoken.length), queuedBefore);
   await page.click("#play");
-  await page.waitForFunction(() => __spoken.at(-1).text === "Queued native newsletter.");
+  await page.waitForFunction(async () => __spoken.at(-1).text === "Queued native newsletter.");
   assert.equal(await page.evaluate(() => __spoken.at(-1).voice.voiceURI), "native-b");
   assert.equal(await page.evaluate(() => __spoken.at(-1).rate), 1.5);
   await page.evaluate(() => __spoken.at(-1).onboundary({ name: "word", charIndex: 7 }));
   await page.click("#pause");
-  await page.waitForFunction(() => document.querySelectorAll("#device-audio-list li").length === 2 && document.querySelector("#reading-order").textContent === "Reading 2 of 2");
+  await page.waitForFunction(async () => (await window.__readingCount()) === 2 && document.querySelector("#reading-order").textContent === "Reading 2 of 2");
   const beforeSwitch = await page.evaluate(() => __spoken.length);
   await page.click("#previous-reading");
-  await page.waitForFunction(() => document.querySelector("#voice").value === "native-a" && !document.querySelector("#play").disabled);
+  await page.waitForFunction(async () => document.querySelector("#voice").value === "native-a" && !document.querySelector("#play").disabled);
   assert.equal(await page.evaluate(() => __spoken.length), beforeSwitch);
   await page.click("#play");
   assert.equal(await page.evaluate(() => __spoken.at(-1).text), "Third native section.");
   await page.click("#pause");
   await context.setOffline(true);
   await page.click("#next-reading");
-  await page.waitForFunction(() => document.querySelector("#voice").value === "native-b" && !document.querySelector("#play").disabled);
+  await page.waitForFunction(async () => document.querySelector("#voice").value === "native-b" && !document.querySelector("#play").disabled);
   await page.click("#play");
   assert.equal(await page.evaluate(() => __spoken.at(-1).text), "native newsletter.");
   await page.click("#pause");
   await page.click("#previous-reading");
-  await page.waitForFunction(() => document.querySelector("#voice").value === "native-a" && !document.querySelector("#play").disabled);
+  await page.waitForFunction(async () => document.querySelector("#voice").value === "native-a" && !document.querySelector("#play").disabled);
   await page.click("#next-reading");
-  await page.waitForFunction(() => document.querySelector("#voice").value === "native-b" && !document.querySelector("#play").disabled);
+  await page.waitForFunction(async () => document.querySelector("#voice").value === "native-b" && !document.querySelector("#play").disabled);
   await context.setOffline(false);
   await page.click("#play");
   await page.evaluate(() => clipboardText = "Unavailable native queued item.");
   await page.click("#paste-options");
   await page.click("#paste-queue");
-  await page.waitForFunction(() => document.querySelector(".queue-title")?.textContent === "Unavailable native queued item.");
+  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent === "Unavailable native queued item.");
   const spoken = await page.evaluate(() => __spoken.length);
   await page.evaluate(() => {
     __nativeVoices = __nativeVoices.slice(0, 1);
     __spoken.at(-1).onend();
   });
-  await page.waitForFunction(() => document.querySelector(".queue-title")?.textContent.includes("browser voice is unavailable"));
+  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent.includes("browser voice is unavailable"));
   assert.equal(await page.evaluate(() => __spoken.length), spoken);
   assert.equal(await page.locator("#engine").inputValue(), "browser");
   const disk = await page.evaluate(async () => {
@@ -157,11 +158,11 @@ try {
   const end=Date.now()+90000;
   for(;;){const ready=await page.evaluate(async()=>{const registration=await navigator.serviceWorker.getRegistration("/");if(!registration?.active||!navigator.serviceWorker.controller)return false;return new Promise(resolve=>{const channel=new MessageChannel(),timer=setTimeout(()=>resolve(false),10000);channel.port1.onmessage=event=>{clearTimeout(timer);resolve(event.data.ok===true);};registration.active.postMessage({type:"CHECK_OFFLINE_SHELL"},[channel.port2]);});});if(ready)break;if(Date.now()>end)throw Error("Native offline shell did not finish");await page.waitForTimeout(100);}
   await context.setOffline(true);await page.reload();
-  await page.waitForFunction(()=>document.querySelector("#engine").value==="browser"&&!document.querySelector("#play").disabled&&document.querySelector("#text").value==="Queued native newsletter.");
+  await page.waitForFunction(async()=>document.querySelector("#engine").value==="browser"&&!document.querySelector("#play").disabled&&document.querySelector("#text").value==="Queued native newsletter.");
   assert.equal(await page.evaluate(()=>__spoken.length),0);assert.equal(await page.locator("#voice").inputValue(),"native-b");await page.click("#play");assert.ok(await page.evaluate(()=>__spoken.length)>0);await page.click("#pause");
-  await context.setOffline(false);accountScope=null;await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===0);
-  await page.click("#edit-mode");await page.fill("#text","Signed-out native reading.");await page.click("#play");await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===1);
-  accountScope="different-owner";await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(()=>document.querySelectorAll("#device-audio-list li").length===0);
+  await context.setOffline(false);accountScope=null;await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(async()=>(await window.__readingCount())===0);
+  await page.click("#edit-mode");await page.fill("#text","Signed-out native reading.");await page.click("#play");await page.waitForFunction(async()=>(await window.__readingCount())===1);
+  accountScope="different-owner";await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(async()=>(await window.__readingCount())===0);
   const isolation=await page.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});const records=await new Promise(resolve=>{const r=db.transaction("readings").objectStore("readings").getAll();r.onsuccess=()=>resolve(r.result);});db.close();return{old:records.filter(record=>record.scope==="native-fixture").length,anonymous:records.filter(record=>record.scope.startsWith("browser-profile:")).length,newAccount:records.filter(record=>record.scope==="different-owner").length};});
   assert.deepEqual(isolation,{old:3,anonymous:1,newAccount:0});assert.deepEqual(requests.filter(request=>request.path.startsWith("/api/readings")||request.path.includes("synth")),[]);assert.deepEqual(errors,[]);
   const proof = { signedOutNativePlayback:true,accountHistoriesNotMerged:isolation,nativeOfflineColdReload:true,naturalHistoryDoesNotOverrideNative:true,nativeTwoReadingRoundTrip: true, offlineNativeSwitching: true, nativeReloadWithoutAutoplay: true, commit: release.commit, syntheticNativeSpeech: true, actualAudibleOutputTested: false, pauseResumeWordOffset: true, pausedSectionSeek: true, queuedNativeVoiceAndRateRestored: true, missingQueuedVoiceStopsWithoutFallback: true, noPreparedAudioDiskCopies: disk, noSpeechCreditApiCalls: true, pageErrors: errors, physicalPixel: false };

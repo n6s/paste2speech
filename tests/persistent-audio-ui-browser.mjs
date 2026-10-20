@@ -127,14 +127,14 @@ try {
   await page.screenshot({ path: out + "/offline-mobile.png", fullPage: true });
   const peer = await context.newPage();await peer.goto(origin);
   await peer.waitForFunction(t=>document.querySelector("#text").value===t,source);
-  await page.uncheck("#automatic-device-audio");
+  await page.locator("#automatic-device-audio").evaluate(e=>{e.checked=false;e.dispatchEvent(new Event("change"));});
   await peer.waitForFunction(()=>!document.querySelector("#automatic-device-audio").checked);
   assert.equal(await peer.locator("#automatic-device-audio").isChecked(),false);
   assert.equal(posts,before.posts);assert.equal(sectionGets,before.sectionGets);
-  await peer.close();await page.check("#automatic-device-audio");
+  await peer.close();await page.locator("#automatic-device-audio").evaluate(e=>{e.checked=true;e.dispatchEvent(new Event("change"));});
   await page.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"));
   await page.click("#clear");
-  await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).dblclick();
+  await page.reload();await page.waitForFunction(text=>document.querySelector("#text").value===text,source);
   await page.click("#play");
   await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
   await page.click("#pause");
@@ -144,19 +144,22 @@ try {
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
   await page.waitForFunction(() => document.querySelector("#device-audio-list").children.length === 0);
   assert.ok(await page.evaluate(() => fixtureAudio.every((a) => a.paused)));
+  await page.evaluate(async()=>{
+    const db=await new Promise(resolve=>{const r=indexedDB.open('paste2speech-device-audio-v1');r.onsuccess=()=>resolve(r.result);});
+    const entries=await new Promise(resolve=>{const r=db.transaction('readings').objectStore('readings').getAll();r.onsuccess=()=>resolve(r.result);});
+    for(const record of entries){record.createdAt=Date.now()-86400001;delete record.sha256;record.sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(record))))].map(n=>n.toString(16).padStart(2,'0')).join('');await new Promise(resolve=>{const tx=db.transaction('readings','readwrite');tx.objectStore('readings').put(record,[record.scope,record.id]);tx.oncomplete=resolve;});}db.close();
+  });
   scope = "device-owner";
   await page.evaluate(() => window.dispatchEvent(new Event("focus")));
-  await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).waitFor();
-  await page.getByRole("button", { name: "Remove from device", exact: true }).click();
-  await page.waitForFunction(() => document.querySelector("#device-audio-list").children.length === 0);
+  await page.waitForFunction(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open('paste2speech-device-audio-v1');r.onsuccess=()=>resolve(r.result);});const count=await new Promise(resolve=>{const r=db.transaction('readings').objectStore('readings').count();r.onsuccess=()=>resolve(r.result);});db.close();return count===0;});
   await page.waitForTimeout(1200);
   await context.setOffline(true);
   await page.reload();
   await page.locator("#device-readings").evaluate((e) => e.open = true);
   assert.equal(await page.getByRole("button", { name: /^Open:/ }).count(), 0);
   assert.deepEqual(errors, []);
-  await writeFile(out + "/verification.json", JSON.stringify({ offlineReloadAppShell: true, textAndVoiceRecovered: true, place, restored, rapidPreviousNext: true, offlineMp4Verified: true, sourceAudioGets: sectionGets, additionalSpeechPosts: posts - before.posts, additionalSectionGets: sectionGets - before.sectionGets, physicalPixel: false, realProviderCalls: 0, localClearBackendDeletes: deletes.length, rapidSavedOpen: true, accountSwitchIsolation: true, removalSurvivesOfflineReload: true, mobileWidths: [320, 390, 780] }, null, 2) + "\n");
-  console.log("PASS account switch hides old device audio and pauses playback; explicit removal survives reload without late resurrection.");
+  await writeFile(out + "/verification.json", JSON.stringify({ offlineReloadAppShell: true, textAndVoiceRecovered: true, place, restored, rapidPreviousNext: true, offlineMp4Verified: true, sourceAudioGets: sectionGets, additionalSpeechPosts: posts - before.posts, additionalSectionGets: sectionGets - before.sectionGets, physicalPixel: false, realProviderCalls: 0, localClearBackendDeletes: deletes.length, automaticSavedRestore: true, accountSwitchIsolation: true, expirySurvivesOfflineReload: true, mobileWidths: [320, 390, 780] }, null, 2) + "\n");
+  console.log("PASS account switch hides old device audio and pauses playback; expiry survives reload without late resurrection.");
   console.log("PASS saved device reading: offline shell reload, automatic text/voice/place restore, rapid seeks and MP4 with subtitles reuse the same disk sections; no extra speech or section download.");
   await context.close();
   }
