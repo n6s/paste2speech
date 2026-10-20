@@ -297,7 +297,7 @@ try {
     if(!limited)throw Error("Automatic library is unbounded");
     // A ledger seeded at the bound simulates disk occupancy without a 512 MiB fixture.
     await automatic.transaction("usage","readwrite",s=>s.put(512*1024*1024,"audio-bytes"));
-    let byteLimited=false;try{await automatic.writeSection("over-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){byteLimited=e.name==="QuotaExceededError";}
+    let byteLimited=false;try{await automatic.writeSection("over-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){byteLimited=e.name==="AudioBudgetExceededError";}
     if(!byteLimited||await automatic.section("over-budget",0))throw Error("Audio budget was exceeded");
     checks.push("automatic reading tombstones, 20-book limit and transactional 512 MiB audio budget");
     let releaseWrite;

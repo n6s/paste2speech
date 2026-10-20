@@ -86,8 +86,10 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
   $('download-video').onclick = async () => {
     if (busy) return;
     busy = true; creditPaused = false; stopRequested = false; borrowedPreparation = false; releaseVideo(); message('Preparing complete audio…'); render();
+    let releaseAudio=()=>{};
     try {
       if (!await prepare()) return;
+      releaseAudio=await session.assets?.protectRecords?.(session.records)||(()=>{});
       if (stopRequested) return;
       controller = new AbortController();
       const {exportVideo} = await import('./video-export.js');
@@ -107,7 +109,7 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
       // not stop its playback/preparation. Stop only scheduling our own work;
       // already-admitted audio is retained and reused on another Download.
       if (stopRequested) message('Processing cancelled. Prepared audio is kept for another attempt.');
-      controller = null; busy = false; window.dispatchEvent(new Event('speech-credit-change')); render();
+      releaseAudio();controller = null; busy = false; window.dispatchEvent(new Event('speech-credit-change')); render();
     }
   };
   $('open-video').onclick = event => {

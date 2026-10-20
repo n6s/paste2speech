@@ -36,7 +36,7 @@ export class LongReadingTransport {
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
         save:records=>{group.deviceRevision=(group.deviceRevision||0)+1;group.deviceChanged?.();if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
-        statusChanged:(index,status)=>{group.deviceRevision=(group.deviceRevision||0)+1;group.statuses[index]=status;if(this.assets){const id=group.session.records[index].id;if(group.localSave&&group.ownerScope===this.assets.scope)this.assets.allow?.(id,group.deviceReference);this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}group.deviceChanged?.();}});
+        statusChanged:(index,status)=>{group.deviceRevision=(group.deviceRevision||0)+1;group.statuses[index]=status;if(this.assets&&(!group.ownerScope||group.ownerScope===this.assets.scope)){const id=group.session.records[index].id;if(group.localSave&&group.ownerScope===this.assets.scope)this.assets.allow?.(id,group.deviceReference);this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}group.deviceChanged?.();}});
       group.session.assets=this.assets;
       this.groups.set(id,group);
       this.prepare(group);
@@ -110,14 +110,26 @@ export class LongReadingTransport {
     }
     return indices.sort((a,b)=>a-b);
   }
-  async restoreLocal(record,{valid=()=>true}={}){
+  async restoreLocal(record,{valid=()=>true}={}) {
     if(!valid()||!this.assets?.store||record.scope!==this.assets.scope)throw Error('Confirm the saved reading account first.');
     const store=this.assets.store;
-    const group={id:crypto.randomUUID(),localOnly:true,key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
+    const live=[...this.groups.values()].find(group=>!group.localOnly&&!group.cancelled&&group.key===record.key&&group.ownerScope===record.scope&&group.session.voice===record.voice&&JSON.stringify(group.parts)===JSON.stringify(record.parts));
+    const group=live||{id:crypto.randomUUID(),localOnly:true,key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
+    group.localSave=true;group.deviceRevision=Math.max(group.deviceRevision||0,record.manifestRevision||0);
     group.deviceReference={readingId:record.id,generation:record.generation,automatic:true};
-    group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.session.localOnly=true;group.finished=Promise.resolve();
-    for(let i=0;i<record.records.length;i++){if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id,group.deviceReference);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');if(!job.status&&record.statuses[i])this.assets.observe(id,record.statuses[i]);if(job.status){group.statuses[i]=job.status;Object.assign(group.session.records[i],{state:job.status.state,completed:job.status.completed,duration:job.status.duration});}}
-    if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');this.groups.set(group.id,group);this.localRestore=group;void this.refreshLocal(group);return group;
+    if(!live){group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.session.localOnly=true;group.finished=Promise.resolve();}
+    for(let index=0;index<group.session.records.length;index++) {
+      if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');
+      const id=group.session.records[index]?.id;if(!id)continue;
+      if(record.audioMissing)this.assets.deferred?.add(id);
+      this.assets.allow(id,group.deviceReference);
+      const job=this.assets.register(id,group.parts[index].chunks,record.voice);await job.hydrating;
+      if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');
+      const status=live?group.statuses[index]:job.status||record.statuses[index];
+      if(status){this.assets.observe(id,status);group.statuses[index]=status;Object.assign(group.session.records[index],{state:status.state,completed:status.completed,duration:status.duration});}
+    }
+    if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');
+    this.groups.set(group.id,group);this.localRestore=group;if(!live)void this.refreshLocal(group);return group;
   }
   async refreshLocal(group) {
     if(!group.localOnly||group.refreshing||navigator.onLine===false)return;

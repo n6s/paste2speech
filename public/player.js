@@ -9,6 +9,12 @@ export class Player {
     this.state = chunks.length ? 'playing' : 'idle';
     if (chunks.length) this.speak(); else this.emit('Paste some readable text first.');
   }
+  restore(chunks,settings,{index=0,offset=0}={}) {
+    this.cancel();this.chunks=[...chunks];this.settings=settings;
+    this.index=Math.max(0,Math.min(chunks.length-1,Math.trunc(index)||0));
+    this.offset=Math.max(0,Math.min(chunks[this.index]?.length||0,Math.trunc(offset)||0));
+    this.state=chunks.length?'paused':'idle';this.emit();
+  }
   speak() {
     const generation = ++this.generation;
     const utterance = new this.Utterance(this.chunks[this.index].slice(this.offset));

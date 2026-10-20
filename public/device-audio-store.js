@@ -1,6 +1,7 @@
 // Private to this browser origin. No audio, text or account identifiers leave
 // this store. Transactions publish complete verified sections, never partial data.
 export const digest = async (value) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", typeof value === "string" ? new TextEncoder().encode(value) : value))].map((n) => n.toString(16).padStart(2, "0")).join("");
+export const DEVICE_AUDIO_BUDGET = 512 * 1024 * 1024;
 export class DeviceAudioStore {
   constructor(scope, { indexedDB = globalThis.indexedDB, name = "paste2speech-device-audio-v1", storage = globalThis.navigator?.storage } = {}) {
     if (!scope) throw Error("Confirm your account before saving audio.");
@@ -9,9 +10,9 @@ export class DeviceAudioStore {
   async db() {
     return this.opening ??= new Promise((resolve, reject) => {
       if (!this.indexedDB) return reject(Error("Device storage is unavailable."));
-      const r = this.indexedDB.open(this.name, 3);
+      const r = this.indexedDB.open(this.name, 4);
       r.onupgradeneeded = () => {
-        for (const name of ["jobs", "sections", "readings", "positions", "removed", "usage", "references"]) if (!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name);
+        for (const name of ["jobs", "sections", "readings", "positions", "removed", "usage", "references", "lifecycle"]) if (!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name);
       };
       r.onsuccess = () => {
         r.result.onversionchange = () => {
@@ -68,8 +69,8 @@ export class DeviceAudioStore {
     error.name = "LocalCopyRemovedError";
     return error;
   }
-  async guardedPut(name, id, value, { valid = () => true, updateOnly = false, automatic = false, reference } = {}) {
-    const names = [...new Set([name, "removed", ...((reference || name === "positions") ? ["readings"] : []), ...(reference ? ["references"] : [])])];
+  async guardedPut(name, id, value, { valid = () => true, updateOnly = false, automatic = false, reference, rekeep = false } = {}) {
+    const names = [...new Set([name, "removed", ...((reference || ["positions", "lifecycle"].includes(name)) ? ["readings"] : []), ...(reference ? ["references"] : [])])];
     await this.transaction(names, "readwrite", (store) => {
       const tx = store.transaction;
       const fail = (error) => {
@@ -78,6 +79,7 @@ export class DeviceAudioStore {
       };
       const put = () => {
         if (!valid()) return fail(new DOMException("Save canceled", "AbortError"));
+        if(name === "readings" && rekeep)tx.objectStore("removed").delete(this.key("reading:"+id));
         if(reference && name === "jobs") tx.objectStore("references").put(true,this.key(reference.readingId,id));
         store.put(value, this.key(id));
       };
@@ -91,18 +93,21 @@ export class DeviceAudioStore {
         });
         return r;
       }
-      if (name === "readings" && updateOnly || name === "positions") {
+      if (name === "readings" && updateOnly || ["positions", "lifecycle"].includes(name)) {
         const r = tx.objectStore("readings").get(this.key(id));
         r.addEventListener("success", () => {
           if (!r.result || (r.result.generation || "legacy") !== (value.generation || "legacy")) fail(this.removedError());
-          else put();
+          else if(name === "readings" && Number.isFinite(value.manifestRevision) && Number.isFinite(r.result.manifestRevision) && value.manifestRevision < r.result.manifestRevision)return;
+          else if(name === "positions") {
+            const previous=store.get(this.key(id));previous.onsuccess=()=>{if(!(previous.result?.updated>value.updated))put();};
+          }else put();
         });
         return r;
       }
-      if (name === "readings" && automatic) {
+      if (name === "readings" && (automatic || rekeep)) {
         const r = tx.objectStore("removed").get(this.key("reading:" + id));
         r.addEventListener("success", () => {
-          if (r.result) return fail(this.removedError());
+          if (r.result && !rekeep) return fail(this.removedError());
           const keys = store.getAllKeys(IDBKeyRange.bound([this.scope], [this.scope, []]));
           keys.addEventListener("success", () => {
             if (keys.result.length >= 20 && !keys.result.some(key => key[1] === id)) {
@@ -118,9 +123,9 @@ export class DeviceAudioStore {
       put();
     });
   }
-  async save(name, id, data, { valid = () => true, updateOnly = false, automatic = false, reference } = {}) {
+  async save(name, id, data, { valid = () => true, updateOnly = false, automatic = false, reference, rekeep = false } = {}) {
     const record = { ...data, scope: this.scope }, sha256 = await digest(JSON.stringify(record));
-    await this.guardedPut(name, id, { ...record, sha256 }, { valid, updateOnly, automatic, reference });
+    await this.guardedPut(name, id, { ...record, sha256 }, { valid, updateOnly, automatic, reference, rekeep });
   }
   async restoreJobs(ids, { readingId, generation }, valid = () => true) {
     await this.transaction(["readings", "removed"], "readwrite", (store) => {
@@ -162,9 +167,9 @@ export class DeviceAudioStore {
             const previous = store.get(this.key(id, index));
             previous.onsuccess = () => {
               const next = used - (previous.result?.bytes || 0) + entry.bytes;
-              if (next > 512 * 1024 * 1024) {
+              if (next > DEVICE_AUDIO_BUDGET) {
                 const error = Error("Device audio reached its 512 MiB limit. Remove saved readings to make space; online playback can continue.");
-                error.name = "QuotaExceededError"; tx.pasteToSpeechError = error; tx.abort(); return;
+                error.name = "AudioBudgetExceededError"; tx.pasteToSpeechError = error; tx.abort(); return;
               }
               if (!valid()) { tx.abort(); return; }
               usageStore.put(next, "audio-bytes");
@@ -195,9 +200,11 @@ export class DeviceAudioStore {
     if (!data) return null;
     try {
       const position = await this.get("positions", id);
-      return position && (position.generation || "legacy") === (data.generation || "legacy") ? { ...data, position: position.position, updated: position.updated, options: { ...data.options, rate: position.rate ?? data.options?.rate } } : data;
+      const lifecycle = await this.get("lifecycle", id);
+      const current = lifecycle && (lifecycle.generation || "legacy") === (data.generation || "legacy") ? {...data,...lifecycle,offlineReady:lifecycle.audioMissing ? false : data.offlineReady} : data;
+      return position && (position.generation || "legacy") === (data.generation || "legacy") ? { ...current, position: position.position, nativeIndex:position.index, nativeOffset:position.offset, updated: Math.max(position.updated||0,current.updated||0), options: { ...current.options, rate: position.rate ?? current.options?.rate } } : current;
     } catch {
-      return { ...data, position: 0, positionUnavailable: true };
+      return { ...data, position: 0, nativeIndex:0,nativeOffset:0,finishedAt:null,positionUnavailable: true };
     }
   }
   async readings() {
@@ -220,10 +227,60 @@ export class DeviceAudioStore {
     }
     return verified.sort((a, b) => (b.updated || 0) - (a.updated || 0));
   }
+  async setLifecycle(id, changes, {valid=()=>true}={}) {
+    const record=await this.get("readings",id);
+    if(!record)throw this.removedError();
+    const old=await this.get("lifecycle",id);
+    const lifecycle={...(old?.generation===record.generation?old:{}),...changes,id,generation:record.generation,updated:Date.now()};
+    await this.save("lifecycle",id,lifecycle,{valid});
+    return lifecycle;
+  }
+  async dropFinishedAudio(record) {
+    if(!record.finishedAt||record.engine==='browser'||record.records?.some(part=>part.state!=='ready'))return {removed:[],protected:true};
+    const lifecycle={id:record.id,generation:record.generation,finishedAt:record.finishedAt,audioMissing:true,updated:Date.now()};
+    const signed={...lifecycle,scope:this.scope};signed.sha256=await digest(JSON.stringify(signed));
+    const db=await this.db();
+    return new Promise((resolve,reject)=>{
+      const names=["readings","lifecycle","references","jobs","sections","removed","usage"];
+      const tx=db.transaction(names,"readwrite"),key=this.key(record.id);let removed=[];
+      tx.oncomplete=()=>{
+        if(globalThis.BroadcastChannel){const channel=new BroadcastChannel("paste2speech-device-audio");channel.postMessage({type:"audio-reclaimed",scope:this.scope,id:record.id,jobs:removed});channel.close();}
+        resolve({removed,audioMissing:true});
+      };
+      tx.onabort=tx.onerror=()=>reject(tx.error||Error("Audio cleanup was interrupted; bookmarks are kept."));
+      const reading=tx.objectStore("readings").get(key);
+      reading.onsuccess=()=>{
+        const state=tx.objectStore("lifecycle").get(key);
+        state.onsuccess=()=>{
+          if(reading.result?.generation!==record.generation||state.result?.generation!==record.generation||state.result?.finishedAt!==record.finishedAt||state.result.audioMissing)return;
+          const range=IDBKeyRange.bound([this.scope],[this.scope,[]]),refs=tx.objectStore("references").getAllKeys(range);
+          refs.onsuccess=()=>{
+            const owned=refs.result.filter(k=>k[1]===record.id),other=new Set(refs.result.filter(k=>k[1]!==record.id).map(k=>k[2]));
+            // Older manifests may predate the reference journal. Keep shared
+            // audio conservatively unless every remaining owner is known.
+            const states=tx.objectStore("lifecycle").getAll(range);
+            states.onsuccess=()=>{
+              const all=tx.objectStore("readings").getAll(range);
+              all.onsuccess=()=>{
+                for(const candidate of all.result)if(candidate.id!==record.id){
+                  const state=states.result.find(value=>value.id===candidate.id&&value.generation===candidate.generation);
+                  if(!state?.audioMissing)for(const part of candidate.records||[])if(part.id)other.add(part.id);
+                }
+                removed=[...new Set([...(record.records||[]).map(p=>p.id),...owned.map(k=>k[2])])].filter(id=>id&&!other.has(id));
+                for(const k of owned)tx.objectStore("references").delete(k);
+                for(const id of removed){tx.objectStore("jobs").delete(this.key(id));tx.objectStore("sections").delete(IDBKeyRange.bound(this.key(id,0),this.key(id,Number.MAX_SAFE_INTEGER)));tx.objectStore("removed").put({removed:true},this.key(id));}
+                tx.objectStore("usage").delete("audio-bytes");tx.objectStore("lifecycle").put(signed,key);
+              };
+            };
+          };
+        };
+      };
+    });
+  }
   async removeReading(id) {
     const db = await this.db();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(["readings", "jobs", "sections", "positions", "removed", "usage", "references"], "readwrite");
+      const tx = db.transaction(["readings", "jobs", "sections", "positions", "removed", "usage", "references", "lifecycle"], "readwrite");
       let removed = [];
       tx.oncomplete = () => {
         resolve(removed);
@@ -253,6 +310,7 @@ export class DeviceAudioStore {
           tx.objectStore("removed").put({ removed: true }, this.key("reading:" + id));
           readings.delete(this.key(id));
           tx.objectStore("positions").delete(this.key(id));
+          tx.objectStore("lifecycle").delete(this.key(id));
           for (const job of removed) {
             tx.objectStore("removed").put({ removed: true }, this.key(job));
             tx.objectStore("jobs").delete(this.key(job));

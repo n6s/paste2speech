@@ -1,7 +1,7 @@
 import {inputActionCopy} from './input-copy.js';
 import {ReadingQueue} from './reading-queue.js';
 import {attachReaderPopover} from './reader-popover.js';
-export function setupInputQueue({refined=false,snapshot,readClipboard,openFile,start,cancelItem,clearAll}) {
+export function setupInputQueue({refined=false,snapshot,readClipboard,openFile,start,cancelItem,clearAll,changed=()=>{}}) {
   const copy=inputActionCopy({queue:true,refined});
   const $=id=>document.getElementById(id),player=document.querySelector('.player');
   const panel=document.createElement('details');panel.id='reading-queue';panel.className='reading-queue';panel.hidden=true;
@@ -16,7 +16,7 @@ export function setupInputQueue({refined=false,snapshot,readClipboard,openFile,s
   function render(){const focused=document.activeElement?.closest?.('[data-queue-id]');const focusId=focused?.dataset.queueId,focusAction=document.activeElement?.dataset.queueAction,focusIndex=focused?[...list.children].indexOf(focused):-1;if(lastAdded&&!model.has(lastAdded))undo.hidden=true;panel.hidden=!model.items.length;summary.textContent=refined?`Up next · ${model.items.length} ${model.items.length===1?'item':'items'}`:`Up next · ${model.items.length}${model.items[0]?' · '+model.items[0].title:''}`;list.replaceChildren();
     for(const item of model.items){const li=document.createElement('li');li.dataset.queueId=item.id;const text=document.createElement('span');text.className='queue-title';text.textContent=item.title+(item.state==='preparing'?' · Processing…':item.state==='error'?' · '+item.error:'');li.append(text);const actions=document.createElement('div');actions.className='queue-item-actions';
       for(const [label,action,disabled]of [['Move up',()=>model.move(item.id,-1),model.items[0]===item],['Move down',()=>model.move(item.id,1),model.items.at(-1)===item],['Remove',()=>model.remove(item.id),false]]){const b=document.createElement('button');b.type='button';b.className='quiet';b.textContent=label;b.setAttribute('aria-label',label+': '+item.title);b.disabled=disabled;b.dataset.queueAction=label;b.onclick=action;actions.append(b);}li.append(actions);list.append(li);
-    }skip.disabled=model.items[0]?.state!=='ready';if(focusId){const row=[...list.children].find(node=>node.dataset.queueId===focusId)||list.children[Math.min(focusIndex,list.children.length-1)];const button=row&&([...row.querySelectorAll('button')].find(b=>b.dataset.queueAction===focusAction&&!b.disabled)||row.querySelector('button:not(:disabled)'));if(button)button.focus({preventScroll:true});else{feedback.textContent='Queue is empty.';feedback.focus({preventScroll:true});}}
+    }skip.disabled=model.items[0]?.state!=='ready';if(focusId){const row=[...list.children].find(node=>node.dataset.queueId===focusId)||list.children[Math.min(focusIndex,list.children.length-1)];const button=row&&([...row.querySelectorAll('button')].find(b=>b.dataset.queueAction===focusAction&&!b.disabled)||row.querySelector('button:not(:disabled)'));if(button)button.focus({preventScroll:true});else{feedback.textContent='Queue is empty.';feedback.focus({preventScroll:true});}}changed();
   }
   function announce(item){clearTimeout(timer);lastAdded=item.id;feedback.textContent='Added “'+item.title+'” to the queue.';undo.hidden=false;timer=setTimeout(()=>{feedback.textContent='';undo.hidden=true;},7000);}
   function reserve(intent,title,source='clipboard'){const item=model.reserve({placement:intent==='next'?'next':'last',title,snapshot:snapshot(),source});announce(item);return item;}

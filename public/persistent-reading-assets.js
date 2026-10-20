@@ -15,13 +15,14 @@ const wait = (promise, signal) => {
 export class PersistentReadingAssets extends ReadingAssets {
   constructor(fetcher, { ramBytes = 8 * 1024 * 1024, storeFactory = (scope) => new DeviceAudioStore(scope), ...options } = {}) {
     super(fetcher, options);
-    Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), references: new Map(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
+    Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), references: new Map(), deferred: new Set(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
   }
   setScope(scope) {
     if (scope === this.scope) return;
     if (this.scope) this.clear();
     this.allowed.clear();
     this.references.clear();
+    this.deferred.clear();
     this.revoking.clear();
     this.manifestReady = false;
     this.ram.clear();
@@ -99,7 +100,7 @@ export class PersistentReadingAssets extends ReadingAssets {
   observe(id, status) {
     super.observe(id, status);
     const job = this.jobs.get(id);
-    if (this.saved(id) && this.writesEnabled !== false && job && !job.invalid) {
+    if (this.saved(id) && this.writesEnabled !== false && !this.deferred.has(id) && job && !job.invalid) {
       const store = this.store, epoch = job.localEpoch || 0;
       job.saving = (job.saving || Promise.resolve()).catch(() => {
       }).then(() => {
@@ -113,10 +114,12 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   prefetch(job) {
     if (!this.saved(job.id)) return super.prefetch(job);
-    if (this.writesEnabled === false) return;
+    if (this.writesEnabled === false || this.deferred.has(job.id)) return;
     if (job.controller.signal.aborted || job.terminal || job.invalid || job.accessBlocked || job.storageBlocked || job.loading) return;
     job.loading = true;
     void (async () => {
+      const release=await this.protectRecords([{id:job.id}]);
+      try {
       await job.hydrating;
       for (const meta of job.status?.sections || []) {
         if (this.writesEnabled === false || job.controller.signal.aborted || job.storageBlocked || job.invalid || job.accessBlocked) break;
@@ -139,6 +142,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           break;
         }
       }
+      } finally {release();}
     })().finally(() => {
       job.loading = false;
       this.onChange();
@@ -164,7 +168,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
           try {
-            await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
+            await this.writeSection(store, id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
             job.controller.signal.throwIfAborted();
             if (store !== this.store) throw Error("The account changed.");
             job.data.set(index, this.metadata(entry));
@@ -188,13 +192,35 @@ export class PersistentReadingAssets extends ReadingAssets {
     }
     this.onChange();
   }
+  async protectRecords(records) {
+    const ids=[...new Set(records.map(record=>this.references.get(record.id)?.readingId).filter(Boolean))],releases=[];
+    try {for(const id of ids)releases.push(await this.protection?.hold(this.scope,id)||(()=>{}));}
+    catch(error){for(const release of releases)release();throw error;}
+    return ()=>{for(const release of releases)release();};
+  }
+  async writeSection(store,id,index,entry,options) {
+    for(let attempt=0;;attempt++) {
+      try{return await store.writeSection(id,index,entry,options);}
+      catch(error){
+        if(attempt>=20||!['AudioBudgetExceededError','QuotaExceededError'].includes(error.name)||store!==this.store||!await this.onPressure?.(error,entry.bytes))throw error;
+      }
+    }
+  }
   storageMessage(e) {
     if (e.name === "LocalCopyRemovedError") return e.message;
-    return e.name === "QuotaExceededError" ? "Device storage is full. Saved sections are kept. Online playback can continue; free space and Retry saving." : "Device storage is unavailable or a write was interrupted. Saved sections are kept; Retry saving.";
+    if(e.name === "AudioBudgetExceededError")return "The 512 MiB offline-audio limit is reached. No safely removable finished audio remains. Keep listening online, or manage saved audio in Readings.";
+    return e.name === "QuotaExceededError" ? "The browser cannot store more audio right now. Saved sections are kept. Online playback can continue; free device space or manage saved audio, then Retry offline saving." : "Device storage is unavailable or a write was interrupted. Saved sections are kept; Retry saving.";
   }
   async section(id, index, { signal, background = false } = {}) {
     if (!this.saved(id)) return super.section(id, index, { signal });
     signal?.throwIfAborted();
+    if(!background && this.deferred.has(id)) {
+      const store=this.store,reference=this.references.get(id);
+      await store.restoreJobs([id],reference,()=>store===this.store);
+      if(store!==this.store)throw Error("The account changed.");
+      this.deferred.delete(id);
+      const existing=this.jobs.get(id);if(existing?.status)this.observe(id,existing.status);
+    }
     const job = this.jobs.get(id), meta = job?.status?.sections[index], store = this.store;
     if (!job || !meta || job.controller.signal.aborted) throw Error("Saved audio section is unavailable.");
     const epoch = job.localEpoch || 0, key = id + ":" + index, cached = this.ram.get(key) || (job.data.get(index)?.blob ? job.data.get(index) : null);
@@ -206,6 +232,8 @@ export class PersistentReadingAssets extends ReadingAssets {
     if (!pending) {
       pending = new Promise((resolve, reject) => {
         const task = { resolve, reject, run: async () => {
+          const release=await this.protectRecords([{id}]);
+          try {
           job.controller.signal.throwIfAborted();
           let entry;
           try {
@@ -256,7 +284,7 @@ export class PersistentReadingAssets extends ReadingAssets {
             const write = (async () => {
               try {
                 await job.saving;
-                await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
+                await this.writeSection(store, id, index, entry, { reference: this.references.get(id), valid: () => this.writesEnabled !== false && !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
                 if (store === this.store && this.saved(id) && epoch === (job.localEpoch || 0)) {
                   job.data.set(index, this.metadata(entry));
                   job.storageError = "";
@@ -288,6 +316,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           this.remember(id, index, entry);
           this.onChange();
           return entry.blob;
+          }finally{release();}
         } };
         if (background) this.queue.push(task);
         else this.queue.unshift(task);

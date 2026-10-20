@@ -328,10 +328,10 @@ export class MsePlayer {
     this.audio.currentTime=time;this.log('seek-request',{target:time});this.emit();return true;
   }
   setRate(value){this.rate=Math.max(.5,Math.min(2,Number(value)||1));this.audio.playbackRate=this.rate;this.audio.defaultPlaybackRate=this.rate;this.audio.preservesPitch=true;this.emit();}
-  invalidate({preserveReady=false}={}){
+  invalidate({preserveReady=false,preservePreparation=false}={}){
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;this.connectionInterrupted=false;this.connectionPaused=false;
     this.mediaPause=null;this.serial++;this.playSequence++;this.controller?.abort();this.wantPlay=false;this.mediaRecovery=null;this.recovering=null;this.mediaActive=false;this.audio.pause();
-    const id=this.job,keep=preserveReady&&this.status?.state==='ready';this.job=null;this.audio.removeAttribute('src');this.audio.load();
+    const id=this.job,keep=preservePreparation||preserveReady&&this.status?.state==='ready';this.job=null;this.audio.removeAttribute('src');this.audio.load();
     if(this.objectURL)URL.revokeObjectURL(this.objectURL);
     this.objectURL=null;this.source=null;this.buffer=null;this.status=null;this.texts=[];this.next=0;this.windowSeek=null;this.quotaBlockedAt=null;this.state='idle';this.error='';this.pumping=false;this.fatal=false;this.finalized=false;
     if(id&&!keep)void this.fetcher(new URL(`/api/readings/${id}`,location.href),{method:'DELETE',keepalive:true}).catch(()=>{});
