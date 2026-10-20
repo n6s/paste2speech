@@ -27,7 +27,7 @@ export function setupSectionProgress(root=document.getElementById('section-progr
   if(!status.hidden){
    const retainedHere=info?.retention==='this device'?'on this device':'in this tab';
    const count=`${total?indices.length:info?.downloaded||0} / ${statusTotal} sections`;
-   const message=info?.ready?(info.retention==='this device'?`Audio saved for offline listening on this device · ${count}. Open saved readings from Offline readings on this device.`:`Ready for offline listening in this tab · ${count} saved. Keep this page open; reloading clears downloaded audio.`)
+   const message=info?.ready?(info.retention==='this device'?`Ready offline on this device · ${count}.`:`Ready for offline listening in this tab · ${count} saved. Keep this page open; reloading clears downloaded audio.`)
     :info?.error?`${info.error} ${count} saved ${retainedHere}.`
     :offline?`Offline · ${count} saved. Remaining downloads will retry when connected.`
     :available?`Downloading for offline listening: ${count}. Keep this page open; downloads may pause when your device suspends the browser.`

@@ -279,6 +279,31 @@ try {
     if (a.complete("large")) throw Error("Corrupt manifest accepted");
     a.dispose();
     checks.push("corrupt manifest rejected");
+    const automatic = new DeviceAudioStore("automatic-guard",{name:"automatic-guard-proof"});
+    const book={id:"deleted",generation:"g",text:"Synthetic automatic copy",records:[{id:"deleted-job"}]};
+    await automatic.save("readings",book.id,book,{automatic:true});
+    await automatic.writeSection("unpublished-part",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples},{reference:{readingId:book.id,generation:book.generation}});
+    await automatic.removeReading(book.id);
+    if(await automatic.section("unpublished-part",0))throw Error("Deletion left an admitted part outside the last manifest snapshot");
+    let automaticallyRemoved=false;try{await automatic.save("readings",book.id,book,{automatic:true});}catch(e){automaticallyRemoved=e.name==="LocalCopyRemovedError";}
+    if(!automaticallyRemoved||await automatic.reading(book.id))throw Error("Automatic save resurrected a removed reading");
+    let lateBlocked=false;try{await automatic.writeSection("late-new-job",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples},{reference:{readingId:book.id,generation:book.generation}});}catch(e){lateBlocked=e.name==="LocalCopyRemovedError";}
+    if(!lateBlocked||await automatic.section("late-new-job",0))throw Error("Late admission survived parent reading deletion");
+    for(let i=0;i<20;i++)await automatic.save("readings","bounded-"+i,{id:"bounded-"+i,text:"Synthetic"},{automatic:true});
+    let limited=false;try{await automatic.save("readings","over-limit",{id:"over-limit",text:"Synthetic"},{automatic:true});}catch(e){limited=e.name==="QuotaExceededError";}
+    if(!limited)throw Error("Automatic library is unbounded");
+    // A ledger seeded at the bound simulates disk occupancy without a 512 MiB fixture.
+    await automatic.transaction("usage","readwrite",s=>s.put(512*1024*1024,"audio-bytes"));
+    let byteLimited=false;try{await automatic.writeSection("over-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){byteLimited=e.name==="QuotaExceededError";}
+    if(!byteLimited||await automatic.section("over-budget",0))throw Error("Audio budget was exceeded");
+    checks.push("automatic reading tombstones, 20-book limit and transactional 512 MiB audio budget");
+    let releaseWrite;
+    const nonblocking=new PersistentReadingAssets(async()=>new Response(bytes),{storeFactory:()=>({get:async()=>null,section:async()=>null,save:async()=>{},writeSection:()=>new Promise(resolve=>releaseWrite=resolve)})});
+    nonblocking.setScope("nonblocking");nonblocking.allow("nonblocking");nonblocking.register("nonblocking",["text"],"F");nonblocking.observe("nonblocking",status);
+    const result=await Promise.race([nonblocking.section("nonblocking",0),new Promise((_,reject)=>setTimeout(()=>reject(Error("Playback waited for disk write")),2000))]);
+    if(!result.size||!releaseWrite||nonblocking.complete("nonblocking"))throw Error("Pending disk write reported ready");
+    releaseWrite();while(nonblocking.jobs.get("nonblocking").writes?.size)await new Promise(r=>setTimeout(r,5));
+    nonblocking.dispose();checks.push("foreground audio never waits for a background disk write or falsely reports offline-ready");
     return checks;
   });
   await writeFile(out + "/store-verification.json", JSON.stringify({ first, second, failures, realProviderCalls: 0, physicalPixel: false }, null, 2) + "\n");

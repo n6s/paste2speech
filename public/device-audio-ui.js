@@ -1,20 +1,30 @@
-// Saving is explicit. Clear/voice changes detach playback but never remove a
-// device reading. Removal is available only through this account's saved list.
+// Verified audio saves in the background. Management stays in this collapsed panel.
 export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches = () => true, refresh = () => {
 } }) {
   const player = getPlayer(), transport = player.longReadings, assets = transport?.assets;
   if (!assets?.setScope) return;
   const panel = document.createElement("details");
   panel.id = "device-readings";
-  panel.innerHTML = '<summary>Offline readings on this device</summary><p>Save text, voice, place and verified audio in this browser, with the offline reader and MP4 tools. Text and audio stay in this browser; saving creates no new speech requests. Saved readings stay until you remove them or clear site data. Browser storage may be removed unless persistence is granted. Other people using this browser profile may access locally saved readings while offline.</p><div class="controls"><button id="save-device-reading" type="button">Save this reading offline</button><button id="retry-device-reading" type="button">Retry saving</button></div><p id="device-audio-status" role="status"></p><ul id="device-audio-list"></ul>';
+  panel.innerHTML = '<summary>Offline storage</summary><p>Readings save automatically in this browser as audio becomes available, including text, voice and place. Saving creates no new speech. Copies remain until you remove them or clear site data; the browser may also remove them. Other people using this browser profile may access saved readings offline. Up to 20 readings and 512 MiB of audio are kept; reaching a limit pauses saving without deleting copies or stopping online playback.</p><label><input id="automatic-device-audio" type="checkbox" checked> Automatically keep readings on this device</label><div class="controls"><button id="retry-device-reading" type="button">Retry offline saving</button></div><p id="device-audio-status" role="status"></p><ul id="device-audio-list"></ul>';
   panel.style.overflowWrap = "anywhere";
   panel.querySelector(".controls").style.gridTemplateColumns = "repeat(2,minmax(0,1fr))";
   panel.querySelector("summary").style.minHeight = "44px";
   for (const button of panel.querySelectorAll("button")) button.style.minWidth = "0";
   document.getElementById("section-progress").after(panel);
   const $ = (id) => panel.querySelector("#" + id), message = (text) => $("device-audio-status").textContent = text;
-  let selected = null, saving = false, timer, checking = 0, shellReady = false, persistentStorage = false, persistenceBusy = false, openSerial = 0, opening = false;
+  let restoredScope = null, attaching = null, suppressed = new Set(), selected = null, saving = false, timer, checking = 0, shellReady = false, persistentStorage = false, persistenceBusy = false, openSerial = 0, opening = false;
   const lastScopeKey = "paste2speech.device-audio.scope";
+  const latestKey = () => "paste2speech.device-audio.latest." + assets.scope;
+  const preferenceKey = "paste2speech.device-audio.automatic";
+  $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
+  $("automatic-device-audio").onchange = () => {
+    localStorage.setItem(preferenceKey, String($("automatic-device-audio").checked));
+    if (!$("automatic-device-audio").checked) {
+      if(selected) { const group=transport.groups.get(selected.groupId);if(group)group.localSave=false;assets.forgetLocal(selected.records.map(r=>r.id).filter(Boolean)); }
+      selected = null;
+    }
+    update();
+  };
   async function shell() {
     if (!navigator.serviceWorker) throw Error("Offline reopening is unavailable in this browser.");
     const registration = await navigator.serviceWorker.register("/local-audio-sw.js", { scope: "/" });
@@ -63,6 +73,8 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
           const group = await transport.restoreLocal(record, { valid: () => serial === openSerial && store === assets.store && getText() === record.text && snapshot().voice === record.voice });
           if (serial !== openSerial) return;
           selected = { ...record, groupId: group.id };
+          group.deviceChanged = () => { if(selected?.groupId===group.id) selected.manifestStored=false; update(); };
+          localStorage.setItem(latestKey(),record.id);
           assets.manifestReady = record.records.length === record.parts.length && record.records.every((r) => r.id && r.state === "ready");
           player.deviceRestoreTime = Math.max(0, Number(record.position) || 0);
           player.deviceRestoreIndex = Math.max(0, transport.status(group).starts.findLastIndex((t) => t <= player.deviceRestoreTime));
@@ -82,8 +94,11 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
         refresh();
         try {
           if (store !== assets.store || record.scope !== assets.scope) throw Error("The account changed.");
+          suppressed.add(record.id);
+          if (localStorage.getItem(latestKey()) === record.id) localStorage.removeItem(latestKey());
           const removingSelected = selected?.id === record.id;
           if (removingSelected) {
+            const group = transport.groups.get(selected.groupId); if(group) group.localSave=false;
             selected = null;
             assets.manifestReady = false;
           }
@@ -107,6 +122,10 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
       open.style.cssText = "overflow-wrap:anywhere;max-width:100%;min-width:0";
       li.append(open, remove);
       items.push(li);
+      if (restoredScope !== scope && record.id === localStorage.getItem(latestKey()) && !record.damaged && !player.getVideoPreparation?.() && (!getText().trim() || getText() === record.text)) {
+        restoredScope = scope;
+        queueMicrotask(() => void open.onclick());
+      }
     }
     $("device-audio-list").replaceChildren(...items);
   }
@@ -130,8 +149,9 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
         if (assets.scope) player.invalidate({ preserveReady: true });
         assets.setScope(scope);
         selected = null;
+        suppressed = new Set();
       }
-      if (scope && localStorage.getItem(lastScopeKey) && localStorage.getItem(lastScopeKey) !== scope) localStorage.setItem(lastScopeKey, scope);
+      if (scope && localStorage.getItem(lastScopeKey) !== scope) localStorage.setItem(lastScopeKey, scope);
       if (!scope) {
         localStorage.removeItem(lastScopeKey);
         message("Sign in to save or open account-scoped readings on this device.");
@@ -145,19 +165,21 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
     timer = null;
     if (!matches() || persistenceBusy || !selected || saving || !assets.store || selected.scope !== assets.scope) return;
     const group = transport.groups.get(selected.groupId);
-    if (!group || player.id !== selected.groupId || getText() !== selected.text) return;
-    const store = assets.store, id = selected.id, scope = selected.scope, valid = () => selected?.id === id && selected?.groupId === group.id && player.id === group.id && scope === assets.scope;
+    if (!group || player.id && player.id !== selected.groupId || getText() !== selected.text) return;
+    const store = assets.store, id = selected.id, scope = selected.scope, valid = () => selected?.id === id && selected?.groupId === group.id && (!player.id || player.id === group.id) && scope === assets.scope;
     const position = Math.max(0, player.pendingTime ?? player.audio.currentTime ?? 0), updated = Date.now();
     const offlineReady = group.session.records.length === group.parts.length && group.session.records.every((r) => r.id && assets.complete(r.id)) && shellReady;
+    const readinessBefore = assets.manifestReady;
     persistenceBusy = true;
     try {
-      if (!selected.manifestStored || selected.offlineReady !== offlineReady) {
+      if (!selected.manifestStored || selected.revision !== group.deviceRevision || selected.offlineReady !== offlineReady) {
         const next = { ...selected, records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), updated, offlineReady, position };
         delete next.groupId;
         delete next.manifestStored;
         await store.save("readings", id, next, { valid, updateOnly: true });
         if (valid()) {
           selected.manifestStored = true;
+          selected.revision = group.deviceRevision;
           selected.offlineReady = offlineReady;
         }
       }
@@ -168,6 +190,7 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
         assets.manifestReady = false;
         if (e.name === "LocalCopyRemovedError") {
           const ids = selected.records.map((r) => r.id).filter(Boolean);
+          suppressed.add(id);
           selected = null;
           assets.forgetLocal(ids);
           await list().catch(() => {
@@ -177,72 +200,66 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
       }
     } finally {
       persistenceBusy = false;
+      if (readinessBefore !== assets.manifestReady) refresh();
     }
   }
   function update() {
     if (selected && !timer) timer = setTimeout(() => void persist(), 500);
     const group = player.getVideoPreparation?.(), info = player.offlineInfo;
-    $("save-device-reading").disabled = saving || !matches() || !assets.scope || !group || !group.done || !!group.error || !!group.ownerScope && group.ownerScope !== assets.scope || group.session.records.some((r) => r.state !== "ready") || !getText().trim();
-    $("save-device-reading").title = group && !group.done ? "Finish preparing complete audio before saving it offline." : "";
+    if (!saving && !attaching && $("automatic-device-audio").checked && assets.scope && group && !group.cancelled && !suppressed.has(group.key) && matches() && selected?.groupId !== group.id) {
+      attaching = group;
+      void startSaving(group).finally(() => { attaching = null; });
+    }
+    if (selected && !getText().trim() && !group) localStorage.removeItem(latestKey());
     $("retry-device-reading").disabled = saving || !assets.scope;
     if (selected && info?.retention === "this device") {
-      message(info.ready ? shellReady ? "Saved for offline listening on this device. " + (persistentStorage ? "Browser persistence is granted." : "The browser may remove this copy if storage runs low.") : "Audio saved on this device. Retry saving to verify the offline app download." : `${info.error || "Saving audio\u2026"} ${info.downloaded} / ${info.total} sections saved on this device.`);
+      message(info.ready ? shellReady ? "Ready offline on this device. " + (persistentStorage ? "Browser persistence is granted." : "The browser may remove this copy if storage runs low.") : "Audio saved on this device. Retry saving to verify the offline app download." : `${info.error || "Saving audio\u2026"} ${info.downloaded} / ${info.total} sections saved on this device.`);
     }
   }
-  $("save-device-reading").onclick = async () => {
-    if (saving) return;
+  async function startSaving(group) {
     saving = true;
+    const store = assets.store, scope = assets.scope, text = getText();
+    const valid = () => store === assets.store && scope === assets.scope && matches() && getText() === text && !group.cancelled && !suppressed.has(group.key) && $("automatic-device-audio").checked;
     try {
-      await account();
-      const group = player.getVideoPreparation?.();
-      if (!matches()) throw Error("The text or voice changed. Save only the matching prepared reading.");
-      if (!group || !assets.scope) throw Error("Start this reading and confirm your account before saving.");
-      if (!group.done || group.error || group.session.records.some((r) => r.state !== "ready")) throw Error("Finish preparing complete audio before saving it offline.");
-      if (group.ownerScope && group.ownerScope !== assets.scope) throw Error("This reading belongs to the previous account.");
-      const confirmedScope = assets.scope;
+      if (!valid()) return;
       if (!group.ownerScope) {
-        for (const record of group.session.records) {
-          const response = await transport.rawFetch(`/api/readings/${record.id}`);
-          if (!response.ok || assets.scope !== confirmedScope) throw Error("The saved audio account could not be confirmed. No new speech was started.");
+        const ids = group.session.records.filter(r=>r.id).map(r=>r.id);
+        if (!ids.length) return;
+        for(const id of ids) {
+          const response = await transport.rawFetch(`/api/readings/${id}`);
+          if(!response.ok || !valid()) return;
         }
-        group.ownerScope = confirmedScope;
+        group.ownerScope = scope;
       }
-      if (!matches() || assets.scope !== confirmedScope) throw Error("The reading or account changed. No new speech was started.");
-      const parts = structuredClone(group.parts), records = structuredClone(group.session.records);
-      selected = { version: 1, generation: crypto.randomUUID(), id: group.key, scope: assets.scope, groupId: group.id, key: group.key, parts, voice: group.session.voice, text: getText(), options: snapshot(), records, statuses: structuredClone(group.statuses), position: player.audio.currentTime || 0, updated: Date.now() };
+      if (group.ownerScope !== scope) return;
+      const old = await store.reading(group.key);
+      if (!valid()) return;
+      selected = { version: 1, generation: old?.generation || crypto.randomUUID(), id: group.key, scope, groupId: group.id, key: group.key, parts: structuredClone(group.parts), voice: group.session.voice, text, options: snapshot(), records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), position: player.audio.currentTime || 0, updated: Date.now() };
+      const initial = {...selected}; delete initial.groupId;
+      await store.save("readings", initial.id, initial, {valid, automatic:true});
+      if (!valid()) return;
       group.localSave = true;
+      group.deviceReference = {readingId: initial.id,generation: initial.generation,automatic:true};
+      group.deviceChanged = () => { selected && (selected.manifestStored = false); update(); };
       assets.manifestReady = false;
-      const initial = { ...selected };
-      delete initial.groupId;
-      await assets.store.save("readings", initial.id, initial);
+      localStorage.setItem(latestKey(), initial.id);
+      await assets.enable(group.session.records.filter(r=>r.id).map(r=>r.id), group.deviceReference);
+      if (!valid()) return;
+      // App-shell I/O never gates Play or section delivery.
+      void shell().then(() => persist()).catch(e => message(e.message));
       await list();
-      const savingScope = assets.scope;
-      await assets.enable(records.filter((r) => r.id).map((r) => r.id), { readingId: initial.id, generation: initial.generation });
-      if (assets.scope !== savingScope || !selected) throw Error("The account changed.");
-      localStorage.setItem(lastScopeKey, assets.scope);
-      try {
-        persistentStorage = await navigator.storage?.persist?.() === true;
-      } catch {
-        persistentStorage = false;
+    } catch(e) {
+      if (store === assets.store) {
+        suppressed.add(group.key);
+        selected = null;
+        message(e.message);
       }
-      await shell();
-      saving = false;
-      await persist();
-      await list();
-      update();
-    } catch (e) {
-      message(e.message);
-    } finally {
-      saving = false;
-      await persist();
-      await list().catch(() => {
-      });
-      update();
-    }
-  };
+    } finally { saving = false; void persist(); update(); }
+  }
   $("retry-device-reading").onclick = async () => {
     try {
       await account();
+      suppressed.clear();
       assets.retry();
       await shell();
       await persist();
@@ -255,12 +272,23 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
   window.addEventListener("focus", () => {
     void account().then(() => assets.recheck());
   });
-  window.addEventListener("online", () => void account());
+  window.addEventListener("online", () => void account().then(() => {
+    for(const group of transport.groups.values()) if(group.localOnly) void transport.refreshLocal(group);
+    assets.retry();
+  }));
   window.addEventListener("pagehide", () => void persist());
   document.addEventListener("visibilitychange", () => {
     if (document.hidden) void persist();
   });
   window.addEventListener("storage", (event) => {
+    if (event.key === preferenceKey) {
+      $("automatic-device-audio").checked = event.newValue !== "false";
+      if(event.newValue === "false") {
+        if(selected) { const group=transport.groups.get(selected.groupId);if(group)group.localSave=false;assets.forgetLocal(selected.records.map(r=>r.id).filter(Boolean)); }
+        selected=null;
+      }
+      update();
+    }
     if (event.key === lastScopeKey && event.newValue !== assets.scope) {
       player.invalidate({ preserveReady: true });
       assets.setScope(null);
@@ -276,7 +304,10 @@ export function setupDeviceAudio({ getPlayer, getText, snapshot, apply, matches 
       ++openSerial;
       opening = false;
       refresh();
+      suppressed.add(data.id);
+      if (localStorage.getItem(latestKey()) === data.id) localStorage.removeItem(latestKey());
       if (selected?.id === data.id) {
+        const group = transport.groups.get(selected.groupId); if(group) group.localSave=false;
         selected = null;
         assets.manifestReady = false;
         message("This device copy was removed in another tab. Current playback can continue.");

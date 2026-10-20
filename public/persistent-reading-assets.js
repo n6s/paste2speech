@@ -15,12 +15,13 @@ const wait = (promise, signal) => {
 export class PersistentReadingAssets extends ReadingAssets {
   constructor(fetcher, { ramBytes = 8 * 1024 * 1024, storeFactory = (scope) => new DeviceAudioStore(scope), ...options } = {}) {
     super(fetcher, options);
-    Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
+    Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), references: new Map(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
   }
   setScope(scope) {
     if (scope === this.scope) return;
     if (this.scope) this.clear();
     this.allowed.clear();
+    this.references.clear();
     this.revoking.clear();
     this.manifestReady = false;
     this.ram.clear();
@@ -29,9 +30,10 @@ export class PersistentReadingAssets extends ReadingAssets {
     this.scope = scope;
     this.store = scope ? this.storeFactory(scope) : null;
   }
-  allow(id) {
+  allow(id, reference) {
     if (!this.store) throw Error("Confirm your account before saving audio.");
     this.allowed.add(id);
+    if(reference)this.references.set(id,reference);
   }
   saved(id) {
     return this.allowed.has(id) && !!this.store;
@@ -102,7 +104,7 @@ export class PersistentReadingAssets extends ReadingAssets {
       job.saving = (job.saving || Promise.resolve()).catch(() => {
       }).then(() => {
         if (job.controller.signal.aborted || store !== this.store || !this.saved(id) || epoch !== (job.localEpoch || 0)) return;
-        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
+        return store.save("jobs", id, { id, chunks: job.chunks, voice: job.voice, status }, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
       }).catch((e) => {
         job.storageError = e.message;
         this.onChange();
@@ -117,9 +119,11 @@ export class PersistentReadingAssets extends ReadingAssets {
       await job.hydrating;
       for (const meta of job.status?.sections || []) {
         if (job.controller.signal.aborted || job.storageBlocked || job.invalid || job.accessBlocked) break;
+        await job.writes?.get(meta.index);
         if (matches(job.data.get(meta.index), meta)) continue;
         try {
           await this.section(job.id, meta.index, { background: true });
+          await job.writes?.get(meta.index);
         } catch (e) {
           if (job.controller.signal.aborted) break;
           if (e.invalidAudio) {
@@ -142,10 +146,10 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   async enable(ids, reference) {
     const store = this.store;
-    if (reference) await store.restoreJobs(ids, reference, () => store === this.store);
+    if (reference && !reference.automatic) await store.restoreJobs(ids, reference, () => store === this.store);
     for (const id of ids) {
       if (store !== this.store) throw Error("The account changed.");
-      this.allow(id);
+      this.allow(id, reference);
       const job = this.jobs.get(id);
       if (!job) continue;
       job.loading = true;
@@ -159,7 +163,7 @@ export class PersistentReadingAssets extends ReadingAssets {
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
           try {
-            await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
+            await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) });
             job.controller.signal.throwIfAborted();
             if (store !== this.store) throw Error("The account changed.");
             job.data.set(index, this.metadata(entry));
@@ -237,18 +241,36 @@ export class PersistentReadingAssets extends ReadingAssets {
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");
           if (!durable) {
-            try {
-              await job.saving;
-              await store.writeSection(id, index, entry, { valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
-              durable = true;
-              job.storageError = "";
-              job.storageBlocked = false;
-            } catch (e) {
-              if (this.saved(id) && !this.revoking.has(id) && epoch === (job.localEpoch || 0)) {
-                job.storageBlocked = true;
-                job.storageError = this.storageMessage(e);
-              }
+            this.remember(id, index, entry);
+            if (!background && (this.diskWrites || 0) >= this.concurrency) return entry.blob;
+            while (background && (this.diskWrites || 0) >= this.concurrency) {
+              const writes = [...this.jobs.values()].flatMap(job => [...(job.writes?.values() || [])]);
+              if (!writes.length) break;
+              await Promise.race(writes);
+              job.controller.signal.throwIfAborted();
+              if(store !== this.store)throw Error("The account changed.");
             }
+            this.diskWrites = (this.diskWrites || 0) + 1;
+            const write = (async () => {
+              try {
+                await job.saving;
+                await store.writeSection(id, index, entry, { reference: this.references.get(id), valid: () => !job.controller.signal.aborted && store === this.store && !this.revoking.has(id) && this.saved(id) && epoch === (job.localEpoch || 0) });
+                if (store === this.store && this.saved(id) && epoch === (job.localEpoch || 0)) {
+                  job.data.set(index, this.metadata(entry));
+                  job.storageError = "";
+                  job.storageBlocked = false;
+                }
+              } catch (e) {
+                if (this.saved(id) && !this.revoking.has(id) && epoch === (job.localEpoch || 0)) {
+                  job.storageBlocked = true;
+                  job.storageError = this.storageMessage(e);
+                }
+              } finally { this.diskWrites--; this.onChange(); }
+            })();
+            job.writes ??= new Map();
+            job.writes.set(index, write);
+            write.finally(() => { if(job.writes.get(index) === write) job.writes.delete(index); });
+            return entry.blob;
           }
           job.controller.signal.throwIfAborted();
           if (store !== this.store) throw Error("The account changed.");

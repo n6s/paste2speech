@@ -9,9 +9,9 @@ export class DeviceAudioStore {
   async db() {
     return this.opening ??= new Promise((resolve, reject) => {
       if (!this.indexedDB) return reject(Error("Device storage is unavailable."));
-      const r = this.indexedDB.open(this.name, 2);
+      const r = this.indexedDB.open(this.name, 3);
       r.onupgradeneeded = () => {
-        for (const name of ["jobs", "sections", "readings", "positions", "removed"]) if (!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name);
+        for (const name of ["jobs", "sections", "readings", "positions", "removed", "usage", "references"]) if (!r.result.objectStoreNames.contains(name)) r.result.createObjectStore(name);
       };
       r.onsuccess = () => {
         r.result.onversionchange = () => {
@@ -68,8 +68,8 @@ export class DeviceAudioStore {
     error.name = "LocalCopyRemovedError";
     return error;
   }
-  async guardedPut(name, id, value, { valid = () => true, updateOnly = false } = {}) {
-    const names = [name, "removed", ...["readings", "positions"].includes(name) && name !== "readings" ? ["readings"] : []];
+  async guardedPut(name, id, value, { valid = () => true, updateOnly = false, automatic = false, reference } = {}) {
+    const names = [...new Set([name, "removed", ...((reference || name === "positions") ? ["readings"] : []), ...(reference ? ["references"] : [])])];
     await this.transaction(names, "readwrite", (store) => {
       const tx = store.transaction;
       const fail = (error) => {
@@ -78,11 +78,17 @@ export class DeviceAudioStore {
       };
       const put = () => {
         if (!valid()) return fail(new DOMException("Save canceled", "AbortError"));
+        if(reference && name === "jobs") tx.objectStore("references").put(true,this.key(reference.readingId,id));
         store.put(value, this.key(id));
       };
       if (name === "jobs") {
         const r = tx.objectStore("removed").get(this.key(id));
-        r.addEventListener("success", () => r.result ? fail(this.removedError()) : put());
+        r.addEventListener("success", () => {
+          if(r.result)return fail(this.removedError());
+          if(!reference)return put();
+          const reading=tx.objectStore("readings").get(this.key(reference.readingId));
+          reading.onsuccess=()=>reading.result?.generation===reference.generation?put():fail(this.removedError());
+        });
         return r;
       }
       if (name === "readings" && updateOnly || name === "positions") {
@@ -93,12 +99,28 @@ export class DeviceAudioStore {
         });
         return r;
       }
+      if (name === "readings" && automatic) {
+        const r = tx.objectStore("removed").get(this.key("reading:" + id));
+        r.addEventListener("success", () => {
+          if (r.result) return fail(this.removedError());
+          const keys = store.getAllKeys(IDBKeyRange.bound([this.scope], [this.scope, []]));
+          keys.addEventListener("success", () => {
+            if (keys.result.length >= 20 && !keys.result.some(key => key[1] === id)) {
+              const error = Error("20 readings are kept on this device. Remove a saved reading to enable more offline copies. Online playback can continue.");
+              error.name = "QuotaExceededError";
+              return fail(error);
+            }
+            put();
+          });
+        });
+        return r;
+      }
       put();
     });
   }
-  async save(name, id, data, { valid = () => true, updateOnly = false } = {}) {
+  async save(name, id, data, { valid = () => true, updateOnly = false, automatic = false, reference } = {}) {
     const record = { ...data, scope: this.scope }, sha256 = await digest(JSON.stringify(record));
-    await this.guardedPut(name, id, { ...record, sha256 }, { valid, updateOnly });
+    await this.guardedPut(name, id, { ...record, sha256 }, { valid, updateOnly, automatic, reference });
   }
   async restoreJobs(ids, { readingId, generation }, valid = () => true) {
     await this.transaction(["readings", "removed"], "readwrite", (store) => {
@@ -117,7 +139,7 @@ export class DeviceAudioStore {
   async section(id, index) {
     return this.transaction("sections", "readonly", (s) => s.get(this.key(id, index)));
   }
-  async writeSection(id, index, entry, { valid = () => true } = {}) {
+  async writeSection(id, index, entry, { valid = () => true, reference } = {}) {
     const estimate = await this.storage?.estimate?.().catch(() => null);
     if (estimate && Number.isFinite(estimate.quota) && Number.isFinite(estimate.usage) && estimate.quota - estimate.usage < entry.bytes) {
       const e = Error("Not enough device storage. Saved sections are kept; online playback can continue.");
@@ -125,7 +147,7 @@ export class DeviceAudioStore {
       throw e;
     }
     if (!valid()) throw new DOMException("Save canceled", "AbortError");
-    await this.transaction(["sections", "removed"], "readwrite", (store) => {
+    await this.transaction(["sections", "removed", "usage", "readings", "references"], "readwrite", (store) => {
       const tx = store.transaction, r = tx.objectStore("removed").get(this.key(id));
       r.addEventListener("success", () => {
         if (!valid() || r.result) {
@@ -133,13 +155,40 @@ export class DeviceAudioStore {
           tx.abort();
           return;
         }
-        store.put(entry, this.key(id, index));
+        const writeVerified = () => {
+        const usageStore = tx.objectStore("usage"), usageRequest = usageStore.get("audio-bytes");
+        usageRequest.onsuccess = () => {
+          const write = used => {
+            const previous = store.get(this.key(id, index));
+            previous.onsuccess = () => {
+              const next = used - (previous.result?.bytes || 0) + entry.bytes;
+              if (next > 512 * 1024 * 1024) {
+                const error = Error("Device audio reached its 512 MiB limit. Remove saved readings to make space; online playback can continue.");
+                error.name = "QuotaExceededError"; tx.pasteToSpeechError = error; tx.abort(); return;
+              }
+              if (!valid()) { tx.abort(); return; }
+              usageStore.put(next, "audio-bytes");
+              if(reference)tx.objectStore("references").put(true,this.key(reference.readingId,id));
+              store.put(entry, this.key(id, index));
+            };
+          };
+          if (typeof usageRequest.result === "number") write(usageRequest.result);
+          else {
+            let used = 0; const cursor = store.openCursor();
+            cursor.onsuccess = () => { const item = cursor.result; if(item) { used += item.value.bytes || 0; item.continue(); } else write(used); };
+          }
+        };
+        };
+        if(reference){
+          const reading=tx.objectStore("readings").get(this.key(reference.readingId));
+          reading.onsuccess=()=>{if(reading.result?.generation===reference.generation)writeVerified();else{tx.pasteToSpeechError=this.removedError();tx.abort();}};
+        }else writeVerified();
       });
       return r;
     });
   }
   async removeSection(id, index) {
-    await this.transaction("sections", "readwrite", (s) => s.delete(this.key(id, index)));
+    await this.transaction(["sections", "usage"], "readwrite", (s) => { s.transaction.objectStore("usage").delete("audio-bytes"); return s.delete(this.key(id, index)); });
   }
   async reading(id) {
     const data = await this.get("readings", id);
@@ -174,7 +223,7 @@ export class DeviceAudioStore {
   async removeReading(id) {
     const db = await this.db();
     return new Promise((resolve, reject) => {
-      const tx = db.transaction(["readings", "jobs", "sections", "positions", "removed"], "readwrite");
+      const tx = db.transaction(["readings", "jobs", "sections", "positions", "removed", "usage", "references"], "readwrite");
       let removed = [];
       tx.oncomplete = () => {
         resolve(removed);
@@ -186,6 +235,9 @@ export class DeviceAudioStore {
       };
       tx.onabort = tx.onerror = () => reject(tx.error || Error("Device removal was interrupted."));
       const readings = tx.objectStore("readings"), range = IDBKeyRange.bound([this.scope], [this.scope, []]);
+      let references=[];
+      const referenceRequest=tx.objectStore("references").getAllKeys(range);
+      referenceRequest.onsuccess=()=>references=referenceRequest.result;
       let keys;
       const keyRequest = readings.getAllKeys(range);
       keyRequest.onsuccess = () => keys = keyRequest.result;
@@ -195,12 +247,16 @@ export class DeviceAudioStore {
           const index = keys.findIndex((key) => key[1] === id), target = request.result[index];
           if (!target) return;
           const referenced = new Set(request.result.filter((_, i) => i !== index).flatMap((r) => (Array.isArray(r.records) ? r.records : []).map((record) => record?.id)));
-          removed = (Array.isArray(target.records) ? target.records : []).map((record) => record?.id).filter((id2) => typeof id2 === "string" && !referenced.has(id2));
+          for(const key of references)if(key[1]!==id)referenced.add(key[2]);
+          removed = [...new Set([...(Array.isArray(target.records) ? target.records : []).map(record=>record?.id),...references.filter(key=>key[1]===id).map(key=>key[2])])].filter(id2=>typeof id2 === "string"&&!referenced.has(id2));
+          for(const key of references)if(key[1]===id)tx.objectStore("references").delete(key);
+          tx.objectStore("removed").put({ removed: true }, this.key("reading:" + id));
           readings.delete(this.key(id));
           tx.objectStore("positions").delete(this.key(id));
           for (const job of removed) {
             tx.objectStore("removed").put({ removed: true }, this.key(job));
             tx.objectStore("jobs").delete(this.key(job));
+            tx.objectStore("usage").delete("audio-bytes");
             tx.objectStore("sections").delete(IDBKeyRange.bound(this.key(job, 0), this.key(job, Number.MAX_SAFE_INTEGER)));
           }
         } catch {

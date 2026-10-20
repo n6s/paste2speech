@@ -10,6 +10,7 @@ import { inspectMp3 } from "../cloudflare/prepared/mp3.js";
 const root = "work/private-reader/site", out = "work/persistent-audio/ui";
 await mkdir(out, { recursive: true });
 const audio = await readFile("tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3"), meta = inspectMp3(audio), sha256 = createHash("sha256").update(audio).digest("hex"), jobs = /* @__PURE__ */ new Map();
+let preparing = false, available = 2;
 let posts = 0, sectionGets = 0, scope = "device-owner";
 const server = createServer(async (req, res) => {
   try {
@@ -38,7 +39,9 @@ const server = createServer(async (req, res) => {
         res.setHeader("Content-Type", "audio/mpeg");
         return res.end(audio);
       }
-      return res.end(JSON.stringify(jobs.get(match[1])));
+      const status = jobs.get(match[1]);
+      const sections = preparing ? status.sections.slice(0, available) : status.sections;
+      return res.end(JSON.stringify({...status, state:sections.length===status.total?"ready":"preparing", sections, starts:status.starts.slice(0,sections.length),completed:sections.length,duration:sections.length*meta.samples/24000}));
     }
     if (path.startsWith("/api/")) return res.end('{"available":false}');
     const file = path === "/" ? "index.html" : path.slice(1);
@@ -50,7 +53,7 @@ const server = createServer(async (req, res) => {
   }
 });
 await new Promise((r) => server.listen(0, "127.0.0.1", r));
-const browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true });
+let browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true });
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, acceptDownloads: true }), page = await context.newPage(), errors = [], deletes = [];
   page.on("request", (request) => {
@@ -67,6 +70,7 @@ try {
     };
   });
   const origin = "http://127.0.0.1:" + server.address().port;
+  if(!process.argv.includes("--partial-only")) {
   await page.goto(origin);
   if (await page.getByRole("button", { name: "Dismiss guide", exact: true }).isVisible()) await page.getByRole("button", { name: "Dismiss guide", exact: true }).click();
   await page.locator("#voice-settings").evaluate((e) => e.open = true);
@@ -81,8 +85,7 @@ try {
   await page.click("#play");
   await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
   await page.locator("#device-readings").evaluate((e) => e.open = true);
-  await page.click("#save-device-reading");
-  await page.waitForFunction(() => document.querySelector("#device-audio-status").textContent.startsWith("Saved for offline listening"), {}, { timeout: 9e4 });
+  await page.waitForFunction(() => document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"), {}, { timeout: 9e4 });
   assert.equal(posts, 1);
   await page.click("#pause");
   await page.locator("#next-section").click();
@@ -95,7 +98,6 @@ try {
   await context.setOffline(true);
   await page.reload();
   await page.locator("#device-readings").evaluate((e) => e.open = true);
-  await page.getByRole("button", { name: /^Open: Synthetic offline briefing/ }).click();
   await page.waitForFunction((source2) => document.querySelector("#text").value === source2, source);
   assert.equal(await page.locator("#text").inputValue(), source);
   assert.equal(await page.locator("#voice").inputValue(), "en-US-Wavenet-H");
@@ -147,8 +149,48 @@ try {
   assert.deepEqual(errors, []);
   await writeFile(out + "/verification.json", JSON.stringify({ offlineReloadAppShell: true, textAndVoiceRecovered: true, place, restored, rapidPreviousNext: true, offlineMp4Verified: true, sourceAudioGets: sectionGets, additionalSpeechPosts: posts - before.posts, additionalSectionGets: sectionGets - before.sectionGets, physicalPixel: false, realProviderCalls: 0, localClearBackendDeletes: deletes.length, rapidSavedOpen: true, accountSwitchIsolation: true, removalSurvivesOfflineReload: true, mobileWidths: [320, 390, 780] }, null, 2) + "\n");
   console.log("PASS account switch hides old device audio and pauses playback; explicit removal survives reload without late resurrection.");
-  console.log("PASS saved device reading: offline shell reload, explicit text/voice/place restore, rapid seeks and MP4 with subtitles reuse the same disk sections; no extra speech or section download.");
+  console.log("PASS saved device reading: offline shell reload, automatic text/voice/place restore, rapid seeks and MP4 with subtitles reuse the same disk sections; no extra speech or section download.");
   await context.close();
+  }
+  await browser.close();
+  browser = await chromium.launch({ executablePath: "/usr/bin/google-chrome", headless: true });
+  preparing = true; available = 2;
+  const partialContext = await browser.newContext({viewport:{width:390,height:844}}), partial = await partialContext.newPage();
+  const eventually = async predicate => { const end=Date.now()+90000; while(!await partial.evaluate(predicate)){if(Date.now()>end)throw Error("Incremental condition timed out");await partial.waitForTimeout(100);} };
+  await partial.goto(origin);
+  if(await partial.getByRole("button",{name:"Dismiss guide",exact:true}).isVisible())await partial.getByRole("button",{name:"Dismiss guide",exact:true}).click();
+  await partial.locator("#voice-settings").evaluate(e=>e.open=true);
+  await partial.selectOption("#engine","google");await partial.selectOption("#voice","en-US-Wavenet-H");
+  const partialText = "Incremental generation briefing. " + Array(10).fill("Audio is saved while the server is still preparing later sections.").join(" ");
+  const partialPosts = posts, partialGets = sectionGets;
+  await partial.fill("#text",partialText);await partial.click("#play");
+  await eventually(async()=>{
+    const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});
+    if(!db.objectStoreNames.contains("sections")){db.close();return false;}
+    const count=await new Promise(resolve=>{const tx=db.transaction("sections");const r=tx.objectStore("sections").count();r.onsuccess=()=>resolve(r.result);});db.close();return count===2;
+  });
+  await partial.click("#pause");await partial.waitForTimeout(1000);
+  await eventually(async()=>{
+    const registration=await navigator.serviceWorker.getRegistration("/");if(!registration?.active||!navigator.serviceWorker.controller)return false;
+    return new Promise(resolve=>{const channel=new MessageChannel();const timeout=setTimeout(()=>resolve(false),10000);channel.port1.onmessage=e=>{clearTimeout(timeout);resolve(e.data.ok===true);};registration.active.postMessage({type:"CHECK_OFFLINE_SHELL"},[channel.port2]);});
+  });
+  assert.equal(posts,partialPosts+1);assert.equal(sectionGets,partialGets+2);
+  await partialContext.setOffline(true);
+  await partial.reload();
+  await partial.waitForFunction(t=>document.querySelector("#text").value===t,partialText);
+  assert.equal(await partial.locator("#status").textContent(),"Ready when you are");
+  assert.ok(!await partial.locator("#device-audio-status").textContent().then(t=>t.startsWith("Ready offline")));
+  await partial.click("#play");await partial.waitForFunction(()=>document.querySelector("#status").textContent==="Reading aloud");await partial.click("#pause");
+  assert.equal(posts,partialPosts+1);assert.equal(sectionGets,partialGets+2);
+  available=10000;preparing=false;await partialContext.setOffline(false);
+  await partial.evaluate(()=>window.dispatchEvent(new Event("online")));
+  try { await partial.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"),{},{timeout:30000}); }
+  catch(error){console.log("PARTIAL RESUME",await partial.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});const records=await new Promise(resolve=>{const r=db.transaction("readings").objectStore("readings").getAll();r.onsuccess=()=>resolve(r.result);});db.close();return {status:document.querySelector("#status").textContent,device:document.querySelector("#device-audio-status").textContent,records};}),{posts,sectionGets});throw error;}
+  assert.equal(posts,partialPosts+1,"Interrupted preparation must never admit new speech on reload");
+  assert.deepEqual(await partial.evaluate(()=>[...document.querySelectorAll("#save-device-reading")].length),0);
+  await writeFile(out+"/incremental-verification.json",JSON.stringify({savedDuringGeneration:true,partialOfflinePlayback:true,automaticReloadWithoutAutoplay:true,resumedExistingJob:true,additionalSpeechPosts:0,realProviderCalls:0},null,2)+"\n");
+  await partialContext.close();
+  console.log("PASS automatic incremental saving: preparation interrupted/reloaded offline, saved prefix plays, reconnect resumes existing IDs only; no Save/Open action or new speech.");
 } catch (e) {
   console.error(e);
   throw e;

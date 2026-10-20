@@ -34,8 +34,8 @@ export class LongReadingTransport {
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
-        save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
-        statusChanged:(index,status)=>{group.statuses[index]=status;if(this.assets){const id=group.session.records[index].id;if(group.localSave)this.assets.allow?.(id);this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}}});
+        save:records=>{group.deviceRevision=(group.deviceRevision||0)+1;group.deviceChanged?.();if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
+        statusChanged:(index,status)=>{group.deviceRevision=(group.deviceRevision||0)+1;group.statuses[index]=status;if(this.assets){const id=group.session.records[index].id;if(group.localSave&&group.ownerScope===this.assets.scope)this.assets.allow?.(id,group.deviceReference);this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}group.deviceChanged?.();}});
       group.session.assets=this.assets;
       this.groups.set(id,group);
       this.prepare(group);
@@ -113,9 +113,36 @@ export class LongReadingTransport {
     if(!valid()||!this.assets?.store||record.scope!==this.assets.scope)throw Error('Confirm the saved reading account first.');
     const store=this.assets.store;
     const group={id:crypto.randomUUID(),localOnly:true,key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
+    group.deviceReference={readingId:record.id,generation:record.generation,automatic:true};
     group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.session.localOnly=true;group.finished=Promise.resolve();
-    for(let i=0;i<record.records.length;i++){if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');if(!job.status)this.assets.observe(id,record.statuses[i]);}
-    if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');this.groups.set(group.id,group);this.localRestore=group;return group;
+    for(let i=0;i<record.records.length;i++){if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id,group.deviceReference);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');if(!job.status&&record.statuses[i])this.assets.observe(id,record.statuses[i]);if(job.status){group.statuses[i]=job.status;Object.assign(group.session.records[i],{state:job.status.state,completed:job.status.completed,duration:job.status.duration});}}
+    if(!valid()||store!==this.assets.store)throw Error('The saved reading selection or account changed.');this.groups.set(group.id,group);this.localRestore=group;void this.refreshLocal(group);return group;
+  }
+  async refreshLocal(group) {
+    if(!group.localOnly||group.refreshing||navigator.onLine===false)return;
+    group.refreshing=true;
+    try {
+      for(let i=0;i<group.session.records.length;i++) {
+        const record=group.session.records[i];
+        if(!record.id||group.cancelled||group.ownerScope!==this.assets.scope)break;
+        if(group.statuses[i]?.state==='ready')continue;
+        const response=await this.rawFetch(`/api/readings/${record.id}`,{signal:AbortSignal.timeout(15000)});
+        if(!response.ok)throw Error('Some unsaved audio is unavailable online. Saved sections remain playable; no speech was regenerated.');
+        const status=await response.json();
+        if(group.cancelled||group.ownerScope!==this.assets.scope)return;
+        group.statuses[i]=status;
+        Object.assign(record,{state:status.state,completed:status.completed,duration:status.duration});
+        this.assets.observe(record.id,status);
+        group.deviceRevision=(group.deviceRevision||0)+1;group.deviceChanged?.();
+      }
+    } catch(error){group.connectionError=error;}
+    finally {
+      group.refreshing=false;
+      this.assets.onChange();
+      if(!group.cancelled&&group.ownerScope===this.assets.scope&&navigator.onLine!==false&&group.statuses.some(s=>s&&s.state==='preparing')) {
+        clearTimeout(group.localPoll);group.localPoll=setTimeout(()=>void this.refreshLocal(group),3000);
+      }
+    }
   }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;
