@@ -159,11 +159,13 @@ try{
   await creditPage.selectOption('#engine','google');balance=6;await creditPage.click('#credit-resume');
   await creditPage.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));assert.equal(creditPosts,1);assert.equal(balance,0);
   await creditPage.click('#pause');await creditPage.click('#play');assert.equal(creditPosts,1);
-  await creditPage.click('#clear');await creditPage.fill('#text','Hello.');await creditPage.click('#play');
-  await creditPage.waitForFunction(()=>document.querySelector('#status').textContent.includes('6 credits; 0 available'));assert.equal(creditPosts,1);
+  // A different source must still check credit. Persistent history intentionally
+  // reuses an identical already-prepared reading after Clear.
+  await creditPage.click('#clear');await creditPage.fill('#text','Hello again.');await creditPage.click('#play');
+  await creditPage.waitForFunction(()=>document.querySelector('#status').textContent.includes('12 credits; 0 available'));assert.equal(creditPosts,1);
   // The recording button performs the same full-reading check even without a player job.
-  await creditPage.click('#clear');await creditPage.fill('#text','Hello.');await creditPage.locator('#video-download').evaluate(e=>e.open=true);await creditPage.click('#download-video');
-  await creditPage.waitForFunction(()=>document.querySelector('#video-status').textContent.includes('6 credits; 0 available'));assert.equal(creditPosts,1);assert.ok(await creditPage.locator('#credit-actions').isVisible());
+  await creditPage.click('#clear');await creditPage.fill('#text','Recording.');await creditPage.locator('#video-download').evaluate(e=>e.open=true);await creditPage.click('#download-video');
+  await creditPage.waitForFunction(()=>document.querySelector('#video-status').textContent.includes('10 credits; 0 available'));assert.equal(creditPosts,1);assert.ok(await creditPage.locator('#credit-actions').isVisible());
   await creditContext.close();console.log(`PASS ${environment}: shortage UI, free browser choice, top-up Resume, Clear and recording preflight`);
   const cleared=await browser.newContext(),fresh=await cleared.newPage();let freshCreates=0;const freshJobs=new Map();
   await fresh.route('**/api/**',async route=>{
@@ -176,7 +178,8 @@ try{
   await fresh.goto(origin);
   await fresh.evaluate(()=>{sessionStorage.setItem('paste2speech.video.stale',JSON.stringify([{id:'cancelled-part'}]));sessionStorage.setItem('unrelated','keep');});
   await fresh.click('#clear');await fresh.reload();
-  assert.equal(await fresh.evaluate(()=>sessionStorage.getItem('paste2speech.video.stale')),null);
+  const persistentHistory=/PERSISTENT_AUDIO\s*=\s*true/.test(await readFile(path+'/app.js','utf8'));
+  assert.equal(await fresh.evaluate(()=>sessionStorage.getItem('paste2speech.video.stale')),persistentHistory?'[{"id":"cancelled-part"}]':null);
   assert.equal(await fresh.evaluate(()=>sessionStorage.getItem('unrelated')),'keep');
   await fresh.locator('#voice-settings').evaluate(e=>e.open=true);await fresh.selectOption('#engine','google');
   await fresh.locator('#video-split-limit').evaluate(e=>{e.value='1200';});

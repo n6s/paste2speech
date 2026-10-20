@@ -140,7 +140,7 @@ function matchesPreparedDeviceReading(){
 function canPlay() { if(deviceAudio?.opening)return false; if(pasteDiagnostics?.active)return false; if(documentImport?.busy&&!intakeContext?.background)return false; if(videoDownload?.preparingAudio)return false; return isWorkstation() ? (CLOUD_READER || workstationVoices.length > 0) : isKokoro() ? localEnabled : supported; }
 function changeEngine() {
   if(PERSISTENT_AUDIO){deviceAudio?.capture();void deviceAudio?.flush();}
-  if(PERSISTENT_AUDIO&&player===workstationPlayer){player.pause();player.invalidate({preservePreparation:true});}else if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else player?.stop();
+  if(player===workstationPlayer&&player.getVideoPreparation?.()?.error?.creditPaused)player.pause();else if(PERSISTENT_AUDIO&&player===workstationPlayer){player.pause();player.invalidate({preservePreparation:true});}else player?.stop();
   workstationPlayer.release();
   localPlayer.release();
   if (localKokoro.pending) localKokoro.cancel();
@@ -339,7 +339,7 @@ function render(p, message) {
     inputQueue?.model.observe(p.state);
     previousState=p.state;
   }
-  const blocked = message === 'Press Play to start';
+  const blocked = (message || p.error) === 'Press Play to start';
   const wasBlocked = $('play').classList.contains('autoplay-blocked');
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
