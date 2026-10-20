@@ -10,6 +10,18 @@ export class LongReadingTransport {
   constructor(fetcher, {rawFetch=(...args)=>fetch(...args), fullAudio=false,sectionRecovery=false,limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
     this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.sectionRecovery=sectionRecovery;this.groups=new Map();this.assets=fullAudio?new ReadingAssets((url,options)=>this.assetFetch(url,options)):null;
   }
+  get assets(){return this._assets;}
+  set assets(value){
+    this._assets=value;
+    if(typeof value?.setScope==='function')value.onScopeChange=(_old,next)=>{
+      for(const [id,group]of this.groups){
+        if(!group.ownerScope||group.ownerScope===next)continue;
+        group.cancelled=true;group.localSave=false;group.session?.stop?.();
+        if(group.audioURL)URL.revokeObjectURL(group.audioURL);if(group.captionURL)URL.revokeObjectURL(group.captionURL);
+        this.groups.delete(id);if(this.localRestore===group)this.localRestore=null;
+      }
+    };
+  }
   clearSavedReadings() {
     // Clear is synchronous: a reload must not retain IDs awaiting network cleanup.
     this.localRestore=null;

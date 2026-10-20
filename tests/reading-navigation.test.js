@@ -23,3 +23,9 @@ test('conversion keeps logical identity when reusing an already-restored paid re
  const group={id:'paid-nine',ownerScope:'owner',parts:[{chunks:['Same text.']}],session:{voice:'en-US-Wavenet-H'}};transport.localRestore=group;transport.nextLogicalReading={id:'reading-seven',createdAt:1000};
  const result=await transport.fetch('https://fixture/api/readings',{method:'POST',body:JSON.stringify({chunks:['Same text.'],voice:'en-US-Wavenet-H'})});assert.equal((await result.json()).id,'paid-nine');assert.equal(group.logicalReading.id,'reading-seven');assert.equal(transport.nextLogicalReading,null);
 });
+
+import {PersistentReadingAssets} from '../public/persistent-reading-assets.js';
+test('account change immediately detaches old reading groups even with unfinished background verification',()=>{
+ const transport=new LongReadingTransport(),assets=new PersistentReadingAssets(()=>{throw Error('No network expected');},{storeFactory:()=>({})});transport.assets=assets;assets.setScope('owner-a');let stopped=false;
+ const group={id:'old',ownerScope:'owner-a',localSave:true,session:{stop(){stopped=true;}}};transport.groups.set(group.id,group);transport.localRestore=group;assets.setScope('owner-b');assert.equal(transport.groups.size,0);assert.equal(transport.localRestore,null);assert.equal(stopped,true);assert.equal(group.localSave,false);assets.dispose();
+});

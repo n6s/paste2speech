@@ -234,9 +234,10 @@ try {
     while (!restoreRelease) await new Promise((r) => setTimeout(r, 5));
     restoringAssets.setScope("restore-b");
     restoreRelease();
-    if (!await restoring || restoringAssets.jobs.size || transport.groups.size) throw Error("Restore crossed an account boundary");
+    await restoring;await new Promise(resolve=>setTimeout(resolve,0));
+    if (restoringAssets.jobs.size || transport.groups.size || transport.localRestore) throw Error("Restore crossed an account boundary");
     restoringAssets.dispose();
-    checks.push("account switch during Open rejects old manifest before exposing a new group");
+    checks.push("account switch discards old group and background verification without exposing old audio");
     let releaseEstimate, conversionGets=0;
     const conversion = new PersistentReadingAssets(async () => {conversionGets++;return new Response(bytes);}, { storeFactory: (scope) => new DeviceAudioStore(scope, { storage: { estimate: () => new Promise((r) => releaseEstimate = () => r({ quota: 1e9, usage: 0 })) } }) });
     conversion.setScope("convert-a");

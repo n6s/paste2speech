@@ -19,6 +19,7 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   setScope(scope) {
     if (scope === this.scope) return;
+    const previousScope=this.scope;
     if (this.scope) this.clear();
     this.allowed.clear();
     this.references.clear();
@@ -30,6 +31,7 @@ export class PersistentReadingAssets extends ReadingAssets {
     void this.store?.close?.();
     this.scope = scope;
     this.store = scope ? this.storeFactory(scope) : null;
+    this.onScopeChange?.(previousScope,scope);
   }
   allow(id, reference) {
     if (!this.store) throw Error("Confirm your account before saving audio.");
