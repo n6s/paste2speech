@@ -23,18 +23,19 @@ export class LongReadingTransport {
     const path=new URL(url,location.href).pathname;
     if(path==='/api/readings' && options.method==='POST') {
       const input=JSON.parse(options.body);
+      if(this.localRestore){const group=this.localRestore;const expected=group.parts.flatMap(p=>p.chunks);if(input.voice!==group.session.voice||JSON.stringify(input.chunks)!==JSON.stringify(expected))throw Error('Saved text or voice changed. Open the saved reading again; no new speech was started.');this.localRestore=null;return Response.json({id:group.id});}
       if(input.mseOptions?.cached){const response=await this.upstream(url,options);if(response.ok){const {id}=await response.clone().json();this.assets?.register(id,input.chunks,input.voice);}return response;}
       const parts=splitReadingChunks(input.chunks,input.paragraphStarts,this.limit());
 
       const hash=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify({parts,voice:input.voice}))))].map(n=>n.toString(16).padStart(2,'0')).join('');
       const key='paste2speech.video.'+hash;let records=[];
       try{records=JSON.parse(sessionStorage.getItem(key)||'[]');}catch{}
-      const id=crypto.randomUUID(),group={id,key,parts,statuses:[],done:false,error:null,cancelled:false};
+      const id=crypto.randomUUID(),group={id,key,ownerScope:this.assets?.scope||null,parts,statuses:[],done:false,error:null,cancelled:false};
       group.session=new PlaylistSession(parts,input.voice,{records,fetcher:this.rawFetch,preflight:true,retryStatus:true,sectionRecovery:this.sectionRecovery,
         connectionChanged:error=>{if(!group.cancelled)group.connectionError=error;},
         createOptions:parts.length===1?(input.mseOptions?{mseOptions:input.mseOptions}:{delivery:input.delivery||'complete'}):{delivery:'complete'},
         save:records=>{if(!group.cancelled&&!group.forgotten)sessionStorage.setItem(key,JSON.stringify(records));},
-        statusChanged:(index,status)=>{group.statuses[index]=status;if(this.assets){const id=group.session.records[index].id;this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}}});
+        statusChanged:(index,status)=>{group.statuses[index]=status;if(this.assets){const id=group.session.records[index].id;if(group.localSave)this.assets.allow?.(id);this.assets.register(id,group.parts[index].chunks,input.voice);this.assets.observe(id,status);}}});
       group.session.assets=this.assets;
       this.groups.set(id,group);
       this.prepare(group);
@@ -106,6 +107,13 @@ export class LongReadingTransport {
       offset+=group.parts[part].chunks.length;
     }
     return indices.sort((a,b)=>a-b);
+  }
+  async restoreLocal(record){
+    if(!this.assets?.store||record.scope!==this.assets.scope)throw Error('Confirm the saved reading account first.');
+    const group={id:crypto.randomUUID(),key:record.key,ownerScope:record.scope,parts:record.parts,statuses:record.statuses,done:true,error:null,cancelled:false,localSave:true};
+    group.session=new PlaylistSession(record.parts,record.voice,{records:record.records,fetcher:()=>{throw Error('Saved reading playback never creates speech.');}});group.session.assets=this.assets;group.finished=Promise.resolve();
+    for(let i=0;i<record.records.length;i++){const id=record.records[i]?.id;if(!id)continue;this.assets.allow(id);const job=this.assets.register(id,record.parts[i].chunks,record.voice);await job.hydrating;if(!job.status)this.assets.observe(id,record.statuses[i]);}
+    this.groups.set(group.id,group);this.localRestore=group;return group;
   }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;

@@ -42,3 +42,6 @@ export const SPEECH_SECTION_RECOVERY = false;
 
 // Staging-only local plain-text import trial.
 export const LOCAL_TEXT_IMPORT = false;
+
+// Device audio persistence is an explicit staging trial.
+export const PERSISTENT_AUDIO = false;

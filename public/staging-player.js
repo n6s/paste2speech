@@ -1,10 +1,12 @@
 import {MSE_FIXTURE_VERSION,MSE_STAGING,LONG_READINGS} from './config.js';
+import {PersistentReadingAssets} from './persistent-reading-assets.js';
 import {LongReadingTransport} from './long-reading.js';
 import * as readerConfig from './config.js';
 import {MsePlayer} from './mse-buffer-player.js';
 export class StagingPlayer extends MsePlayer {
  constructor(onChange,{audio=new Audio(),fetcher,fullAudio=readerConfig.FULL_AUDIO_PREFETCH}={}){
   const transport=LONG_READINGS?new LongReadingTransport(fetcher,{fullAudio,sectionRecovery:readerConfig.SPEECH_SECTION_RECOVERY}):null;
+  if(transport&&readerConfig.PERSISTENT_AUDIO)transport.assets=new PersistentReadingAssets((url,options)=>transport.assetFetch(url,options));
   super(audio,p=>{onChange(p,p.error||'');const button=document.getElementById('mse-fallback');if(button)button.hidden=!p.job||p.mode!=='mse';},transport?transport.fetch.bind(transport):fetcher);
   this.longReadings=transport;this.boundedBuffer=LONG_READINGS;this.bufferAhead=90;this.bufferBehind=20;if(transport?.assets)transport.assets.onChange=()=>this.emit();
  }
@@ -23,7 +25,9 @@ export class StagingPlayer extends MsePlayer {
   }
   this.settings={...settings};this.pendingIndex=null;
   this.rate=settings.rate;const delivery=settings.delivery==='mse'&&this.capability.mp3?'mse':'complete';
+  const deviceTime=this.deviceRestoreTime;this.deviceRestoreTime=null;index=this.deviceRestoreIndex??index;this.deviceRestoreIndex=null;
   await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
+  if(deviceTime!=null){this.pendingTime=deviceTime;this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=deviceTime));if(this.status)this.seek(deviceTime);}
  }
  emit(){
   if(!this.mediaRecovery&&this.pendingIndex!=null&&this.status?.starts[this.pendingIndex]!=null&&this.audio){

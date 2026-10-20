@@ -1,3 +1,4 @@
+import {setupDeviceAudio} from './device-audio-ui.js';
 import {inputActionCopy} from './input-copy.js';
 import {clipboardPayload} from './clipboard-payload.js';
 import {setupSectionProgress} from './section-progress.js';
@@ -14,7 +15,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { PERSISTENT_AUDIO, WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import {setupInputQueue} from './input-queue-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
@@ -100,6 +101,7 @@ const READING_WINDOW = 160;
 const READING_WINDOW_THRESHOLD = 1000;
 let stagingSampleText='';
 let videoDownload;
+let deviceAudio;
 let documentImport;
 let inputQueue,intakeContext,nextFileIntent;
 const intakeContexts=new Map();
@@ -315,6 +317,7 @@ $('reading-size').addEventListener('input', () => {
   followParagraph($('preview').querySelector('[aria-current=true]'));
 });
 function render(p, message) {
+  deviceAudio?.update();
   if(MSE_STAGING&&p===workstationPlayer){const events=p.events||[];$('mse-diagnostics').textContent=JSON.stringify({job:p.id,state:p.state,mode:p.mode,prepared:p.starts.length,appended:p.next,duration:p.duration,time:p.audio.currentTime,sourceLoads:events.filter(e=>e.type==='loadstart').length,firstPlayingMs:events.find(e=>e.type==='playing')?.ms,endOfStream:events.find(e=>e.type==='end-of-stream'),rawEnd:events.find(e=>e.type==='before-end-of-stream'),error:p.error,failure:p.status?.failure||null},null,2);}
   if (p !== player) return;
   const waiting=STAGING_READER_LAYOUT?audioWaitMessage(p,{browser:p===browserPlayer,creditPaused:videoDownload?.creditPaused}):'';
@@ -342,7 +345,7 @@ function render(p, message) {
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
-    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. Temporary recordings expire after 24 hours. Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
+    ? `${isGoogle()&&settings().delivery!=='mse'?'Playback starts after the full reading is prepared.':'Playback starts as audio arrives.'} Pause keeps preparation running; Stop cancels unfinished preparation. ${MSE_ENABLED?'Wait until you hear speech before locking your screen. ':''}Keep this page open for lock-screen controls. ${PERSISTENT_AUDIO?'Server recordings expire after 24 hours; saved device copies remain until removed.':'Temporary recordings expire after 24 hours.'} Resume reuses saved audio; Clear or a new reading may generate audio and use credit again.`
     : (CLOUD_READER ? 'Browser voices are free and need the page visible. Your device speech service may use the internet.' : 'On-device Kokoro prepares the whole reading first. Browser voices need the page visible. Reloading discards the reading.');
   if(sectionProgress&&isWorkstation())$('playback-note').textContent=STAGING_READER_LAYOUT?'Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Clear or a new reading may use speech credit.':'Pause keeps preparation running; Stop cancels unfinished preparation. Start playback before locking your screen and keep this tab open. Recordings expire after 24 hours. Clear or a new reading may use speech credit.';
   if(STAGING_READER_LAYOUT&&!isWorkstation())$('playback-note').textContent='Browser voices are free and need the page visible.';
@@ -819,3 +822,8 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
 }});
 
 if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});
+
+if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlayer,getText:()=>$('text').value,
+ snapshot:()=>({cleanup:{...options},voice:$('voice').value,rate:Number($('rate').value)}),
+ async apply(record){inputQueue?.model.stop();workstationPlayer.invalidate({preserveReady:true});$('engine').value='google';changeEngine();Object.assign(options,record.options.cleanup);for(const key of Object.keys(options)){const input=$('clean-'+key);if(input)input.checked=options[key];}$('voice').value=record.voice;workstationVoice=record.voice;selectedVoice=record.voice;$('rate').value=record.options.rate;summaryMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();}
+});
