@@ -51,7 +51,11 @@
     "OCR_SOURCE_GATEWAY_APPROVED": "1",
     "SUMMARY_PRICE_CREDITS": "1",
     "OCR_PICKER_AUTOSCAN": "1",
-    "INPUT_QUEUE_UI": "1"
+    "INPUT_QUEUE_UI": "1",
+    "INPUT_QUEUE_REFINEMENTS": "1",
+    "SPEECH_SECTION_RECOVERY": "1",
+    "LOGIN_FAIR_ALLOWANCE": "1",
+    "LOCAL_TEXT_IMPORT": "1"
   },
   "assets": {
     "directory": "../../work/production-reader/site",

@@ -99,8 +99,8 @@ test('queued delivery failure masks provider detail, cancels link and preserves 
  }finally{console.error=prior;await w.flush();f.sql.close();}
 });
 
-test('production ignores staging queue flag; malformed email and hostile source fail before queued delivery',async()=>{
- const f=fixture('production'),w=localWorker(f,{READER_MODE:'production-public',LOCAL_READER:'0',READER_ORIGIN:'https://pastetospeech.com',EMAIL_LIMIT:{limit:async()=>({success:true})}});
+test('unapproved production ignores queue flag; malformed email and hostile source fail before queued delivery',async()=>{
+ const f=fixture('production'),w=localWorker(f,{READER_MODE:'production-public',UNIFIED_LIVE_APPROVED:'0',LOCAL_READER:'0',READER_ORIGIN:'https://pastetospeech.com',EMAIL_LIMIT:{limit:async()=>({success:true})}});
  // Hosted production ignores the flag: missing mail credentials still fail
  // synchronously with the original 503 instead of entering the staging queue.
  assert.equal((await w.request('/api/billing/login/request',{email:'a@example.invalid'})).status,503);await w.flush();f.sql.close();
@@ -110,14 +110,14 @@ test('production ignores staging queue flag; malformed email and hostile source 
  assert.equal(g.sql.prepare('SELECT COUNT(*) n FROM login_links').get().n,0);await v.flush();g.sql.close();
 });
 
-test('hosted staging reuses only its host-protected flow so a suppressed resend preserves an earlier link',async()=>{
- const f=setup();await exhaustPublic(f);
+for(const environment of ['staging','production'])test(`hosted ${environment} reuses only its host-protected flow so a suppressed resend preserves an earlier link`,async()=>{
+ const f=environment==='staging'?setup():fixture('production');if(environment==='production')f.sql.exec(readFileSync('cloudflare/reader/migrations/0023_login_fair_allowance.sql','utf8'));f.auth??=new EmailIdentity(f.db);await exhaustPublic(f);
  const pair=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
  const jwk=await crypto.subtle.exportKey('jwk',pair.publicKey);Object.assign(jwk,{kid:'mock-key',alg:'RS256'});
  const b64=x=>Buffer.from(x).toString('base64url'),seconds=Math.floor(Date.now()/1000),issuer='https://unit.cloudflareaccess.com';
  const input=b64(JSON.stringify({alg:'RS256',kid:'mock-key'}))+'.'+b64(JSON.stringify({iss:issuer,aud:['test-aud'],iat:seconds,exp:seconds+3600}));
  const jwt=input+'.'+b64(await crypto.subtle.sign('RSASSA-PKCS1-v1_5',pair.privateKey,new TextEncoder().encode(input)));
- const w=localWorker(f,{LOCAL_READER:'0',READER_ORIGIN:'https://staging.example.invalid',ACCESS_ISSUER:issuer,ACCESS_AUD:'test-aud',RESEND_API_KEY:'synthetic-test-only',EMAIL_FROM:'noreply@example.invalid'});
+ const w=localWorker(f,{LOCAL_READER:'0',READER_ORIGIN:environment==='staging'?'https://staging.example.invalid':'https://pastetospeech.com',READER_MODE:environment==='staging'?'staging':'production-public',UNIFIED_LIVE_APPROVED:'1',EMAIL_LIMIT:{limit:async()=>({success:true})},PRIVATE_READER:environment==='staging'?'1':'0',ACCESS_ISSUER:issuer,ACCESS_AUD:'test-aud',RESEND_API_KEY:'synthetic-test-only',EMAIL_FROM:'noreply@example.invalid'});
  const priorFetch=globalThis.fetch,priorError=console.error,mails=[],logs=[];
  globalThis.fetch=async(url,options)=>{
   if(String(url)===issuer+'/cdn-cgi/access/certs')return Response.json({keys:[jwk]});
@@ -146,4 +146,19 @@ test('hosted staging reuses only its host-protected flow so a suppressed resend 
  await assert.rejects(f.auth.confirm(nextToken,nextFlow,Date.now()+900001),e=>e.status===400);
  const logout=await request('/api/billing/logout',{});assert.ok(logout.headers.getSetCookie().some(v=>v.startsWith('__Host-p2s_login_flow=;')&&v.includes('Max-Age=0')));
  }finally{await w.flush();globalThis.fetch=priorFetch;console.error=priorError;f.sql.close();}
+});
+
+test('production migration preserves every table row, rejects staging, and retains rolling quotas on reapply',async()=>{
+ const migration=readFileSync('cloudflare/reader/migrations/0023_login_fair_allowance.sql','utf8');
+ const f=fixture('production'),auth=new EmailIdentity(f.db);
+ await auth.request('a@example.invalid',null,'before-migration',time);
+ const tables=f.sql.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(r=>r.name);
+ const snapshot=()=>Object.fromEntries(tables.map(n=>[n,f.sql.prepare('SELECT * FROM '+n).all()]));
+ const before=snapshot();f.sql.exec(migration);assert.deepEqual(snapshot(),before);
+ for(let i=0;i<89;i++)await auth.request(`promotion${i}@example.invalid`,null,`promotion-ip-${Math.floor(i/20)}`,time);const after=snapshot();f.sql.exec(migration);assert.deepEqual(snapshot(),after);
+ await assert.rejects(auth.request('new-denied@example.invalid',null,'new-ip',time),e=>e.status===429);
+ await auth.request('a@example.invalid',null,'member-ip',time);assert.equal(count(f,'global'),90);
+ assert.deepEqual(f.sql.prepare('PRAGMA foreign_key_check').all(),[]);f.sql.close();
+ const staging=fixture(),triggers=staging.sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'login_limit_%'").all();
+ assert.throws(()=>staging.sql.exec(migration),/malformed JSON/);assert.deepEqual(staging.sql.prepare("SELECT name,sql FROM sqlite_master WHERE type='trigger' AND name LIKE 'login_limit_%'").all(),triggers);staging.sql.close();
 });

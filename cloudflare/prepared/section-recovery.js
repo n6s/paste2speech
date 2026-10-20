@@ -1,5 +1,5 @@
 import {inspectMp3} from './mp3.js';
-export const sectionRecoveryEnabled=env=>env.READER_MODE==='staging'&&env.PRIVATE_READER==='1'&&env.SPEECH_SECTION_RECOVERY==='1';
+export const sectionRecoveryEnabled=env=>(env.READER_MODE==='staging'&&env.PRIVATE_READER==='1'||env.READER_MODE==='production-public'&&env.PRIVATE_READER==='0'&&env.UNIFIED_LIVE_APPROVED==='1')&&env.SPEECH_SECTION_RECOVERY==='1';
 const chars=chunks=>chunks.reduce((n,t)=>n+[...t].length,0);
 export class RecoveryBlocked extends Error{constructor(code,message,status=409){super(message);this.code=code;this.status=status;}}
 export async function verifiedSection(store,job,index){

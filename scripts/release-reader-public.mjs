@@ -35,6 +35,10 @@ if(settings.vars.INPUT_QUEUE_UI==='1'){
  for(const variant of ['staging','public'])execFileSync('node',['tests/input-queue-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant,INPUT_QUEUE_OUT:`work/queue-public-promotion-2026-10-18/${variant}`}});
  execFileSync('node',['tests/input-copy-browser.mjs'],{stdio:'inherit'});
 }
+for(const variant of ['staging','public']){
+ if(settings.vars.LOCAL_TEXT_IMPORT==='1')execFileSync('node',['tests/plain-text-browser.mjs'],{stdio:'inherit',env:{...process.env,TXT_READER_VARIANT:variant,TXT_OUT:`work/current-reader-promotion/${variant}-txt`}});
+ if(settings.vars.SPEECH_SECTION_RECOVERY==='1')execFileSync('node',['tests/speech-section-recovery-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant}});
+}
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
 if(readdirSync(site+'/samples').length)throw Error('Test audio must not ship');

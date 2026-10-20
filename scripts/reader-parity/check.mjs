@@ -151,6 +151,8 @@ try{
   await creditPage.waitForFunction(()=>document.querySelector('#status').textContent.includes('6 credits; 1 available'));
   assert.equal(creditPosts,0);assert.equal(balance,1);assert.ok(await creditPage.locator('#play').isEnabled());
   assert.equal(await creditPage.locator('#credit-actions a').getAttribute('href'),'/api/billing');
+  assert.equal(await creditPage.locator('#credit-actions a').getAttribute('target'),'_blank');
+  assert.equal(await creditPage.locator('#credit-actions a').getAttribute('rel'),'noopener noreferrer');
   await creditPage.click('#credit-resume');await creditPage.waitForFunction(()=>!document.querySelector('#play').disabled);
   assert.equal(creditPosts,0);await creditPage.screenshot({path:`work/shared-reader/${environment}-credit-shortage-mobile.png`});
   await creditPage.click('#credit-browser');assert.equal(await creditPage.locator('#engine').inputValue(),'browser');assert.equal(creditPosts,0);

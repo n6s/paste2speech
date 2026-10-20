@@ -1474,3 +1474,19 @@ preview, processing, provider, payment, or production release is included.
 The queue browser gate verifies both wording modes, adjacent placement, counts,
 keyboard expansion/reordering, action-button roles, Enter/Escape focus, 44px menu
 targets, and 320/390/780/1280 layouts through 200% text, with intercepted APIs.
+
+## October 20, 2026 current-reader production promotion
+
+Roger approved the input/queue refinements, verified interrupted-section recovery,
+revised sign-in handling and bounded local TXT import for public production, plus
+the insufficient-credit billing link opening securely in a separate tab. These
+features now have explicit public build/configuration gates; historical owner-only
+trial builds remain excluded. Production login quota migration 0023 replaces only
+the two quota triggers after a private backup and preservation rehearsal. Existing
+sessions survive; outstanding pre-rollout login links need a fresh request.
+
+See `docs/current-reader-production-promotion-2026-10-20.md` for migration,
+compatibility, rollback and verification details. Run the usual same-clean-commit
+staging/public release commands. Public preparation additionally checks TXT import
+and native-audio section recovery/MP4 export in both builds. Offline audio storage
+redesign and the existing 64 MiB tab cache are outside this release.

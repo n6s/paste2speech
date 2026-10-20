@@ -115,7 +115,7 @@ export default {
     const input=await body(request,2048),auth=new EmailIdentity(env.LEDGER);
     if(local&&!input.email?.endsWith('@example.invalid'))throw new CreditError('Use an example.invalid address for local testing.',422);
     if(!local&&env.ENABLE_EMAIL!=='1')throw new CreditError('Email delivery is disabled. Your credit is safe.',503);
-    // Staging trial: respond uniformly before account/quota lookup or delivery.
+    // Approved sign-in flow: respond uniformly before account/quota lookup or delivery.
     // A full public pool must neither lock out another member nor disclose whether
     // an address is registered. A host-only browser flow preserves earlier links.
     if(fairLoginEnabled(env)){
