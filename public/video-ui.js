@@ -43,8 +43,8 @@ export function setupVideoDownload({getText, getVoice, getPrepared, isGoogle, on
     if (waitingForCreation && !prepared.id) throw Error('The current audio preparation could not be confirmed. No replacement speech was started.');
     if (!WAVENET_VOICE_IDS.includes(voice)) throw Error('Choose a WaveNet voice first.');
     const existingGroup=prepared?.getVideoPreparation?.()||prepared?.longReadings?.localRestore;
-    const existingVoice=existingGroup?.session.voice||prepared?.settings?.voice;
-    const existingChunks=existingGroup?existingGroup.parts.flatMap(part=>part.chunks):prepared?.chunks;
+    const existingVoice=existingGroup?.session?.voice||prepared?.settings?.voice;
+    const existingChunks=(existingGroup?.parts||existingGroup?.session?.parts)?.flatMap(part=>part.chunks)||prepared?.chunks;
     const reuse = !!(prepared?.id||existingGroup) && existingVoice === voice &&
       JSON.stringify(parts.flatMap(part=>part.chunks)) === JSON.stringify(existingChunks);
     if(reuse)borrowedPreparation=true;
