@@ -25,6 +25,7 @@ async function paste(action,text){await page.evaluate(text=>clipboardText=text,t
 async function current(text){await page.waitForFunction(text=>(text.startsWith('Text from ')?document.querySelector('#text').value.endsWith(text):document.querySelector('#text').value===text)&&document.querySelector('#status').textContent==='Reading aloud',text);}
 async function finish(){await page.waitForFunction(()=>Number.isFinite(__queueAudio().duration)&&__queueAudio().duration>0&&__queueAudio().readyState>=3);await page.evaluate(()=>{const audio=__queueAudio();audio.currentTime=audio.duration-.03;});}
 async function pick(action,name){await page.waitForFunction(()=>!document.querySelector('#document-choose-file').disabled);const chosen=page.waitForEvent('filechooser');if(action!=='editor'){await page.click('#file-options');await page.click(action==='play'?'#file-play':action==='next'?'#file-next':'#file-queue');}else await page.click('#document-choose-file');await(await chosen).setFiles(typeof name==='object'?name:{name,mimeType:'image/png',buffer:Buffer.from([137,80,78,71,13,10,26,10,0,0,0,1])});await page.waitForFunction(()=>!document.querySelector('#pdf-file').disabled);}
+await page.addInitScript(()=>{const synth=new EventTarget();window.__spoken=[];synth.getVoices=()=>[{name:'Fixture voice',voiceURI:'fixture-native',lang:'en-US',localService:true}];synth.cancel=()=>{};synth.speak=u=>{__spoken.push(u);queueMicrotask(()=>u.onstart?.());};Object.defineProperty(window,'speechSynthesis',{value:synth});window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};});
 await page.goto(origin);await page.waitForFunction(()=>!document.querySelector('#document-choose-file').disabled);
 if(await page.getByRole('button',{name:'Dismiss guide',exact:true}).isVisible())await page.getByRole('button',{name:'Dismiss guide',exact:true}).click();
 const jpeg=await page.evaluate(()=>{const canvas=document.createElement('canvas');canvas.width=80;canvas.height=80;canvas.getContext('2d').fillText('Synthetic page',2,20);return canvas.toDataURL('image/jpeg').split(',')[1];});
@@ -61,6 +62,14 @@ await page.waitForFunction(()=>document.querySelector('.queue-title')?.textConte
 assert.equal(await page.locator('#reading-queue').isVisible(),true);
 assert.equal(posts.filter(p=>p.kind==='scan').length,3);assert.equal(speechCount(),0);assert.match(await page.locator('#queue-summary').textContent(),/Needs attention/);
 await page.screenshot({path:'work/reading-history/image-queue-failed-mobile.png',fullPage:true});
+for(let remaining=await page.locator('#queue-items li').count();remaining;remaining--){await page.locator('#queue-items [data-queue-action=Remove]').first().evaluate(button=>button.click());await page.waitForFunction(n=>document.querySelectorAll('#queue-items li').length<n,remaining);}
+await pick('play',image('auto-first.jpeg'));await pick('next',image('auto-next.jpeg'));
+[...scans.values()].find(j=>j.name==='auto-next.jpeg').state='ready';[...scans.values()].find(j=>j.name==='auto-first.jpeg').state='ready';
+await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('Text from auto-first.jpeg')&&document.querySelector('#status').textContent==='Reading aloud');
+assert.equal(await page.locator('#queue-items li').count(),2);
+await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>__spoken.at(-1).text.includes('auto-first.jpeg'));
+await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('Text from auto-next.jpeg')&&document.querySelector('#status').textContent==='Reading aloud');
+assert.equal(speechCount(),0);assert.equal(posts.filter(p=>p.kind==='scan').length,5);
 assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-console.log(JSON.stringify({firstScanPreserved:true,queuedScanImmediatelyVisible:true,outOfOrderCompletion:true,sameLogicalIds:true,roundtrip:true,singlePendingAndFailureVisible:true,realProviderCalls:0,realApiWrites:0,errors}));
+console.log(JSON.stringify({firstScanPreserved:true,queuedScanImmediatelyVisible:true,outOfOrderCompletion:true,sameLogicalIds:true,roundtrip:true,singlePendingAndFailureVisible:true,explicitOpenPlayAndNativeQueueAdvance:true,realProviderCalls:0,realApiWrites:0,errors}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}

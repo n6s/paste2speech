@@ -239,7 +239,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     await target.save("readings", id, record, { automatic: true, valid: () => target === store()&&valid() });
     if(activate)await openReading(record);else{await holdSelected(record);selected={...record,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
     await list();
-    getQueue()?.removePending(id);await persistPending();notifyPlaylist();
+    getQueue()?.removePending(id,{consumed:true});await persistPending();notifyPlaylist();
   }
   function renderNavigation() {
     const ordered=entries(),index=ordered.findIndex(record=>record.id===selected?.id),total=ordered.length;

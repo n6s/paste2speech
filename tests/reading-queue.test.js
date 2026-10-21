@@ -10,3 +10,10 @@ test('reorder/remove operate on identity and retain pending processing order',()
 test('a failed queued item blocks progression until a user removes it; no automatic retry',async()=>{const{queue,started}=fixture(),a=queue.reserve(),b=queue.reserve();queue.fail(a.id,'Scan failed');queue.resolve(b.id,'B');queue.observe('done');await tick();assert.equal(started.length,0);queue.remove(a.id);await tick();assert.equal(started.length,1);});
 test('a start failure is retained once and never automatically retried',async()=>{let attempts=0;const queue=new ReadingQueue({start:()=>{attempts++;throw Error('Unavailable voice');}}),a=queue.reserve();queue.resolve(a.id,'A');queue.advance();await tick();await tick();assert.equal(attempts,1);assert.equal(queue.items[0].state,'error');assert.equal(queue.halted,true);});
 test('Clear or Stop during a pending handoff prevents a late start and keeps Stop item retry explicit',async()=>{for(const clear of[false,true]){let release,paid=0;const queue=new ReadingQueue({start:async(item,current)=>{await new Promise(r=>release=r);if(!current())return false;paid++;return true;}}),item=queue.reserve();queue.resolve(item.id,'A');queue.advance();await tick();clear?queue.clear():queue.stop();release();await tick();assert.equal(paid,0);assert.equal(queue.items.length,clear?0:1);}});
+
+test('successful metadata handoff is consumption rather than cancellation',()=>{
+ const removed=[];const queue=new ReadingQueue({removed:(item,reason)=>removed.push([item.id,reason.consumed])});
+ const first=queue.reserve({title:'First'}),second=queue.reserve({title:'Second'});
+ queue.removePending(first.id,{consumed:true});queue.removePending(second.id);
+ assert.deepEqual(removed,[[first.id,true],[second.id,false]]);assert.equal(queue.items.length,0);
+});

@@ -13,7 +13,7 @@ export class ReadingQueue {
   resolve(id,text){const item=this.items.find(item=>item.id===id);if(!item)return false;if(!text?.trim())return this.fail(id,'Nothing remains to read.');Object.assign(item,{text,state:'ready',error:'',updatedAt:Date.now()});this.changed();this.schedule();return true;}
   fail(id,message){const item=this.items.find(item=>item.id===id);if(!item)return false;Object.assign(item,{state:'error',error:message,updatedAt:Date.now()});this.changed();return false;}
   remove(id){if(this.playlist){void this.playlist.remove(id);return;}this.removePending(id);}
-  removePending(id){const index=this.items.findIndex(item=>item.id===id);if(index<0)return;const [item]=this.items.splice(index,1);this.removed(item);this.changed();this.schedule();}
+  removePending(id,{consumed=false}={}){const index=this.items.findIndex(item=>item.id===id);if(index<0)return;const [item]=this.items.splice(index,1);this.removed(item,{consumed});this.changed();this.schedule();}
   move(id,delta){if(this.playlist){void this.playlist.move(id,delta);return;}const index=this.items.findIndex(item=>item.id===id),next=index+delta;if(index<0||next<0||next>=this.items.length)return;[this.items[index],this.items[next]]=[this.items[next],this.items[index]];this.changed();this.schedule();}
   observe(state){if(state==='done'&&this.lastState!=='done'&&this.entries.length&&!this.halted){this.armed=true;this.schedule();}this.lastState=state;}
   stop(){this.version++;this.halted=true;this.armed=false;}
