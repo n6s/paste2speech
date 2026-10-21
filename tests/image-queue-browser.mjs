@@ -63,6 +63,7 @@ assert.equal(await page.locator('#reading-queue').isVisible(),true);
 assert.equal(posts.filter(p=>p.kind==='scan').length,3);assert.equal(speechCount(),0);assert.match(await page.locator('#queue-summary').textContent(),/Needs attention/);
 await page.screenshot({path:'work/reading-history/image-queue-failed-mobile.png',fullPage:true});
 for(let remaining=await page.locator('#queue-items li').count();remaining;remaining--){await page.locator('#queue-items [data-queue-action=Remove]').first().evaluate(button=>button.click());await page.waitForFunction(n=>document.querySelectorAll('#queue-items li').length<n,remaining);}
+await paste('play','Old replaced reading.');await current('Old replaced reading.');await page.waitForFunction(()=>document.querySelectorAll('#queue-items li').length===1);
 await pick('play',image('auto-first.jpeg'));await pick('next',image('auto-next.jpeg'));
 [...scans.values()].find(j=>j.name==='auto-next.jpeg').state='ready';[...scans.values()].find(j=>j.name==='auto-first.jpeg').state='ready';
 await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('Text from auto-first.jpeg')&&document.querySelector('#status').textContent==='Reading aloud');
@@ -71,5 +72,5 @@ await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>
 await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>document.querySelector('#text').value.endsWith('Text from auto-next.jpeg')&&document.querySelector('#status').textContent==='Reading aloud');
 assert.equal(speechCount(),0);assert.equal(posts.filter(p=>p.kind==='scan').length,5);
 assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
-console.log(JSON.stringify({firstScanPreserved:true,queuedScanImmediatelyVisible:true,outOfOrderCompletion:true,sameLogicalIds:true,roundtrip:true,singlePendingAndFailureVisible:true,explicitOpenPlayAndNativeQueueAdvance:true,realProviderCalls:0,realApiWrites:0,errors}));
+console.log(JSON.stringify({firstScanPreserved:true,queuedScanImmediatelyVisible:true,outOfOrderCompletion:true,sameLogicalIds:true,roundtrip:true,singlePendingAndFailureVisible:true,explicitOpenPlayAndNativeQueueAdvance:true,originalEntriesReplacedWithoutRemovingLaterEnqueue:true,realProviderCalls:0,realApiWrites:0,errors}));
 }finally{await browser.close();await new Promise(r=>server.close(r));}
