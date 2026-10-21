@@ -675,7 +675,7 @@ if (WORKSTATION) {
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  intake:INPUT_QUEUE_UI?{
   capture(file,route){if(!intakeContext?.awaitingFile||!['picker','file_upload','clear_paste_play','paste_button','queue_next','queue_last'].includes(route))beginInputIntake('editor',file?.name||'File','file');const context=intakeContext;if(file){context.awaitingFile=false;context.title=file.name;const item=inputQueue.model.items.find(item=>item.id===context.queueId);if(item){item.title=file.name;inputQueue.announce(item);inputQueue.model.changed();}}return context;},
-  retain(context){if(context.queueId)return;const item=inputQueue.reserve('next',context.title,'file');item.snapshot=structuredClone(context.snapshot);item.createdAt=context.createdAt;context.queueId=item.id;},
+  retain(context){if(!PERSISTENT_AUDIO)return false;if(context.queueId)return true;const item=inputQueue.reserve('next',context.title,'file');item.snapshot=structuredClone(context.snapshot);item.createdAt=context.createdAt;context.queueId=item.id;return true;},
   alive:context=>!context.cancelled&&(!context.queueId||inputQueue.model.has(context.queueId)),
   fail(context,message){if(context?.queueId&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
   cancel(context){if(!context)return;context.cancelled=true;if(context.queueId)inputQueue.model.remove(context.queueId);}
