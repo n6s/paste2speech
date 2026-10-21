@@ -83,7 +83,7 @@ try {
   await page.evaluate(() => clipboardText = "Queued native newsletter.");
   await page.click("#paste-options");
   await page.click("#paste-queue");
-  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent === "Queued native newsletter.");
+  await page.waitForFunction(async () => document.querySelector(".queue-pending")?.textContent === "Queued native newsletter.");
   await page.selectOption("#voice", "native-a");
   await page.locator("#rate").evaluate((e) => {
     e.value = "1";
@@ -122,13 +122,13 @@ try {
   await page.evaluate(() => clipboardText = "Unavailable native queued item.");
   await page.click("#paste-options");
   await page.click("#paste-queue");
-  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent === "Unavailable native queued item.");
+  await page.waitForFunction(async () => document.querySelector(".queue-pending")?.textContent === "Unavailable native queued item.");
   const spoken = await page.evaluate(() => __spoken.length);
   await page.evaluate(() => {
     __nativeVoices = __nativeVoices.slice(0, 1);
     __spoken.at(-1).onend();
   });
-  await page.waitForFunction(async () => document.querySelector(".queue-title")?.textContent.includes("browser voice is unavailable"));
+  await page.waitForFunction(async () => document.querySelector(".queue-pending")?.textContent.includes("browser voice is unavailable"));
   assert.equal(await page.evaluate(() => __spoken.length), spoken);
   assert.equal(await page.locator("#engine").inputValue(), "browser");
   const disk = await page.evaluate(async () => {
