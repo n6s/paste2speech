@@ -269,6 +269,7 @@ function setMode(mode) {
 }
 $('edit-mode').addEventListener('click', () => setMode('edit'));
 function readAndPlay({retentionChecked=false}={}) {
+  if(deviceAudio?.singleQueuedPlayback){inputQueue.model.advance();return true;}
   if(PERSISTENT_AUDIO&&deviceAudio?.needsPlaybackGuard()&&!retentionChecked){void deviceAudio.beforePlay().then(allowed=>{if(allowed)readAndPlay({retentionChecked:true});});return true;}
   inputQueue?.model.resume();
   voicePreviews?.stop();
@@ -349,8 +350,8 @@ function render(p, message) {
   $('status').textContent = message || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
-  $('play').textContent = ['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned || !canPlay();
+  $('play').textContent = deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
+  $('play').disabled = !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned&&!deviceAudio?.singleQueuedPlayback || !canPlay();
   $('pause').disabled = !waiting && !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();

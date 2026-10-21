@@ -48,7 +48,7 @@ try {
       }
     };
     window.clipboardText = "";
-    Object.defineProperty(navigator, "clipboard", { value: { readText: async () => clipboardText } });
+    Object.defineProperty(navigator, "clipboard", { value: { readText: async () => {if(window.holdClipboard)await new Promise(resolve=>window.releaseQueuedClipboard=()=>{window.holdClipboard=false;resolve();});return clipboardText;} } });
   });
   const page = await context.newPage();
   page.on("pageerror", (e) => errors.push(e.message));
@@ -57,9 +57,12 @@ try {
   await page.locator("#voice-settings").evaluate((e) => e.open = true);
   await page.selectOption("#engine", "browser");
   await page.selectOption("#voice", "native-a");
-  await page.fill("#text", "First native section.\n\nSecond native section.\n\nThird native section.");
-  await page.click("#play");
+  await page.evaluate(()=>clipboardText='Lone queued reading.');await page.click('#paste-options');await page.click('#paste-queue');
+  await page.waitForFunction(()=>document.querySelectorAll('#queue-items li').length===1&&!document.querySelector('#play').disabled);
+  assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.evaluate(()=>__spoken.length),0);await page.click('#play');await page.waitForFunction(()=>__spoken.at(-1)?.text==='Lone queued reading.');await page.click('#pause');
+  await page.evaluate(()=>clipboardText='First native section.\n\nSecond native section.\n\nThird native section.');await page.click('#paste-play');
   await page.waitForFunction(async () => document.querySelector("#status").textContent === "Reading aloud");
+  await page.waitForFunction(()=>!document.querySelector("#paste-play").disabled);
   assert.equal(await page.evaluate(() => __spoken.at(-1).voice.voiceURI), "native-a");
   await page.evaluate(() => __spoken.at(-1).onboundary({ name: "word", charIndex: 6 }));
   await page.click("#pause");
@@ -78,8 +81,9 @@ try {
   const ids=()=>page.locator('#queue-items li').evaluateAll(rows=>rows.map(row=>row.dataset.queueId));
   const waitRows=n=>page.waitForFunction(n=>document.querySelectorAll('#queue-items li').length===n,n);
   const enqueue=async text=>{await page.evaluate(text=>clipboardText=text,text);await page.click('#paste-options');await page.click('#paste-queue');};
-  await waitRows(1);const first=(await ids())[0];
-  await enqueue('Second newsletter.');await waitRows(2);const second=(await ids())[1];
+  await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);assert.ok(await page.locator('#play').isEnabled());assert.ok(await page.locator('#device-readings').isVisible());assert.equal(await page.locator('#device-audio-status').evaluate(el=>el.hidden),false);const first=(await ids())[0];
+  await page.evaluate(()=>window.holdClipboard=true);await enqueue('Second newsletter.');await waitRows(2);assert.match(await page.locator('.queue-pending').textContent(),/Processing/);assert.equal(await page.locator('#reading-queue').isVisible(),true);await page.evaluate(()=>releaseQueuedClipboard());await page.waitForFunction(()=>document.querySelector('.queue-pending')?.textContent==='Second newsletter.');assert.equal(await page.locator('#reading-queue').isVisible(),true);assert.equal(await page.locator('#reading-navigation').isVisible(),true);let second=(await ids())[1];
+  await page.locator('#reading-queue').evaluate(el=>el.open=true);await page.getByLabel('Actions: Second newsletter.',{exact:true}).click();await page.getByRole('button',{name:'Remove: Second newsletter.',exact:true}).click();await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);assert.equal(await page.locator('#text').inputValue(),'First native section.\n\nSecond native section.\n\nThird native section.');assert.equal(await page.evaluate(()=>document.activeElement.id),'play');await enqueue('Second newsletter.');await waitRows(2);assert.equal(await page.locator('#reading-queue').isVisible(),true);second=(await ids())[1];
   await page.click('#next-reading');await page.waitForFunction(()=>document.querySelector('#text').value==='Second newsletter.'&&!document.querySelector('#play').disabled);
   assert.deepEqual(await ids(),[first,second]);
   const spokenBefore=await page.evaluate(()=>__spoken.length);await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onboundary({name:'word',charIndex:7}));await page.click('#pause');
@@ -112,11 +116,12 @@ try {
 
   await enqueue('After completion.');await waitRows(2);
   await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());
-  await page.waitForFunction(()=>document.querySelector('#text').value==='After completion.');await waitRows(1);
-  await page.click('#pause');await page.locator('#reading-queue').evaluate(el=>el.open=true);await page.getByLabel('Actions: After completion.',{exact:true}).click();await page.getByRole('button',{name:'Remove: After completion.',exact:true}).click();await waitRows(0);await page.waitForTimeout(700);assert.equal(await page.locator('#queue-items li').count(),0,'Removing the current reading must not silently save it again');
+  await page.waitForFunction(()=>document.querySelector('#text').value==='After completion.');await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);
+  await page.click('#pause');await enqueue('Remaining queued reading.');await waitRows(2);await page.locator('#reading-queue').evaluate(el=>el.open=true);await page.getByLabel('Actions: After completion.',{exact:true}).click();await page.getByRole('button',{name:'Remove: After completion.',exact:true}).click();await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);await page.waitForTimeout(700);assert.equal(await page.locator('#queue-items li').count(),1,'Removing the current reading must not silently save it again');
+  await page.click('#play');await page.waitForFunction(()=>__spoken.at(-1)?.text==='Remaining queued reading.');assert.equal(await page.locator('#reading-queue').isVisible(),false);await page.click('#pause');
   assert.equal(await page.locator('#device-audio-list li').count(),0);
   assert.deepEqual(requests.filter(r=>r.path.startsWith('/api/readings')||r.path.includes('synth')||r.method==='POST'&&r.path!=='/api/events'),[]);assert.deepEqual(errors,[]);
-  console.log(JSON.stringify({singlePlaylist:true,reorder:true,offlineBookmark:true,failedPastePreserves:true,successfulPasteReplaces:true,reloadPendingWithoutAutoplay:true,distinctIntentionalDuplicates:true,completedMovedRetires:true,widths:[320,390,1100],paidCalls:0,errors,physicalPixel:false}));
+  console.log(JSON.stringify({singlePlaylist:true,singleEntryPresentationHidden:true,pendingTwoToOneTransitions:true,reorder:true,offlineBookmark:true,failedPastePreserves:true,successfulPasteReplaces:true,reloadPendingWithoutAutoplay:true,distinctIntentionalDuplicates:true,completedMovedRetires:true,widths:[320,390,1100],paidCalls:0,errors,physicalPixel:false}));
   await context.close();
 } finally {
   await browser.close();

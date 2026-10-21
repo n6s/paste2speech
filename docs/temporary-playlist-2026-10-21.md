@@ -32,3 +32,9 @@ include 320/360/412 px primary controls, cleanup keyboard/settings persistence,
 7/20 populated entries and desktop/mobile screenshots. No real readings are
 purged, paid speech generated, purchases made or active user tabs accessed.
 Physical Pixel audio and airplane-mode behavior remain device QA.
+
+The playlist presentation and reading navigation are hidden with fewer than two
+logical entries, including queued text still preparing. Adding a second entry
+reveals the same ordered playlist; returning to one hides it again. Ordinary Play
+can start a lone ready queued entry without showing a separate queue control or
+automatically generating audio. Current reading/offline status remains visible.

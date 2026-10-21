@@ -61,7 +61,7 @@ try {
   const original=await page.locator('#options input').evaluateAll(inputs=>inputs.map(input=>[input.id,input.checked]));
   await page.locator('#text-cleanup>summary').focus();await page.keyboard.press('Enter');assert.equal(await page.locator('#text-cleanup').evaluate(el=>el.open),true);
   await page.locator('#clean-emoji').check();await page.locator('#text-cleanup>summary').click();assert.equal(await page.locator('#text-cleanup').evaluate(el=>el.open),false);
-  await page.evaluate(()=>clipboardText='First-run browser voice reading.');await page.click('#paste-play');await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');assert.equal(await page.evaluate(()=>__spoken.at(-1).voice.voiceURI),'native-a');await page.click('#pause');
+  await page.evaluate(()=>clipboardText='First-run browser voice reading.');await page.click('#paste-play');await page.waitForFunction(()=>document.querySelector('#status').textContent==='Reading aloud');assert.equal(await page.evaluate(()=>__spoken.at(-1).voice.voiceURI),'native-a');await page.click('#pause');assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);
   for(const width of [320,360,412,1100]){
     await page.setViewportSize({width,height:915});
     const boxes=await page.locator('#document-choose-file,#clear,#paste-play').evaluateAll(buttons=>buttons.map(button=>{const r=button.getBoundingClientRect();return{id:button.id,x:r.x,y:r.y,width:r.width,height:r.height};}));
