@@ -400,7 +400,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   const wrapper = document.createElement('label'); const input = document.createElement('input');
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;if(key==='math'){input.title='Skip balanced LaTeX delimiters and math environments in playback. Original document exports are kept.';}
   input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; save(); preview(); });
-  const compactLabel={markdown:'Markdown',citations:'References',urls:'Links',code:'Code',tables:'Tables',emoji:'Emoji',joinLines:'Join lines',math:'Skip math'}[key];if(STAGING_READER_LAYOUT)input.setAttribute('aria-label',label);wrapper.append(input,STAGING_READER_LAYOUT?compactLabel:label);$('options').append(wrapper);
+  const actionLabel={markdown:'Remove Markdown formatting',citations:'Skip citation markers and footnotes',urls:'Skip web addresses',code:'Skip code blocks',tables:'Skip tables',emoji:'Skip emoji',joinLines:'Join broken lines',math:'Skip math notation'}[key];if(STAGING_READER_LAYOUT)input.setAttribute('aria-label',actionLabel);wrapper.append(input,STAGING_READER_LAYOUT?actionLabel:label);$('options').append(wrapper);
   if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);(STAGING_READER_LAYOUT?$('cleanup-info-details')||$('options'):$('options')).append(note);}
 }
 function updateVoiceSummary() {
