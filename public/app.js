@@ -675,11 +675,12 @@ if (WORKSTATION) {
 if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),pasteTarget:$('text'),status:$('pdf-status'),cancel:$('cancel-pdf'),getText:()=>$('text').value,
  intake:INPUT_QUEUE_UI?{
   capture(file,route){if(!intakeContext?.awaitingFile||!['picker','file_upload','clear_paste_play','paste_button','queue_next','queue_last'].includes(route))beginInputIntake('editor',file?.name||'File','file');const context=intakeContext;if(file){context.awaitingFile=false;context.title=file.name;const item=inputQueue.model.items.find(item=>item.id===context.queueId);if(item){item.title=file.name;inputQueue.announce(item);inputQueue.model.changed();}}return context;},
-  alive:context=>!context.cancelled&&(!context.background||inputQueue.model.has(context.queueId)),
-  fail(context,message){if(context?.background&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
-  cancel(context){if(!context)return;context.cancelled=true;if(context.background)inputQueue.model.remove(context.queueId);}
+  retain(context){if(context.queueId)return;const item=inputQueue.reserve('next',context.title,'file');item.snapshot=structuredClone(context.snapshot);item.createdAt=context.createdAt;context.queueId=item.id;},
+  alive:context=>!context.cancelled&&(!context.queueId||inputQueue.model.has(context.queueId)),
+  fail(context,message){if(context?.queueId&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
+  cancel(context){if(!context)return;context.cancelled=true;if(context.queueId)inputQueue.model.remove(context.queueId);}
  }:undefined,
- async accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}if(context?.intent==='play'&&!cleanText(data.text,context.snapshot.cleanup).trim()){inputQueue?.error('Nothing remains after cleanup. Your previous reading is kept.');return;}if(context?.intent==='play'&&PERSISTENT_AUDIO)await deviceAudio?.replace();if(context?.cancelled)return;summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(context?.intent==='play')requestAnimationFrame(async()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);if(PERSISTENT_AUDIO)await deviceAudio?.registerCurrentMetadata();if(!context.cancelled&&$('text').value===data.text)readAndPlay();}});},
+ async accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}if(context?.intent==='play'&&!cleanText(data.text,context.snapshot.cleanup).trim()){inputQueue?.error('Nothing remains after cleanup. Your previous reading is kept.');return;}if(context?.intent==='play'&&PERSISTENT_AUDIO&&!context.queueId)await deviceAudio?.replace();if(context?.cancelled)return;summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(PERSISTENT_AUDIO&&context&&context.intent!=='play'){if(context.queueId)inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId||context.key);await deviceAudio?.registerCurrentMetadata();}if(context?.intent==='play')requestAnimationFrame(async()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);if(PERSISTENT_AUDIO){if(context.queueId){inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId);}await deviceAudio?.registerCurrentMetadata();}if(!context.cancelled&&$('text').value===data.text)readAndPlay();}});},
  pauseReading(){if(!intakeContext?.background&&['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){if(!intakeContext?.background){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;}disablePasteButtons(value);$('clear').disabled=false;if(!value&&!intakeContext?.background)preview();if(player)render(player);}
 });
@@ -693,7 +694,7 @@ function applyInputSnapshot(snapshot){
 }
 function beginInputIntake(intent,title='Choosing file…',source='file',existingItem=null){
  const background=['next','last'].includes(intent);if(!background)inputQueue?.model.stop();const item=background?(existingItem||inputQueue.reserve(intent,title,source)):null;
- const context={key:item?'queue-'+item.id:'editor-'+crypto.randomUUID(),queueId:item?.id,background,intent,title,snapshot:item?.snapshot||inputSnapshot(),awaitingFile:true,cancelled:false};
+ const context={key:item?'queue-'+item.id:'editor-'+crypto.randomUUID(),queueId:item?.id,background,intent,title,createdAt:item?.createdAt||Date.now(),snapshot:item?.snapshot||inputSnapshot(),awaitingFile:true,cancelled:false};
  intakeContexts.set(context.key,context);intakeContext=context;return context;
 }
 async function readQueuedClipboard(intent){
