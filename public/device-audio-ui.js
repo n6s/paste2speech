@@ -22,7 +22,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   let playlist=null, playlistScope=null, playlistLoading=null, intent=null, knownPending=new Set();
   const entries=()=>playlistEntries(playlist?.state||{},[...records].sort((a,b)=>(a.createdAt||a.updated||0)-(b.createdAt||b.updated||0)),getQueue()?.items||[]);
   let renderedQueue="";
-  function refreshQueue(){const signature=JSON.stringify([selected?.id,entries().map(item=>[item.id,item.title,item.state,item.error,item.engine,item.offlineReady,shellReady])]);if(signature!==renderedQueue){renderedQueue=signature;renderQueue();}}
+  function refreshQueue(){const signature=JSON.stringify([selected?.id,selected?.engine,entries().map(item=>[item.id,item.title,item.state,item.error,item.engine,item.playbackEngine,item.offlineReady,item.records?.map(part=>[part.id,part.state]),shellReady])]);if(signature!==renderedQueue){renderedQueue=signature;renderQueue();}}
   const retireIds=()=>new Set(playlist?.state.retired||[]);
   function notifyPlaylist(){renderNavigation();refreshQueue();playlistChannel?.postMessage({scope:scope()});}
   async function persistPending(){if(!playlist)return;const pending=structuredClone(getQueue()?.items||[]);await playlist.edit(state=>{state.pending=mergePending(state.pending,pending,knownPending,state.retired,records.map(record=>record.id));knownPending=new Set(pending.map(item=>item.id));});playlistChannel?.postMessage({scope:scope()});}
@@ -31,7 +31,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     playlistScope=scope();const target=store(),next=new TemporaryPlaylist(target);playlist=next;
     playlistLoading=(async()=>{await next.load();if(target!==store())return;const model=getQueue();
       if(model){model.stop();model.items=(next.state.pending||[]).filter(item=>!next.state.retired.includes(item.id));knownPending=new Set(model.items.map(item=>item.id));
-        model.playlist={clearPending:items=>{void next.edit(state=>{const ids=items.map(item=>item.id);state.retired=[...new Set([...state.retired,...ids])];state.pending=state.pending.filter(item=>!ids.includes(item.id));}).then(notifyPlaylist).catch(error=>message(error.message));},entries,selected:()=>selected?.id, status:record=>record.engine==='browser'?'Browser voice':record.offlineReady&&shellReady?'Ready offline':record.records?.some(part=>part.id)?'Partly saved':'Needs preparation',
+        model.playlist={clearPending:items=>{void next.edit(state=>{const ids=items.map(item=>item.id);state.retired=[...new Set([...state.retired,...ids])];state.pending=state.pending.filter(item=>!ids.includes(item.id));}).then(notifyPlaylist).catch(error=>message(error.message));},entries,selected:()=>selected?.id, status:record=>(record.id===selected?.id?selected.engine:record.playbackEngine||record.engine)==='browser'?'Browser voice':record.offlineReady&&shellReady?'Ready offline':record.records?.some(part=>part.id)?'Partly saved':'Needs preparation',
           open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);}},
           next:()=>{const all=entries(),index=all.findIndex(item=>item.id===selected?.id);return all[index+1];},
           added:(item,placement)=>{void next.edit(state=>{const all=entries().map(entry=>entry.id).filter(id=>id!==item.id),index=all.indexOf(selected?.id);all.splice(placement==='next'?index+1:all.length,0,item.id);state.order=all;state.pending=mergePending(state.pending,structuredClone(model.items),new Set(model.items.map(item=>item.id)),state.retired);}).then(notifyPlaylist).catch(error=>message(error.message));},
@@ -95,6 +95,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         await record.lifecycleSave;
         if (writeManifest) {
           await target.save("readings", record.id, copy, { valid, updateOnly: true });
+          records=records.map(item=>item.id===record.id?{...item,...copy}:item);
+          renderNavigation();
           record.storedRevision = revision;
           record.storedReady = copy.offlineReady;
         }
@@ -130,6 +132,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         const next = { ...record, records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), manifestRevision: group.deviceRevision || 0, offlineReady: group.session.records.length === group.parts.length && group.session.records.every((part) => part.id && assets.complete(part.id)) && shellReady, updated: Date.now() };
         await target.save("readings", record.id, next, { updateOnly: true, valid: () => target === assets.store && group.localSave && group.ownerScope === target.scope });
         group.savedReady = next.offlineReady;
+        if(target===store()){records=records.map(item=>item.id===record.id?{...item,...next}:item);renderNavigation();}
       }
     })().catch((error) => {
       if (target === assets.store && group.localSave) message(error.message);
