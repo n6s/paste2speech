@@ -56,8 +56,8 @@ try{
     await pasteAction(page,button);await settled();
     if(button==='#paste')assert.deepEqual(textActionRequests(requests.slice(actionCheckpoint)).filter(path=>!(retail&&path==='/api/ocr/config')),[],'Paste needs no network; only existing background OCR balance refresh and incidental browser icons are allowed');
     const text=mode==='rich'?'**Rich offline.**':'Fallback offline.';
-    assert.equal(await page.locator('#text').inputValue(),button==='#paste'?'Before '+text+' after':text);
-    assert.equal(await page.evaluate(()=>spoken.length),speechBefore+(button==='#paste-play'?1:0));
+    assert.equal(await page.locator('#text').inputValue(),button==='#paste'?'Before '+text+' after':text,JSON.stringify({configuration,button,mode,clipboardStatus:await page.locator('#paste-status').textContent(),deviceStatus:await page.locator('#device-audio-status').textContent().catch(()=>null)}));
+    assert.equal(await page.evaluate(()=>spoken.length),speechBefore+(button==='#paste-play'?1:0),JSON.stringify({configuration,button,mode,status:await page.locator('#status').textContent(),deviceStatus:await page.locator('#device-audio-status').textContent().catch(()=>null)}));
     if(button==='#paste')assert.equal(await page.locator('#text').evaluate(el=>el.selectionStart),7+text.length);
     const calls=await page.evaluate(()=>clipboardCalls),expected=mode==='rich'?['read']:mode==='absent'?['readText']:['read','readText'];
     assert.deepEqual(calls.map(c=>c.method),expected);assert.ok(calls.every(c=>c.online===false));assert.equal(calls[0].activation,true);

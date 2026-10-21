@@ -463,7 +463,7 @@ if($('paste')){
   $('text').addEventListener('keydown',rememberPasteSelection);
   $('paste').addEventListener('pointerdown',rememberPasteSelection);
 }
-function disablePasteButtons(value){$('paste-play').disabled=value;if($('paste'))$('paste').disabled=value;}
+function disablePasteButtons(value){const disabled=!!value||!!activePasteRequest;$('paste-play').disabled=disabled;if($('paste'))$('paste').disabled=disabled;}
 $('text').addEventListener('paste', event => {
   if ($('text').readOnly) return;
   let markdown;
