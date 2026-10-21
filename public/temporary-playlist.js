@@ -1,0 +1,24 @@
+// One ordered set of logical reading IDs. Audio jobs remain independently shared.
+export function playlistEntries(state, readings, pending) {
+  const retired = new Set(state.retired || []), byId = new Map();
+  for (const record of readings) if (!record.damaged && !retired.has(record.id)) byId.set(record.id, {...record, saved:true, title:record.text?.trim().split(/\r?\n/)[0].replace(/[#*_`]/g,'').slice(0,72)||'Reading'});
+  for (const item of pending) if (!retired.has(item.id) && !byId.has(item.id)) byId.set(item.id,item);
+  const order = [...new Set([...(state.order || []), ...byId.keys()])];
+  return order.filter(id=>byId.has(id)).map(id=>byId.get(id));
+}
+export function mergePending(existing, incoming, known, retired=[], saved=[]) {
+  const removed=new Set([...retired,...saved]), current=new Map(existing.map(item=>[item.id,item]));
+  const next=new Map(existing.filter(item=>!known.has(item.id)).map(item=>[item.id,item]));
+  const rank={preparing:0,ready:1,error:2};
+  for(const item of incoming){const old=current.get(item.id);next.set(item.id,old&&((old.updatedAt||0)>(item.updatedAt||0)||(old.updatedAt||0)===(item.updatedAt||0)&&(rank[old.state]||0)>(rank[item.state]||0))?old:item);}
+  return [...next.values()].filter(item=>!removed.has(item.id));
+}
+export class TemporaryPlaylist {
+  constructor(store) { this.store=store;this.state={order:[],retired:[],pending:[]};this.tail=Promise.resolve(); }
+  async load(){this.state=await this.store.get('usage','temporary-playlist')||this.state;return this.state;}
+  edit(change){
+    const run=async()=>{await this.load();change(this.state);await this.store.save('usage','temporary-playlist',{...this.state,id:'temporary-playlist'});return this.state;};
+    const locked=()=>globalThis.navigator?.locks?navigator.locks.request('paste2speech-playlist:'+this.store.scope,run):run();
+    return this.tail=this.tail.catch(()=>{}).then(locked);
+  }
+}

@@ -63,14 +63,13 @@ try {
   for(let n=1;n<=3;n++)await add(n);
   await page.click('#previous-reading');await page.waitForFunction(()=>document.querySelector('#text').value.startsWith('Reading 2:'));
   await page.locator('#seek').evaluate(e=>{e.value='2';e.dispatchEvent(new Event('change',{bubbles:true}));});assert.equal((await rows()).find(r=>r.text.startsWith('Reading 2:')).finishedAt,undefined);
-  await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>document.querySelector('#status').textContent.includes('All read'));
-  assert.equal((await rows()).length,3,'End of final audio must not remove the current reading');
-  await page.reload();await page.waitForFunction(()=>document.querySelector('#text').value.startsWith('Reading 2:'));assert.equal((await rows()).length,3,'Reloading the same completed reading is not moving on');
-  await page.click('#next-reading');await page.waitForFunction(()=>document.querySelector('#text').value.startsWith('Reading 3:'));await until(async()=>(await rows()).length===2);
+  await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());
+  await page.waitForFunction(()=>document.querySelector('#text').value.startsWith('Reading 3:'));await until(async()=>(await rows()).length===2);
+  await page.reload();await page.waitForFunction(()=>document.querySelector('#text').value.startsWith('Reading 3:'));assert.equal((await rows()).length,2,'Reloading restores the current logical playlist entry');
   assert.ok(!(await rows()).some(r=>r.text.startsWith('Reading 2:')));
   for(let n=4;n<=21;n++){
     await add(n);const count=(await rows()).length;
-    if(count===7||count===20){for(const width of [320,390,1100]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('#device-audio-list li').count(),0);assert.equal(await page.getByRole('button',{name:'Mark finished',exact:true}).count(),0);await page.screenshot({path:`work/reading-retention/queue-${count}-${width}.png`,fullPage:true});}}
+    if(count===7||count===20){assert.equal(await page.locator('#queue-items li').count(),count);await page.locator('#reading-queue').evaluate(el=>el.open=true);for(const width of [320,390,1100]){await page.setViewportSize({width,height:844});assert.ok(await page.evaluate(()=>document.documentElement.scrollWidth<=innerWidth));assert.equal(await page.locator('#device-audio-list li').count(),0);assert.equal(await page.getByRole('button',{name:'Mark finished',exact:true}).count(),0);await page.screenshot({path:`work/reading-retention/queue-${count}-${width}.png`,fullPage:true});}}
   }
   assert.equal((await rows()).length,20);
   const migratedId=await page.evaluate(async()=>{const db=await new Promise(r=>{const q=indexedDB.open('paste2speech-device-audio-v1');q.onsuccess=()=>r(q.result);});const records=await new Promise(r=>{const q=db.transaction('readings').objectStore('readings').getAll();q.onsuccess=()=>r(q.result);});const record=records[0];delete record.createdAt;delete record.sha256;record.sha256=[...new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(record))))].map(n=>n.toString(16).padStart(2,'0')).join('');await new Promise(r=>{const tx=db.transaction('readings','readwrite');tx.objectStore('readings').put(record,[record.scope,record.id]);tx.oncomplete=r;});db.close();window.dispatchEvent(new Event('focus'));return record.id;});

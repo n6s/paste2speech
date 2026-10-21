@@ -1,15 +1,17 @@
+import {TemporaryPlaylist, playlistEntries, mergePending} from "./temporary-playlist.js";
 import { DeviceAudioStore, digest } from "./device-audio-store.js";
 import { splitReadingChunks } from "./playlist-plan.js";
 import { removalReason, RetentionClock } from "./reading-retention.js";
 import { ReadingProtection } from "./reading-protection.js";
 function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => "google", getText, getChunks = () => [], snapshot, apply, matches = () => true, refresh = () => {
-}, getQueue = () => null, loadQueued = () => {
+}, getQueue = () => null, renderQueue = () => {}, playSaved = () => {}, loadQueued = () => {
 }, regenerate = () => {
 } }) {
   const natural = getPlayer(), transport = natural.longReadings, assets = transport?.assets;
   if (!assets?.setScope) return;
   const protection = new ReadingProtection();
   assets.protection = protection;
+  const playlistChannel=globalThis.BroadcastChannel?new BroadcastChannel("paste2speech-temporary-playlist"):null;
   const preferenceKey = "paste2speech.device-audio.automatic", lastScopeKey = "paste2speech.device-audio.scope", anonymousKey = "paste2speech.browser-history.scope";
   let anonymousScope = localStorage.getItem(anonymousKey);
   if (!anonymousScope) {
@@ -17,11 +19,34 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     localStorage.setItem(anonymousKey, anonymousScope);
   }
   const anonymousStore = new DeviceAudioStore(anonymousScope), store = () => assets.store || anonymousStore, scope = () => store().scope, latestKey = () => "paste2speech.device-audio.latest." + scope();
+  let playlist=null, playlistScope=null, playlistLoading=null, intent=null, knownPending=new Set();
+  const entries=()=>playlistEntries(playlist?.state||{},[...records].sort((a,b)=>(a.createdAt||a.updated||0)-(b.createdAt||b.updated||0)),getQueue()?.items||[]);
+  let renderedQueue="";
+  function refreshQueue(){const signature=JSON.stringify([selected?.id,entries().map(item=>[item.id,item.title,item.state,item.error,item.engine,item.offlineReady,shellReady])]);if(signature!==renderedQueue){renderedQueue=signature;renderQueue();}}
+  const retireIds=()=>new Set(playlist?.state.retired||[]);
+  function notifyPlaylist(){renderNavigation();refreshQueue();playlistChannel?.postMessage({scope:scope()});}
+  async function persistPending(){if(!playlist)return;const pending=structuredClone(getQueue()?.items||[]);await playlist.edit(state=>{state.pending=mergePending(state.pending,pending,knownPending,state.retired,records.map(record=>record.id));knownPending=new Set(pending.map(item=>item.id));});playlistChannel?.postMessage({scope:scope()});}
+  async function ensurePlaylist(){
+    if(playlistScope===scope())return playlistLoading;
+    playlistScope=scope();const target=store(),next=new TemporaryPlaylist(target);playlist=next;
+    playlistLoading=(async()=>{await next.load();if(target!==store())return;const model=getQueue();
+      if(model){model.stop();model.items=(next.state.pending||[]).filter(item=>!next.state.retired.includes(item.id));knownPending=new Set(model.items.map(item=>item.id));
+        model.playlist={clearPending:items=>{void next.edit(state=>{const ids=items.map(item=>item.id);state.retired=[...new Set([...state.retired,...ids])];state.pending=state.pending.filter(item=>!ids.includes(item.id));}).then(notifyPlaylist).catch(error=>message(error.message));},entries,selected:()=>selected?.id, status:record=>record.engine==='browser'?'Browser voice':record.offlineReady&&shellReady?'Ready offline':record.records?.some(part=>part.id)?'Partly saved':'Needs preparation',
+          open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);}},
+          next:()=>{const all=entries(),index=all.findIndex(item=>item.id===selected?.id);return all[index+1];},
+          added:(item,placement)=>{void next.edit(state=>{const all=entries().map(entry=>entry.id).filter(id=>id!==item.id),index=all.indexOf(selected?.id);all.splice(placement==='next'?index+1:all.length,0,item.id);state.order=all;state.pending=mergePending(state.pending,structuredClone(model.items),new Set(model.items.map(item=>item.id)),state.retired);}).then(notifyPlaylist).catch(error=>message(error.message));},
+          remove:async id=>{await next.edit(state=>{state.retired=[...new Set([...state.retired,id])];state.pending=state.pending.filter(item=>item.id!==id);});model.removePending(id);if(selected?.id===id){model.stop();intent=null;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||""};suppressed.add(id);suppressed.add(selected.key);getActive()?.pause();selectedRelease?.();selectedRelease=null;selected=null;}message("Removed from playlist.");notifyPlaylist();void cleanup();},
+          move:async(id,delta)=>{const all=entries().map(item=>item.id),index=all.indexOf(id),other=index+delta;if(index<0||other<0||other>=all.length)return;[all[index],all[other]]=[all[other],all[index]];await next.edit(state=>state.order=all);notifyPlaylist();}
+        };
+      }
+      notifyPlaylist();
+    })();return playlistLoading;
+  }
   const nav = document.createElement("div");
   nav.id = "reading-navigation";
   nav.className = "controls";
   nav.hidden = true;
-  nav.style.cssText = "grid-template-columns:1fr auto 1fr;align-items:center;gap:8px;margin-block:12px";
+  nav.style.cssText = "grid-template-columns:minmax(0,1fr) minmax(0,1.4fr) minmax(0,1fr);align-items:center;gap:8px;margin-block:12px";
   nav.innerHTML = '<button id="previous-reading" type="button" class="quiet" aria-label="Previous reading">Previous</button><span id="reading-order" role="status"></span><button id="next-reading" type="button" class="quiet" aria-label="Next reading">Next</button>';
   for(const button of nav.querySelectorAll("button"))button.style.cssText="padding-inline:4px;min-width:0;font-size:.8rem";
   const panel = document.createElement("div");
@@ -143,7 +168,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       await flush();
       const target = activeStore(record);
       if (!target) throw Error("The account changed.");
-      const current = await target.reading(record.id);
+      const current = retireIds().has(record.id)?null:await target.reading(record.id);
       if (current) current.engine ||= "google";
       if (request !== serial) return;
       if (getText() !== editor) throw Error("The editor changed while opening; your text is kept.");
@@ -181,6 +206,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           natural.deviceRestoreTime = Math.max(0, current.position || 0);
           natural.deviceRestoreIndex = Math.max(0, transport.status(group).starts.findLastIndex((time) => time <= natural.deviceRestoreTime));
         }
+        intent={id:current.id,createdAt:current.createdAt,text:current.text};
         rememberSelection(current.id);
         message(playback.voiceUnavailable ? "The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play." : engine === "browser" ? "Browser voice · place restored." : current.audioMissing ? "Text and place restored. Audio is not kept on this device; Play retrieves existing audio online. Expired audio requires an explicit new generation." : "Place restored. Press Play.");
       } catch (error) {
@@ -196,48 +222,33 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       }
     }
   }
-  async function rememberCurrent({createdAt}={}) {
+  async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true}={}) {
     await flush();
     const options = snapshot(), engine = getEngine(), chunks = [...getChunks()], voice = options.voice, target = store();
     if (!["browser", "google"].includes(engine) || !chunks.length) throw Error("This reading has no text to bookmark.");
     if (engine === "google" && !assets.scope) throw Error("Confirm your account before loading a queued Natural reading. No speech was started.");
     const parts = engine === "google" ? splitReadingChunks(chunks, options.paragraphStarts || [], transport.limit()) : [];
-    const id = engine === "google" ? "paste2speech.video." + await digest(JSON.stringify({ parts, voice })) : "paste2speech.browser." + await digest(JSON.stringify({ chunks, voice }));
+    const audioKey = engine === "google" ? "paste2speech.video." + await digest(JSON.stringify({ parts, voice })) : "paste2speech.browser." + await digest(JSON.stringify({ chunks, voice }));
+    const id=entryId||crypto.randomUUID();
     const old = await target.reading(id);
-    if (old) {
-      await openReading(old);
-      return;
-    }
-    const record = { version: 2, engine, id, key: id, scope: scope(), generation: crypto.randomUUID(), text: getText(), voice, chunks, parts, records: parts.map(() => ({ state: "unprepared" })), statuses: [], position: 0, nativeIndex: 0, nativeOffset: 0, options, createdAt: createdAt||Date.now(), updated: Date.now() };
-    await target.save("readings", id, record, { automatic: true, valid: () => target === store() });
+    if(old&&activate){await openReading(old);return;}
+    const record = old || { version: 2, engine, id, key: audioKey, scope: scope(), generation: crypto.randomUUID(), text: getText(), voice, chunks, parts, records: parts.map(() => ({ state: "unprepared" })), statuses: [], position: 0, nativeIndex: 0, nativeOffset: 0, options, createdAt: createdAt||Date.now(), updated: Date.now() };
+    await target.save("readings", id, record, { automatic: true, valid: () => target === store()&&valid() });
+    if(activate)await openReading(record);else{await holdSelected(record);selected={...record,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
     await list();
-    await openReading(record);
+    getQueue()?.removePending(id);await persistPending();notifyPlaylist();
   }
   function renderNavigation() {
-    const ordered = records.filter((record) => !record.damaged).sort((a, b) => (a.createdAt || a.updated || 0) - (b.createdAt || b.updated || 0)), index = ordered.findIndex((record) => record.id === selected?.id), queue = getQueue()?.items || [], total = ordered.length + queue.length;
-    nav.hidden = total < 2 || index < 0;
-    nav.querySelector("#reading-order").textContent = `Reading ${index + 1} of ${total}`;
-    const previous = nav.querySelector("#previous-reading"), next = nav.querySelector("#next-reading");
-    previous.disabled = opening || index <= 0;
-    next.disabled = opening || index < 0 || index >= ordered.length - 1 && !queue.length;
-    previous.onclick = () => void openReading(ordered[index - 1]);
-    next.onclick = async () => {
-      try {
-        if (index < ordered.length - 1) return openReading(ordered[index + 1]);
-        const item = queue[0];
-        if (!item || item.state !== "ready") {
-          message("The next reading is still preparing its text.");
-          return;
-        }
-        await flush();
-        getActive()?.pause();
-        await loadQueued(item);
-        await list();
-      } catch (error) {
-        message(error.message);
-      }
-    };
+    const ordered=entries(),index=ordered.findIndex(record=>record.id===selected?.id),total=ordered.length;
+    nav.hidden=total<2||index<0;
+    nav.querySelector("#reading-order").textContent=`Reading ${index+1} of ${total}`;
+    for(const [button,offset]of [["previous-reading",-1],["next-reading",1]]){
+      const control=nav.querySelector('#'+button);control.disabled=opening||index<0||!ordered[index+offset];
+      control.onclick=()=>void getQueue()?.playlist?.open(ordered[index+offset]);
+    }
+    refreshQueue();
   }
+
   async function cleanup(){
     if(cleaning)return cleaning;
     if(!protection.supported)return 0;
@@ -249,15 +260,17 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       const restoring=!selected&&!active?.chunks?.length&&candidate&&(!getText().trim()||getText()===candidate.text);
       const moved=localStorage.getItem(selectionKey());
       const currentId=same?selected.finishedAt&&moved&&moved!==selected.id?null:selected.id:restoring?candidate.id:null;
-      if(selected&&removalReason(selected,{now,currentId})&&!busy){selectedRelease?.();selectedRelease=null;}
+      if(selected&&(retireIds().has(selected.id)||removalReason(selected,{now,currentId}))&&!busy){selectedRelease?.();selectedRelease=null;}
+      const retiring=stored.filter(record=>!(busy&&record.id===selected?.id)&&removalReason(record,{now,currentId})&&!retireIds().has(record.id)).map(record=>record.id);
+      if(retiring.length&&playlist){await playlist.edit(state=>state.retired=[...new Set([...state.retired,...retiring])]);notifyPlaylist();}
       const queue=getQueue();for(const item of [...queue?.items||[]])if(!queue.starting&&now-(item.createdAt||now)>=86400000)queue.remove(item.id);
       for(const record of stored){
         if(target!==store())break;
         if(!Number.isFinite(record.createdAt)||record.createdAt<=0){record.createdAt=now;await target.save("readings",record.id,record,{updateOnly:true,valid:()=>target===store()});continue;}
-        if(!removalReason(record,{now,currentId})||busy&&record.id===selected?.id)continue;
+        if(!(retireIds().has(record.id)||removalReason(record,{now,currentId}))||busy&&record.id===selected?.id)continue;
         const result=await protection.exclusive(record.scope,record.id,async()=>{
           const fresh=await target.reading(record.id);
-          if(!fresh||fresh.generation!==record.generation||!removalReason(fresh,{now:clock.now(),currentId}))return false;
+          if(!fresh||fresh.generation!==record.generation||!(retireIds().has(record.id)||removalReason(fresh,{now:clock.now(),currentId})))return false;
           const ids=await target.removeReading(record.id,{valid:()=>target===store()&&!(selected?.id===record.id&&["playing","preparing","buffering"].includes(getActive()?.state))});
           if(await target.reading(record.id))return false;
           suppressed.add(record.id);suppressed.add(record.key);sessionStorage.removeItem(record.key||record.id);
@@ -269,7 +282,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         });
         if(result===true)count++;
       }
-      if(count){records=await target.readings();renderNavigation();}
+      if(count){records=await target.readings();notifyPlaylist();}
       lastCleanup=performance.now();return count;
     })().catch(error=>{message(error.message);return 0;}).finally(()=>cleaning=null);
     return cleaning;
@@ -278,10 +291,14 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     const target = store(), currentScope = scope(), found = await target.readings();
     if (target !== store()) return;
     records = found;
+    await ensurePlaylist();
+    if(getQueue()?.items.some(item=>records.some(record=>record.id===item.id))){getQueue().items=getQueue().items.filter(item=>!records.some(record=>record.id===item.id));await persistPending();}
+    if(playlist){const ids=entries().map(item=>item.id);if(ids.some(id=>!playlist.state.order.includes(id)))await playlist.edit(state=>state.order=[...new Set([...state.order,...ids])]);}
     renderNavigation();
     if (restore && restoreScope !== currentScope) {
       restoreScope = currentScope;
-      const latest=localStorage.getItem(latestKey()), candidate = records.find((record) => record.id === latest && storedEngine(record) === getEngine()) || records.find((record) => storedEngine(record) === getEngine());
+      const available=records.filter(record=>!retireIds().has(record.id));
+      const latest=localStorage.getItem(latestKey()), candidate = available.find((record) => record.id === latest && storedEngine(record) === getEngine()) || available.find((record) => storedEngine(record) === getEngine());
       if (candidate && !candidate.damaged && !getActive()?.chunks?.length && (!getText().trim() || getText() === candidate.text)) void openReading(candidate, { automatic: true });
     }
   }
@@ -308,12 +325,13 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         }
         selectedRelease?.();
         selectedRelease = null;
-        selected = null;
+        selected = null;records=[];intent=null;
         assets.setScope(next);
         suppressed = /* @__PURE__ */ new Set();
       }
       if (next) localStorage.setItem(lastScopeKey, next);
       else localStorage.removeItem(lastScopeKey);
+      await ensurePlaylist();
       await cleanup();
       await list({ restore: true });
       refresh();
@@ -340,7 +358,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         }
         group.ownerScope = currentScope;
       }
-      const logicalId=group.logicalReading?.id||group.key;
+      const logicalId=group.logicalReading?.id||(intent&&(!intent.text||intent.text===text)?intent.id:crypto.randomUUID());
+      if(retireIds().has(logicalId))return;
       const old = await target.reading(logicalId);
       if (!valid()) return;
       const revision = group.deviceRevision || 0;
@@ -360,6 +379,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         update();
       };
       assets.manifestReady = false;
+      intent={id:record.id,createdAt:record.createdAt,text};
       rememberSelection(record.id);
       suppressed.delete(record.id);
       await assets.enable(group.session.records.filter((part) => part.id).map((part) => part.id), group.deviceReference);
@@ -385,20 +405,23 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     let id;
     try {
       await flush();
-      id = "paste2speech.browser." + await digest(JSON.stringify({ chunks, voice }));
+      const audioKey="paste2speech.browser."+await digest(JSON.stringify({chunks,voice}));
+      id=intent&&(!intent.text||intent.text===text)?intent.id:selected?.text===text?selected.id:crypto.randomUUID();
+      if(retireIds().has(id))return;
       if (!valid()) return;
       if (suppressed.has(id) && !explicit && !rekeep.has(id)) {
         nativeBlocked = { chunks: player.chunks, voice };
         return;
       }
       explicit ||= rekeep.has(id);
-      const old = await target.reading(id), record = { version: 2, engine: "browser", id, key: id, scope: scope(), generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), text, chunks, voice, options: snapshot(), records: [], parts: [], statuses: [], updated: Date.now(), createdAt: old?.createdAt || old?.updated || pendingAddedAt || Date.now() };
+      const old = await target.reading(id), record = { version: 2, engine: "browser", id, key: audioKey, scope: scope(), generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), text, chunks, voice, options: snapshot(), records: [], parts: [], statuses: [], updated: Date.now(), createdAt: old?.createdAt || old?.updated || intent?.createdAt || pendingAddedAt || Date.now() };
       await target.save("readings", id, record, { valid, automatic: true, rekeep: explicit });
       if (!valid()) return;
       await holdSelected(record);
       selected = { ...record, nativeChunks: player.chunks, lastPlace: { index: player.index || 0, offset: player.offset || 0, rate: player.settings.rate || 1 } };
       suppressed.delete(id);
       rekeep.delete(id);pendingAddedAt=null;
+      intent={id,createdAt:record.createdAt,text};
       rememberSelection(id);
       if (old?.finishedAt) await target.setLifecycle(id, { finishedAt: null });
       void shell().catch((error) => message(error.message));
@@ -432,7 +455,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       selected.lifecycleSave = store().setLifecycle(selected.id, { finishedAt: null }).then(() => list()).catch((error) => message(error.message));
     }
     if (!opening && !saving && !attaching && enabled()) {
-      if (getEngine() === "google" && assets.store && group && !group.cancelled && (!suppressed.has(group.key)||rekeep.has(group.key)) && matches() && selected?.groupId !== group.id) {
+      if (getEngine() === "google" && assets.store && group && !group.cancelled && (!suppressed.has(group.key)||rekeep.has(group.key)) && matches() && (selected?.groupId !== group.id||group.logicalReading?.id&&selected?.id!==group.logicalReading.id)) {
         attaching = true;
         void saveNatural(group).finally(() => {
           attaching = false;
@@ -465,6 +488,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       }
     }
     renderNavigation();
+
   }
   assets.onPressure = async () => { const result=await cleanup();return result>0; };  $("retry-device-reading").onclick = async () => {
     try {
@@ -559,6 +583,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   void Promise.resolve(navigator.storage?.persisted?.()).then((value) => persistent = value === true).catch(() => {
   });
   setInterval(()=>void cleanup(),30000);
+  if(playlistChannel)playlistChannel.onmessage=async(event)=>{if(event.data?.scope!==scope()||!playlist)return;await playlist.load();const model=getQueue();if(model){const old=new Map(model.items.map(item=>[item.id,item]));model.items=(playlist.state.pending||[]).map(item=>Object.assign(old.get(item.id)||{},item));knownPending=new Set(model.items.map(item=>item.id));}await list();void cleanup();};
   void account();
   if (navigator.serviceWorker) void navigator.serviceWorker.getRegistration("/").then((registration) => {
     if (!registration?.active) return;
@@ -600,7 +625,13 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     if(record.engine==='google')await openReading(record);else if(getEngine()==='google')voiceChanging();
   }
   function voiceChanging(){if(selected&&getText()===selected.text)transport.nextLogicalReading={id:selected.id,createdAt:selected.createdAt};}
-  return { update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time){pendingAddedAt=time;}, get scope() {
+  async function replace(){
+    await flush();await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
+    await playlist.edit(state=>{state.retired=[...new Set([...state.retired,...ids])];state.pending=[];state.order=[];});
+    model?.clear();intent={id:crypto.randomUUID(),createdAt:Date.now()};transport.nextLogicalReading={...intent};
+    selectedRelease?.();selectedRelease=null;selected=null;notifyPlaylist();void cleanup();
+  }
+  return { replace, async registerCurrentMetadata(options={}){try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}}, queueChanged(){void persistPending().catch(error=>message(error.message));update();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
     return scope();
   }, get opening() {
     return opening;

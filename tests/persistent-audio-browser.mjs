@@ -295,7 +295,10 @@ try {
     if(!lateBlocked||await automatic.section("late-new-job",0))throw Error("Late admission survived parent reading deletion");
     for(let i=0;i<20;i++)await automatic.save("readings","bounded-"+i,{id:"bounded-"+i,text:"Synthetic"},{automatic:true});
     let limited=false;try{await automatic.save("readings","over-limit",{id:"over-limit",text:"Synthetic"},{automatic:true});}catch(e){limited=e.name==="QuotaExceededError";}
-    if(!limited)throw Error("Automatic library is unbounded");
+    if(!limited)throw Error("Automatic playlist is unbounded");
+    await automatic.save("usage","temporary-playlist",{id:"temporary-playlist",order:[],pending:[],retired:["bounded-0"]});
+    await automatic.save("readings","replacement",{id:"replacement",text:"Replacement while retired source stays protected"},{automatic:true});
+    if(!await automatic.reading("bounded-0")||!await automatic.reading("replacement"))throw Error("Protected retired source blocked its replacement metadata");
     // A ledger seeded at the bound simulates disk occupancy without a 512 MiB fixture.
     await automatic.transaction("usage","readwrite",s=>s.put(512*1024*1024,"audio-bytes"));
     let byteLimited=false;try{await automatic.writeSection("over-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){byteLimited=e.name==="AudioBudgetExceededError";}

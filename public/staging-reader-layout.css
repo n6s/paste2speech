@@ -104,3 +104,5 @@ button.reader-info-button,button.reader-popover-close{display:inline-flex!import
 @media(max-width:480px){.staging-reader-layout #text{height:clamp(180px,calc(100dvh - 650px),300px)}.staging-reader-layout #preview{height:clamp(150px,calc(100dvh - 710px),300px)}}
 
 .document-picker-actions{display:inline-flex;align-items:center;gap:4px;flex-shrink:0}
+
+.input-cleanup-row{display:block}.input-cleanup-row>.cleanup-row-heading{display:list-item;cursor:pointer;min-height:44px;align-content:center;font-size:.78rem}.input-cleanup-row>.cleanup-row-heading .reader-info-button{margin-left:6px}.input-cleanup-row:not([open])>#options{display:none}.input-cleanup-row[open]>#options{display:flex;flex-wrap:wrap;gap:2px 8px}.input-cleanup-row #options label{min-height:44px}

@@ -27,7 +27,7 @@ export function attachReaderPopover(button,content,{label=button.getAttribute('a
    const left=Math.max(x+gap,Math.min(rect.left,x+w-box.width-gap));const below=rect.bottom+8,above=rect.top-box.height-8;
    const top=below+box.height<=y+h-gap?below:above>=y+gap?above:Math.max(y+gap,Math.min(below,y+h-box.height-gap));content.style.left=left+'px';content.style.top=top+'px';
   },
-  close(restore=true){if(!opened)return;opened=false;if(content.hidePopover&&content.matches(':popover-open'))content.hidePopover();else content.hidden=true;button.setAttribute('aria-expanded','false');if(active===popup)active=null;if(restore&&returnFocus.isConnected&&!returnFocus.disabled)returnFocus.focus({preventScroll:true});},
+  close(restore=true){if(!opened)return;opened=false;if(content.hidePopover&&content.matches(':popover-open'))content.hidePopover();else content.hidden=true;button.setAttribute('aria-expanded','false');if(active===popup)active=null;const target=typeof returnFocus==='function'?returnFocus():returnFocus;if(restore&&target?.isConnected&&!target.disabled)target.focus({preventScroll:true});},
   open(){if(opened)return;active?.close(false);opened=true;active=popup;content.hidden=false;button.setAttribute('aria-expanded','true');if(content.showPopover)content.showPopover();content.scrollTop=0;popup.position();content.focus({preventScroll:true});},
   get opened(){return opened;}
  };

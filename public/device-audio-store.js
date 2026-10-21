@@ -70,7 +70,7 @@ export class DeviceAudioStore {
     return error;
   }
   async guardedPut(name, id, value, { valid = () => true, updateOnly = false, automatic = false, reference, rekeep = false } = {}) {
-    const names = [...new Set([name, "removed", ...((reference || ["positions", "lifecycle"].includes(name)) ? ["readings"] : []), ...(reference ? ["references"] : [])])];
+    const names = [...new Set([name, "removed", ...(name==="readings"&&automatic?["usage"]:[]), ...((reference || ["positions", "lifecycle"].includes(name)) ? ["readings"] : []), ...(reference ? ["references"] : [])])];
     await this.transaction(names, "readwrite", (store) => {
       const tx = store.transaction;
       const fail = (error) => {
@@ -110,12 +110,18 @@ export class DeviceAudioStore {
           if (r.result && !rekeep) return fail(this.removedError());
           const keys = store.getAllKeys(IDBKeyRange.bound([this.scope], [this.scope, []]));
           keys.addEventListener("success", () => {
-            if (keys.result.length >= 20 && !keys.result.some(key => key[1] === id)) {
+            const check = retired => {
+            const visible=keys.result.filter(key=>!retired.includes(key[1]));
+            if (visible.length >= 20 && !visible.some(key => key[1] === id)) {
               const error = Error("20 readings are kept on this device. Remove a saved reading to enable more offline copies. Online playback can continue.");
               error.name = "QuotaExceededError";
               return fail(error);
             }
             put();
+            };
+            if(!automatic)return check([]);
+            const membership=tx.objectStore("usage").get(this.key("temporary-playlist"));
+            membership.onsuccess=()=>check(membership.result?.scope===this.scope?membership.result.retired||[]:[]);
           });
         });
         return r;

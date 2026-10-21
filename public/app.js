@@ -499,11 +499,11 @@ async function pasteFromClipboard({replace=false}={}){
       return;
     }
     const text=payload.text;
-    if (!text.trim()) throw new Error('empty');
+    if (!text.trim()||replace&&!cleanText(text,options).trim()) throw new Error('empty');
     documentImport?.clear();
     summaryMode?.clearSource();
     if(replace){
-      inputQueue?.model.stop();resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();readAndPlay();
+      if(PERSISTENT_AUDIO)await deviceAudio?.replace();else inputQueue?.model.stop();resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();if(PERSISTENT_AUDIO)await deviceAudio?.registerCurrentMetadata();if(request===pasteRequest)readAndPlay();
     }else{
       setMode('edit');insertEditorText(text,range);rememberPasteSelection();pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);
     }
@@ -678,7 +678,7 @@ if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),paste
   fail(context,message){if(context?.background&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
   cancel(context){if(!context)return;context.cancelled=true;if(context.background)inputQueue.model.remove(context.queueId);}
  }:undefined,
- accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(context?.intent==='play')requestAnimationFrame(()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);readAndPlay();}});},
+ async accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}if(context?.intent==='play'&&!cleanText(data.text,context.snapshot.cleanup).trim()){inputQueue?.error('Nothing remains after cleanup. Your previous reading is kept.');return;}if(context?.intent==='play'&&PERSISTENT_AUDIO)await deviceAudio?.replace();if(context?.cancelled)return;summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(context?.intent==='play')requestAnimationFrame(async()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);if(PERSISTENT_AUDIO)await deviceAudio?.registerCurrentMetadata();if(!context.cancelled&&$('text').value===data.text)readAndPlay();}});},
  pauseReading(){if(!intakeContext?.background&&['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){if(!intakeContext?.background){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;}disablePasteButtons(value);$('clear').disabled=false;if(!value&&!intakeContext?.background)preview();if(player)render(player);}
 });
@@ -703,8 +703,8 @@ async function readQueuedClipboard(intent){
  }catch(error){if(item)inputQueue.model.fail(item.id,error.message||'Clipboard access failed. Your editor and playback are unchanged.');inputQueue.error(error.message||'Clipboard access failed.');}
 }
 if(INPUT_QUEUE_UI){
- inputQueue=setupInputQueue({changed:()=>deviceAudio?.update(),refined:INPUT_QUEUE_REFINEMENTS,snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
-  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();if(item.snapshot.engine==='google'){if(!item.snapshot.scope)throw Error('Account checks were still loading when this item was added. Add it again after checking your account.');const response=await fetch('/api/ocr/jobs/config');if(!response.ok)throw Error('The account could not be confirmed. No speech was started.');const config=await response.json();if(!current())return false;if(config.consentScope!==item.snapshot.scope)throw Error('The account changed after this item was queued. Add it again for the current account. No speech was started.');}if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt);workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
+ inputQueue=setupInputQueue({changed:()=>deviceAudio?.queueChanged(),refined:INPUT_QUEUE_REFINEMENTS,persistent:PERSISTENT_AUDIO,snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
+  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();if(item.snapshot.engine==='google'){if(!item.snapshot.scope)throw Error('Account checks were still loading when this item was added. Add it again after checking your account.');const response=await fetch('/api/ocr/jobs/config');if(!response.ok)throw Error('The account could not be confirmed. No speech was started.');const config=await response.json();if(!current())return false;if(config.consentScope!==item.snapshot.scope)throw Error('The account changed after this item was queued. Add it again for the current account. No speech was started.');}if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt,item.id);await deviceAudio.registerCurrentMetadata({id:item.id,createdAt:item.createdAt,valid:current});if(!current())return false;workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
   cancelItem(item){for(const [key,context]of intakeContexts)if(context.queueId===item.id){context.cancelled=true;documentImport.cancelDestination?.(context);intakeContexts.delete(key);}},
   clearAll(){for(const context of intakeContexts.values())context.cancelled=true;intakeContexts.clear();intakeContext=null;}
  });
@@ -834,7 +834,7 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
 if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});
 
 if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlayer,getActive:()=>player,getEngine:()=>$('engine').value,getChunks:()=>chunks,getText:()=>$('text').value,
- matches:matchesPreparedDeviceReading,refresh:()=>{if(player)render(player);},getQueue:()=>inputQueue?.model,
+ matches:matchesPreparedDeviceReading,refresh:()=>{if(player)render(player);},getQueue:()=>inputQueue?.model,renderQueue:()=>inputQueue?.render(),playSaved:()=>readAndPlay(),
  snapshot:()=>({engine:$('engine').value,paragraphStarts:[...paragraphStarts],cleanup:{...options},voice:$('voice').value,rate:Number($('rate').value)}),
  async apply(record){
   const browserOverride=preferBrowserReading&&(record.engine||'google')==='google';
@@ -859,7 +859,7 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   return {engine,voice,voiceUnavailable};
  },
  async loadQueued(item){
-  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt});model.remove(item.id);save();
+  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id});save();
  },
  async regenerate(record){
   workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();
