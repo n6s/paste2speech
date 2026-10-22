@@ -17,10 +17,11 @@ export class StagingPlayer extends MsePlayer {
  get retainedSections(){return this.longReadings?.retainedSections(this.job)||[];}
  get providerCost(){return this.status?.providerCost||0;}get costIncomplete(){return !!this.status?.costIncomplete;}
  matches(chunks,settings){return !!this.job&&settings.voice===this.settings?.voice&&JSON.stringify(chunks)===JSON.stringify(this.chunks)&&settings.cached===this.settings?.cached&&settings.scenario===this.settings?.scenario;}
- async start(chunks,settings,index=0){
+ async start(chunks,settings,index){
+  const explicitSection=index!=null;
   if(this.matches(chunks,settings)){
-   this.claim();this.setRate(settings.rate);this.wantPlay=true;this.pendingIndex=index;
-   if(this.mediaRecovery){this.mediaRecovery.time=this.starts[index]||0;return this.resume(settings);}
+   this.claim();this.setRate(settings.rate);this.wantPlay=true;this.pendingIndex=index??0;this.pendingTime=null;
+   if(this.mediaRecovery){this.mediaRecovery.time=this.starts[index??0]||0;return this.resume(settings);}
    this.applyPending();return;
   }
   this.settings={...settings};this.pendingIndex=null;
@@ -31,7 +32,8 @@ export class StagingPlayer extends MsePlayer {
    // carry a restored book's position into unrelated text or voice.
    this.longReadings.localRestore=null;this.deviceRestoreTime=null;this.deviceRestoreIndex=null;
   }
-  const deviceTime=this.deviceRestoreTime;this.deviceRestoreTime=null;index=this.deviceRestoreIndex??index;this.deviceRestoreIndex=null;
+  // A paragraph tap is an explicit seek; only ordinary Play resumes the bookmark.
+  const deviceTime=explicitSection?null:this.deviceRestoreTime;this.deviceRestoreTime=null;index=explicitSection?index:this.deviceRestoreIndex??0;this.deviceRestoreIndex=null;
   await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
   if(deviceTime!=null){this.pendingTime=deviceTime;this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=deviceTime));if(this.status)this.seek(deviceTime);}
  }

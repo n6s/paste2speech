@@ -252,6 +252,7 @@ function markReadingPosition(p) {
   const active = p && ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
   if (active && $('follow-reading').checked && chunks.length > READING_WINDOW_THRESHOLD && !sentenceElements.has(p.index)) renderReadingWindow(p.index);
   for (const [index, button] of sentenceElements) {
+    button.tabIndex=canPlay()?0:-1;button.setAttribute('aria-disabled',String(!canPlay()));
     if (active && p.index === index) {
       const changed = !button.hasAttribute('aria-current'); button.setAttribute('aria-current', 'true');
       if (changed) followParagraph(button);
