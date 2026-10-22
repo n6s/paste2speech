@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {playlistEntries,TemporaryPlaylist,mergePending} from '../public/temporary-playlist.js';
+import {playlistEntries,TemporaryPlaylist,mergePending,queuedPreparationPending} from '../public/temporary-playlist.js';
 test('playlist order, navigation and retained readings use identical logical IDs without text deduplication',()=>{
  const records=[{id:'a',text:'Same text'},{id:'b',text:'Same text'},{id:'gone',text:'Removed'}];
  const pending=[{id:'c',state:'ready',text:'Pending'},{id:'a',text:'Stale handoff'}];
@@ -36,4 +36,16 @@ test('saved successors advance only after completion, while manual navigation re
  const opened=[];const queue=new ReadingQueue();queue.playlist={entries:()=>[{id:'saved'}],next:()=>({id:'saved',saved:true}),open:(item,options)=>opened.push({id:item.id,...options})};
  for(const state of ['playing','paused','failed'])queue.observe(state);await new Promise(r=>setImmediate(r));assert.equal(opened.length,0);
  queue.observe('done');await new Promise(r=>setImmediate(r));assert.deepEqual(opened,[{id:'saved',autoplay:true}]);
+});
+
+test('explicit queued replay overlays metadata only until that generation starts',()=>{
+ const record={id:'a',text:'Queued',queueIntent:{engine:'google'}},pending={id:'a',text:'Queued',state:'ready',queuedReplay:true};
+ assert.equal(playlistEntries({},[record],[pending])[0].saved,undefined);
+ assert.equal(playlistEntries({},[{...record,queueStartedAt:1}],[pending])[0].saved,true);
+ assert.deepEqual(playlistEntries({retired:['a']},[record],[pending]),[]);
+});
+
+test('only an untouched explicit queue intent authorizes initial preparation',()=>{
+ const queued={queueIntent:{engine:'google'},records:[{state:'unprepared'}]};assert.equal(queuedPreparationPending(queued),true);
+ for(const record of [{records:queued.records},{...queued,queueStartedAt:1},{...queued,records:[{state:'failed'}]},{...queued,records:[{state:'uncertain'}]},{...queued,records:[{state:'expired',id:'old'}]},{...queued,records:[{state:'unprepared',id:'admitted'}]}])assert.equal(queuedPreparationPending(record),false);
 });

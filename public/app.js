@@ -861,7 +861,7 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   return {engine,voice,voiceUnavailable};
  },
  async loadQueued(item){
-  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id});save();
+  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id,queueIntent:item.snapshot});save();
  },
  async regenerate(record){
   workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();

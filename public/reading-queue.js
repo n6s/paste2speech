@@ -23,7 +23,7 @@ export class ReadingQueue {
   schedule(){if(this.scheduled)return;this.scheduled=true;queueMicrotask(()=>{this.scheduled=false;void this.pump();});}
   async pump(){
     if(!this.armed||this.halted||this.starting)return;
-    if(this.playlist){const next=this.playlist.next();if(!next)return; if(next.saved){this.armed=false;await this.playlist.open(next,{autoplay:true});return;}if(this.items[0]!==next){const index=this.items.indexOf(next);if(index<0)return;this.items.splice(index,1);this.items.unshift(next);}}
+    if(this.playlist){const next=this.items.find(item=>item.queuedReplay&&item.id===this.playlist.selected())||this.playlist.next();if(!next)return; if(next.saved){this.armed=false;await this.playlist.open(next,{autoplay:true});return;}if(this.items[0]!==next){const index=this.items.indexOf(next);if(index<0)return;this.items.splice(index,1);this.items.unshift(next);}}
     if(this.items[0]?.state!=='ready')return;
     const item=this.items[0],version=this.version;this.armed=false;this.starting=true;
     const current=()=>this.version===version&&!this.halted&&(this.items[0]===item||this.playlist?.selected()===item.id);

@@ -2,7 +2,7 @@
 export function playlistEntries(state, readings, pending) {
   const retired = new Set(state.retired || []), byId = new Map();
   for (const record of readings) if (!record.damaged && !retired.has(record.id)) byId.set(record.id, {...record, saved:true, title:record.text?.trim().split(/\r?\n/)[0].replace(/[#*_`]/g,'').slice(0,72)||'Reading'});
-  for (const item of pending) if (!retired.has(item.id) && !byId.has(item.id)) byId.set(item.id,item);
+  for (const item of pending) if (!retired.has(item.id) && (!byId.has(item.id)||item.queuedReplay&&byId.get(item.id).queueIntent&&!byId.get(item.id).queueStartedAt)) byId.set(item.id,item);
   const order = [...new Set([...(state.order || []), ...byId.keys()])];
   return order.filter(id=>byId.has(id)).map(id=>byId.get(id));
 }
@@ -21,4 +21,10 @@ export class TemporaryPlaylist {
     const locked=()=>globalThis.navigator?.locks?navigator.locks.request('paste2speech-playlist:'+this.store.scope,run):run();
     return this.tail=this.tail.catch(()=>{}).then(locked);
   }
+}
+
+// Only the original, untouched queue intent can authorize first preparation.
+// Existing, failed, expired or previously played audio needs its normal recovery path.
+export function queuedPreparationPending(record){
+ return !!record.queueIntent&&!record.queueStartedAt&&Array.isArray(record.records)&&record.records.length>0&&record.records.every(part=>part.state==='unprepared'&&!part.id);
 }

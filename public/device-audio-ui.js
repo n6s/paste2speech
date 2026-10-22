@@ -1,4 +1,4 @@
-import {TemporaryPlaylist, playlistEntries, mergePending} from "./temporary-playlist.js";
+import {TemporaryPlaylist, playlistEntries, mergePending, queuedPreparationPending} from "./temporary-playlist.js";
 import { DeviceAudioStore, digest } from "./device-audio-store.js";
 import { splitReadingChunks } from "./playlist-plan.js";
 import { removalReason, RetentionClock } from "./reading-retention.js";
@@ -25,17 +25,17 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   function refreshQueue(){const signature=JSON.stringify([selected?.id,selected?.engine,entries().map(item=>[item.id,item.title,item.state,item.error,item.engine,item.playbackEngine,item.offlineReady,item.records?.map(part=>[part.id,part.state]),shellReady])]);if(signature!==renderedQueue){renderedQueue=signature;renderQueue();}}
   const retireIds=()=>new Set(playlist?.state.retired||[]);
   function notifyPlaylist(){renderNavigation();refreshQueue();playlistChannel?.postMessage({scope:scope()});}
-  async function persistPending(){if(!playlist)return;const pending=structuredClone(getQueue()?.items||[]);await playlist.edit(state=>{state.pending=mergePending(state.pending,pending,knownPending,state.retired,records.map(record=>record.id));knownPending=new Set(pending.map(item=>item.id));});playlistChannel?.postMessage({scope:scope()});}
+  async function persistPending(){if(!playlist)return;const pending=structuredClone(getQueue()?.items||[]);await playlist.edit(state=>{state.pending=mergePending(state.pending,pending,knownPending,state.retired,records.filter(record=>!record.queueIntent||record.queueStartedAt).map(record=>record.id));knownPending=new Set(pending.map(item=>item.id));});playlistChannel?.postMessage({scope:scope()});}
   async function ensurePlaylist(){
     if(playlistScope===scope())return playlistLoading;
     playlistScope=scope();const target=store(),next=new TemporaryPlaylist(target);playlist=next;
     playlistLoading=(async()=>{await next.load();if(target!==store())return;const model=getQueue();
       if(model){model.stop();model.items=(next.state.pending||[]).filter(item=>!next.state.retired.includes(item.id));knownPending=new Set(model.items.map(item=>item.id));
         model.playlist={clearPending:items=>{void next.edit(state=>{const ids=items.map(item=>item.id);state.retired=[...new Set([...state.retired,...ids])];state.pending=state.pending.filter(item=>!ids.includes(item.id));}).then(notifyPlaylist).catch(error=>message(error.message));},entries,selected:()=>selected?.id, status:record=>(record.id===selected?.id?selected.engine:record.playbackEngine||record.engine)==='browser'?'Browser voice':record.offlineReady&&shellReady?'Ready offline':record.records?.some(part=>part.id)?'Partly saved':'Needs preparation',
-          open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);}},
+          open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&selected.engine==='google'&&queuedPreparationPending(item)){if(!model.has(item.id))model.items.unshift({id:item.id,title:item.title,text:item.text,snapshot:structuredClone(item.queueIntent),createdAt:item.createdAt,updatedAt:Date.now(),state:'ready',queuedReplay:true});model.changed();model.advance();return;}if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);}},
           next:()=>{const all=entries(),index=all.findIndex(item=>item.id===selected?.id);return all[index+1];},
           added:(item,placement)=>{void next.edit(state=>{const all=entries().map(entry=>entry.id).filter(id=>id!==item.id),index=all.indexOf(selected?.id);all.splice(placement==='next'?index+1:all.length,0,item.id);state.order=all;state.pending=mergePending(state.pending,structuredClone(model.items),new Set(model.items.map(item=>item.id)),state.retired);}).then(notifyPlaylist).catch(error=>message(error.message));},
-          remove:async id=>{await next.edit(state=>{state.retired=[...new Set([...state.retired,id])];state.pending=state.pending.filter(item=>item.id!==id);});model.removePending(id);if(selected?.id===id){removedCurrentText=getText();model.stop();intent=null;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||""};suppressed.add(id);suppressed.add(selected.key);getActive()?.pause();selectedRelease?.();selectedRelease=null;selected=null;}message("Removed from playlist.");notifyPlaylist();void cleanup();},
+          remove:async id=>{await next.edit(state=>{state.retired=[...new Set([...state.retired,id])];state.pending=state.pending.filter(item=>item.id!==id);});model.removePending(id);if(selected?.id===id){removedCurrentText=getText();model.stop();intent=null;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||""};suppressed.add(id);getActive()?.pause();selectedRelease?.();selectedRelease=null;selected=null;}message("Removed from playlist.");notifyPlaylist();void cleanup();},
           move:async(id,delta)=>{const all=entries().map(item=>item.id),index=all.indexOf(id),other=index+delta;if(index<0||other<0||other>=all.length)return;[all[index],all[other]]=[all[other],all[index]];await next.edit(state=>state.order=all);notifyPlaylist();}
         };
       }
@@ -210,6 +210,9 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           natural.deviceRestoreIndex = Math.max(0, transport.status(group).starts.findLastIndex((time) => time <= natural.deviceRestoreTime));
         }
         intent={id:current.id,createdAt:current.createdAt,text:current.text};
+        // A saved selection owns the next transport start, even if another file
+        // was loaded as metadata without ever starting its audio.
+        transport.nextLogicalReading={...intent};transport.nextAddedAt=current.createdAt;
         rememberSelection(current.id);
         message(playback.voiceUnavailable ? "The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play." : engine === "browser" ? "Browser voice · place restored." : current.audioMissing ? "Text and place restored. Audio is not kept on this device; Play retrieves existing audio online. Expired audio requires an explicit new generation." : "Place restored. Press Play.");
       } catch (error) {
@@ -221,11 +224,13 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     } finally {
       if (request === serial) {
         opening = false;
+        await cleanup();
+        await list();
         refresh();
       }
     }
   }
-  async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true}={}) {
+  async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true,queueIntent=null}={}) {
     await flush();
     const options = snapshot(), engine = getEngine(), chunks = [...getChunks()], voice = options.voice, target = store();
     if (!["browser", "google"].includes(engine) || !chunks.length) throw Error("This reading has no text to bookmark.");
@@ -236,10 +241,11 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     const old = await target.reading(id);
     if(old&&activate){await openReading(old);return;}
     const record = old || { version: 2, engine, id, key: audioKey, scope: scope(), generation: crypto.randomUUID(), text: getText(), voice, chunks, parts, records: parts.map(() => ({ state: "unprepared" })), statuses: [], position: 0, nativeIndex: 0, nativeOffset: 0, options, createdAt: createdAt||Date.now(), updated: Date.now() };
+    if(queueIntent&&!record.queueStartedAt)record.queueIntent=structuredClone(queueIntent);
     await target.save("readings", id, record, { automatic: true, valid: () => target === store()&&valid() });
     if(activate)await openReading(record);else{await holdSelected(record);selected={...record,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
     await list();
-    getQueue()?.removePending(id,{consumed:true});await persistPending();notifyPlaylist();
+    getQueue()?.removePending(id,{consumed:true});await persistPending();await cleanup();await list();notifyPlaylist();
   }
   function renderNavigation() {
     const ordered=entries(),index=ordered.findIndex(record=>record.id===selected?.id),total=ordered.length;
@@ -262,7 +268,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       const stored=await target.readings(),latest=localStorage.getItem(latestKey()),candidate=stored.find(r=>r.id===latest&&storedEngine(r)===getEngine())||stored.find(r=>storedEngine(r)===getEngine());
       const restoring=!selected&&!active?.chunks?.length&&candidate&&(!getText().trim()||getText()===candidate.text);
       const moved=localStorage.getItem(selectionKey());
-      const currentId=same?selected.finishedAt&&moved&&moved!==selected.id?null:selected.id:restoring?candidate.id:null;
+      const selectedText=selected&&getText()===selected.text&&(opening||!active?.chunks?.length);
+      const currentId=selectedText?selected.id:same?selected.finishedAt&&moved&&moved!==selected.id?null:selected.id:restoring?candidate.id:null;
       if(selected&&(retireIds().has(selected.id)||removalReason(selected,{now,currentId}))&&!busy){selectedRelease?.();selectedRelease=null;}
       const retiring=stored.filter(record=>!(busy&&record.id===selected?.id)&&removalReason(record,{now,currentId})&&!retireIds().has(record.id)).map(record=>record.id);
       if(retiring.length&&playlist){await playlist.edit(state=>state.retired=[...new Set([...state.retired,...retiring])]);notifyPlaylist();}
@@ -276,7 +283,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
           if(!fresh||fresh.generation!==record.generation||!(retireIds().has(record.id)||removalReason(fresh,{now:clock.now(),currentId})))return false;
           const ids=await target.removeReading(record.id,{valid:()=>target===store()&&!(selected?.id===record.id&&["playing","preparing","buffering"].includes(getActive()?.state))});
           if(await target.reading(record.id))return false;
-          suppressed.add(record.id);suppressed.add(record.key);sessionStorage.removeItem(record.key||record.id);
+          suppressed.add(record.id);sessionStorage.removeItem(record.key||record.id);
           for(const group of transport.groups.values())if(group.deviceReference?.readingId===record.id||group.key===record.id){group.localSave=false;group.forgotten=true;}
           assets.forgetLocal(ids);
           if(localStorage.getItem(latestKey())===record.id)localStorage.removeItem(latestKey());
@@ -295,7 +302,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     if (target !== store()) return;
     records = found;
     await ensurePlaylist();
-    if(getQueue()?.items.some(item=>records.some(record=>record.id===item.id))){getQueue().items=getQueue().items.filter(item=>!records.some(record=>record.id===item.id));await persistPending();}
+    if(getQueue()?.items.some(item=>records.some(record=>record.id===item.id)&&!item.queuedReplay)){getQueue().items=getQueue().items.filter(item=>item.queuedReplay||!records.some(record=>record.id===item.id));await persistPending();}
     if(playlist){const ids=entries().map(item=>item.id);if(ids.some(id=>!playlist.state.order.includes(id)))await playlist.edit(state=>state.order=[...new Set([...state.order,...ids])]);}
     renderNavigation();
     if (restore && restoreScope !== currentScope) {
@@ -344,11 +351,13 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       if (!assets.scope && getEngine() === "google") message("Confirm your account online before keeping Natural audio. Browser voices remain available.");
     }
   }
+  function naturalLogicalId(group){return group.logicalReading?.id||(intent&&(!intent.text||intent.text===getText())?intent.id:group.deviceReference?.readingId||group.historyRecord?.id||(group.pendingLogicalId||=crypto.randomUUID()));}
   async function saveNatural(group, { explicit = false } = {}) {
-    explicit ||= rekeep.has(group.key);
+    const logicalId=naturalLogicalId(group);
+    explicit ||= rekeep.has(logicalId);
     if (!assets.store || group.ownerScope && group.ownerScope !== assets.scope) return;
     saving = true;
-    const target = assets.store, text = getText(), currentScope = scope(), valid = () => target === store() && enabled() && getText() === text && !group.cancelled;
+    const target = assets.store, text = getText(), currentScope = scope(), valid = () => target === store() && enabled() && getText() === text && natural.id===group.id && !group.cancelled;
     try {
       await flush();
       if (!valid()) return;
@@ -361,18 +370,18 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         }
         group.ownerScope = currentScope;
       }
-      const logicalId=group.logicalReading?.id||(intent&&(!intent.text||intent.text===text)?intent.id:crypto.randomUUID());
       if(retireIds().has(logicalId))return;
       const old = await target.reading(logicalId);
       if (!valid()) return;
       const revision = group.deviceRevision || 0;
-      const record = { version: 2, engine: "google", manifestRevision: revision, generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), id: logicalId, key: group.key, scope: currentScope, parts: structuredClone(group.parts), voice: group.session.voice, text, options: snapshot(), records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), position: natural.audio.currentTime || 0, updated: Date.now(), createdAt: old?.createdAt || old?.updated || group.logicalReading?.createdAt || group.createdAt || Date.now() };
+      const record = { version: 2, engine: "google", manifestRevision: revision, generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), id: logicalId, finishedAt:natural.state==="done"&&natural.id===group.id?clock.now():old?.finishedAt, queueIntent:old?.queueIntent,queueStartedAt:old?.queueStartedAt, key: group.key, scope: currentScope, parts: structuredClone(group.parts), voice: group.session.voice, text, options: snapshot(), records: structuredClone(group.session.records), statuses: structuredClone(group.statuses), position: natural.audio.currentTime || 0, updated: Date.now(), createdAt: old?.createdAt || old?.updated || group.logicalReading?.createdAt || group.createdAt || Date.now() };
       await target.save("readings", record.id, record, { valid, automatic: true, rekeep: explicit });
+      if(record.finishedAt&&natural.state==="done")await target.setLifecycle(record.id,{finishedAt:record.finishedAt},{valid});
       rekeep.delete(record.id);
       if (!valid()) return;
       await holdSelected(record);
       selected = { ...record, groupId: group.id, storedRevision: revision, storedReady: false, lastPlace: { position: record.position, rate: natural.rate || 1 } };
-      if (old?.finishedAt) await target.setLifecycle(record.id, { finishedAt: null });
+      if (old?.finishedAt&&natural.state==="playing") await target.setLifecycle(record.id, { finishedAt: null });
       for (const previous of transport.groups.values()) if (previous !== group && (previous.deviceReference?.readingId===record.id||previous.key === group.key)) previous.localSave = false;
       group.localSave = true;
       group.historyRecord = record;
@@ -391,7 +400,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       await list();
     } catch (error) {
       if (target === store()) {
-        suppressed.add(group.key);
+        suppressed.add(logicalId);
         message(error.message);
       }
     } finally {
@@ -417,8 +426,9 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         return;
       }
       explicit ||= rekeep.has(id);
-      const old = await target.reading(id), record = { version: 2, engine: "browser", id, key: audioKey, scope: scope(), generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), text, chunks, voice, options: snapshot(), records: [], parts: [], statuses: [], updated: Date.now(), createdAt: old?.createdAt || old?.updated || intent?.createdAt || pendingAddedAt || Date.now() };
+      const old = await target.reading(id), record = { version: 2, engine: "browser", id, finishedAt:player.state==="done"?clock.now():old?.finishedAt, queueIntent:old?.queueIntent,queueStartedAt:old?.queueStartedAt, key: audioKey, scope: scope(), generation: explicit ? crypto.randomUUID() : old?.generation || crypto.randomUUID(), text, chunks, voice, options: snapshot(), records: [], parts: [], statuses: [], updated: Date.now(), createdAt: old?.createdAt || old?.updated || intent?.createdAt || pendingAddedAt || Date.now() };
       await target.save("readings", id, record, { valid, automatic: true, rekeep: explicit });
+      if(record.finishedAt&&player.state==="done")await target.setLifecycle(id,{finishedAt:record.finishedAt},{valid});
       if (!valid()) return;
       await holdSelected(record);
       selected = { ...record, nativeChunks: player.chunks, lastPlace: { index: player.index || 0, offset: player.offset || 0, rate: player.settings.rate || 1 } };
@@ -426,7 +436,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       rekeep.delete(id);pendingAddedAt=null;
       intent={id,createdAt:record.createdAt,text};
       rememberSelection(id);
-      if (old?.finishedAt) await target.setLifecycle(id, { finishedAt: null });
+      if (old?.finishedAt&&player.state==="playing") await target.setLifecycle(id, { finishedAt: null });
       void shell().catch((error) => message(error.message));
       await list();
     } catch (error) {
@@ -448,7 +458,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       void flush();
     }, 500);
     const player = getActive(), group = natural.getVideoPreparation?.();
-    const sameReading=selected&&(selected.engine==='browser'?getEngine()==='browser'&&selected.nativeChunks===player?.chunks:selected.groupId===natural.id&&matches());
+    const sameReading=selected&&(selected.engine==='browser'?getEngine()==='browser'&&selected.nativeChunks===player?.chunks:(selected.groupId===natural.id||group?.id===natural.id&&group.logicalReading?.id===selected.id)&&matches());
+    if(sameReading&&player?.state==='playing'&&selected.queueIntent&&!selected.queueStartedAt){const record=selected;record.queueStartedAt=clock.now();record.lifecycleSave=Promise.resolve(record.lifecycleSave).catch(()=>{}).then(()=>store().setLifecycle(record.id,{queueStartedAt:record.queueStartedAt},{valid:()=>selected===record})).catch(error=>message(error.message));}
     if(sameReading&&player?.state==='done'&&!selected.finishedAt){
       const record=selected;record.finishedAt=clock.now();record.lifecycleSave=store().setLifecycle(record.id,{finishedAt:record.finishedAt}).catch(error=>message(error.message));
     }
@@ -458,7 +469,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       selected.lifecycleSave = store().setLifecycle(selected.id, { finishedAt: null }).then(() => list()).catch((error) => message(error.message));
     }
     if (!opening && !saving && !attaching && enabled()) {
-      if (getEngine() === "google" && assets.store && group && !group.cancelled && (!suppressed.has(group.key)||rekeep.has(group.key)) && matches() && (selected?.groupId !== group.id||group.logicalReading?.id&&selected?.id!==group.logicalReading.id)) {
+      if (getEngine() === "google" && assets.store && group && !group.cancelled && (!suppressed.has(naturalLogicalId(group))||rekeep.has(naturalLogicalId(group))) && matches() && (selected?.groupId !== group.id||group.logicalReading?.id&&selected?.id!==group.logicalReading.id)) {
         attaching = true;
         void saveNatural(group).finally(() => {
           attaching = false;

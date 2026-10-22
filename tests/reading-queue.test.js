@@ -17,3 +17,9 @@ test('successful metadata handoff is consumption rather than cancellation',()=>{
  queue.removePending(first.id,{consumed:true});queue.removePending(second.id);
  assert.deepEqual(removed,[[first.id,true],[second.id,false]]);assert.equal(queue.items.length,0);
 });
+
+test('a visited queued reading can start at its selected logical position',async()=>{
+ const started=[],queue=new ReadingQueue({start:item=>started.push(item.id)});
+ queue.items=[{id:'visited',state:'ready',queuedReplay:true}];queue.playlist={selected:()=> 'visited',next:()=>undefined,entries:()=>queue.items};
+ queue.advance();await tick();assert.deepEqual(started,['visited']);assert.equal(queue.items.length,0);
+});
