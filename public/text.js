@@ -1,9 +1,10 @@
 import {transformMath} from './math-notation.js';
+import {proseArrows} from './prose-arrows.js';
 export const defaults = { markdown: true, citations: true, urls: true, code: true, tables: true, emoji: false, joinLines: true };
 
 // Split structure before any destructive cleanup. Code is always opaque.
 const fenceStart = line => /^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
-const listStart = line => /^( *)([-+*]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
+const symbolListStart = line => /^( *)([-+*▸▹►▻▶]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
 const atxHeading = line => /^ {0,3}#{1,6}[ \t]+(.*)$/.exec(line);
 const underline = line => /^ {0,3}(?:=+|-+)[ \t]*$/.test(line);
 const indented = line => /^(?: {4}|\t)/.test(line);
@@ -25,7 +26,8 @@ function tableCells(line) {
   return cells;
 }
 
-function blocks(text) {
+function blocks(text, proseSymbols = true) {
+  const listStart = proseSymbols ? symbolListStart : line => /^( *)([-+*]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
   const lines = text.split('\n'); const result = [];
   const push = (type, start, end, extra = {}) => result.push({type, text: lines.slice(start, end).join('\n'), ...extra});
   for (let i = 0; i < lines.length;) {
@@ -75,11 +77,12 @@ function blocks(text) {
   return result;
 }
 
-export function cleanText(input, options = defaults) {
+export function cleanText(input, options = defaults, {proseSymbols=true}={}) {
   const text = input.replace(/\r\n?/g, '\n');
   if (!Object.values(options).some(Boolean)) return text;
+  options={...options,proseSymbols};
   const math=transformMath(text,options.math===true);
-  const rendered = blocks(math.text).flatMap(block => {
+  const rendered = blocks(math.text, proseSymbols).flatMap(block => {
     const separate = value => options.markdown || options.joinLines ? '\n' + value + '\n' : value;
     if (block.type === 'code') return options.code ? '\n' : ['\n', {literal: options.markdown ? block.body : block.text}, '\n'];
     if (block.type === 'table') {
@@ -208,6 +211,7 @@ function cleanInline(text, options, decode = true) {
       '$1about '
     )).join('');
   }
+  if(options.markdown&&options.proseSymbols!==false)text=proseArrows(text);
   text = literal.restore(text);
   if (options.emoji) text = text.replace(/(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)/gu, '');
   return text.replace(/[\t \u00a0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();

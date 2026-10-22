@@ -39,7 +39,7 @@ const insulin='insulin resistance / hyperglycemia → increased urinary magnesiu
 const insulinSpoken='insulin resistance / hyperglycemia, then increased urinary magnesium losses, then poorer magnesium status, then impaired insulin signaling';
 for(const emoji of [false,true])test(`Spaced prose slash reaches US WaveNet F as then with emoji cleanup ${emoji}`,async()=>{
  const cleaned=cleanText(insulin,{...defaults,emoji}),chunks=chunkText(cleaned),requests=[];
- assert.equal(cleaned,insulin);assert.deepEqual(chunks,[insulin]);
+ assert.equal(cleaned,insulinSpoken);assert.deepEqual(chunks,[insulinSpoken]);
  for(const chunk of chunks)await synthesize(chunk,'en-US-Wavenet-F','mock-only',{fetcher:async(url,options)=>{requests.push(JSON.parse(options.body));return Response.json({audioContent:'AA=='});}});
  assert.equal(requests.length,1);assert.equal(requests[0].input.text,insulinSpoken);assert.equal(requests[0].voice.name,'en-US-Wavenet-F');assert.equal(requests[0].input.text.includes('→'),false);
 });
