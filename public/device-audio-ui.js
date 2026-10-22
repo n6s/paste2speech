@@ -60,6 +60,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   const rekeep=new Set();
   $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
   assets.writesEnabled = $("automatic-device-audio").checked;
+  let replacement=null;
+  const releaseReplacement=()=>{replacement?.release?.();replacement=null;};
   let selected = null, selectedRelease = null, records = [], opening = false, saving = false, attaching = false, timer = null, checking = 0, serial = 0, restoreScope = null, nativeBlocked = null, shellReady = false, persistent = false, flushing = Promise.resolve(), suppressed = /* @__PURE__ */ new Set();
   const storedEngine=record=>getEngine()==="google"&&record.engine==="google"?"google":record.playbackEngine||record.engine||"google";
   const enabled = () => $("automatic-device-audio").checked;
@@ -234,7 +236,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     }
   }
   async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true,queueIntent=null}={}) {
-    const request=serial,callerValid=valid;valid=()=>request===serial&&callerValid();
+    const request=serial,callerValid=valid,text=getText();valid=()=>request===serial&&getText()===text&&callerValid();
     await flush();
     const options = snapshot(), engine = getEngine(), chunks = [...getChunks()], voice = options.voice, target = store();
     if (!["browser", "google"].includes(engine) || !chunks.length) throw Error("This reading has no text to bookmark.");
@@ -243,13 +245,32 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     const audioKey = engine === "google" ? "paste2speech.video." + await digest(JSON.stringify({ parts, voice })) : "paste2speech.browser." + await digest(JSON.stringify({ chunks, voice }));
     const id=entryId||crypto.randomUUID();
     const old = await target.reading(id);
+    const replacing=replacement;
+    const reusable=engine==='google'&&enabled()&&replacing?.record?.scope===scope()&&replacing.record.key===audioKey?replacing.record:null;
     if(!valid())return;
     if(old&&activate){await openReading(old);return;}
-    const record = old || { version: 2, engine, id, key: audioKey, scope: scope(), generation: crypto.randomUUID(), text: getText(), voice, chunks, parts, records: parts.map(() => ({ state: "unprepared" })), statuses: [], position: 0, nativeIndex: 0, nativeOffset: 0, options, createdAt: createdAt||Date.now(), updated: Date.now() };
+    const record = old || { version: 2, engine, id, key: audioKey, scope: scope(), generation: crypto.randomUUID(), text, voice, chunks, parts, records: parts.map(() => ({ state: "unprepared" })), statuses: [], position: 0, nativeIndex: 0, nativeOffset: 0, options, createdAt: createdAt||Date.now(), updated: Date.now() };
+    if(reusable&&!old){record.records=structuredClone(reusable.records);record.statuses=structuredClone(reusable.statuses);record.offlineReady=false;}
     if(queueIntent&&!record.queueStartedAt)record.queueIntent=structuredClone(queueIntent);
     await target.save("readings", id, record, { automatic: true, valid: () => target === store()&&valid() });
     if(!valid())return;
-    if(activate)await openReading(record);else{await holdSelected(record);if(!valid())return;selected={...record,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
+    let reusedGroup=null;
+    // Publish the replacement’s references before releasing the old reading’s
+    // cleanup lock. Audio identity can be shared; bookmark/generation cannot.
+    if(reusable&&!old){
+      const reference={readingId:id,generation:record.generation,automatic:true};
+      for(const part of record.records){if(!part.id)continue;assets.allow(part.id,reference);const meta=await target.get('jobs',part.id);if(meta)await target.save('jobs',part.id,meta,{reference,valid:()=>target===store()&&valid()});}
+      sessionStorage.setItem(audioKey,JSON.stringify(record.records));
+      const live=[...transport.groups.values()].some(group=>!group.localOnly&&!group.cancelled&&group.key===audioKey&&group.ownerScope===scope());
+      if(live||record.records.length&&record.records.every(part=>part.id&&part.state==='ready')){
+        reusedGroup=await transport.restoreLocal(record,{valid:()=>target===store()&&valid()});
+        reusedGroup.logicalReading={id,createdAt:record.createdAt};reusedGroup.historyRecord=record;
+        reusedGroup.deviceChanged=()=>{void syncBackground(record,reusedGroup);update();};
+      }
+    }
+    if(replacing===replacement)releaseReplacement();
+    if(activate)await openReading(record);else{await holdSelected(record);if(!valid())return;selected={...record,groupId:reusedGroup?.id,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
+    if(reusedGroup)void shell().catch(error=>message(error.message));
     await list();
     getQueue()?.removePending(id,{consumed:true});await persistPending();await cleanup();await list();notifyPlaylist();
   }
@@ -334,7 +355,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       }
       if (request !== checking) return;
       if (next !== assets.scope) {
-        await flush();
+        await flush();releaseReplacement();
         if (assets.scope || selected?.engine === "browser") {
           if (getEngine() === "browser") getActive()?.stop();
           else natural.invalidate({ preservePreparation: true });
@@ -550,7 +571,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     await regenerate(record);
   };
   function disable() {
-    void flush();
+    releaseReplacement();void flush();
     for (const group of transport.groups.values()) group.localSave = false;
     assets.writesEnabled = false;
     selectedRelease?.();
@@ -648,19 +669,21 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   }
   function voiceChanging(){if(selected&&getText()===selected.text)transport.nextLogicalReading={id:selected.id,createdAt:selected.createdAt};}
   async function replace(){
-    await flush();await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
+    releaseReplacement();await flush();
+    if(selected){replacement={record:await store().reading(selected.id),release:selectedRelease};selectedRelease=null;}
+await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
     await playlist.edit(state=>{state.retired=[...new Set([...state.retired,...ids])];state.pending=[];state.order=[];});
     model?.clear();intent={id:crypto.randomUUID(),createdAt:Date.now()};transport.nextLogicalReading={...intent};
     selectedRelease?.();selectedRelease=null;selected=null;notifyPlaylist();void cleanup();
   }
   function clearEditor(){
-    capture();void flush();serial++;opening=false;restoreScope=scope();
+    releaseReplacement();capture();void flush();serial++;opening=false;restoreScope=scope();
     editorCleared=true;sessionStorage.setItem(blankKey,"true");
     selectedRelease?.();selectedRelease=null;selected=null;intent=null;
     transport.localRestore=null;transport.nextLogicalReading=null;
     if(timer){clearTimeout(timer);timer=null;}
   }
-  return { clearEditor, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText());}, replace, async registerCurrentMetadata(options={}){try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}}, queueChanged(){void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
+  return { clearEditor, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText());}, replace, async registerCurrentMetadata(options={}){const replacing=replacement;try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}finally{if(replacing===replacement)releaseReplacement();}}, queueChanged(){void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
     return scope();
   }, get opening() {
     return opening;

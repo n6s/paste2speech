@@ -571,7 +571,7 @@ window.addEventListener('focus', reconcileRestoredText);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
-function resetReading(preserveReady=false) { if(workstationPlayer.longReadings)workstationPlayer.longReadings.nextLogicalReading=null; deviceAudio?.capture();void deviceAudio?.flush();activeSpeechTextVersion=2;browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+function resetReading(preserveReady=false) { workstationPlayer.deviceRestoreTime=null;workstationPlayer.deviceRestoreIndex=null;if(workstationPlayer.longReadings)workstationPlayer.longReadings.localRestore=null; if(workstationPlayer.longReadings)workstationPlayer.longReadings.nextLogicalReading=null; deviceAudio?.capture();void deviceAudio?.flush();activeSpeechTextVersion=2;browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){
   const seek=$('seek');
   seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
