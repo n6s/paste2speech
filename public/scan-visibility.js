@@ -1,6 +1,14 @@
 import {showProcessingOutcome,hideProcessing} from './processing-indicator.js';
 const credits=n=>Number.isInteger(n)&&n>=0;
 const count=n=>n.toLocaleString()+(n===1?' credit':' credits');
+// Only preserve explicit server billing numbers; absence or malformed values
+// must keep the existing unconfirmed outcome rather than inventing zero usage.
+export function scanFailureJob(value){
+ if(!value||typeof value.id!=='string'||!value.id||typeof value.accepted!=='boolean')return null;
+ const job={id:value.id,accepted:value.accepted};
+ for(const key of ['creditsUsed','creditsReleased'])if(Number.isSafeInteger(value[key])&&value[key]>=0)job[key]=value[key];
+ return job;
+}
 export function scanCreditOutcome({job,receipt}={}){
  if(credits(job?.creditsReleased)&&job.creditsReleased>0)return count(job.creditsReleased)+' returned.'+(credits(job.creditsUsed)?' This scan used '+count(job.creditsUsed)+'.':'');
  if(credits(receipt?.receiptCredits))return 'Original scan: '+count(receipt.receiptCredits)+' used. Opening the saved result used no more credits.';

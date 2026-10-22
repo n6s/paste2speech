@@ -1,4 +1,5 @@
 import {PDFParser,PDFObjectStreamParser,PDFXRefStreamParser,PDFRawStream,PDFName,PDFNumber,PDFArray,PDFDict,PDFRef} from 'pdf-lib';
+import {decodeXrefPredictor} from './pdf-predictor.js';
 import {readBounded} from '../prepared/google.js';
 export class PdfAdmissionError extends Error {constructor(code){super(code);this.code=code;}}
 export function pdfAdmissionMessage(error){const messages={complexity:'This PDF has too much structural metadata for safe page verification. Export a new unencrypted PDF with 1–10 pages and try again.',encrypted:'This PDF is encrypted. Save an unencrypted copy before using cloud OCR.',pages:'Cloud OCR accepts PDFs with 1–10 pages. Split this document locally before choosing it again.',incomplete:'This PDF is incomplete. Download or export a complete copy and try again.',structure:'The PDF page structure could not be verified safely. Try exporting a new unencrypted PDF, then choose that copy.'};return error instanceof PdfAdmissionError?messages[error.code]||messages.structure:null;}
@@ -40,12 +41,18 @@ async function verifyPdfPages(bytes,limits,onStats){
    };
   }
   const rawInt=parser.parseRawInt;if(rawInt)parser.parseRawInt=function(){check();return rawInt.call(this);};const original=parser.parseObject;parser.parseObject=function(){check();if(++budget.depth>64){budget.depth--;throw Error('PDF nesting limit');}try{return original.call(this);}finally{budget.depth--;}};return parser;}
- async function structuralStream(stream){
-  if(stream.dict.has(name('DecodeParms')))throw Error('Unsupported structural PDF predictor');
+ async function structuralStream(stream,width=null){
   let filter=stream.dict.lookup(name('Filter'));if(filter instanceof PDFArray){if(filter.size()!==1)throw Error('Unsupported PDF filters');filter=filter.lookup(0);}
   let data=stream.contents;
   if(filter){if(filter!==name('FlateDecode'))throw Error('Unsupported structural PDF compression');data=await readBounded({body:new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'))},2*1024*1024);}
   if(data.length>2*1024*1024||(budget.inflated+=data.length)>4*1024*1024||Date.now()>budget.deadline)throw Error('PDF structural expansion limit');
+  let params=stream.dict.lookup(name('DecodeParms'));
+  if(params instanceof PDFArray){if(params.size()!==1)throw Error('Unsupported PDF predictor parameters');params=params.lookup(0);}
+  if(params){
+   if(width==null||!(params instanceof PDFDict)||filter!==name('FlateDecode'))throw Error('Unsupported structural PDF predictor');
+   const parameter=(key,fallback)=>params.has(name(key))?integer(params.lookup(name(key)),65536):fallback;
+   data=decodeXrefPredictor(data,{predictor:parameter('Predictor',1),columns:parameter('Columns',1),colors:parameter('Colors',1),bits:parameter('BitsPerComponent',8),width});
+  }
   const dict=stream.dict.clone();dict.delete(name('Filter'));dict.delete(name('DecodeParms'));return PDFRawStream.of(dict,data);
  }
  const parser=bound(PDFParser.forBytesWithOptions(bytes,100,true,false));
@@ -69,7 +76,7 @@ async function verifyPdfPages(bytes,limits,onStats){
    if(type===name('XRef')){
     integer(object.dict.lookup(name('Size')),limits.xref);const widths=object.dict.lookup(name('W'));if(!(widths instanceof PDFArray)||widths.size()!==3)throw Error('Invalid PDF xref');const width=Array.from({length:3},(_,i)=>integer(widths.lookup(i),8)).reduce((a,b)=>a+b,0);if(!width)throw Error('Invalid PDF xref width');
     const index=object.dict.lookup(name('Index'));let entries=integer(object.dict.lookup(name('Size')),limits.xref);if(index){if(!(index instanceof PDFArray)||index.size()%2||index.size()>128)throw Error('Invalid PDF xref index');entries=0;for(let i=0;i<index.size();i+=2){integer(index.lookup(i),limits.xref);entries+=integer(index.lookup(i+1),limits.xref);}}if(entries>limits.xref)throw Error('PDF xref limit');
-    const safe=await structuralStream(object);if(safe.contents.length!==entries*width)throw Error('Incomplete PDF xref');PDFXRefStreamParser.forStream(safe).parseIntoContext();return ref;
+    const safe=await structuralStream(object,width);if(safe.contents.length!==entries*width)throw Error('Incomplete PDF xref');PDFXRefStreamParser.forStream(safe).parseIntoContext();return ref;
    }
   }
   this.context.assign(ref,object);return ref;
