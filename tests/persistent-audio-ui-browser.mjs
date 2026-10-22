@@ -134,10 +134,13 @@ try {
   await peer.close();await page.locator("#automatic-device-audio").evaluate(e=>{e.checked=true;e.dispatchEvent(new Event("change"));});
   await page.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"));
   await page.click("#clear");
-  await page.reload();await page.waitForFunction(text=>document.querySelector("#text").value===text,source);
-  await page.click("#play");
-  await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
-  await page.click("#pause");
+  await page.reload();await page.waitForTimeout(500);
+  assert.equal(await page.locator("#text").inputValue(),"","Clear must remain blank in this tab after reload");
+  const preserved=await context.newPage();await preserved.goto(origin);
+  await preserved.waitForFunction(text=>document.querySelector("#text").value===text,source);
+  await preserved.click("#play");await preserved.waitForFunction(()=>document.querySelector("#status").textContent==="Reading aloud");
+  await preserved.click("#pause");await preserved.close();
+  assert.equal(posts,before.posts,"Opening the preserved reading must reuse its paid audio");
   assert.deepEqual(deletes, [], "Opening/Clear of a device copy must not delete server jobs");
   await context.setOffline(false);
   scope = "other-owner";
