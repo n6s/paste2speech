@@ -424,3 +424,6 @@ test('named link labels retain Unicode, punctuation and literal code without bec
  assert.equal(cleanText(input,{...defaults,urls:false}),'See Grand Junction & Salt Lake — café [office] (https://example.invalid/forecast?q=a&b=2).');
  const literal='linkhttps://example.invalid/aLabel';assert.equal(cleanText('`'+literal+'`'),literal);assert.equal(cleanText('```\n'+literal+'\n```',{...defaults,code:false}),literal);
 });
+test('explicit browser section start overrides Pause and word offset while late callbacks stay retired',()=>{
+ const {synth,player:p}=setup();p.start(['First sentence.','Second sentence.'],{rate:1});const old=synth.spoken[0];old.onboundary({name:'word',charIndex:6});p.pause();p.start(p.chunks,{rate:1},1);assert.equal(p.state,'playing');assert.equal(p.index,1);assert.equal(p.offset,0);assert.equal(synth.spoken.at(-1).text,'Second sentence.');old.onend();assert.equal(p.index,1);p.stop();
+});

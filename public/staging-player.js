@@ -18,9 +18,11 @@ export class StagingPlayer extends MsePlayer {
  get providerCost(){return this.status?.providerCost||0;}get costIncomplete(){return !!this.status?.costIncomplete;}
  matches(chunks,settings){return !!this.job&&settings.voice===this.settings?.voice&&JSON.stringify(chunks)===JSON.stringify(this.chunks)&&settings.cached===this.settings?.cached&&settings.scenario===this.settings?.scenario;}
  async start(chunks,settings,index){
-  const explicitSection=index!=null;
+  const explicitSection=index!=null;this.sectionUnavailable=false;
   if(this.matches(chunks,settings)){
-   this.claim();this.setRate(settings.rate);this.wantPlay=true;this.pendingIndex=index??0;this.pendingTime=null;
+   if(this.fatal&&!this.mediaRecovery){this.error='This saved recording is unavailable. Press Resume to check it; no replacement speech was started.';this.emit();return;}
+   if(explicitSection&&this.getVideoPreparation()?.error&&this.starts[index]==null){this.pendingIndex=index;this.pendingTime=null;this.wantPlay=false;this.audio.pause();this.state='paused';this.sectionUnavailable=true;this.error='Audio for this section is not ready. Press Resume to review recovery; saved audio is kept.';this.emit();return;}
+   this.pendingIndex=null;this.resumeSectionOffset=null;this.claim();this.setRate(settings.rate);this.mediaPause=null;this.connectionPaused=false;this.wantPlay=true;this.state='preparing';this.pendingIndex=index??0;this.pendingTime=null;
    if(this.mediaRecovery){this.mediaRecovery.time=this.starts[index??0]||0;return this.resume(settings);}
    this.applyPending();return;
   }
@@ -47,7 +49,9 @@ export class StagingPlayer extends MsePlayer {
    // Keep the saved position pending until the new source has metadata.
    if(this.mode==='full'?this.finalized&&this.audio.readyState>=1:this.ranges().some(([a,b])=>a<=target&&b>target)){
     this.pendingIndex=null;this.pendingTime=null;this.resumeSectionOffset=null;this.audio.currentTime=target;
-    if(this.wantPlay&&!this.syncNativePause())void this.play();
+    // A pending destination comes from an explicit start/seek. Pause events
+    // already retire wantPlay; a paused element here has not started yet.
+    if(this.wantPlay)void this.play();
    }
   }
   super.emit();

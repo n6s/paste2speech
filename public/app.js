@@ -243,11 +243,26 @@ function renderReadingWindow(target) {
     const button = document.createElement('span'); button.className = 'sentence'; button.textContent = chunks[index];
     button.dataset.sectionIndex = String(index); button.setAttribute('role', 'button'); button.tabIndex = canPlay() ? 0 : -1;
     button.setAttribute('aria-disabled', String(!canPlay())); button.setAttribute('aria-label', `Read from section ${index + 1}: ${chunks[index]}`);
-    const activate = () => { if (canPlay()) { if (['idle','done'].includes(player?.state)) countNextPlayback=true; player?.start(chunks, settings(), index); } };
+    const activate = () => readFromSection(index);
     button.addEventListener('click', activate);
     button.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') { event.preventDefault(); if (!event.repeat) activate(); } });
     sentenceElements.set(index, button); group.append(button, sectionAfter[index]);
   }
+}
+let sectionTapRequest=0;
+function readFromSection(index){
+  if(!canPlay()||!player)return;
+  if(inputQueue?.model.starting){render(player,'A queued reading is opening. Select the section once it is ready.');return;}
+  if(deviceAudio?.pendingPlayback){render(player,'This queued reading needs a retry. Press Play to review it first; no speech was started.');return;}
+  const request=++sectionTapRequest,target=player,text=$('text').value,source=chunks;
+  const start=()=>{
+    if(request!==sectionTapRequest||target!==player||text!==$('text').value||source!==chunks)return;
+    inputQueue?.model.stop();inputQueue?.model.resume();
+    if(['idle','done'].includes(target.state))countNextPlayback=true;
+    Promise.resolve(target.start(source,settings(),index)).catch(error=>{if(request===sectionTapRequest&&target===player)render(target,error.message);});
+  };
+  if(deviceAudio?.needsPlaybackGuard())void deviceAudio.beforePlay().then(allowed=>{if(allowed)start();});
+  else start();
 }
 function markReadingPosition(p) {
   const active = p && ['playing', 'paused', 'preparing', 'buffering', 'ready', 'failed', 'disconnected'].includes(p.state);
@@ -357,7 +372,7 @@ function render(p, message) {
   let preparationNotice=$('preparation-notice');
   if(preparationBlocked&&!preparationNotice){preparationNotice=document.createElement('p');preparationNotice.id='preparation-notice';preparationNotice.className='hint';preparationNotice.setAttribute('role','status');$('status').insertAdjacentElement('afterend',preparationNotice);}
   if(preparationNotice){preparationNotice.hidden=!preparationBlocked;preparationNotice.textContent=p.wantPlay?'Later audio preparation stopped. Saved audio continues; Resume at the gap to review recovery.':'Later audio preparation stopped. Resume can play saved audio or review recovery at the gap.';preparationNotice.title=preparationBlocked?p.error||'':'';}
-  $('status').textContent = (!preparationBlocked&&message) || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  $('status').textContent = ((!preparationBlocked||p.sectionUnavailable)&&message) || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
   $('play').textContent = deviceAudio?.pendingPlayback&&isGoogle()?'▶ Retry Play':deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
@@ -558,9 +573,9 @@ function seekSection(index){
 $('previous-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index-1):workstationPlayer.move(-1));
 $('next-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index+1):workstationPlayer.move(1));
 $('include-captions')?.addEventListener('change',()=>render(player));
-$('play').addEventListener('click',()=>{if(inputQueue?.model.starting)return;inputQueue?.model.stop();readAndPlay();});
-$('pause').addEventListener('click',()=>{inputQueue?.model.stop();player?.pause();});
-$('stop').addEventListener('click',()=>{inputQueue?.model.stop();if(INPUT_QUEUE_UI){pasteRequest++;for(const context of intakeContexts.values())if(context.intent==='play')context.intent='editor';}player?.stop();});
+$('play').addEventListener('click',()=>{sectionTapRequest++;if(inputQueue?.model.starting)return;inputQueue?.model.stop();readAndPlay();});
+$('pause').addEventListener('click',()=>{sectionTapRequest++;inputQueue?.model.stop();player?.pause();});
+$('stop').addEventListener('click',()=>{sectionTapRequest++;inputQueue?.model.stop();if(INPUT_QUEUE_UI){pasteRequest++;for(const context of intakeContexts.values())if(context.intent==='play')context.intent='editor';}player?.stop();});
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
 // Chrome may restore form values after startup without firing input. Reconcile
 // after returning to the page, preserving live audio and tab-saved preparation.

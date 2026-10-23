@@ -161,3 +161,6 @@ test('cancelled paragraph request cannot add stale audio or silence', async () =
  complete(spokenResponse()); await tick();
  assert.equal(p.blobs.length,1); assert.deepEqual(p.starts,[0,1.25]); assert.equal(p.duration,2.25);
 });
+test('explicit local section start plays cached PCM after Pause without new inference',async()=>{
+ let requests=0;const p=player(async()=>{requests++;return ok();});p.start(['First sentence.','Second sentence.'],settings);await tick();p.pause();const before=requests;p.start(p.chunks,settings,1);await tick();assert.equal(p.state,'playing');assert.equal(p.audio.paused,false);assert.equal(p.audio.currentTime,p.starts[1]);assert.equal(requests,before);p.invalidate();
+});
