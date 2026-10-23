@@ -353,7 +353,11 @@ function render(p, message) {
   $('play').classList.toggle('autoplay-blocked', blocked);
   if (blocked && !wasBlocked) $('play').focus({preventScroll: true});
   $('credit-actions').hidden = !isGoogle() || !(p.getVideoPreparation?.()?.error?.creditPaused || videoDownload?.creditPaused);
-  $('status').textContent = message || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
+  const preparationBlocked=!!p.preparationBlocked?.();
+  let preparationNotice=$('preparation-notice');
+  if(preparationBlocked&&!preparationNotice){preparationNotice=document.createElement('p');preparationNotice.id='preparation-notice';preparationNotice.className='hint';preparationNotice.setAttribute('role','status');$('status').insertAdjacentElement('afterend',preparationNotice);}
+  if(preparationNotice){preparationNotice.hidden=!preparationBlocked;preparationNotice.textContent=p.wantPlay?'Later audio preparation stopped. Saved audio continues; Resume at the gap to review recovery.':'Later audio preparation stopped. Resume can play saved audio or review recovery at the gap.';preparationNotice.title=preparationBlocked?p.error||'':'';}
+  $('status').textContent = (!preparationBlocked&&message) || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
   $('play').textContent = deviceAudio?.pendingPlayback&&isGoogle()?'▶ Retry Play':deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';

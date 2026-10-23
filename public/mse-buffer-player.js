@@ -26,13 +26,13 @@ export class MsePlayer {
       if(name==='pause')this.syncNativePause();
       if(name==='waiting'&&this.wantPlay){
         if(this.connectionInterrupted&&!this.hasPlayableAudio())this.pauseForConnection();
-        else if(this.status?.state==='credit-paused'&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.wantPlay=false;this.audio.pause();this.state='paused';}
+        else if((this.preparationBlocked()||this.status?.state==='credit-paused')&&this.next===this.status.completed&&this.audio.currentTime >= (this.ranges().at(-1)?.[1]||0)-.25){this.preparationAtBoundary=!!this.preparationBlocked();this.wantPlay=false;this.audio.pause();this.state='paused';}
         else {this.state='buffering';if(this.connectionInterrupted)this.checkConnectionBoundary();}
       }
       if(name==='ended'&&this.job&&audio.ended&&this.finalized){this.state='done';this.wantPlay=false;}
       this.emit();
     });
-    audio.addEventListener('timeupdate',()=>this.emit());
+    audio.addEventListener('timeupdate',()=>{if(this.preparationBlocked()&&this.wantPlay&&this.next===this.status.completed&&audio.currentTime>=this.status.duration-1/24000){this.preparationAtBoundary=true;this.wantPlay=false;audio.pause();this.state='paused';}this.emit();});
     window.addEventListener('online',()=>{if(this.job&&this.connectionInterrupted&&!this.fatal&&!this.mediaRecovery)void this.pump();});
   }
   syncNativePause(){
@@ -128,7 +128,7 @@ export class MsePlayer {
     if(!this.job||!this.mediaRecovery)return;
     const time=this.mediaRecovery.time;
     this.serial++;this.controller?.abort();const serial=this.serial;
-    this.controller=new AbortController();this.mediaPause=null;this.playSequence++;this.wantPlay=true;this.audio.pause();
+    this.controller=new AbortController();this.mediaPause=null;this.playSequence++;this.wantPlay=true;this.preparationAtBoundary=false;this.audio.pause();
     this.audio.removeAttribute('src');this.audio.load();
     if(this.objectURL)URL.revokeObjectURL(this.objectURL);
     this.objectURL=null;this.source=null;this.buffer=null;this.mediaRecovery=null;
@@ -213,7 +213,8 @@ export class MsePlayer {
           if(!this.wantPlay)this.state='paused';
         }
         this.log('status',{state:status.state,completed:status.completed,total:status.total,starts:status.starts});
-        if(['failed','cancelled','expired'].includes(status.state)){
+        if(this.preparationBlocked()){this.error=(status.error||'Later audio preparation stopped.')+' Available audio is kept. Playback can continue until the missing section; Resume there checks recovery.';}
+        else if(['failed','cancelled','expired'].includes(status.state)){
           const message=(status.error||'Preparation interrupted').trim();
           throw Error(status.canResumePreparation?`${message}${/[.!?]$/.test(message)?'':'.'} Tap Resume to check the saved parts.`:'Preparation failed. Partial audio is not a complete reading.');
         }
@@ -292,6 +293,7 @@ export class MsePlayer {
     }}
     finally{if(serial===this.serial){this.pumping=false;if(this.windowSeek&&!signal.aborted)void this.pump();}}
   }
+  preparationBlocked(){return this.mode==='mse'&&this.status?.state==='failed'&&this.status.canResumePreparation&&this.status.completed>0&&this.status.sections?.length>0;}
   fail(error){
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;
     this.error=error.name==='QuotaExceededError'?'This browser could not buffer the audio. The completed recording remains available.':error.message;
@@ -299,7 +301,7 @@ export class MsePlayer {
   }
   async play(){
     this.mediaPause=null;const serial=this.serial,sequence=++this.playSequence;this.wantPlay=true;
-    try{await this.audio.play();if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay&&!this.connectionInterrupted&&this.status?.state!=='credit-paused')this.error='';}
+    try{await this.audio.play();if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay&&!this.connectionInterrupted&&this.status?.state!=='credit-paused'&&!this.preparationBlocked())this.error='';}
     catch(error){if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
   pause(){this.mediaPause={kind:'user',serial:this.serial,job:this.job,src:this.audio.src||'',currentSrc:this.audio.currentSrc||''};this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
@@ -318,6 +320,7 @@ export class MsePlayer {
       if(time<0||time>=(this.status?.duration||0))return false;
       this.mediaRecovery.time=time;this.pendingTime=time;this.pendingIndex=Math.max(0,this.status.starts.findLastIndex(t=>t<=time));this.emit();return true;
     }
+    if(time>=0&&time<(this.status?.duration||0)-.25)this.preparationAtBoundary=false;
     const range=this.mode==='full'&&this.finalized&&time>=0&&time<this.audio.duration||this.ranges().find(([a,b])=>time>=a&&time<b);
     if(!range && this.boundedBuffer && this.mode==='mse' && time>=0 && time<(this.status?.duration||0)){
       const index=this.status.starts.findLastIndex(t=>t<=time);

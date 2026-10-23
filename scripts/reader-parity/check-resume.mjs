@@ -60,7 +60,7 @@ try{
    const drained=await page.evaluate(()=>({time:player.audio.currentTime,end:player.ranges().at(-1)[1],error:player.error}));
    assert.ok(drained.time>=drained.end-.25,'Paid audio must play to its buffered end');assert.match(drained.error,/insufficient speech credit/);
   }else if(failure==='network')await page.waitForFunction(()=>player.state==='disconnected');
-  else await page.waitForFunction(()=>player.state==='failed');
+  else{await page.waitForFunction(()=>player.status?.state==='failed');await page.waitForFunction(()=>player.state==='paused'&&!player.wantPlay);assert.equal(await page.evaluate(()=>!!player.fatal),false,'available prefix failure is recoverable, not fatal');}
   const before=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job}));
   assert.equal(posts.length,2);assert.ok(interruptedAt);
   if(!['network','credit'].includes(failure)){
@@ -79,7 +79,10 @@ try{
   }
   await page.waitForFunction(()=>player.finalized);
   const after=await page.evaluate(()=>({time:player.audio.currentTime,src:player.audio.src,job:player.job,error:player.error,state:player.state,duration:player.audio.duration}));
-  assert.equal(after.src,before.src);assert.equal(after.job,before.job);assert.ok(after.time>=before.time);assert.ok(after.time<before.time+2);
+  assert.equal(after.src,before.src);assert.equal(after.job,before.job);// Legacy whole-part replacement can have a shorter first section. At its old
+  // end, keep the same logical section and clamp inside its new final frame.
+  const expectedPlace=failure==='within-failed'?Math.min(before.time,(metadata[0].samples+metadata[2].samples-1)/24000):before.time;
+  assert.ok(after.time>=expectedPlace-.05,JSON.stringify({failure,before,after}));assert.ok(after.time<expectedPlace+2);
   assert.equal(after.error,'');assert.equal(posts.filter(p=>p.part===0).length,1);
   assert.equal(posts.length,failure!=='network'?3:2);assert.equal(dialogs,['network','credit'].includes(failure)?0:2);
   if(failure==='credit')assert.equal(posts[1].id,posts[2].id);

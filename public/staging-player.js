@@ -58,18 +58,18 @@ export class StagingPlayer extends MsePlayer {
   if(settings)this.setRate(settings.rate);
   const group=this.getVideoPreparation();
   if(group?.connectionError)group.session.wakeStatusRetry?.();
-  if(group?.error){
+  if(group?.error&&!(this.preparationBlocked()&&!this.preparationAtBoundary&&(this.pendingTime??this.audio.currentTime)<this.status.duration-1/24000)){
    if(this.resuming)return;
    this.resuming=true;
    // Credit pauses leave the pump alive while paid audio drains. Retire that
    // loop before starting recovery, without discarding the audio source.
-   if(group.error.creditPaused){this.serial++;this.controller.abort();}
+   if(group.error.creditPaused||this.preparationBlocked()){this.serial++;this.controller.abort();}
    const serial=this.serial,time=this.audio.currentTime,index=this.index;
    const sectionOffset=time-(this.starts[index]||0);
    try{
     const result=await this.longReadings.resume(this.job,{confirmRetry:({part,characters,reusedSections,reusedCharacters})=>window.confirm(reusedSections!==undefined?`Recover part ${part}? Reuse ${reusedSections} verified saved sections (${reusedCharacters.toLocaleString()} characters) without charging again. Prepare only the ${characters.toLocaleString()} remaining characters, using the normal speech credit rate. Completed parts will be reused.`:`Retry part ${part}? This will generate up to ${characters.toLocaleString()} characters again and may use credit for speech already generated in that interrupted part. Completed parts will be reused.`)});
     if(serial!==this.serial||!result.resumed)return;
-    this.controller=new AbortController();this.fatal=false;this.error='';this.pumping=false;this.finalized=false;
+    this.controller=new AbortController();this.preparationAtBoundary=false;this.fatal=false;this.error='';this.pumping=false;this.finalized=false;
     if(result.replacedFrom!=null&&this.mode==='mse'){
      const cutoff=this.starts[result.replacedFrom]??this.status.duration;
      if(this.buffer.updating)await this.bufferOperation(()=>{},this.controller.signal);
