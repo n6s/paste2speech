@@ -272,7 +272,7 @@ export class LongReadingTransport {
     }
     const total=group.parts.reduce((n,p)=>n+p.chunks.length,0);
     const state=group.cancelled?'cancelled':group.error?.creditPaused?'credit-paused':group.error?'failed':group.done&&sections.length===total?'ready':'preparing';
-    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',failure:group.statuses.find(s=>s?.failure)?.failure||null,connectionUnavailable:!!group.connectionError,canResumePreparation:!!group.error&&!group.cancelled,
+    return {id:group.id,state,starts,sections,total,completed:sections.length,duration:samples/24000,error:group.error?.message||'',failure:group.statuses.find(s=>s?.failure)?.failure||null,connectionUnavailable:!!group.connectionError,canContinuePreparedAudio:!!group.error&&group.statuses[group.session.active]?.state==='failed',canResumePreparation:!!group.error&&!group.cancelled,
       providerCost:group.statuses.reduce((n,s)=>n+(s?.providerCost||0),0)+group.session.records.reduce((n,r)=>n+(r.previousCost||0),0),costIncomplete:group.statuses.some(s=>s?.costIncomplete)||group.session.records.some(r=>r.previousCostIncomplete)};
   }
   async downloadURL(id,kind) {

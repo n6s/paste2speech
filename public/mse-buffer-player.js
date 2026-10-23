@@ -293,7 +293,7 @@ export class MsePlayer {
     }}
     finally{if(serial===this.serial){this.pumping=false;if(this.windowSeek&&!signal.aborted)void this.pump();}}
   }
-  preparationBlocked(){return this.mode==='mse'&&this.status?.state==='failed'&&this.status.canResumePreparation&&this.status.completed>0&&this.status.sections?.length>0;}
+  preparationBlocked(){return this.mode==='mse'&&this.status?.state==='failed'&&this.status.canResumePreparation&&this.status.canContinuePreparedAudio===true&&this.status.completed>0&&this.status.sections?.length>0;}
   fail(error){
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;
     this.error=error.name==='QuotaExceededError'?'This browser could not buffer the audio. The completed recording remains available.':error.message;

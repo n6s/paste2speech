@@ -41,8 +41,9 @@ try{for(const scenario of ['poll-buffered','boundary','download','failed','404',
  await page.waitForFunction(()=>player.audio.currentTime>.1);
  const original=await page.evaluate(()=>({job:player.job,src:player.audio.src,text:player.chunks.join('|')}));
  if(['failed','404','expired','cancelled'].includes(scenario)){
-  terminal=true;await page.waitForFunction(()=>player.state==='failed');
-  assert.equal(await page.evaluate(()=>player.audio.paused&&player.fatal),true);assert.equal(posts.length,1);
+  terminal=true;
+  if(scenario==='failed'){await page.waitForFunction(()=>player.status?.state==='failed');assert.equal(await page.evaluate(()=>player.audio.paused),false);await page.evaluate(()=>{player.audio.currentTime=player.ranges().at(-1)[1]-.02;player.setRate(2);});await page.waitForFunction(()=>player.state==='paused'&&!player.wantPlay);assert.equal(await page.evaluate(()=>!!player.fatal),false);}
+  else{await page.waitForFunction(()=>player.state==='failed');assert.equal(await page.evaluate(()=>player.audio.paused&&player.fatal),true);}assert.equal(posts.length,1);
   await page.click('#resume');await page.waitForFunction(()=>!player.resuming);
   assert.equal(posts.length,1);assert.equal(dialogs,scenario==='failed'?1:0);
  }else if(scenario==='poll-buffered'){
