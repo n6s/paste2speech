@@ -51,7 +51,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   for(const button of nav.querySelectorAll("button"))button.style.cssText="padding-inline:4px;min-width:0;font-size:.8rem";
   const panel = document.createElement("div");
   panel.id = "device-readings";
-  panel.innerHTML = '<p class="hint">Unfinished readings expire 24 hours after adding. Finished readings leave when you move on. Download an MP4 to keep one longer.</p><p id="device-audio-status" class="hint" role="status"></p><div class="controls"><button id="retry-device-reading" type="button" hidden>Retry offline saving</button><button id="continue-device-reading" type="button" hidden>Continue preparation…</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button></div><input id="automatic-device-audio" type="checkbox" checked hidden><ul id="device-audio-list" hidden></ul>';
+  panel.innerHTML = '<p class="hint">Unfinished readings expire 24 hours after adding. Finished readings leave when you move on. Download an MP4 to keep one longer.</p><p id="device-audio-status" class="hint" role="status"></p><div class="controls"><button id="retry-device-reading" type="button" hidden>Retry offline saving</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button></div><input id="automatic-device-audio" type="checkbox" checked hidden><ul id="device-audio-list" hidden></ul>';
   document.getElementById("section-progress").after(nav, panel);
   const $ = (id) => panel.querySelector("#" + id), message = (text) => { const warning="The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play.";
     $("device-audio-status").textContent = selected?.voiceUnavailable&&text!==warning?warning+(text?" "+text:""):text; };
@@ -92,7 +92,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       copy.statuses = structuredClone(group.statuses);
       copy.offlineReady = group.session.records.length === group.parts.length && group.session.records.every((part) => part.id && assets.complete(part.id)) && shellReady;
     }
-    const revision = group?.deviceRevision || 0, writeManifest = !!group && (record.storedRevision !== revision || record.storedReady !== copy.offlineReady);
+    const revision = group?.deviceRevision || 0, writeManifest = !!group && !group.continuationElsewhere && (record.storedRevision !== revision || record.storedReady !== copy.offlineReady);
     const operation = async () => {
       if (!valid()) return;
       try {
@@ -127,7 +127,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   }
   async function syncBackground(record, group) {
     const target = assets.store;
-    if (!target || record.scope !== target.scope || !group.localSave) return;
+    if (!target || record.scope !== target.scope || !group.localSave||group.continuationElsewhere) return;
     group.manifestPending = true;
     if (group.manifestSync) return group.manifestSync;
     group.manifestSync = (async () => {
@@ -512,16 +512,16 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
         });
       }
     }
-    const savedGroup=selected&&transport.groups.get(selected.groupId);
-    $("continue-device-reading").hidden=selected?.engine!=="google"||!savedGroup?.localOnly||savedGroup.session.records.every(part=>part.id);
     $("retry-device-reading").disabled = saving;
-    $("retry-device-reading").hidden = !selected || saving || !(selected.engine === "google" && natural.offlineInfo?.error || shellError && navigator.onLine);
+    const manualDownloadCheck=selected?.records?.some(part=>{const job=assets.jobs.get(part.id);return job&&(job.storageBlocked||job.authRequired||job.invalid||job.transientDownloadError&&job.downloadRetryCount>=5);});
+    $("retry-device-reading").hidden = !selected || saving || !(selected.engine === "google" && natural.offlineInfo?.error&&manualDownloadCheck || shellError && navigator.onLine);
+    $("retry-device-reading").textContent=shellError?'Retry offline page':'Retry existing audio';
     $("keep-device-reading").hidden = true;
-    $("regenerate-device-reading").hidden = selected?.engine !== "google" || !selected.audioMissing && !selected.needsRegeneration && !selected.records?.some((part) => assets.jobs.get(part.id)?.accessBlocked);
+    $("regenerate-device-reading").hidden = selected?.engine !== "google" || !selected.records?.some((part) => assets.jobs.get(part.id)?.audioUnavailable);
     if (selected?.engine === "google" && group?.id === selected.groupId) {
       const info = natural.offlineInfo;
       if (info?.ready) message("Ready offline · kept for this reading’s 24-hour lifetime.");
-      else if (info?.error) message(info.error + ` ${info.downloaded} / ${info.total} sections saved on this device.`);
+      else if(info?.error||player?.state==="playing")message("");
     }
     for (const group2 of transport.groups.values()) if (group2.localSave && group2.ownerScope === assets.scope && group2.done && !group2.manifestSync && group2.deviceReference) {
       const ready = group2.session.records.length === group2.parts.length && group2.session.records.every((part) => part.id && assets.complete(part.id)) && shellReady;
@@ -546,16 +546,6 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     } catch (error) {
       message(error.message);
     }
-  };
-  $("continue-device-reading").onclick=async()=>{
-    try{
-      if(!selected)return;const group=transport.groups.get(selected.groupId);if(!group)return;
-      await flush();const details=await transport.continuationDetails(group.id);
-      if(details.characters&&!confirm(`Continue preparation of ${details.characters.toLocaleString()} unprepared characters using normal speech credit? Existing prepared parts are reused. Failed or expired audio is not regenerated.`))return;
-      await transport.continueLocal(group.id,{confirmedCharacters:details.characters});
-      message("Continuing only the unprepared parts. Existing audio and your place are kept; playback does not start automatically.");update();
-      void group.finished.then(()=>{if(selected?.groupId!==group.id||!group.error)return;selected.needsRegeneration=/404|410|expired|cancelled|failed/i.test(group.error.message||"");message("Preparation could not continue. "+group.error.message+" No replacement speech was generated.");update();});
-    }catch(error){message(error.message);}
   };
   $("keep-device-reading").onclick = async () => {
     const player = getActive(), group = natural.getVideoPreparation?.();

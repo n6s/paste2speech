@@ -3,7 +3,7 @@ export function setupSectionProgress(root=document.getElementById('section-progr
  if(!root)return null;
  const seek=root.querySelector('#seek'),saved=root.querySelector('.section-saved'),played=root.querySelector('.section-played'),legend=root.querySelector('.section-saved-key'),help=root.querySelector('#section-progress-help'),status=root.querySelector('#offline-progress');
  let previous='';
- return ({total,available,index,natural,retained=[],info=null,offline=false})=>{
+ return ({total,available,index,natural,retained=[],info=null,offline=false,preparation=''})=>{
   total=Math.max(0,total);index=Math.max(0,Math.min(total-1,index||0));
   const extent=total>1?Math.max(0,available-1)/(total-1):available?1:0;
   seek.style.width=`calc(${extent*100}% + ${(1-extent)*18}px)`;
@@ -30,6 +30,7 @@ export function setupSectionProgress(root=document.getElementById('section-progr
    const message=info?.ready?(info.retention==='this device'?`Ready offline on this device · ${count}.`:`Ready for offline listening in this tab · ${count} saved. Keep this page open; reloading clears downloaded audio.`)
     :info?.error?`${info.error} ${count} saved ${retainedHere}.`
     :offline?`Offline · ${count} saved. Remaining downloads will retry when connected.`
+    :preparation?`Saved for offline: ${count}. ${preparation}`
     :available?`Downloading for offline listening: ${count}. Keep this page open; downloads may pause when your device suspends the browser.`
     :`Waiting for audio · ${count} saved. Keep this page open while preparation continues.`;
    if(status.textContent!==message)status.textContent=message;

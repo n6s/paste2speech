@@ -2,12 +2,14 @@ import {recoveryProof,recoverySegments} from './section-recovery.js';
 import {splitReadingChunks,joinCaptions} from './playlist-plan.js';
 import {PlaylistSession} from './playlist-session.js';
 import {ReadingAssets} from './reading-assets.js';
+import {checkQueuedAccount} from './queue-preflight.js';
 import {loadPreparedMedia} from './prepared-media.js';
 
 // A tab-local logical reading presents bounded durable jobs as one timeline to
 // the existing player. Paid creation stays in PlaylistSession, once per part.
 export class LongReadingTransport {
   constructor(fetcher, {rawFetch=(...args)=>fetch(...args), fullAudio=false,sectionRecovery=false,limit=()=>Number(document.getElementById('video-split-limit')?.value)||20000}={}) {
+    const resumeWaiting=()=>{if(globalThis.document?.hidden)return;for(const group of this.groups.values())if(group.continuationWaiting&&!group.cancelled)void this.continueOnPlayback(group.id,{signal:true});};globalThis.window?.addEventListener('online',resumeWaiting);globalThis.window?.addEventListener('focus',resumeWaiting);globalThis.document?.addEventListener('visibilitychange',resumeWaiting);
     this.upstream=fetcher || globalThis.fetch.bind(globalThis);this.rawFetch=rawFetch;this.limit=limit;this.sectionRecovery=sectionRecovery;this.groups=new Map();this.assets=fullAudio?new ReadingAssets((url,options)=>this.assetFetch(url,options)):null;
   }
   get assets(){return this._assets;}
@@ -153,9 +155,10 @@ export class LongReadingTransport {
     if(!group.localOnly||group.refreshing||navigator.onLine===false)return;
     group.refreshing=true;
     try {
+      if(group.continuationElsewhere){const saved=await this.assets.store.reading(group.deviceReference.readingId);if(saved?.generation===group.deviceReference.generation&&saved.voice===group.session.voice&&JSON.stringify(saved.parts)===JSON.stringify(group.parts)){for(let i=0;i<group.session.records.length;i++)if((!group.session.records[i].id||['refused','checking','credit-paused'].includes(group.session.records[i].state))&&saved.records[i]?.id){group.session.records[i]=structuredClone(saved.records[i]);this.assets.allow(saved.records[i].id,group.deviceReference);this.assets.register(saved.records[i].id,group.parts[i].chunks,saved.voice);}}}
       for(let i=0;i<group.session.records.length;i++) {
         const record=group.session.records[i];
-        if(!record.id||group.cancelled||group.ownerScope!==this.assets.scope)break;
+        if(!record.id||['refused','credit-paused'].includes(record.state)||group.cancelled||group.ownerScope!==this.assets.scope)break;
         if(group.statuses[i]?.state==='ready')continue;
         const response=await this.rawFetch(`/api/readings/${record.id}`,{signal:AbortSignal.timeout(15000)});
         if(!response.ok)throw Error('Some unsaved audio is unavailable online. Saved sections remain playable; no speech was regenerated.');
@@ -170,7 +173,7 @@ export class LongReadingTransport {
     finally {
       group.refreshing=false;
       this.assets.onChange();
-      if(!group.cancelled&&group.ownerScope===this.assets.scope&&navigator.onLine!==false&&group.statuses.some(s=>s&&s.state==='preparing')) {
+      if(!group.cancelled&&group.ownerScope===this.assets.scope&&navigator.onLine!==false&&(group.statuses.some(s=>s&&s.state==='preparing')||group.continuationElsewhere&&!group.session.records.every(part=>part.state==='ready'))) {
         clearTimeout(group.localPoll);group.localPoll=setTimeout(()=>void this.refreshLocal(group),3000);
       }
     }
@@ -179,7 +182,7 @@ export class LongReadingTransport {
     const group=this.groups.get(id);
     if(!group||!group.localOnly||group.cancelled||group.ownerScope!==this.assets?.scope)throw Error('Open the saved reading for the current account first. No speech was started.');
     const records=structuredClone(group.session.records),saved=await this.assets.store.reading(group.deviceReference.readingId);
-    if(!saved||saved.generation!==group.deviceReference.generation)throw Error('The reading was removed or replaced. No speech was started.');
+    if(!saved||saved.generation!==group.deviceReference.generation||saved.voice!==group.session.voice||JSON.stringify(saved.parts)!==JSON.stringify(group.parts)||(await this.assets.store.get('usage','temporary-playlist'))?.retired?.includes(saved.id))throw Error('The reading was removed or replaced. No speech was started.');
     let cached=[];try{cached=JSON.parse(sessionStorage.getItem(group.key)||'[]');}catch{}
     for(let index=0;index<records.length;index++)if(!records[index].id){
       const candidate=saved.records?.[index]?.id?saved.records[index]:cached[index];
@@ -188,13 +191,41 @@ export class LongReadingTransport {
     const characters=group.parts.reduce((total,part,index)=>total+(!records[index]?.id||['refused','credit-paused'].includes(records[index].state)?part.chunks.reduce((sum,text)=>sum+[...text].length,0):0),0);
     return {characters,records};
   }
+  async continueOnPlayback(id,{explicit=false,signal=false}={}){
+    const group=this.groups.get(id);
+    if(!group?.localOnly||group.cancelled||group.forgotten||!group.session.records.some(part=>part.id)||group.session.records.every(part=>part.id&&!['refused','credit-paused'].includes(part.state)))return;
+    if(group.continuationStart)return group.continuationStart;
+    if(explicit||signal)group.continuationRetries=0;else if(group.continuationRetries>=5)return;clearTimeout(group.continuationTimer);
+    if(navigator.onLine===false){group.continuationWaiting=true;this.assets.onChange();return;}
+    group.continuationWaiting=false;group.continuationError=null;
+    const run=async()=>{
+      await checkQueuedAccount({engine:'google',scope:group.ownerScope},this.rawFetch);
+      const details=await this.continuationDetails(id);
+      await this.continueLocal(id,{confirmedCharacters:details.characters});
+      await group.finished;
+    };
+    const operation=async()=>{
+      const locks=globalThis.navigator?.locks;
+      if(!locks?.request)throw Error('This browser cannot safely coordinate automatic preparation across tabs. Saved audio remains playable.');
+      const key=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([group.ownerScope,group.key])));
+      const name='paste2speech.preparation.'+[...new Uint8Array(key)].map(n=>n.toString(16).padStart(2,'0')).join('');
+      return locks.request(name,{ifAvailable:true},async lock=>{if(lock){group.preparationLockHeld=true;try{return await run();}finally{group.preparationLockHeld=false;}}group.continuationElsewhere=true;void this.refreshLocal(group);});
+    };
+    group.continuationStart=operation().catch(error=>{group.continuationError=error.message;if(error.transientRead){group.continuationWaiting=true;group.continuationRetries=(group.continuationRetries||0)+1;if(group.continuationRetries<5)group.continuationTimer=setTimeout(()=>void this.continueOnPlayback(id),Math.min(30000,1000*2**group.continuationRetries));}}).finally(()=>{group.continuationStart=null;this.assets.onChange();});
+    this.assets.onChange();return group.continuationStart;
+  }
   async continueLocal(id,{confirmedCharacters=0}={}) {
     const details=await this.continuationDetails(id),group=this.groups.get(id);
     if(details.characters>confirmedCharacters)throw Error('The unprepared amount changed. Confirm it again before using speech credit.');
     if(group.ownerScope!==this.assets.scope||group.cancelled)throw Error('The account or reading changed. No speech was started.');
+    for(let index=0;index<details.records.length;index++)if(!details.records[index].id){
+      const digest=new Uint8Array(await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify(['reading-continuation-v1',group.ownerScope,group.deviceReference.readingId,group.deviceReference.generation,index,group.session.voice,group.parts[index].chunks]))));digest[6]=(digest[6]&15)|64;digest[8]=(digest[8]&63)|128;const hex=[...digest.slice(0,16)].map(n=>n.toString(16).padStart(2,'0')).join('');
+      details.records[index]={...details.records[index],id:[hex.slice(0,8),hex.slice(8,12),hex.slice(12,16),hex.slice(16,20),hex.slice(20)].join('-'),state:'refused'};
+    }
     const owner=group.ownerScope;
-    const fetcher=(url,options={})=>{
-      if(group.ownerScope!==this.assets.scope)throw Error('The account changed. No speech was started.');
+    const fetcher=async(url,options={})=>{
+      if(group.cancelled||group.forgotten||group.ownerScope!==this.assets.scope)throw Error('The account changed. No speech was started.');
+      if(options.method==='POST'&&new URL(url,location.href).pathname==='/api/readings'){await checkQueuedAccount({engine:'google',scope:owner},this.rawFetch);const saved=await this.assets.store.reading(group.deviceReference.readingId),playlist=await this.assets.store.get('usage','temporary-playlist');if(group.cancelled||group.forgotten||owner!==this.assets.scope||saved?.generation!==group.deviceReference.generation||playlist?.retired?.includes(saved.id))throw Error('The reading or account changed. No speech was started.');}
       const match=new URL(url,location.href).pathname.match(/^\/api\/readings\/([^/]+)$/);
       if(!options.method&&match&&this.assets.complete(match[1]))return Promise.resolve(Response.json(this.assets.jobs.get(match[1]).status));
       return this.rawFetch(url,options);
@@ -209,7 +240,8 @@ export class LongReadingTransport {
   }
   prepare(group) {
     group.error=null;group.connectionError=null;group.done=false;
-    group.finished=group.session.prepare().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));
+    const work=async()=>{if(!group.ownerScope||!globalThis.navigator?.locks?.request||group.preparationLockHeld)return group.session.prepare();const digest=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(JSON.stringify([group.ownerScope,group.key]))),name='paste2speech.preparation.'+[...new Uint8Array(digest)].map(n=>n.toString(16).padStart(2,'0')).join('');return navigator.locks.request(name,()=>group.cancelled?undefined:group.session.prepare());};
+    group.finished=work().then(()=>{group.done=true;},error=>{group.error=error;group.done=true;}).finally(()=>window.dispatchEvent(new Event('speech-credit-change')));
   }
   async resume(id,{confirmRetry=()=>false}={}) {
     const group=this.groups.get(id);

@@ -378,7 +378,7 @@ function render(p, message) {
   $('play').textContent = deviceAudio?.pendingPlayback&&isGoogle()?'▶ Retry Play':deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
   $('play').title=deviceAudio?.pendingPlayback&&isGoogle()?'Checks your account, then starts speech using normal credits.':'';
   $('play').disabled = !!deviceAudio?.recoveryChecking || !!inputQueue?.model.starting || !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned&&!deviceAudio?.singleQueuedPlayback || !canPlay();
-  $('pause').disabled = !waiting && !['playing', 'preparing', 'buffering'].includes(p.state);
+  $('pause').disabled = !p.autoResumeAfterConnection && !waiting && !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
   $('playback-note').textContent = isWorkstation()
@@ -413,7 +413,7 @@ function render(p, message) {
     const selected=seek.dataset.dragging==='true'?Number(seek.value):index;
     if(STAGING_READER_LAYOUT){const timing=playbackTimeline(p,{rate:settings().rate,natural:isWorkstation(),selected:seek.dataset.dragging==='true'?selected:null});seek.setAttribute('aria-valuetext',timing.label+' · '+timing.detail+` · Section ${available?Number(seek.value)+1:0} of ${total}`);$('seek-time').textContent=timing.label;$('seek-time').title=timing.detail;$('seek-time').setAttribute('aria-label',timing.label+' · '+timing.detail);let note=$('timeline-note');if(!note){note=document.createElement('span');note.id='timeline-note';note.className='hint';$('seek-time').after(note);}note.textContent=timing.detail;}else $('seek-time').textContent=`${total&&(!sectionProgress||available)?selected+1:0} / ${total}`;
     const playbackIndex=sectionProgress&&p===workstationPlayer&&p.starts.length?Math.max(0,p.starts.findLastIndex(t=>t<=(p.audio?.currentTime||0)+1/24000)):index;
-    sectionProgress?.({total,available,index:playbackIndex,natural:isWorkstation(),retained:p.retainedSections||[],info:p.id?p.offlineInfo:null,offline:navigator.onLine===false});
+    sectionProgress?.({total,available,index:playbackIndex,natural:isWorkstation(),retained:p.retainedSections||[],info:p.id?p.offlineInfo:null,offline:navigator.onLine===false,preparation:p.preparationNotice});
     $('previous-section').disabled=!available||index===0;
     $('next-section').disabled=!available||index>=available-1;
   }

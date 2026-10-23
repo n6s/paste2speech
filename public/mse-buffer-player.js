@@ -33,6 +33,7 @@ export class MsePlayer {
       this.emit();
     });
     audio.addEventListener('timeupdate',()=>{if(this.preparationBlocked()&&this.wantPlay&&this.next===this.status.completed&&audio.currentTime>=this.status.duration-1/24000){this.preparationAtBoundary=true;this.wantPlay=false;audio.pause();this.state='paused';}this.emit();});
+    const reconcile=()=>{if(globalThis.document?.hidden||!this.job)return;this.syncNativePause();if(this.wantPlay&&this.audio.readyState<3&&!this.audio.paused)this.state='buffering';this.emit();if(this.connectionInterrupted&&!this.fatal&&!this.mediaRecovery)void this.pump();};window.addEventListener('focus',reconcile);globalThis.document?.addEventListener('visibilitychange',reconcile);
     window.addEventListener('online',()=>{if(this.job&&this.connectionInterrupted&&!this.fatal&&!this.mediaRecovery)void this.pump();});
   }
   syncNativePause(){
@@ -178,10 +179,10 @@ export class MsePlayer {
     },500);
   }
   pauseForConnection(){
-    this.mediaPause=null;
+    this.autoResumeAfterConnection ||= this.wantPlay;this.mediaPause=null;
     clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
     this.playSequence++;this.wantPlay=false;this.connectionPaused=true;this.audio.pause();this.state='disconnected';
-    this.error='Connection interrupted. Buffered audio has ended. Reconnect, then tap Resume to continue.';
+    this.error='Connection interrupted. Buffered audio has ended. Playback will resume when the saved audio is available.';
   }
   connectionLost(){
     this.connectionInterrupted=true;
@@ -193,7 +194,8 @@ export class MsePlayer {
   connectionRestored(){
     if(!this.connectionInterrupted)return;
     this.connectionInterrupted=false;clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
-    if(this.connectionPaused){this.state='paused';this.error='Connection restored. Tap Resume to continue from your saved place.';}
+    if(this.connectionPaused&&this.autoResumeAfterConnection){this.connectionPaused=false;this.autoResumeAfterConnection=false;this.wantPlay=true;this.state='buffering';this.error='';if(this.mode==='mse'&&this.hasPlayableAudio())void this.play();}
+    else if(this.connectionPaused){this.state='paused';this.error='Connection restored. Tap Resume to continue from your saved place.';}
     else this.error='';
   }
   completedAudioURL(){return `/api/readings/${this.job}/audio`;}
@@ -304,7 +306,7 @@ export class MsePlayer {
     try{await this.audio.play();if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay&&!this.connectionInterrupted&&this.status?.state!=='credit-paused'&&!this.preparationBlocked())this.error='';}
     catch(error){if(serial===this.serial&&sequence===this.playSequence&&this.wantPlay){this.wantPlay=false;this.state='ready';this.error=error.name==='NotAllowedError'?'Press Play to start':'Audio could not start. Press Play to retry.';this.log('play-blocked',{name:error.name});this.emit();}}
   }
-  pause(){this.mediaPause={kind:'user',serial:this.serial,job:this.job,src:this.audio.src||'',currentSrc:this.audio.currentSrc||''};this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
+  pause(){this.autoResumeAfterConnection=false;this.mediaPause={kind:'user',serial:this.serial,job:this.job,src:this.audio.src||'',currentSrc:this.audio.currentSrc||''};this.playSequence++;this.wantPlay=false;this.audio.pause();if(this.job)this.state='paused';this.emit();}
   resume(){
     this.mediaPause=null;
     if(this.mediaRecovery)return this.recoverMedia();
@@ -332,6 +334,7 @@ export class MsePlayer {
   }
   setRate(value){this.rate=Math.max(.5,Math.min(2,Number(value)||1));this.audio.playbackRate=this.rate;this.audio.defaultPlaybackRate=this.rate;this.audio.preservesPitch=true;this.emit();}
   invalidate({preserveReady=false,preservePreparation=false}={}){
+    this.autoResumeAfterConnection=false;
     clearTimeout(this.readRetryTimer);this.readRetryTimer=null;clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;this.connectionInterrupted=false;this.connectionPaused=false;
     this.mediaPause=null;this.serial++;this.playSequence++;this.controller?.abort();this.wantPlay=false;this.mediaRecovery=null;this.recovering=null;this.mediaActive=false;this.audio.pause();
     const id=this.job,keep=preservePreparation||preserveReady&&this.status?.state==='ready';this.job=null;this.audio.removeAttribute('src');this.audio.load();

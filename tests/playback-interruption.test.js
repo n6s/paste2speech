@@ -60,3 +60,7 @@ test('later recoverable preparation failure drains available audio and pauses at
  await player.pump(10);assert.equal(audio.paused,false);assert.equal(player.wantPlay,true);assert.equal(player.fatal,undefined);assert.match(player.error,/Available audio is kept/);
  audio.currentTime=20-1/48000;audio.dispatchEvent(new Event('timeupdate'));assert.equal(audio.paused,true);assert.equal(player.state,'paused');assert.equal(player.wantPlay,false);assert.equal(player.finalized,false,'missing suffix must never look completed');
 });
+test('network interruption resumes available audio automatically; explicit Pause wins',async()=>{
+ for(const pause of [false,true]){const{audio,player}=fixture();player.mode='mse';audio.buffered={length:0};player.connectionLost();assert.equal(player.autoResumeAfterConnection,true);if(pause)player.pause();audio.buffered={length:1,start:()=>0,end:()=>20};player.connectionRestored();await tick();assert.equal(audio.paused,pause);assert.equal(player.wantPlay,!pause);player.pause();}
+});
+test('returning to the tab reconciles a silently paused native media element',()=>{const{audio,player}=fixture();audio.paused=true;window.dispatchEvent(new Event('focus'));assert.equal(player.state,'paused');assert.equal(player.wantPlay,false);});

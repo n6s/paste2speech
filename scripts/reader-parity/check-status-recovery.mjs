@@ -67,7 +67,7 @@ try{for(const scenario of ['poll-buffered','boundary','download','failed','404',
   const boundary=await page.evaluate(()=>({time:player.audio.currentTime,end:player.ranges().at(-1)[1],paused:player.audio.paused,fatal:player.fatal,ready:player.audio.readyState}));
   assert.ok(boundary.time>=boundary.end-.6);assert.equal(boundary.paused,true);assert.equal(boundary.fatal,false);assert.ok(boundary.ready<3);
   offline=false;ready=true;await page.evaluate(()=>window.dispatchEvent(new Event('online')));await page.waitForFunction(()=>player.finalized&&!player.connectionInterrupted);
-  assert.equal(await page.evaluate(()=>player.wantPlay),false,'Reconnection must not undo the boundary pause');
+  await page.waitForFunction(()=>player.wantPlay&&!player.audio.paused); // A connection-only interruption resumes; explicit Pause is covered separately.
   const position=await page.evaluate(()=>player.audio.currentTime);await page.evaluate(()=>Promise.all([player.resume(),player.resume()]));await page.waitForFunction(()=>player.state==='playing');
   const after=await page.evaluate(()=>player.audio.currentTime);assert.ok(after>=position-.05&&after<position+1);
  }

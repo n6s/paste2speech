@@ -16,6 +16,9 @@ export class PersistentReadingAssets extends ReadingAssets {
   constructor(fetcher, { ramBytes = 8 * 1024 * 1024, storeFactory = (scope) => new DeviceAudioStore(scope), ...options } = {}) {
     super(fetcher, options);
     Object.assign(this, { ramBytes, storeFactory, revoking: /* @__PURE__ */ new Set(), allowed: /* @__PURE__ */ new Set(), references: new Map(), deferred: new Set(), ram: /* @__PURE__ */ new Map(), ramUsed: 0, scope: null, store: null });
+    this.wakeDownloads=()=>{if(globalThis.document?.hidden)return;for(const job of this.jobs.values())if(job.transientDownloadError||job.authRequired){clearTimeout(job.retry);job.retry=null;job.downloadRetryCount=0;if(job.authRequired){job.accessBlocked=false;job.authRequired=false;}this.prefetch(job);}};
+    globalThis.window?.addEventListener('online',this.wakeDownloads);globalThis.window?.addEventListener('focus',this.wakeDownloads);globalThis.document?.addEventListener('visibilitychange',this.wakeDownloads);
+
   }
   setScope(scope) {
     if (scope === this.scope) return;
@@ -114,11 +117,17 @@ export class PersistentReadingAssets extends ReadingAssets {
       });
     }
   }
+  retryDownload(job){
+    if(navigator.onLine===false||job.controller.signal.aborted||job.retry||job.downloadRetryCount>=5&&!job.retryExecuting)return;
+    job.downloadRetryCount=(job.downloadRetryCount||0)+1;
+    job.retry=setTimeout(()=>{job.retry=null;job.retryExecuting=true;this.prefetch(job);},Math.min(30000,1000*2**(job.downloadRetryCount-1)));
+  }
+  dispose(){globalThis.window?.removeEventListener('online',this.wakeDownloads);globalThis.window?.removeEventListener('focus',this.wakeDownloads);globalThis.document?.removeEventListener('visibilitychange',this.wakeDownloads);super.dispose();}
   prefetch(job) {
     if (!this.saved(job.id)) return super.prefetch(job);
-    if (this.writesEnabled === false || this.deferred.has(job.id)) return;
+    if (this.writesEnabled === false || this.deferred.has(job.id)||navigator.onLine===false||job.transientDownloadError&&(job.retry||job.downloadRetryCount>=5&&!job.retryExecuting)) return;
     if (job.controller.signal.aborted || job.terminal || job.invalid || job.accessBlocked || job.storageBlocked || job.loading) return;
-    job.loading = true;
+    job.retryExecuting=false;job.loading = true;
     void (async () => {
       const release=await this.protectRecords([{id:job.id}]);
       try {
@@ -130,16 +139,17 @@ export class PersistentReadingAssets extends ReadingAssets {
         try {
           await this.section(job.id, meta.index, { background: true });
           await job.writes?.get(meta.index);
+          if(!job.storageBlocked){job.transientDownloadError=false;job.downloadRetryCount=0;job.authRequired=false;job.audioUnavailable=false;job.error='';}
         } catch (e) {
           if (job.controller.signal.aborted) break;
           if (e.invalidAudio) {
             job.invalid = true;
             job.error = "Audio could not be verified.";
           } else if (e.authRequired || e.audioUnavailable) {
-            job.accessBlocked = true;
+            job.accessBlocked = true;job.authRequired=!!e.authRequired;job.audioUnavailable=!!e.audioUnavailable;
             job.error = e.message;
           } else {
-            job.storageError = "Download interrupted. Saved sections are kept; reconnect and retry.";
+            job.transientDownloadError=true;job.storageError = "Download interrupted. Saved sections are kept; downloading retries automatically when connected.";
           }
           break;
         }
@@ -147,6 +157,7 @@ export class PersistentReadingAssets extends ReadingAssets {
       } finally {release();}
     })().finally(() => {
       job.loading = false;
+      if(job.transientDownloadError)this.retryDownload(job);
       this.onChange();
       if (this.writesEnabled !== false && !job.controller.signal.aborted && !job.storageError && !job.storageBlocked && !job.invalid && !job.accessBlocked && (job.status?.sections || []).some((meta) => !matches(job.data.get(meta.index), meta))) queueMicrotask(() => this.prefetch(job));
     });
@@ -386,7 +397,8 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   retry() {
     for (const job of this.jobs.values()) {
-      job.storageBlocked = false;
+      clearTimeout(job.retry);job.retry=null;job.downloadRetryCount=0;job.transientDownloadError=false;
+      job.storageBlocked = false;job.invalid=false;job.error="";job.authRequired=false;job.audioUnavailable=false;
       job.accessBlocked = false;
       job.storageError = "";
       this.prefetch(job);

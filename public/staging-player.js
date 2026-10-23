@@ -14,6 +14,7 @@ export class StagingPlayer extends MsePlayer {
  get id(){return this.job;}get chunks(){return this.texts||[];}get starts(){return this.status?.starts||[];}
  get duration(){return this.status?.duration||0;}get complete(){return this.status?.state==='ready';}
  get offlineInfo(){return this.longReadings?.offlineInfo(this.job,this.chunks.length)||null;}
+ get preparationNotice(){const group=this.getVideoPreparation();if(!group)return '';if(group.continuationError&&group.continuationWaiting&&group.continuationRetries<5)return 'Preparation check interrupted; retrying automatically. Saved audio remains playable.';if(group.continuationError)return 'Preparation paused: '+group.continuationError+' Saved audio is kept; Play checks again.';if(group.continuationWaiting)return 'Offline. Saved audio can play; remaining preparation resumes when connected.';if(group.localOnly&&group.session.records.every(part=>part.id&&part.state==='ready'))return '';if(group.continuationElsewhere&&group.localOnly)return 'Another tab is preparing the remaining audio. Saved parts are reused.';if(group.continuationStart&&!group.done)return 'Preparing remaining audio. Existing prepared parts are reused.';if(group.localOnly&&group.session.records.some(part=>!part.id))return 'Play also continues preparation of the remaining text.';return '';}
  get retainedSections(){return this.longReadings?.retainedSections(this.job)||[];}
  get providerCost(){return this.status?.providerCost||0;}get costIncomplete(){return !!this.status?.costIncomplete;}
  matches(chunks,settings){return !!this.job&&settings.voice===this.settings?.voice&&JSON.stringify(chunks)===JSON.stringify(this.chunks)&&settings.cached===this.settings?.cached&&settings.scenario===this.settings?.scenario;}
@@ -24,7 +25,7 @@ export class StagingPlayer extends MsePlayer {
    if(explicitSection&&this.getVideoPreparation()?.error&&this.starts[index]==null){this.pendingIndex=index;this.pendingTime=null;this.wantPlay=false;this.audio.pause();this.state='paused';this.sectionUnavailable=true;this.error='Audio for this section is not ready. Press Resume to review recovery; saved audio is kept.';this.emit();return;}
    this.pendingIndex=null;this.resumeSectionOffset=null;this.claim();this.setRate(settings.rate);this.mediaPause=null;this.connectionPaused=false;this.wantPlay=true;this.state='preparing';this.pendingIndex=index??0;this.pendingTime=null;
    if(this.mediaRecovery){this.mediaRecovery.time=this.starts[index??0]||0;return this.resume(settings);}
-   this.applyPending();return;
+   this.applyPending();void this.longReadings?.continueOnPlayback(this.job,{explicit:true});return;
   }
   this.settings={...settings};this.pendingIndex=null;
   this.rate=settings.rate;const delivery=settings.delivery==='mse'&&this.capability.mp3?'mse':'complete';
@@ -38,6 +39,7 @@ export class StagingPlayer extends MsePlayer {
   let deviceTime=explicitSection||!restored?null:this.deviceRestoreTime;
   if(deviceTime!=null&&restored){const saved=this.longReadings.status(restored);if(saved.state==='ready'&&saved.duration>0)deviceTime=restored.historyRecord?.finishedAt?0:Math.min(deviceTime,Math.max(0,saved.duration-2/24000));}this.deviceRestoreTime=null;index=explicitSection?index:restored?this.deviceRestoreIndex??0:0;this.deviceRestoreIndex=null;
   await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
+  void this.longReadings?.continueOnPlayback(this.job,{explicit:true});
   if(deviceTime!=null){this.pendingTime=deviceTime;this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=deviceTime));if(this.status)this.seek(deviceTime);}
  }
  emit(){
@@ -61,6 +63,7 @@ export class StagingPlayer extends MsePlayer {
   if(settings&&!this.matches(this.chunks,settings))return this.start(this.chunks,settings,this.index);
   if(settings)this.setRate(settings.rate);
   const group=this.getVideoPreparation();
+  void this.longReadings?.continueOnPlayback(this.job,{explicit:true});
   if(group?.connectionError)group.session.wakeStatusRetry?.();
   if(group?.error&&!(this.preparationBlocked()&&!this.preparationAtBoundary&&(this.pendingTime??this.audio.currentTime)<this.status.duration-1/24000)){
    if(this.resuming)return;
