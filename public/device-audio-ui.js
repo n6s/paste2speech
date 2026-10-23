@@ -32,10 +32,10 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     playlistLoading=(async()=>{await next.load();if(target!==store())return;const model=getQueue();
       if(model){model.stop();model.items=(next.state.pending||[]).filter(item=>!next.state.retired.includes(item.id));knownPending=new Set(model.items.map(item=>item.id));
         model.playlist={clearPending:items=>{void next.edit(state=>{const ids=items.map(item=>item.id);state.retired=[...new Set([...state.retired,...ids])];state.pending=state.pending.filter(item=>!ids.includes(item.id));}).then(notifyPlaylist).catch(error=>message(error.message));},entries,selected:()=>selected?.id, status:record=>(record.id===selected?.id?selected.engine:record.playbackEngine||record.engine)==='browser'?'Browser voice':record.offlineReady&&shellReady?'Ready offline':record.records?.some(part=>part.id)?'Partly saved':'Needs preparation',
-          open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&selected.engine==='google'&&queuedPreparationPending(item)){if(!model.has(item.id))model.items.unshift({id:item.id,title:item.title,text:item.text,snapshot:structuredClone(item.queueIntent),createdAt:item.createdAt,updatedAt:Date.now(),state:'ready',queuedReplay:true});model.changed();model.advance();return;}if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);}},
+          open:async(item,{autoplay=false}={})=>{try{if(item.saved){await openReading(item);if(autoplay&&selected?.id===item.id&&selected.engine==='google'&&queuedPreparationPending(item)){if(!model.has(item.id))model.items.unshift({id:item.id,title:item.title,text:item.text,snapshot:structuredClone(item.queueIntent),createdAt:item.createdAt,updatedAt:Date.now(),state:'ready',queuedReplay:true});model.changed();model.advance();return;}if(autoplay&&selected?.id===item.id&&!selected.voiceUnavailable&&(selected.engine==='browser'||!item.audioMissing&&item.records?.length&&item.records.every(part=>part.id&&part.state==='ready')))playSaved();return;}if(item.state==='error'&&item.text?.trim()){recoveredId=item.id;recoveredItem=item;model.stop();await loadQueued(item,{recovering:true});message(getEngine()==='google'?'Text restored. Retry Play checks your account once and starts speech using normal credits.':'Text restored. Press Play to use this browser voice.');refresh();return;}if(item.state!=='ready'){message(item.error||'Text is not ready. If file processing was interrupted, open the file again to recover its saved result.');return;}await loadQueued(item);await list();}catch(error){message(error.message);refresh();}},
           next:()=>{const all=entries(),index=all.findIndex(item=>item.id===selected?.id);return all[index+1];},
           added:(item,placement)=>{void next.edit(state=>{const all=entries().map(entry=>entry.id).filter(id=>id!==item.id),index=all.indexOf(selected?.id);all.splice(placement==='next'?index+1:all.length,0,item.id);state.order=all;state.pending=mergePending(state.pending,structuredClone(model.items),new Set(model.items.map(item=>item.id)),state.retired);}).then(notifyPlaylist).catch(error=>message(error.message));},
-          remove:async id=>{await next.edit(state=>{state.retired=[...new Set([...state.retired,id])];state.pending=state.pending.filter(item=>item.id!==id);});model.removePending(id);if(selected?.id===id){removedCurrentText=getText();model.stop();intent=null;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||""};suppressed.add(id);getActive()?.pause();selectedRelease?.();selectedRelease=null;selected=null;}message("Removed from playlist.");notifyPlaylist();void cleanup();},
+          remove:async id=>{if(recoveredId===id){recoveredId=null;recoveredItem=null;}await next.edit(state=>{state.retired=[...new Set([...state.retired,id])];state.pending=state.pending.filter(item=>item.id!==id);});model.removePending(id);if(selected?.id===id){removedCurrentText=getText();model.stop();intent=null;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||""};suppressed.add(id);getActive()?.pause();selectedRelease?.();selectedRelease=null;selected=null;}message("Removed from playlist.");notifyPlaylist();void cleanup();},
           move:async(id,delta)=>{const all=entries().map(item=>item.id),index=all.indexOf(id),other=index+delta;if(index<0||other<0||other>=all.length)return;[all[index],all[other]]=[all[other],all[index]];await next.edit(state=>state.order=all);notifyPlaylist();}
         };
       }
@@ -60,7 +60,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   const rekeep=new Set();
   $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
   assets.writesEnabled = $("automatic-device-audio").checked;
-  let replacement=null;
+  let replacement=null,recoveredId=null,recoveredItem=null,recoveryChecking=false;
   const releaseReplacement=()=>{replacement?.release?.();replacement=null;};
   let selected = null, selectedRelease = null, records = [], opening = false, saving = false, attaching = false, timer = null, checking = 0, serial = 0, restoreScope = null, nativeBlocked = null, shellReady = false, persistent = false, flushing = Promise.resolve(), suppressed = /* @__PURE__ */ new Set();
   const storedEngine=record=>getEngine()==="google"&&record.engine==="google"?"google":record.playbackEngine||record.engine||"google";
@@ -68,7 +68,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   const selectionKey=()=>latestKey()+".active";
   const blankKey="paste2speech.editor-cleared";
   let editorCleared=sessionStorage.getItem(blankKey)==="true";
-  const rememberSelection=id=>{if(getText().trim()){editorCleared=false;sessionStorage.removeItem(blankKey);}localStorage.setItem(latestKey(),id);localStorage.setItem(selectionKey(),id);};
+  const rememberSelection=id=>{if(recoveredId&&recoveredId!==id){recoveredId=null;recoveredItem=null;}if(getText().trim()){editorCleared=false;sessionStorage.removeItem(blankKey);}localStorage.setItem(latestKey(),id);localStorage.setItem(selectionKey(),id);};
   const activeStore = (record) => record?.scope === scope() ? store() : null;
   function capture() {
     if (!selected) return;
@@ -235,7 +235,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       }
     }
   }
-  async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true,queueIntent=null}={}) {
+  async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true,queueIntent=null,consume=true}={}) {
     const request=serial,callerValid=valid,text=getText();valid=()=>request===serial&&getText()===text&&callerValid();
     await flush();
     const options = snapshot(), engine = getEngine(), chunks = [...getChunks()], voice = options.voice, target = store();
@@ -272,7 +272,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     if(activate)await openReading(record);else{await holdSelected(record);if(!valid())return;selected={...record,groupId:reusedGroup?.id,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
     if(reusedGroup)void shell().catch(error=>message(error.message));
     await list();
-    getQueue()?.removePending(id,{consumed:true});await persistPending();await cleanup();await list();notifyPlaylist();
+    if(consume)getQueue()?.removePending(id,{consumed:true});await persistPending();await cleanup();await list();notifyPlaylist();
   }
   function renderNavigation() {
     const ordered=entries(),index=ordered.findIndex(record=>record.id===selected?.id),total=ordered.length;
@@ -339,7 +339,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       if (candidate && !candidate.damaged && !getActive()?.chunks?.length && (!getText().trim() || getText() === candidate.text)) void openReading(candidate, { automatic: true });
     }
   }
-  async function account() {
+  async function account({restore=true}={}) {
     const request = ++checking;
     let next;
     try {
@@ -370,10 +370,10 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
       else localStorage.removeItem(lastScopeKey);
       await ensurePlaylist();
       await cleanup();
-      await list({ restore: true });
+      await list({ restore });
       refresh();
     } catch {
-      await list({ restore: true }).catch(() => {
+      await list({ restore }).catch(() => {
       });
       if (!assets.scope && getEngine() === "google") message("Confirm your account online before keeping Natural audio. Browser voices remain available.");
     }
@@ -669,7 +669,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   }
   function voiceChanging(){if(selected&&getText()===selected.text)transport.nextLogicalReading={id:selected.id,createdAt:selected.createdAt};}
   async function replace(){
-    releaseReplacement();await flush();
+    recoveredId=null;recoveredItem=null;releaseReplacement();await flush();
     if(selected){replacement={record:await store().reading(selected.id),release:selectedRelease};selectedRelease=null;}
 await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
     await playlist.edit(state=>{state.retired=[...new Set([...state.retired,...ids])];state.pending=[];state.order=[];});
@@ -677,13 +677,25 @@ await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
     selectedRelease?.();selectedRelease=null;selected=null;notifyPlaylist();void cleanup();
   }
   function clearEditor(){
-    releaseReplacement();capture();void flush();serial++;opening=false;restoreScope=scope();
+    recoveredId=null;recoveredItem=null;releaseReplacement();capture();void flush();serial++;opening=false;restoreScope=scope();
     editorCleared=true;sessionStorage.setItem(blankKey,"true");
     selectedRelease?.();selectedRelease=null;selected=null;intent=null;
     transport.localRestore=null;transport.nextLogicalReading=null;
     if(timer){clearTimeout(timer);timer=null;}
   }
-  return { clearEditor, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText());}, replace, async registerCurrentMetadata(options={}){const replacing=replacement;try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}finally{if(replacing===replacement)releaseReplacement();}}, queueChanged(){void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
+  async function retryPending(item){
+    if(recoveryChecking)return;recoveryChecking=true;refresh();const text=getText();
+    try{
+      if(!getQueue()?.has(item.id)||scope()!==item.snapshot.libraryScope)await account({restore:false});
+      if(getText()!==text||text!==item.text)return;
+      if(scope()!==item.snapshot.libraryScope){message('Sign in to PasteToSpeech in another tab, then Retry Play. Your text is kept. No speech was started.');return;}
+      const pending=getQueue()?.items.find(candidate=>candidate.id===item.id);
+      if(!pending){message('This queued item is unavailable. Your text is kept; add it again explicitly to play.');return;}
+      pending.snapshot={...item.snapshot};getQueue().retry(item.id);
+    }catch{message('Account check failed. Your text is kept. No speech was started.');}
+    finally{recoveryChecking=false;refresh();}
+  }
+  return { clearEditor,retryPending,get recoveryChecking(){return recoveryChecking;},get pendingPlayback(){const pending=getQueue()?.items.find(item=>item.id===(recoveredId||selected?.id)&&item.queuedReplay&&item.text===getText()&&!(selected?.id===item.id&&selected.queueStartedAt));return pending||recoveredItem?.text===getText()&&recoveredItem||null;}, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText());}, replace, async registerCurrentMetadata(options={}){const replacing=replacement;try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}finally{if(replacing===replacement)releaseReplacement();}}, queueChanged(){if(recoveredItem&&!getQueue()?.has(recoveredItem.id)&&getText()===recoveredItem.text&&['playing','preparing','buffering'].includes(getActive()?.state)){recoveredId=null;recoveredItem=null;}void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
     return scope();
   }, get opening() {
     return opening;

@@ -11,6 +11,7 @@ import {discardLegacyPositions} from './reader-reload.js';
 import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
 import {setupExtensionHandoff} from './extension-handoff.js';
+import {checkQueuedAccount} from './queue-preflight.js';
 import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from './playback-controls.js';
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
@@ -271,7 +272,9 @@ function setMode(mode) {
   if (reading) followParagraph($('preview').querySelector('[aria-current=true]'));
 }
 $('edit-mode').addEventListener('click', () => setMode('edit'));
-function readAndPlay({retentionChecked=false}={}) {
+function readAndPlay({retentionChecked=false,queuedStart=false}={}) {
+  const pending=deviceAudio?.pendingPlayback;
+  if(pending&&!queuedStart){pending.snapshot={...pending.snapshot,engine:$('engine').value,voice:$('voice').value,rate:Number($('rate').value),cleanup:{...options},speechTextVersion:activeSpeechTextVersion};void deviceAudio.retryPending(pending);return true;}
   if(deviceAudio?.singleQueuedPlayback){inputQueue.model.advance();return true;}
   if(PERSISTENT_AUDIO&&deviceAudio?.needsPlaybackGuard()&&!retentionChecked){void deviceAudio.beforePlay().then(allowed=>{if(allowed)readAndPlay({retentionChecked:true});});return true;}
   inputQueue?.model.resume();
@@ -353,8 +356,9 @@ function render(p, message) {
   $('status').textContent = message || waiting || ({ idle: 'Ready when you are', preparing: 'Preparing audio…', buffering: 'Waiting for the next audio section…', ready: 'Audio ready · tap Play.', failed: 'Preparation failed · tap Play to retry.', playing: 'Reading aloud', paused: 'Paused · your place is saved', done: 'All read. Take a breath.' }[p.state]);
   if(!CLOUD_READER) $('position').textContent = p.chunks.length && p.state !== 'idle' ? `${Math.min(p.index + 1, p.chunks.length)} / ${p.chunks.length}` : '';
   if(!CLOUD_READER){$('progress').max = p.chunks.length || 1; $('progress').value = p.state === 'idle' ? 0 : p.index;}
-  $('play').textContent = deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
-  $('play').disabled = !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned&&!deviceAudio?.singleQueuedPlayback || !canPlay();
+  $('play').textContent = deviceAudio?.pendingPlayback&&isGoogle()?'▶ Retry Play':deviceAudio?.singleQueuedPlayback?'▶ Play':['paused', 'failed', 'disconnected'].includes(p.state) ? '▶ Resume' : p.state === 'done' ? '↺ Replay' : '▶ Play';
+  $('play').title=deviceAudio?.pendingPlayback&&isGoogle()?'Checks your account, then starts speech using normal credits.':'';
+  $('play').disabled = !!deviceAudio?.recoveryChecking || !!inputQueue?.model.starting || !!waiting || ['playing', 'preparing', 'buffering'].includes(p.state) || !cleaned&&!deviceAudio?.singleQueuedPlayback || !canPlay();
   $('pause').disabled = !waiting && !['playing', 'preparing', 'buffering'].includes(p.state);
   $('stop').disabled = p.state === 'idle';
   $('recording-controls').hidden = !isWorkstation();
@@ -550,7 +554,7 @@ function seekSection(index){
 $('previous-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index-1):workstationPlayer.move(-1));
 $('next-section').addEventListener('click',()=>CLOUD_READER?seekSection(player.index+1):workstationPlayer.move(1));
 $('include-captions')?.addEventListener('change',()=>render(player));
-$('play').addEventListener('click',()=>{inputQueue?.model.stop();readAndPlay();});
+$('play').addEventListener('click',()=>{if(inputQueue?.model.starting)return;inputQueue?.model.stop();readAndPlay();});
 $('pause').addEventListener('click',()=>{inputQueue?.model.stop();player?.pause();});
 $('stop').addEventListener('click',()=>{inputQueue?.model.stop();if(INPUT_QUEUE_UI){pasteRequest++;for(const context of intakeContexts.values())if(context.intent==='play')context.intent='editor';}player?.stop();});
 window.addEventListener('pagehide', () => { if (player === browserPlayer) player?.pause(); });
@@ -710,7 +714,7 @@ async function readQueuedClipboard(intent){
 }
 if(INPUT_QUEUE_UI){
  inputQueue=setupInputQueue({changed:()=>deviceAudio?.queueChanged(),refined:INPUT_QUEUE_REFINEMENTS,persistent:PERSISTENT_AUDIO,snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
-  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();if(item.snapshot.engine==='google'){if(!item.snapshot.scope)throw Error('Account checks were still loading when this item was added. Add it again after checking your account.');const response=await fetch('/api/ocr/jobs/config');if(!response.ok)throw Error('The account could not be confirmed. No speech was started.');const config=await response.json();if(!current())return false;if(config.consentScope!==item.snapshot.scope)throw Error('The account changed after this item was queued. Add it again for the current account. No speech was started.');}if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt,item.id);await deviceAudio.registerCurrentMetadata({id:item.id,createdAt:item.createdAt,valid:current});if(!current())return false;workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
+  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();await checkQueuedAccount(item.snapshot);if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');applyInputSnapshot(item.snapshot);summaryMode?.clearSource();resetReading();$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt,item.id);await deviceAudio.registerCurrentMetadata({id:item.id,createdAt:item.createdAt,valid:current});if(!current())return false;workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true,queuedStart:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
   cancelItem(item,{consumed=false}={}){for(const [key,context]of intakeContexts)if(context.queueId===item.id){if(!consumed){context.cancelled=true;documentImport.cancelDestination?.(context);}intakeContexts.delete(key);}},
   clearAll(){for(const context of intakeContexts.values())context.cancelled=true;intakeContexts.clear();intakeContext=null;}
  });
@@ -865,8 +869,8 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   if(voiceUnavailable)$("voice-settings").open=true;
   return {engine,voice,voiceUnavailable};
  },
- async loadQueued(item){
-  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id,queueIntent:item.snapshot});save();
+ async loadQueued(item,{recovering=false}={}){
+  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();if(recovering)item.queuedReplay=true;applyInputSnapshot(item.snapshot);resetReading();$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id,queueIntent:item.snapshot,consume:!recovering});save();
  },
  async regenerate(record){
   workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();
