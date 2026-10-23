@@ -191,6 +191,14 @@ export class MsePlayer {
     if(this.wantPlay&&this.state==='buffering')this.checkConnectionBoundary();
     this.emit();
   }
+  resumeSavedAudio(){
+    // A failed metadata check must not hold verified local audio hostage. Keep
+    // the connectivity warning, and only restore intent retired by our own wait.
+    if(!this.connectionPaused||!this.autoResumeAfterConnection||this.pendingIndex!=null||!this.hasPlayableAudio())return;
+    this.connectionPaused=false;this.autoResumeAfterConnection=false;this.wantPlay=true;this.state='buffering';
+    this.error='Connection interrupted. Playing saved audio while preparation checks retry.';
+    void this.play();
+  }
   connectionRestored(){
     if(!this.connectionInterrupted)return;
     this.connectionInterrupted=false;clearTimeout(this.connectionBoundaryTimer);this.connectionBoundaryTimer=null;
@@ -258,13 +266,14 @@ export class MsePlayer {
                 this.log('buffer-pressure-file-fallback');this.useCompletedFile();return;
               }else{this.quotaBlockedAt=this.audio.currentTime;break;}
             }
+            if(serial!==this.serial||signal.aborted)return;
             this.log('append',{index:this.next,start:section.start,samples:info.samples,bufferTimestampOffset:this.buffer.timestampOffset});
             this.next++;this.emit();
             if(this.next===1)this.log('first-buffer-ready');
             if(this.wantPlay&&this.pendingIndex==null&&this.audio.paused&&this.hasPlayableAudio()&&!this.syncNativePause())void this.play();
           }
           if(this.windowSeek)continue;
-          if(!status.connectionUnavailable)this.connectionRestored();
+          if(status.connectionUnavailable)this.resumeSavedAudio();else this.connectionRestored();
           if(status.state==='ready'&&this.next===status.total){
             this.log('before-end-of-stream',{expectedDuration:status.duration,bufferedEnd:this.ranges().at(-1)?.[1]});
             const bufferedEnd=this.ranges().at(-1)?.[1];

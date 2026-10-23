@@ -64,3 +64,18 @@ test('network interruption resumes available audio automatically; explicit Pause
  for(const pause of [false,true]){const{audio,player}=fixture();player.mode='mse';audio.buffered={length:0};player.connectionLost();assert.equal(player.autoResumeAfterConnection,true);if(pause)player.pause();audio.buffered={length:1,start:()=>0,end:()=>20};player.connectionRestored();await tick();assert.equal(audio.paused,pause);assert.equal(player.wantPlay,!pause);player.pause();}
 });
 test('returning to the tab reconciles a silently paused native media element',()=>{const{audio,player}=fixture();audio.paused=true;window.dispatchEvent(new Event('focus'));assert.equal(player.state,'paused');assert.equal(player.wantPlay,false);});
+
+for(const action of ['continue','pause','stop'])test(`saved audio starts despite unavailable status; ${action} intent is preserved`,async()=>{
+ const {audio,player}=fixture();
+ const bytes=await readFile(new URL('./fixtures/wavenet/en-US-Wavenet-F-00.mp3',import.meta.url)),info=inspectMp3(bytes),duration=info.samples/24000;
+ audio.currentTime=.1;audio.buffered={length:0};
+ Object.assign(player,{mode:'mse',next:0,finalized:false,controller:new AbortController(),source:{endOfStream(){}},buffer:{appendBuffer(){audio.buffered={length:1,start:()=>0,end:()=>duration};}}});
+ player.request=async(path,options)=>options?.binary?bytes.buffer.slice(bytes.byteOffset,bytes.byteOffset+bytes.byteLength):{state:'ready',connectionUnavailable:true,starts:[0],duration,total:1,sections:[{start:0,samples:info.samples,bytes:info.bytes}]};
+ player.bufferOperation=async operation=>{assert.equal(player.connectionPaused,true);assert.equal(audio.paused,true);if(action==='pause')player.pause();if(action==='stop'){audio.removeAttribute=()=>{};audio.load=()=>{};player.invalidate({preserveReady:true});}operation();};
+ await player.pump();await tick();
+ assert.equal(audio.paused,action!=='continue');assert.equal(player.wantPlay,action==='continue');
+ if(action==='continue'){assert.equal(player.state,'playing');assert.equal(player.connectionInterrupted,true,'saved audio does not imply server connectivity');assert.equal(player.finalized,true);}
+ if(action==='pause')assert.equal(player.state,'paused');
+ if(action==='stop'){assert.equal(player.state,'idle');assert.equal(player.job,null);assert.equal(player.next,0);}
+ player.pause();clearTimeout(player.connectionBoundaryTimer);
+});
