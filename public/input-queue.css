@@ -8,3 +8,7 @@
 
 .queue-entry-actions:not([open])>.queue-item-actions{display:none}#reading-order{min-width:0;text-align:center;overflow-wrap:anywhere;font-size:.85rem}
 .staging-reader-layout .input-primary-actions #document-choose-file.quiet,.input-primary-actions #clear{padding:8px 4px;font-size:.78rem}
+
+/* Treat Clear as its own action, with equal free space on either side. */
+.staging-reader-layout .input-primary-actions{justify-content:space-between;column-gap:4px}
+.staging-reader-layout .input-primary-actions .text-actions{display:contents}
