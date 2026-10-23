@@ -38,9 +38,9 @@ export class StagingPlayer extends MsePlayer {
   // A paragraph tap is an explicit seek; only ordinary Play resumes the bookmark.
   let deviceTime=explicitSection||!restored?null:this.deviceRestoreTime;
   if(deviceTime!=null&&restored){const saved=this.longReadings.status(restored);if(saved.state==='ready'&&saved.duration>0)deviceTime=restored.historyRecord?.finishedAt?0:Math.min(deviceTime,Math.max(0,saved.duration-2/24000));}this.deviceRestoreTime=null;index=explicitSection?index:restored?this.deviceRestoreIndex??0:0;this.deviceRestoreIndex=null;
-  await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index);
+  if(deviceTime!=null&&restored)index=Math.max(0,this.longReadings.status(restored).starts.findLastIndex(time=>time<=deviceTime));
+  await super.start({chunks,voice:settings.voice,provider:'google',...(LONG_READINGS?{paragraphStarts:settings.paragraphStarts}:{}),...(MSE_STAGING?{mseOptions:{delivery,concurrency:settings.concurrency||3,cached:!!settings.cached,scenario:settings.scenario||'normal'}}:{delivery})},delivery==='mse'?'mse':'full',index,deviceTime);
   void this.longReadings?.continueOnPlayback(this.job,{explicit:true});
-  if(deviceTime!=null){this.pendingTime=deviceTime;this.pendingIndex=Math.max(0,(this.status?.starts||[]).findLastIndex(t=>t<=deviceTime));if(this.status)this.seek(deviceTime);}
  }
  emit(){
   if(!this.mediaRecovery&&this.pendingIndex!=null&&this.status?.starts[this.pendingIndex]!=null&&this.audio){

@@ -1,9 +1,10 @@
 // Isolated headless Chrome; every API is intercepted. No real synthesis or OCR.
 import {chromium} from 'playwright';import{zipSync,strToU8}from'fflate';import{createServer}from'node:http';import{readFile,mkdir,writeFile}from'node:fs/promises';import assert from'node:assert/strict';import{inspectMp3}from'../cloudflare/prepared/mp3.js';import{OCR_TEMPORARY_POLICY}from'../public/cloud-choices.js';
+const windowed=process.env.WINDOWED_RELOAD==='1',repeats=windowed?1:40;
 const progressive=process.env.AUDIT_DELIVERY==='mse',out='work/reading-history/saved-tap-resume'+(progressive?'-mse':'-complete');await mkdir(out,{recursive:true});
 const root=process.env.READER_VARIANT==='public'?'work/production-reader/site':'work/private-reader/site',server=createServer(async(req,res)=>{try{const p=new URL(req.url,'http://local').pathname.slice(1)||'index.html';res.setHeader('Content-Type',p.endsWith('.js')?'text/javascript':p.endsWith('.css')?'text/css':'text/html');res.end(await readFile(root+'/'+p));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));const origin=process.env.READER_ORIGIN||`http://127.0.0.1:${server.address().port}`;
-const mp3=Buffer.concat(Array(40).fill(await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-03.mp3'))),info=inspectMp3(mp3),sectionDuration=info.samples/24000;
-const alternate=Buffer.concat(Array(40).fill(await readFile('tests/fixtures/wavenet/en-GB-Wavenet-F-01.mp3'))),alternateInfo=inspectMp3(alternate);
+const mp3=Buffer.concat(Array(repeats).fill(await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-03.mp3'))),info=inspectMp3(mp3),sectionDuration=info.samples/24000;
+const alternate=Buffer.concat(Array(repeats).fill(await readFile('tests/fixtures/wavenet/en-GB-Wavenet-F-01.mp3'))),alternateInfo=inspectMp3(alternate);
 const speech=new Map(),scans=new Map(),posts=[],errors=[],external=[],checks=[];let scope='queue-owner',held=true,delayConfig=false,releaseConfig;
 const wallet=()=>({walletVersion:'unified-v1',balance:1000000,held:0,debt:0,unitsPerCredit:1000}),config=()=>({durable:true,enabled:true,model:'mistral-ocr-4-1',maxBytes:50000000,maxPages:1000,unitsPerPage:2000,consentScope:scope,consentPolicy:OCR_TEMPORARY_POLICY.version,balance:wallet(),summaryPriceCredits:1});
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true}),context=await browser.newContext({viewport:{width:390,height:844},hasTouch:true}),page=await context.newPage();
@@ -32,6 +33,25 @@ const {createHash}=await import('node:crypto');const expectedFirst=createHash('s
 var state=()=>page.evaluate(async()=>{const db=await new Promise((resolve,reject)=>{const q=indexedDB.open('paste2speech-device-audio-v1');q.onsuccess=()=>resolve(q.result);q.onerror=()=>reject(q.error);});const data={};for(const store of ['readings','lifecycle','positions'])data[store]=await new Promise(resolve=>{const q=db.transaction(store).objectStore(store).getAll();q.onsuccess=()=>resolve(q.result);});db.close();return data;});
 const results=[];
 const until=async predicate=>{for(let attempt=0;;attempt++){if(await predicate())return;if(attempt===400)throw Error('Synthetic saved-audio condition did not settle');await page.waitForTimeout(25);}};
+if(windowed){
+ const source=Array.from({length:1002},(_,i)=>`Paragraph ${i+1} has words.`).join('\n\n');
+ await paste('play',source);await playing(source);
+ await until(async()=>(await state()).readings.some(r=>r.offlineReady));
+ await page.evaluate(time=>__stagingReader.seek(time),700*sectionDuration+.25);
+ await page.waitForFunction(time=>__queueAudio().currentTime>=time&&__queueAudio().currentTime<time+2,700*sectionDuration);
+ const admissions=posts.length;
+ for(const offline of [false,true]){
+  await page.click('#pause');await until(async()=>(await state()).positions.some(p=>p.position>=700*sectionDuration));
+  await context.setOffline(false);await page.reload();await page.waitForFunction(text=>document.querySelector('#text').value===text&&!document.querySelector('#play').disabled,source);
+  assert.ok(await page.locator('.reading-window').count()>0);assert.equal(await page.evaluate(()=>__queueAudios.every(audio=>audio.paused)),true,'reload never autoplays');
+  await context.setOffline(offline);await page.click('#play');await playing(source);
+  await page.waitForFunction(time=>__queueAudio().currentTime>=time&&__queueAudio().currentTime<time+4,700*sectionDuration,{timeout:10000});
+  if(progressive){const start=await page.evaluate(()=>__stagingReader.ranges()[0]?.[0]);assert.ok(start>=700*sectionDuration-.01,'buffer opens at saved section instead of decoding the entire prefix');}
+  assert.equal(posts.length,admissions,'cached resume never admits new speech');
+  await page.click('#pause');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>__queueAudio().paused),true);await page.click('#play');await playing(source);
+ }
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('PASS windowed 1002-section Pause/reload/Play online and offline, correct buffer window and position, Pause wins, no new speech.');
+}else{
 const source=Array.from({length:8},(_,i)=>`▸ Paragraph number ${i+1} has distinct words to read.`).join('\n\n');
 await page.locator('#text-cleanup').evaluate(e=>e.open=true).catch(()=>{});await page.locator('#clean-markdown').uncheck();
 await paste('play',source);await playing(source);await page.click('#pause');
@@ -58,4 +78,5 @@ const freshAdmissions=posts.length;await page.reload();await page.waitForFunctio
 }
 await page.setViewportSize({width:1100,height:850});await page.locator('.sentence[data-section-index="1"]').click();await playing(source);assert.ok(Math.abs(await page.evaluate(()=>__queueAudio().currentTime)-sectionDuration)<2);await page.click('#stop');await page.locator('.sentence[data-section-index="4"]').click();await playing(source);assert.ok(Math.abs(await page.evaluate(()=>__queueAudio().currentTime)-4*sectionDuration)<2);assert.equal(posts.length,freshAdmissions);await page.click('#pause');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>__queueAudio().paused),true);
 results.push({pauseWinsDuringTapLoading:progressive?true:null,desktopPlayingAndStoppedClicks:true,pausedDistantTouchStarts:true,freshOfflineTapAfterReload:true,ordinaryPlayResumesBookmark:true,explicitFirstParagraph:true,noNewSpeechAdmission:true});assert.deepEqual(errors,[]);assert.deepEqual(external,[]);await writeFile(out+'/results.json',JSON.stringify(results,null,2));console.log(JSON.stringify(results));
+}
 }catch(error){await writeFile(out+'/failure.json',JSON.stringify({error:error.stack,state:typeof state==='function'?await state():null,editor:await page.locator('#text').inputValue(),status:await page.locator('#status').textContent(),diagnostics:await page.evaluate(()=>({before:window.__resumeBefore,after:window.__stagingReader?.diagnostics()})),errors,posts},null,2));throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}
