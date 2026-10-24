@@ -34,6 +34,7 @@ var state=()=>page.evaluate(async()=>{const db=await new Promise((resolve,reject
 const results=[];
 const until=async predicate=>{for(let attempt=0;;attempt++){if(await predicate())return;if(attempt===400)throw Error('Synthetic saved-audio condition did not settle');await page.waitForTimeout(25);}};
 if(windowed){
+ await page.locator('#follow-reading').evaluate(input=>{input.checked=true;input.dispatchEvent(new Event('change'));});
  const source=Array.from({length:1002},(_,i)=>`Paragraph ${i+1} has words.`).join('\n\n');
  await paste('play',source);await playing(source);
  await until(async()=>(await state()).readings.some(r=>r.offlineReady));
@@ -48,9 +49,14 @@ if(windowed){
   await page.waitForFunction(time=>__queueAudio().currentTime>=time&&__queueAudio().currentTime<time+4,700*sectionDuration,{timeout:10000});
   if(progressive){const start=await page.evaluate(()=>__stagingReader.ranges()[0]?.[0]);assert.ok(start>=700*sectionDuration-.01,'buffer opens at saved section instead of decoding the entire prefix');}
   assert.equal(posts.length,admissions,'cached resume never admits new speech');
+  await page.evaluate(()=>{window.foregroundSamples=[];window.foregroundSeeks=[];window.foregroundTimeDescriptor=Object.getOwnPropertyDescriptor(HTMLMediaElement.prototype,'currentTime');Object.defineProperty(HTMLMediaElement.prototype,'currentTime',{...foregroundTimeDescriptor,set(value){if(this===__stagingReader.audio)foregroundSeeks.push(value);return foregroundTimeDescriptor.set.call(this,value);}});window.recordForeground=()=>{const current=document.querySelector('.sentence[aria-current=true]');if(current)foregroundSamples.push({index:Number(current.dataset.sectionIndex),time:__stagingReader.audio.currentTime,at:performance.now(),expected:Math.max(0,__stagingReader.starts.findLastIndex(t=>t<=__stagingReader.audio.currentTime+1/24000))});};recordForeground();window.foregroundObserver=new MutationObserver(recordForeground);foregroundObserver.observe(document.querySelector('#preview'),{subtree:true,attributes:true,attributeFilter:['aria-current'],childList:true});Object.defineProperty(document,'hidden',{configurable:true,value:true});document.dispatchEvent(new Event('visibilitychange'));});
+  await page.waitForTimeout(100);await page.evaluate(()=>{Object.defineProperty(document,'hidden',{configurable:true,value:false});document.dispatchEvent(new Event('visibilitychange'));window.dispatchEvent(new Event('focus'));for(let n=0;n<50;n++)__stagingReader.longReadings.assets.onChange();});await page.waitForTimeout(400);
+  const samples=await page.evaluate(()=>{recordForeground();foregroundObserver.disconnect();Object.defineProperty(HTMLMediaElement.prototype,'currentTime',foregroundTimeDescriptor);return foregroundSamples;});assert.ok(samples.length>=2);assert.deepEqual(await page.evaluate(()=>foregroundSeeks),[],'foreground/cache notifications cannot issue playback seeks');assert.ok(samples.every(sample=>Math.abs(sample.index-sample.expected)<=1),'foreground highlight follows actual media time');
+  for(let n=1;n<samples.length;n++){const a=samples[n-1],b=samples[n];assert.ok(b.time>=a.time-.05&&b.time-a.time<=(b.at-a.at)/1000*2+.25,'cache events cannot sweep or rewind actual playback');}
+
   await page.click('#pause');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>__queueAudio().paused),true);await page.click('#play');await playing(source);
  }
- assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('PASS windowed 1002-section Pause/reload/Play online and offline, correct buffer window and position, Pause wins, no new speech.');
+ assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('PASS windowed 1002-section Pause/reload/Play online and offline, correct buffer window and position, foreground media/highlight stable through cache bursts, Pause wins, no new speech.');
 }else{
 const source=Array.from({length:8},(_,i)=>`▸ Paragraph number ${i+1} has distinct words to read.`).join('\n\n');
 await page.locator('#text-cleanup').evaluate(e=>e.open=true).catch(()=>{});await page.locator('#clean-markdown').uncheck();

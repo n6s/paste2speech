@@ -1,9 +1,9 @@
 // A section scale, not a duration estimate. The existing seek limits are kept.
-export function setupSectionProgress(root=document.getElementById('section-progress')) {
+export function setupSectionProgress(root=document.getElementById('section-progress'),{compact=false}={}) {
  if(!root)return null;
  const seek=root.querySelector('#seek'),saved=root.querySelector('.section-saved'),played=root.querySelector('.section-played'),legend=root.querySelector('.section-saved-key'),help=root.querySelector('#section-progress-help'),status=root.querySelector('#offline-progress');
  let previous='';
- return ({total,available,index,natural,retained=[],info=null,offline=false,preparation=''})=>{
+ return ({total,available,index,natural,retained=[],info=null,offline=false,preparation='',state=''})=>{
   total=Math.max(0,total);index=Math.max(0,Math.min(total-1,index||0));
   const extent=total>1?Math.max(0,available-1)/(total-1):available?1:0;
   seek.style.width=`calc(${extent*100}% + ${(1-extent)*18}px)`;
@@ -27,12 +27,21 @@ export function setupSectionProgress(root=document.getElementById('section-progr
   if(!status.hidden){
    const retainedHere=info?.retention==='this device'?'on this device':'in this tab';
    const count=`${total?indices.length:info?.downloaded||0} / ${statusTotal} sections`;
-   const message=info?.ready?(info.retention==='this device'?`Ready offline on this device · ${count}.`:`Ready for offline listening in this tab · ${count} saved. Keep this page open; reloading clears downloaded audio.`)
+   let message=info?.ready?(info.retention==='this device'?`Ready offline on this device · ${count}.`:`Ready for offline listening in this tab · ${count} saved. Keep this page open; reloading clears downloaded audio.`)
     :info?.error?`${info.error} ${count} saved ${retainedHere}.`
     :offline?`Offline · ${count} saved. Remaining downloads will retry when connected.`
     :preparation?`Saved for offline: ${count}. ${preparation}`
     :available?`Downloading for offline listening: ${count}. Keep this page open; downloads may pause when your device suspends the browser.`
     :`Waiting for audio · ${count} saved. Keep this page open while preparation continues.`;
+   if(compact){
+    message=info?.ready?'Ready for offline listening.'
+     :info?.error?/^Download interrupted/.test(info.error)?'Download interrupted · saved audio is kept.':info.error.split(/(?<=[.!?])\s/)[0]
+     :offline?'Offline · saved audio is kept.'
+     :/another tab/i.test(preparation)?'Preparing in another tab.':/interrupted|paused/i.test(preparation)?'Preparation interrupted · saved audio is kept.'
+     :['preparing','buffering','disconnected'].includes(state)?'Waiting for audio…':'';
+    status.hidden=!message;
+    status.title=info?.error||preparation||'';
+   }
    if(status.textContent!==message)status.textContent=message;
   }else status.textContent='';
  };
