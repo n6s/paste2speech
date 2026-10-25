@@ -92,7 +92,7 @@ export class MsePlayer {
     }
   }
   async start(input,mode='mse',initialIndex=0,initialTime=null){
-    this.invalidate();this.pendingIndex=initialIndex||null;this.pendingTime=initialTime;const serial=this.serial;
+    this.invalidate();this.pendingIndex=initialTime!=null?initialIndex:initialIndex||null;this.pendingTime=initialTime;const serial=this.serial;
     this.controller=new AbortController();this.started=performance.now();this.events=[];this.capability={mediaSource:!!globalThis.MediaSource,mp3:!!globalThis.MediaSource?.isTypeSupported('audio/mpeg')};this.next=0;this.status=null;this.finalized=false;this.windowSeek=null;this.quotaBlockedAt=null;this.mode=mode;this.texts=[];this.error='';this.fatal=false;this.pumping=false;this.wantPlay=true;this.state='preparing';
     this.log('capability',this.capability);this.emit();
     try{

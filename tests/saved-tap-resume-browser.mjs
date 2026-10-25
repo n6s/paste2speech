@@ -58,6 +58,17 @@ if(windowed){
 
   await page.click('#pause');await page.waitForTimeout(100);assert.equal(await page.evaluate(()=>__queueAudio().paused),true);await page.click('#play');await playing(source);
  }
+ // Restore a bookmark inside section zero, then let real decoded playback
+ // cross the initial 90-second buffer horizon without an app-level seek.
+ await context.setOffline(false);await page.evaluate(()=>__stagingReader.seek(.5));
+ await page.waitForFunction(()=>__queueAudio().currentTime>=.5&&__queueAudio().currentTime<1.5);await page.click('#pause');
+ await until(async()=>(await state()).positions.some(p=>p.position>=.5&&p.position<sectionDuration));
+ await page.reload();await page.waitForFunction(text=>document.querySelector('#text').value===text&&!document.querySelector('#play').disabled,source);await context.setOffline(true);await page.click('#play');await playing(source);
+ assert.equal(await page.evaluate(()=>__stagingReader.pendingTime),null,'applied first-section bookmark must retire its buffering anchor');assert.equal(await page.evaluate(()=>__stagingReader.pendingIndex),null);
+ await page.waitForFunction(()=>__queueAudio().currentTime>=.5&&__queueAudio().currentTime<2);
+ if(progressive){await page.waitForFunction(()=>__stagingReader.ranges().some(([a,b])=>a<=88&&b>88));
+ const initialEnd=await page.evaluate(()=>__stagingReader.ranges().at(-1)[1]);await page.evaluate(()=>__queueAudio().currentTime=88);
+ await page.waitForFunction(end=>__queueAudio().currentTime>end+.2,initialEnd,{timeout:15000});assert.equal(await page.evaluate(()=>__queueAudio().paused),false);console.log('PASS restored section-zero bookmark retires pending time and plays beyond initial '+initialEnd.toFixed(3)+'s buffer horizon.');}assert.equal(posts.length,admissions);await page.click('#pause');
  assert.deepEqual(errors,[]);assert.deepEqual(external,[]);console.log('PASS windowed 1002-section Pause/reload/Play online and offline, correct buffer window and position, foreground media/highlight stable through cache bursts, Pause wins, no new speech.');
 }else{
 const source=Array.from({length:8},(_,i)=>`▸ Paragraph number ${i+1} has distinct words to read.`).join('\n\n');
