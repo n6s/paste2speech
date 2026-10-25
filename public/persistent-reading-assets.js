@@ -77,30 +77,41 @@ export class PersistentReadingAssets extends ReadingAssets {
   metadata(entry) {
     return { bytes: entry.bytes, samples: entry.samples, sha256: entry.sha256 };
   }
-  async hydrate(job) {
-    const store = this.store, epoch = job.localEpoch || 0, record = await store.get("jobs", job.id);
-    if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
-    for (const [index, entry] of job.data) if (!entry.blob) job.data.delete(index);
-    this.onChange();
-    if (!record) return;
-    if (record.id !== job.id || record.voice !== job.voice || JSON.stringify(record.chunks) !== JSON.stringify(job.chunks)) throw Error("Saved audio identity does not match this reading.");
-    if (!job.status) super.observe(job.id, record.status);
-    if (job.invalid) return;
-    for (const meta of job.status?.sections || []) {
-      if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
-      const entry = await store.section(job.id, meta.index);
-      if (!entry) continue;
+  hydrate(job) {
+    if(job.verifying)return job.verifying;
+    const operation=this.hydrateSnapshot(job);job.verifying=operation;
+    void operation.finally(()=>{if(job.verifying===operation)job.verifying=null;}).catch(()=>{});
+    return operation;
+  }
+  async hydrateSnapshot(job) {
+    const store=this.store,epoch=job.localEpoch||0;
+    const valid=()=>!job.controller.signal.aborted&&store===this.store&&epoch===(job.localEpoch||0)&&!this.revoking.has(job.id)&&this.saved(job.id);
+    const record=await store.get("jobs",job.id);if(!valid())return;
+    const before=new Map(job.data),next=new Map([...before].filter(([,entry])=>entry.blob));
+    if(record&&(record.id!==job.id||record.voice!==job.voice||JSON.stringify(record.chunks)!==JSON.stringify(job.chunks)))throw Error("Saved audio identity does not match this reading.");
+    if(record&&!job.status)super.observe(job.id,record.status);
+    if(job.invalid)return;
+    const status=job.status;let damaged=false;
+    for(const meta of record?status?.sections||[]:[]) {
+      if(!valid()||job.status!==status)return;
+      const entry=await store.section(job.id,meta.index);
+      if(!entry)continue;
       try {
-        await this.verify(entry, meta);
-        if (job.controller.signal.aborted || store !== this.store || epoch !== (job.localEpoch || 0) || this.revoking.has(job.id)) return;
-        job.data.set(meta.index, this.metadata(entry));
-        this.remember(job.id, meta.index, entry);
-      } catch {
-        job.data.delete(meta.index);
-        job.storageError = "A saved section could not be verified. Reconnect and retry the download.";
-      }
+        await this.verify(entry,meta);if(!valid()||job.status!==status)return;
+        next.set(meta.index,this.metadata(entry));this.remember(job.id,meta.index,entry);
+      }catch{damaged=true;}
     }
-    this.onChange();
+    if(!valid()||job.status!==status)return;
+    // Foreground downloads/removals can finish while verification awaits disk.
+    // Do not overwrite their newer verified state with our older snapshot.
+    for(const [index,entry]of before)if(!job.data.has(index))next.delete(index);
+    for(const [index,entry]of job.data)if(entry!==before.get(index)&&status?.sections?.[index]&&matches(entry,status.sections[index]))next.set(index,entry);
+    const changed=job.data.size!==next.size||[...next].some(([index,entry])=>{const old=job.data.get(index);return !old||!matches(old,entry)||!!old.blob!==!!entry.blob;});
+    job.data=next;
+    const integrityError="A saved section could not be verified. Reconnect and retry the download.";
+    const oldError=job.storageError;
+    if(damaged)job.storageError=integrityError;else if(oldError===integrityError)job.storageError="";
+    if(changed||job.storageError!==oldError)this.onChange();
   }
   observe(id, status) {
     super.observe(id, status);
@@ -386,14 +397,22 @@ export class PersistentReadingAssets extends ReadingAssets {
     this.manifestReady = false;
     this.onChange();
   }
-  async recheck() {
-    for (const job of this.jobs.values()) if (this.saved(job.id)) {
-      await this.hydrate(job).catch((e) => {
-        job.storageError = e.message;
-        job.data.clear();
-      });
-      this.onChange();
-    }
+  recheck() {
+    const store=this.store;
+    if(this.rechecking?.store===store)return this.rechecking.promise;
+    const operation=(async()=>{
+      for(const job of [...this.jobs.values()])if(this.saved(job.id)) {
+        const epoch=job.localEpoch||0;
+        await this.hydrate(job).catch(error=>{
+          if(store!==this.store||job.controller.signal.aborted||epoch!==(job.localEpoch||0)||this.revoking.has(job.id)||!this.saved(job.id))return;
+          job.storageError=error.message;job.data.clear();this.onChange();
+        });
+        if(store!==this.store)return;
+      }
+    })();
+    const checking={store,promise:operation};this.rechecking=checking;
+    void operation.finally(()=>{if(this.rechecking===checking)this.rechecking=null;}).catch(()=>{});
+    return operation;
   }
   retry() {
     for (const job of this.jobs.values()) {
