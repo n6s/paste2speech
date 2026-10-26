@@ -54,10 +54,11 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
    const retryOf=retryOffer?.source===text&&retryOffer.target===language&&retryOffer.scope===scope?retryOffer.id:null;if(retryOf)ids.set(key,crypto.randomUUID());retryOffer=null;checkingExisting=true;
    status('Translating the complete source…');
    const response=await fetcher('/api/translation',{method:'POST',signal,headers:{'Content-Type':'application/json','Idempotency-Key':ids.get(key)},body:JSON.stringify({text,target:language,scope,priceCreditsPer1000:quotedRate,requestId:ids.get(key),...(retryOf?{retryOf}:{})})});
-   const value=await response.json();if(n!==epoch||signal.aborted||sourceText()!==text)return;
+   const value=await response.json();window.dispatchEvent(new Event('speech-credit-change'));if(n!==epoch||signal.aborted||sourceText()!==text)return;
    if(value.pending||response.status===202){status(value.detail||'Translation is still processing. Check the same request again; no second translation is started.');return;}
    if(!response.ok){if(value.retryEligible&&value.id){retryOffer={source:text,target:language,scope,id:value.id};checkingExisting=false;}throw Error(value.detail||'Translation could not be confirmed. No automatic retry was made.');}
    if(typeof value.text!=='string'||!value.text.trim()||value.target!==language)throw Error('A complete translation was not returned. Your original is unchanged.');
+   await availability();if(n!==epoch||signal.aborted)return;if(scope!==quotedScope||sourceText()!==text)throw Error('Your account changed while translation finished. Reopen it from the original account; your text is unchanged.');
    checkingExisting=false;const saved={text:value.text,target:language,source:text};cache.set(key,saved);while(cache.size>3)cache.delete(cache.keys().next().value);showResult(saved);
   }catch(e){if(n===epoch)status(e.name==='AbortError'?'Request interrupted. Your original is unchanged.':e.message);}
   finally{if(n===epoch){busy=false;controller=null;update();}}
