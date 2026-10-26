@@ -16,9 +16,10 @@ const textActionRequests=paths=>paths.filter(path=>!['/favicon.svg','/favicon.ic
 const checks=[];
 try{
  for(const configuration of ['available','unavailable','retail']){
+  console.log('Clipboard configuration:',configuration,isPublic?'public':'staging');
   const startupUnavailable=configuration==='unavailable',retail=configuration==='retail';
   const context=await browser.newContext({viewport:{width:390,height:844},isMobile:true,hasTouch:true});
-  const page=await context.newPage(),requests=[],paid=[],external=[],errors=[];let blocked=startupUnavailable;
+  const page=await context.newPage();page.setDefaultTimeout(30000);page.setDefaultNavigationTimeout(30000);const requests=[],paid=[],external=[],errors=[];let blocked=startupUnavailable;
   page.on('pageerror',error=>errors.push(error.message));
   page.on('request',request=>{const path=new URL(request.url()).pathname;requests.push(path);if(request.method()==='POST'&&/^\/api\/(readings|speech|ocr|summary)$/.test(path))paid.push(path);});
   await page.route('**/*',route=>{const url=new URL(route.request().url());if(url.origin!==origin){external.push(url.origin);return route.abort();}if(!blocked&&durable&&retail&&url.pathname==='/api/ocr/jobs/config')return route.fulfill({json:{durable:true,enabled:true,model:'mistral-ocr-4-1',maxBytes:50000000,maxPages:1000,unitsPerPage:2000,consentScope:'synthetic-owner',consentPolicy:'mistral-temporary-original-2-credit-v2-bounded3',balance:{balance:1000000,held:0,debt:0,walletVersion:'unified-v1'},costNotice:'Synthetic only.'}});if(!blocked&&durable&&retail&&url.pathname==='/api/ocr/jobs/recent')return route.fulfill({json:{jobs:[],balance:{balance:1000000,held:0,debt:0,walletVersion:'unified-v1'}}});if(url.pathname.startsWith('/api/'))return blocked?route.abort('internetdisconnected'):route.fulfill({json:url.pathname==='/api/reader'?{eligible:true,accessAllowed:true,account:{balance:1000000}}:retail?{available:true,retail:true,enabled:true,balance:{balance:500,held:0,spent:0,debt:0}}:{available:false}});return route.continue();});
@@ -45,11 +46,11 @@ try{
    };
   });
   await page.goto(origin);await page.locator('#voice-settings').evaluate(el=>el.open=true);await page.locator('#engine').selectOption('browser');
-  if(retail)await page.waitForFunction(durable=>document.querySelector('#document-ocr-balance').textContent.includes(durable?'500 scanned pages':'500 OCR pages'),durable);blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
+  if(retail)await page.waitForFunction(durable=>document.querySelector('#document-ocr-balance').textContent.includes(durable?'500 scanned pages':'500 OCR pages'),durable,{timeout:30000});blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
   const checkpoint=requests.length;
   const select=async(text,start=text.length,end=start)=>{if(await page.locator('#stop').isEnabled())await page.locator('#stop').click();await page.locator('#edit-mode').click();await page.locator('#text').fill(text);await page.locator('#text').focus();await page.locator('#text').evaluate((el,{start,end})=>el.setSelectionRange(start,end,'backward'),{start,end});};
   const settled=()=>page.waitForFunction(()=>!document.querySelector('#paste').disabled&&!document.querySelector('#paste-play').disabled);
-  for(const button of ['#paste','#paste-play']){
+  for(const button of ['#paste','#paste-play']){console.log('Clipboard action:',configuration,button);
    for(const mode of ['rich','absent','unsupported','failure','empty','blank','unknown','representation']){
     await select('Before selected after',7,15);await page.evaluate(mode=>installClipboard(mode),mode);
     const speechBefore=await page.evaluate(()=>spoken.length),actionCheckpoint=requests.length;

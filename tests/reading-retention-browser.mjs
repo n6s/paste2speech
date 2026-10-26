@@ -2,7 +2,7 @@ import { chromium } from "playwright";
 import { createServer } from "node:http";
 import { readFile, writeFile, mkdir } from "node:fs/promises";
 import assert from "node:assert/strict";
-const root = "work/private-reader/site", release = JSON.parse(await readFile(root + "/release.json"));
+const root = process.env.READER_SITE || "work/private-reader/site", release = JSON.parse(await readFile(root + "/release.json"));
 await mkdir("work/reading-retention", { recursive: true });
 const server = createServer(async (req, res) => {
   try {

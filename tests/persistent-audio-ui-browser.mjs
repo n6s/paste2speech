@@ -7,7 +7,7 @@ import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { execFileSync } from "node:child_process";
 import { inspectMp3 } from "../cloudflare/prepared/mp3.js";
-const root = "work/private-reader/site", out = "work/persistent-audio/ui";
+const root = process.env.READER_SITE || "work/private-reader/site", out = "work/persistent-audio/ui";
 await mkdir(out, { recursive: true });
 const audio = await readFile("tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3"), meta = inspectMp3(audio), sha256 = createHash("sha256").update(audio).digest("hex"), jobs = /* @__PURE__ */ new Map();
 let preparing = false, available = 2;

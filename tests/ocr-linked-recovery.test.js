@@ -36,3 +36,14 @@ test('additive retry migration preserves every existing table row and passes for
  const names=f.sql.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(x=>x.name),snapshot=()=>Object.fromEntries(names.map(n=>[n,f.sql.prepare('SELECT * FROM '+n).all().map(x=>JSON.stringify(x)).sort()])),before=snapshot();
  f.sql.exec(readFileSync('cloudflare/reader/staging-migrations/0015_ocr_deliberate_retry.sql','utf8'));assert.deepEqual(snapshot(),before);assert.equal(f.sql.prepare('PRAGMA integrity_check').get().integrity_check,'ok');assert.deepEqual(f.sql.prepare('PRAGMA foreign_key_check').all(),[]);
 });
+
+test('public reviewed release permits only safe refunded retry; trial and unapproved public stay excluded', async()=>{
+ for(const [mode,approved,allowed] of [['production-public',true,true],['production-public',false,false],['production-trial',true,false]]){
+  const f=await rejected(422);Object.assign(f.env,{READER_MODE:mode,REVIEWED_READER_LIVE_APPROVED:approved?'1':'0',UNIFIED_LIVE_APPROVED:'1',UNIFIED_CREDITS:'1'});
+  assert.equal(f.job.terminalRetry(await f.job.owned('a'),await f.row(),await f.job.source.read()),allowed);
+ }
+});
+test('public retry migration matches staging admission rules',()=>{
+ const body=p=>readFileSync(p,'utf8').split('\n').filter(line=>!line.startsWith('--')).join('\n');
+ assert.equal(body('cloudflare/reader/migrations/0024_ocr_deliberate_retry.sql'),body('cloudflare/reader/staging-migrations/0015_ocr_deliberate_retry.sql'));
+});
