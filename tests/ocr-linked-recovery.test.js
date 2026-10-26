@@ -7,3 +7,32 @@ test('known pre-network receipt gets immutable no-contact proof; same whole sour
 });
 test('network/HTTP uncertainty, foreign account and used or missing source evidence cannot authorize another call',async()=>{for(const kind of ['current-network','current-http','used-link','missing-source']){const f=kind.startsWith('current')?await jobFixture(1):await failedLegacy();if(kind.startsWith('current')){await f.start();await f.accept();f.provider=async()=>{if(kind==='current-network')throw Error('Unknown network acceptance');return new Response('{}',{status:504});};await f.job.alarm();}if(kind==='used-link'){const source=await f.ctx.storage.get('source');source.capabilityUsed=f.clock;await f.ctx.storage.put('source',source);}if(kind==='missing-source')f.metadata.delete('source');assert.equal((await f.request('/reconcile',{})).status,409,kind);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_job_recovery_authorizations').get().n,0);assert.equal((await f.row()).consumed,0);}const f=await failedLegacy();assert.equal((await f.job.fetch(new Request('https://internal/reconcile',{method:'POST',headers:{'X-Ocr-Owner':'b'},body:'{}'}))).status,503);});
 test('future confirmed failure before request can recover; SQL rejects changed source, price, model or duplicate lineage',async()=>{const f=await jobFixture(1);await f.start();await f.accept();f.loseAck('UPDATE ocr_jobs SET dispatched=');await f.job.alarm();assert.equal(f.calls,0);assert.equal((await f.request('/reconcile',{})).status,200);const old=await f.row(),ledger=new OcrJobLedger(f.env,()=>f.clock+1);for(const kind of ['hash','pages','foreign']){const id=crypto.randomUUID();await ledger.createUpload({id,account:kind==='foreign'?'b':'a',mime:'application/pdf',bytes:16,name:'mock'});await ledger.verify(id,kind==='foreign'?'b':'a',kind==='hash'?'f'.repeat(64):old.document_hash,kind==='pages'?2:1);await assert.rejects(ledger.admit(id,kind==='foreign'?'b':'a',OCR_JOB_STANDARD_PERMIT,old.id),kind);await ledger.cancel(id,kind==='foreign'?'b':'a');}assert.deepEqual(await f.row(),old);assert.equal((await ledger.balance('a')).balance,2001);});
+
+async function rejected(status=400){const f=await jobFixture(1);f.actors=new Map([[f.id,f.job]]);f.env.OCR_JOBS={idFromName:x=>x,get:id=>({fetch:(url,opts)=>f.actors.get(id).fetch(new Request(url,opts))})};await f.start();await f.accept();f.provider=async()=>Response.json({message:'Failed to fetch source'},{status});await f.job.alarm();return f;}
+async function replacement(f){const child=await jobFixture(1,{shared:f});child.bytes=f.bytes;child.mime=f.mime;f.actors.set(child.id,child.job);const q=await child.start();child.retry=()=>child.request('/accept',{consent:true,consentPolicy:'mistral-temporary-original-2-credit-v2-bounded3',consentScope:'a',pages:1,priceCredits:2,retryOf:f.id});return {child,q};}
+test('terminal refunded rejection offers deliberate priced retry, preserving old receipt and one child admission',async()=>{
+ const f=await rejected(),old=await f.row(),oldEvents=events(f),{child,q}=await replacement(f);
+ assert.equal(q.prior.retryAvailable,true);assert.equal(q.prior.recoveryAllowed,false);assert.equal(child.calls,0);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_job_retry_authorizations').get().n,0);
+ assert.equal((await child.accept()).status,409);assert.equal(await child.row(),null);
+ const results=await Promise.all([child.retry(),child.retry()]);assert.ok(results.every(x=>x.status===202));
+ assert.equal((await child.row()).recovery_of,f.id);assert.equal((await child.job.status(await child.job.owned('a'))).previousJobId,f.id);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_jobs WHERE recovery_of=?').get(f.id).n,1);
+ assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_job_retry_authorizations').get().n,1);
+ assert.deepEqual(await f.row(),old);assert.ok(oldEvents.every(x=>events(f).some(y=>JSON.stringify(y)===JSON.stringify(x))));
+ await child.job.alarm();assert.equal(child.calls,1);assert.equal((await child.row()).state,'ready');assert.equal((await child.job.ledger.balance('a')).balance,1);
+ assert.equal((await child.retry()).status,200);assert.equal(child.calls,1);
+ assert.throws(()=>f.sql.exec('UPDATE ocr_job_retry_authorizations SET provider_status=422'));assert.throws(()=>f.sql.exec('DELETE FROM ocr_job_retry_authorizations'));
+});
+test('competing uploads get at most one replacement; active and ambiguous outcomes never authorize retry',async()=>{
+ const f=await rejected(),a=await replacement(f);assert.equal(a.q.prior.retryAvailable,true);await assert.rejects(replacement(f),/Init failed/);
+ assert.equal((await a.child.retry()).status,202);assert.equal(f.sql.prepare('SELECT COUNT(*) n FROM ocr_jobs WHERE recovery_of=?').get(f.id).n,1);assert.equal(f.sql.prepare("SELECT COUNT(*) n FROM ocr_job_events WHERE kind='hold'").get().n,2);
+ for(const code of [408,409,429,500,504]){const g=await rejected(code);assert.equal((await(await g.request('/status',undefined,'GET')).json()).deliberateRetryAllowed,false);assert.equal((await g.request('/reconcile',{retry:true})).status,409);}
+ const g=await jobFixture(1);await g.start();await g.accept();assert.equal((await g.request('/reconcile',{retry:true})).status,409);
+});
+
+test('additive retry migration preserves every existing table row and passes foreign-key/integrity checks',async()=>{
+ const f=await jobFixture(1,{skipDeliberateRetryMigration:true});await f.start();await f.accept();f.provider=async()=>Response.json({message:'Synthetic rejection'},{status:400});await f.job.alarm();
+ const names=f.sql.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%' ORDER BY name").all().map(x=>x.name),snapshot=()=>Object.fromEntries(names.map(n=>[n,f.sql.prepare('SELECT * FROM '+n).all().map(x=>JSON.stringify(x)).sort()])),before=snapshot();
+ f.sql.exec(readFileSync('cloudflare/reader/staging-migrations/0015_ocr_deliberate_retry.sql','utf8'));assert.deepEqual(snapshot(),before);assert.equal(f.sql.prepare('PRAGMA integrity_check').get().integrity_check,'ok');assert.deepEqual(f.sql.prepare('PRAGMA foreign_key_check').all(),[]);
+});
