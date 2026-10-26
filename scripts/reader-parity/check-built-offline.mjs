@@ -34,7 +34,8 @@ try{for(const [environment,root] of Object.entries({staging:'work/private-reader
  await page.locator('#voice-settings').evaluate(el=>el.open=true);await page.locator('#engine').selectOption('google');
  await page.locator('#text').fill(text);await page.locator('#play').click();
  await page.waitForFunction(()=>__audio.some(a=>a.currentTime>.1));
- assert.match(await page.locator('#offline-progress').textContent(),/Downloading/,'Playback must precede whole-reading readiness');
+ assert.doesNotMatch(await page.locator('#offline-progress').textContent(),/^Ready/,'Playback must precede whole-reading readiness');
+ assert.ok(hold&&active>0&&sectionGets.some(i=>i>=3),'Later audio requests must still be held while playback advances');
  hold=false;releaseHeld();await page.waitForFunction(()=>document.querySelector('#offline-progress').textContent.startsWith('Ready for offline listening'));
  assert.equal(posts.length,1);assert.equal(sectionGets.length,90);assert.equal(new Set(sectionGets).size,90);assert.ok(peak<=3,`Concurrency ${peak}`);
  await page.locator('#pause').click();blocked=true;await context.setOffline(true);assert.equal(await page.evaluate(()=>navigator.onLine),false);
