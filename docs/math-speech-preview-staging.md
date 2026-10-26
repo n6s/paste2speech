@@ -2,8 +2,8 @@
 
 On staging, new readings convert explicit math locally before Read mode and Play.
 The editable original and exports remain unchanged. Older saved audio keeps its
-original wording. Open Text cleanup, then Math wording preview, to inspect or
-copy wording without starting speech. No OCR or provider call is made by preview.
+original wording. Use Read mode to inspect the spoken prose before pressing Play. The separate
+preview panel has been removed. No provider call is made by entering Read mode.
 
 The preview uses official pinned MathJax 4.1.3 TeX-to-MathML and Speech Rule Engine
 4.1.5 ClearSpeak English. MathJax parses the math; no custom algebra parser,

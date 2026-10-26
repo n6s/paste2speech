@@ -1,5 +1,4 @@
 import {createMathSpeechCache} from './math-speech-conversion.js';
-import {setupMathSpeechPreview} from './math-speech-ui.js';
 import {setupDeviceAudio} from './device-audio-ui.js';
 import {inputActionCopy} from './input-copy.js';
 import {clipboardPayload} from './clipboard-payload.js';
@@ -33,7 +32,7 @@ if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 const sectionProgress=SECTION_PROGRESS?setupSectionProgress(undefined,{compact:STAGING_READER_LAYOUT}):null;
 if(STAGING_READER_LAYOUT){setupStagingReaderLayout();setupProcessingIndicator();}
-let summaryMode=null,mathSpeechPreview=null;
+let summaryMode=null;
 let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
@@ -181,7 +180,7 @@ function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepi
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   const diagnosticStarted=pasteDiagnostics?.mark('preview-editor', $('text').value);
-  summaryMode?.sourceChanged();mathSpeechPreview?.sourceChanged();
+  summaryMode?.sourceChanged();
   previewedText = $('text').value;
   cleaned = cleanText((MATH_SPEECH_PREVIEW&&activeSpeechTextVersion>=5?mathSpeechCache.ready(previewedText,options.math===true)?.text:null)??previewedText, options, {proseSymbols:activeSpeechTextVersion>=2,urlLabels:activeSpeechTextVersion>=3,expanded:activeSpeechTextVersion>=4});
   if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
@@ -445,7 +444,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   if(key==='math'&&!DOCUMENT_IMPORT)continue;
   const wrapper = document.createElement('label'); const input = document.createElement('input');
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;if(key==='math'){input.title='Skip balanced LaTeX delimiters and math environments in playback. Original document exports are kept.';}
-  input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; mathSpeechPreview?.optionsChanged();save(); preview(); });
+  input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked;save(); preview(); });
   const actionLabel={markdown:'Remove Markdown formatting',citations:'Skip citation markers and footnotes',urls:'Skip web addresses',code:'Skip code blocks',tables:'Skip tables',emoji:'Skip emoji',joinLines:'Join broken lines',math:'Skip math notation'}[key];if(STAGING_READER_LAYOUT)input.setAttribute('aria-label',actionLabel);wrapper.append(input,STAGING_READER_LAYOUT?actionLabel:label);$('options').append(wrapper);
   if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);(STAGING_READER_LAYOUT?$('cleanup-info-details')||$('options'):$('options')).append(note);}
 }
@@ -916,5 +915,3 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();
  }
 });
-
-if(MATH_SPEECH_PREVIEW)mathSpeechPreview=setupMathSpeechPreview({getText:()=>$('text').value,getSkip:()=>options.math===true,onResult:async result=>{if(activeSpeechTextVersion<5)return;mathSpeechCache.seed($('text').value,options.math===true,result.text);preview();}});
