@@ -209,9 +209,9 @@ function cleanInline(text, options, decode = true) {
     .replace(/【[^】]*(?:†|turn\d|source)[^】]*】/gi, '')
     .replace(/\[\^\d+\](?::[^\n]*)?/g, '')
     .replace(/\b(?:turn\d+(?:search|view|fetch|file|news)\d+)\b/g, '');
-  if (options.markdown || options.urls) text = text.replace(/!?\[((?:\[[^\[\]\r\n]*\]|[^\[\]\r\n])*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
+  if (options.markdown || options.urls) text = text.replace(options.urlLabels===false?/!?\[([^\]]*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g:/!?\[((?:\[[^\[\]\r\n]*\]|[^\[\]\r\n])*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
     (_, label, url) => options.urls ? linkLabel(label) : `${label} (${url})`);
-  if(options.markdown&&options.urls)text=text.replace(/!?(\[([^\]]+)\])\[[^\]]*\]/g,(_,token,label)=>linkLabel(label));
+  if(options.markdown&&options.urls&&options.urlLabels!==false)text=text.replace(/!?(\[([^\]]+)\])\[[^\]]*\]/g,(_,token,label)=>linkLabel(label));
   if (options.urls) text = text.replace(/(?:https?:\/\/|www\.)[^\s<>\uE200-\uE202]+/gi, '').replace(/<\s*>/g, '');
   if (options.markdown) text = text
     .replace(/^ {0,3}>[ \t]?/gm, '')

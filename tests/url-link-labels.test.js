@@ -27,3 +27,7 @@ test('ChatGPT named references, reference-style Markdown and surrounding punctua
 });
 
 test('saved speech-text version compatibility retains the former URL treatment',()=>{assert.equal(cleanText('Before [https://example.com/path](https://example.com/path) after.',defaults,{urlLabels:false}),'Before after.');});
+
+test('legacy IPv6 labels retain the former parser result to match existing paid audio',()=>{assert.equal(cleanText('See [https://[2001:db8::1]:8443/a](https://destination.example/path), then continue.',defaults,{urlLabels:false,expanded:false}),'See [ then continue.');});
+
+test('legacy reference-style URL labels keep their former speech identity',()=>{assert.equal(cleanText('See [www.example.com/path][site]! next.',defaults,{urlLabels:false,expanded:false}),'See [ next.');});
