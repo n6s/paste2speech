@@ -40,7 +40,7 @@ for(const variant of ['staging','public']){
  if(settings.vars.SPEECH_SECTION_RECOVERY==='1')execFileSync('node',['tests/speech-section-recovery-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant}});
 }
 execFileSync('node',['tests/device-audio-public-browser.mjs'],{stdio:'inherit'});
-for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
+for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
 if(readdirSync(site+'/samples').length)throw Error('Test audio must not ship');

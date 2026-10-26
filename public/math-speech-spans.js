@@ -2,10 +2,19 @@ import {mathSpans,mathCodeRanges} from './math-notation.js';
 export const MATH_PREVIEW_LIMITS=Object.freeze({source:100000,formulas:64,tex:2048,mathml:8192,nodes:512,depth:32,timeout:8000});
 export function explicitMathSpans(text){
  if(typeof text!=='string'||text.length>MATH_PREVIEW_LIMITS.source)throw Error('Math wording preview accepts at most 100,000 source characters. Your original is unchanged.');
- const code=mathCodeRanges(text),spans=mathSpans(text,{polynomial:true}).filter(span=>{
+ const code=mathCodeRanges(text),spans=mathSpans(text,{polynomial:true,indented:true}).filter(span=>{
   const raw=text.slice(span.start,span.end);
   return !(raw.startsWith('$')&&!raw.startsWith('$$')&&/^\d/.test(raw.slice(1))&&/^\d/.test(text.slice(span.end)));
  }).map(span=>{const raw=text.slice(span.start,span.end);let body=raw;if(raw.startsWith('$$'))body=raw.slice(2,-2);else if(raw.startsWith('$'))body=raw.slice(1,-1);else if(raw.startsWith('\\(')||raw.startsWith('\\['))body=raw.slice(2,-2);return {...span,kind:'tex',body};});
+ // Some plain-text clipboard serializers double the explicit delimiter backslash.
+ // Accept only a balanced pair containing mathematical syntax, outside literal code.
+ for(const match of text.matchAll(/\\\\\(([\s\S]*?)\\\\\)/g)){
+  const start=match.index,end=start+match[0].length;
+  if(text[start-1]==='\\'||text[end]==='\\'||code.some(r=>r.kind!=='indent'&&r.start<end&&r.end>start)||spans.some(s=>s.start<end&&s.end>start))continue;
+  const body=match[1].replace(/\\\\(?=[A-Za-z])/g,'\\');
+  if(!/[_^=+*/<>]|\\[A-Za-z]+/.test(body)||!mathSpans('\\('+body+'\\)',{polynomial:true,indented:true}).length)continue;
+  spans.push({start,end,kind:'tex',body,display:false});
+ }
  for(const match of text.matchAll(/<math\b[^>]*>[\s\S]*?<\/math\s*>/gi)){
   const start=match.index,end=start+match[0].length;if(code.some(r=>r.start<end&&r.end>start&&(r.kind!=='url'||r.start<=start))||spans.some(s=>s.start<end&&s.end>start))continue;
   spans.push({start,end,kind:'mathml',body:match[0],display:/display\s*=\s*["']block/.test(match[0])});

@@ -21,9 +21,9 @@ function environmentEnd(text,start){
  for(let match;(match=pattern.exec(text));){if(escaped(text,match.index))continue;if(match[1]==='begin')stack.push(match[2]);else if(stack.pop()!==match[2])return -1;if(!stack.length)return pattern.lastIndex;}
  return -1;
 }
-export function mathSpans(text,{polynomial=false}={}){
+export function mathSpans(text,{polynomial=false,indented=false}={}){
  if(!text.includes('$')&&!text.includes('\\(')&&!text.includes('\\[')&&!text.includes('\\begin{'))return [];
- const ranges=mathCodeRanges(text),spans=[];let rangeIndex=0;
+ const ranges=mathCodeRanges(text).filter(range=>!indented||range.kind!=='indent'),spans=[];let rangeIndex=0;
  for(let i=0;i<text.length;){
   while(rangeIndex<ranges.length&&ranges[rangeIndex].end<=i)rangeIndex++;
   if(ranges[rangeIndex]?.start<=i){i=Math.max(i+1,ranges[rangeIndex].end);continue;}

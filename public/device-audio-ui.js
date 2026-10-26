@@ -3,7 +3,7 @@ import { DeviceAudioStore, digest } from "./device-audio-store.js";
 import { splitReadingChunks } from "./playlist-plan.js";
 import { removalReason, RetentionClock } from "./reading-retention.js";
 import { ReadingProtection } from "./reading-protection.js";
-function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => "google", getText, getChunks = () => [], snapshot, apply, matches = () => true, refresh = () => {
+function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => "google", getText, getChunks = () => [], prepare = async()=>{}, snapshot, apply, matches = () => true, refresh = () => {
 }, getQueue = () => null, renderQueue = () => {}, playSaved = () => {}, loadQueued = () => {
 }, regenerate = () => {
 } }) {
@@ -238,6 +238,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   async function rememberCurrent({createdAt,id:entryId,activate=true,valid=()=>true,queueIntent=null,consume=true}={}) {
     const request=serial,callerValid=valid,text=getText();valid=()=>request===serial&&getText()===text&&callerValid();
     await flush();
+    await prepare();if(!valid())return;
     const options = snapshot(), engine = getEngine(), chunks = [...getChunks()], voice = options.voice, target = store();
     if (!["browser", "google"].includes(engine) || !chunks.length) throw Error("This reading has no text to bookmark.");
     if (engine === "google" && !assets.scope) throw Error("Confirm your account before loading a queued Natural reading. No speech was started.");

@@ -59,3 +59,11 @@ References:
 https://docs.mathjax.org/en/latest/advanced/build/custom.html
 https://github.com/Speech-Rule-Engine/speech-rule-engine
 https://docs.mathjax.org/en/latest/options/input/tex.html
+
+## Reader integration follow-up
+
+New staging readings use speech-text version 5. Entering Read mode or pressing Play prepares explicit math wording locally before constructing the shared displayed/submitted chunks. Edit retains the original. Prepared wording is stored with new reading metadata so reload/offline recovery does not require loading the optional engine or changing the paid audio identity. Older saved readings retain their prior speech-text version and audio.
+
+The explicit formula parser also accepts indented formulas outside fenced/inline code and balanced doubled-backslash clipboard parentheses containing math syntax. It does not decode arbitrary escaped prose. The exact bytes of Roger's original failing clipboard sample were not available; these are independently reproduced variants, not proof of which variant he used. Currency remains literal.
+
+Conversion is bounded and fails without starting speech on engine failure. Pause, Stop, editing and stale-source checks supersede pending playback intent. No live provider calls are used by the reader parity regression.
