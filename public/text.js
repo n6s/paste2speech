@@ -26,8 +26,8 @@ function tableCells(line) {
   return cells;
 }
 
-function blocks(text, proseSymbols = true) {
-  const listStart = proseSymbols ? symbolListStart : line => /^( *)([-+*]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
+function blocks(text, proseSymbols = true, expanded = false) {
+  const listStart = proseSymbols ? expanded ? line => /^( *)([-+*]|(?:[▸▹►▻▶▷][\uFE0E\uFE0F]?)+|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line) : symbolListStart : line => /^( *)([-+*]|\d+[.)]|[A-Z]\))([ \t\u00a0]+)(\S.*)$/.exec(line);
   const lines = text.split('\n'); const result = [];
   const push = (type, start, end, extra = {}) => result.push({type, text: lines.slice(start, end).join('\n'), ...extra});
   for (let i = 0; i < lines.length;) {
@@ -48,9 +48,9 @@ function blocks(text, proseSymbols = true) {
       let end = i + 2;
       while (end < lines.length && lines[end].trim() && lines[end].includes('|')) end++;
       const rows = [line, ...lines.slice(i + 2, end)].map(tableCells);
-      const valid = rows.every(row => row && row.length === separator.length);
+      const valid = rows.every(row => row && (expanded || row.length === separator.length)) && rows[0]?.length === separator.length;
       const emptyLayout = valid && rows.every(row => row.every(cell => !decodeEntityText(cell).trim()));
-      if (emptyLayout || separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
+      if (emptyLayout || (expanded && valid && separator.length > 1) || separator.every(cell => /^:?-{3,}:?$/.test(cell))) {
         i = end;
         push('table', start, i, {rows: valid ? rows : null, emptyLayout}); continue;
       }
@@ -77,12 +77,12 @@ function blocks(text, proseSymbols = true) {
   return result;
 }
 
-export function cleanText(input, options = defaults, {proseSymbols=true,urlLabels=true}={}) {
+export function cleanText(input, options = defaults, {proseSymbols=true,urlLabels=true,expanded=true}={}) {
   const text = input.replace(/\r\n?/g, '\n');
   if (!Object.values(options).some(Boolean)) return text;
-  options={...options,proseSymbols,urlLabels};
+  options={...options,proseSymbols,urlLabels,expanded};
   const math=transformMath(text,options.math===true);
-  const rendered = blocks(math.text, proseSymbols).flatMap(block => {
+  const rendered = blocks(math.text, proseSymbols, expanded).flatMap(block => {
     const separate = value => options.markdown || options.joinLines ? '\n' + value + '\n' : value;
     if (block.type === 'code') return options.code ? '\n' : ['\n', {literal: options.markdown ? block.body : block.text}, '\n'];
     if (block.type === 'table') {
@@ -92,10 +92,14 @@ export function cleanText(input, options = defaults, {proseSymbols=true,urlLabel
       if (!options.markdown) return separate(cleanInline(block.text, options));
       return separate(block.rows.map(row => row.map(cell => cleanInline(cell, options)).join('; ')).join('\n\n'));
     }
-    let value = cleanInline(options.markdown && block.body !== undefined ? block.body : block.text, {...options, emoji: false});
+    let source=options.markdown&&block.body!==undefined?block.body:block.text;
+    // HTML-to-Markdown preserves literal punctuation with escapes. Only trim
+    // decorative edge wrappers inside an already structural heading.
+    if(expanded&&options.markdown&&block.type==='heading')source=source.replace(/^(?:\\\*)+[ \t]*(?:\\#[ \t]+)?([\s\S]+?)[ \t]*(?:\\\*)+$/,'$1').replace(/^\\#[ \t]+/,'');
+    let value = cleanInline(source, {...options, emoji: false});
     if (options.joinLines && (block.type === 'prose' || block.type === 'list')) value = joinProseLines(value, block.type === 'prose');
     // Preserve emoji as a heading cue before applying the removal preference.
-    if (options.emoji) value = cleanInline(value, {emoji: true}, false);
+    if (options.emoji) value = cleanInline(value, {emoji: true,expanded:options.expanded}, false);
     return block.type === 'prose' ? value : separate(value);
   });
   // Normalize layout around blocks without ever normalizing the contents of code.
@@ -215,8 +219,8 @@ function cleanInline(text, options, decode = true) {
     .replace(/!?(\[([^\]]+)\])\[[^\]]*\]/g, '$2')
     .replace(/^\s*\[[^\]]+\]:\s+.*$/gm, '')
     .replace(/(`+)([^`]+)\1/g, '$2')
-    .replace(/(\*\*|__|~~)([\s\S]+?)\1/g, '$2')
-    .replace(/(^|\s)[*_]([^\n*_]+)[*_](?=\s|[.,!?;:]|$)/g, '$1$2');
+    .replace(/(\*\*|__|~~)([\s\S]+?)\1/g, (token,mark,body,offset,whole)=>options.expanded&&mark==='**'&&/^\s+[\p{L}\p{N}]+\s+$/u.test(body)&&/(?:^|\s)(?:[+-]?\p{N}+(?:\.\p{N}+)?|\p{L})\s*$/u.test(whole.slice(0,offset))&&/^\s*(?:[+-]?\p{N}+(?:\.\p{N}+)?|\p{L})(?:\s|$)/u.test(whole.slice(offset+token.length))?token:body)
+    .replace(options.expanded?/(^|\s)[*_]([^\s*_](?:[^\n*_]*[^\s*_])?)[*_](?=\s|[.,!?;:]|$)/g:/(^|\s)[*_]([^\n*_]+)[*_](?=\s|[.,!?;:]|$)/g, '$1$2');
   if (options.markdown) {
     // Skip URLs and path-like tokens; the tilde must introduce a prose number.
     text = text.split(/((?:https?:\/\/|www\.)[^\s]+)/gi).map((part, index) => index % 2 ? part : proseAmounts(part).replace(
@@ -224,7 +228,13 @@ function cleanInline(text, options, decode = true) {
       '$1about '
     )).join('');
   }
-  if(options.markdown&&options.proseSymbols!==false)text=proseArrows(text);
+  if(options.markdown&&options.expanded)text=text
+    .replace(/^[ \t]*(?:\*{1,}|_{2,})[ \t]*([^\n]*[\p{L}][^\n]*?)[ \t]*(?:\*{1,}|_{2,})[ \t]*$/gmu,'$1')
+    .replace(/^ {0,3}#{1,6}[ \t\u00a0]+/gm,'').replace(/^ {0,3}#{2,6}(?=\p{L})/gmu,'');
+  if(options.markdown&&options.proseSymbols!==false)text=proseArrows(text,options.expanded);
+  if(options.emoji&&options.expanded)text=text
+    .replace(/(^|\n)[ \t]*(?:[▸▹►▻▶▷➤➜➝➞➔➡→][\uFE0E\uFE0F]?)+[ \t]+(?=[\p{L}\p{M}]{2,}[ \t]+[\p{L}\p{M}]{2,})/gu,'$1')
+    .replace(/((?:[\p{L}][\p{L}\p{M}]+[ \t]+){2})(?:[▸▹►▻▶▷][\uFE0E\uFE0F]?)+(?=[ \t]+[\p{L}][\p{L}\p{M}]+)/gu,'$1');
   text = literal.restore(text);
   if (options.emoji) text = text.replace(/(?:\p{Regional_Indicator}{2}|[0-9#*]\uFE0F?\u20E3|\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?(?:\u200D\p{Extended_Pictographic}(?:\uFE0F|\p{Emoji_Modifier})?)*)/gu, '');
   return text.replace(/[\t \u00a0]+/g, ' ').replace(/ *\n */g, '\n').replace(/\n{3,}/g, '\n\n').trim();

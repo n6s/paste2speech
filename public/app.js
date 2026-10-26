@@ -93,8 +93,8 @@ let selectedVoice = typeof saved.voice === 'string' ? saved.voice : '';
 let voices = [];
 let cleaned = '';
 // Existing saved chunks keep their original pronunciation and cache identity.
-// Keep saved recordings on their original speech text; version 3 shortens URL labels.
-let activeSpeechTextVersion = 3;
+// Keep saved recordings on their original speech text; version 3 shortens URL labels, version 4 expands contextual decoration/structure cleanup.
+let activeSpeechTextVersion = 4;
 let previewedText;
 let chunks = [];
 let paragraphStarts = [];
@@ -178,7 +178,7 @@ function preview() {
   const diagnosticStarted=pasteDiagnostics?.mark('preview-editor', $('text').value);
   summaryMode?.sourceChanged();
   previewedText = $('text').value;
-  cleaned = cleanText(previewedText, options, {proseSymbols:activeSpeechTextVersion>=2,urlLabels:activeSpeechTextVersion>=3});
+  cleaned = cleanText(previewedText, options, {proseSymbols:activeSpeechTextVersion>=2,urlLabels:activeSpeechTextVersion>=3,expanded:activeSpeechTextVersion>=4});
   if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
   chunks = [];
   paragraphStarts = [];
@@ -595,7 +595,7 @@ window.addEventListener('focus', reconcileRestoredText);
 document.addEventListener('visibilitychange', () => { if (!document.hidden) reconcileRestoredText(); });
 
 document.addEventListener('visibilitychange', () => { if (!document.hidden && isKokoro()) { player?.sync(); if(isWorkstation())void workstationPlayer.refresh(); } });
-function resetReading(preserveReady=false) { workstationPlayer.deviceRestoreTime=null;workstationPlayer.deviceRestoreIndex=null;if(workstationPlayer.longReadings)workstationPlayer.longReadings.localRestore=null; if(workstationPlayer.longReadings)workstationPlayer.longReadings.nextLogicalReading=null; deviceAudio?.capture();void deviceAudio?.flush();activeSpeechTextVersion=3;browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
+function resetReading(preserveReady=false) { workstationPlayer.deviceRestoreTime=null;workstationPlayer.deviceRestoreIndex=null;if(workstationPlayer.longReadings)workstationPlayer.longReadings.localRestore=null; if(workstationPlayer.longReadings)workstationPlayer.longReadings.nextLogicalReading=null; deviceAudio?.capture();void deviceAudio?.flush();activeSpeechTextVersion=4;browserPlayer?.stop(); workstationPlayer.invalidate({preserveReady,preservePreparation:PERSISTENT_AUDIO}); localPlayer.invalidate(); localKokoro.resetMetrics(); }
 if(CLOUD_READER){
   const seek=$('seek');
   seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
@@ -711,9 +711,9 @@ if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),paste
  pauseReading(){if(!intakeContext?.background&&['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){if(!intakeContext?.background){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;}disablePasteButtons(value);$('clear').disabled=false;if(!value&&!intakeContext?.background)preview();if(player)render(player);}
 });
-function inputSnapshot(){return {speechTextVersion:3,engine:$('engine').value,voice:$('voice').value,rate:Number($('rate').value),cleanup:{...options},scope:documentImport?.scope||null,libraryScope:deviceAudio?.scope||null};}
+function inputSnapshot(){return {speechTextVersion:4,engine:$('engine').value,voice:$('voice').value,rate:Number($('rate').value),cleanup:{...options},scope:documentImport?.scope||null,libraryScope:deviceAudio?.scope||null};}
 function applyInputSnapshot(snapshot){
- activeSpeechTextVersion=snapshot.speechTextVersion||3;
+ activeSpeechTextVersion=snapshot.speechTextVersion||4;
  if(snapshot.engine==='browser'&&snapshot.voice&&!speechSynthesis.getVoices().some(voice=>voice.voiceURI===snapshot.voice))throw Error('The queued browser voice is unavailable. Remove this item or select an available voice for a new item.');
  Object.assign(options,snapshot.cleanup);for(const [key,value]of Object.entries(options))if($('clean-'+key))$('clean-'+key).checked=value;
  $('engine').value=snapshot.engine;$('rate').value=String(snapshot.rate);$('rate-value').textContent=snapshot.rate+'×';

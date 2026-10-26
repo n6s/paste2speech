@@ -2,7 +2,7 @@
 import{chromium}from'playwright';import{createServer}from'node:http';import{readFile}from'node:fs/promises';import{execFileSync}from'node:child_process';import assert from'node:assert/strict';import{inspectMp3}from'../cloudflare/prepared/mp3.js';
 const server=createServer(async(req,res)=>{try{const path=new URL(req.url,'http://local').pathname.slice(1)||'index.html';res.setHeader('Content-Type',path.endsWith('.js')?'text/javascript':path.endsWith('.css')?'text/css':'text/html');res.end(await readFile('work/private-reader/site/'+path));}catch{res.writeHead(404).end();}});await new Promise(r=>server.listen(0,'127.0.0.1',r));
 const browser=await chromium.launch({executablePath:'/usr/bin/google-chrome',headless:true}),context=await browser.newContext({viewport:{width:390,height:844}}),page=await context.newPage(),origin=process.env.READER_ORIGIN||'http://127.0.0.1:'+server.address().port,posts=[],jobs=new Map(),errors=[];
-const audio=await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3'),meta=inspectMp3(audio);
+const audio=Buffer.concat(Array(20).fill(await readFile('tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3'))),meta=inspectMp3(audio);
 try{
  if(process.env.READER_ORIGIN){const token=execFileSync('cloudflared',['access','token','--app',origin],{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();await context.addCookies([{name:'CF_Authorization',value:token,url:origin,secure:true,httpOnly:true}]);}
  page.on('pageerror',e=>errors.push(e.message));

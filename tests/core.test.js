@@ -197,7 +197,8 @@ test('retained tables read rows with pauses and preserve empty cells and escaped
  assert.deepEqual(chunkText(cleanText(input, keepContent)), ['Before','Name; Status; Note','Alice; ; A|B','Bob; Ready;','After']);
  assert.equal(cleanText('A | B\n--- | ---\nx | y', keepContent), 'A; B\n\nx; y');
  const ambiguous = '| A | B |\n| --- | --- |\n| one | two | three |';
- assert.equal(cleanText(ambiguous, keepContent), ambiguous);
+ assert.equal(cleanText(ambiguous, keepContent), 'A; B\n\none; two; three');
+ assert.equal(cleanText(ambiguous, keepContent,{expanded:false}), ambiguous);
  const inlineCode = '| A | B |\n| --- | --- |\n| `x|y` | z |';
  assert.equal(cleanText(inlineCode, keepContent), inlineCode);
  assert.equal(cleanText(input, {...keepContent, markdown:false}), input.replace('Before\n','Before\n\n').replace('\nAfter','\n\nAfter'));
