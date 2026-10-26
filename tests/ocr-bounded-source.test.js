@@ -56,3 +56,47 @@ test('non-success provider outcome closes grant immediately, including active st
 test('stale client consent cannot hold credits or dispatch; fresh receipt is required for broader grant',async()=>{
  const f=await jobFixture(1);await f.start();assert.equal((await f.request('/accept',{consent:true,consentScope:'a',consentPolicy:'mistral-temporary-original-2-credit-v1',pages:1,priceCredits:2})).status,409);assert.ok(!await f.row());assert.deepEqual(events(f),[]);await f.accept();assert.equal((await f.job.ledger.consent(f.id,'a')).policy,'mistral-temporary-original-2-credit-v2-bounded3');await f.job.alarm();assert.equal((await f.job.source.read()).capabilityPolicy,'bounded-read-3-v2');assert.equal(f.calls,1);
 });
+
+test('diagnostics distinguish overlap denial from provider rejection revoking pending lookups, without paid networking',async()=>{
+ for(const overlapDenied of [false,true]){
+  const f=await setup();f.env.ASSETS={fetch:async()=>Response.json({commit:'a'.repeat(40)})};
+  const original=f.env.AUDIO.get;const releases=[],pending=[];let began=0,ready;const bothStarted=new Promise(r=>ready=r);
+  f.env.AUDIO.get=async(...args)=>{const object=await original(...args);if(!args[0].startsWith('ocr-originals/'))return object;began++;if(began===2)ready();await new Promise(r=>releases.push(r));return object;};
+  f.provider=async(_url,init)=>{
+   const token=new URL(JSON.parse(init.body).document.document_url).pathname.split('/').at(-1);
+   pending.push(f.job.source.serve(get(token)),f.job.source.serve(get(token)));await bothStarted;
+   f.clock++;
+   if(overlapDenied)assert.equal((await f.job.source.serve(get(token))).status,404);
+   f.clock++;return Response.json({message:'Failed to fetch source'},{status:400});
+  };
+  await f.job.alarm();for(const release of releases)release();
+  for(const response of await Promise.all(pending))assert.equal(response.status,404);
+  const {sourceDeliveryDiagnostics}=await import('../cloudflare/reader/ocr-source.js');
+  const diagnostic=sourceDeliveryDiagnostics(await f.job.source.read()),status=await f.job.status(await f.job.owned('a'));
+  assert.equal(f.calls,1);assert.equal(status.dispatchBuild,'a'.repeat(40));assert.ok(status.providerResponseAt>=status.providerRequestStartedAt);
+  assert.equal(status.creditsUsed,0);assert.equal(status.creditsReleased,2);
+  assert.deepEqual(diagnostic.events.filter(x=>x.kind==='denied').map(x=>x.reason),overlapDenied?['active_read_limit']:[]);
+  assert.ok(diagnostic.events.find(x=>x.kind==='access_closed').at>=status.providerResponseAt);
+  assert.ok(diagnostic.reads.every(x=>x.bytesEnqueued===0&&x.outcome==='revoked'));
+  assert.deepEqual(diagnostic.events.map(x=>x.sequence),diagnostic.events.map((_,i)=>i+1));
+  assert.ok(!JSON.stringify(diagnostic).includes('capability'));
+ }
+});
+
+test('diagnostic denials remain bounded, authenticated, persistent and keep expiry/dispatch distinctions',async()=>{
+ const {sourceDeliveryDiagnostics}=await import('../cloudflare/reader/ocr-source.js');
+ for(const mode of ['grant_expired','source_expired','dispatch_not_authorized','access_closed']){
+  const f=await setup(),g=await grant(f);
+  if(mode==='grant_expired')f.clock=g.expires;
+  if(mode==='source_expired'){await f.ctx.storage.transaction(async tx=>{const r=await tx.get('source');r.expires=f.clock;await tx.put('source',r);});}
+  if(mode==='dispatch_not_authorized')await f.job.ledger.finish(f.id,'a','uncertain');
+  if(mode==='access_closed')await f.job.source.closeProviderAccess('a');
+  for(let i=0;i<25;i++)assert.equal((await f.job.source.serve(get(g.token))).status,404);
+  const before=JSON.stringify(sourceDeliveryDiagnostics(await f.job.source.read()));
+  await f.job.source.serve(get('b'.repeat(64)));
+  assert.equal(JSON.stringify(sourceDeliveryDiagnostics(await f.job.source.read())),before);
+  const source=new Proposal(f.ctx.storage,f.env.AUDIO,f.optionsProposal),d=sourceDeliveryDiagnostics(await source.read());
+  assert.equal(d.events.length,20);assert.ok(d.eventsDropped>=5);assert.ok(d.events.filter(x=>x.kind==='denied').every(x=>x.reason===mode),mode);
+  assert.equal(d.reads.length,0);await source.revoke('a');
+ }
+});

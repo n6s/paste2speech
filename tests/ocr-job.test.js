@@ -29,3 +29,16 @@ test('mocked interrupted source plus provider rejection reports incomplete strea
  f.provider=async(_url,init)=>{const url=new URL(JSON.parse(init.body).document.document_url),token=url.pathname.split('/').at(-1);const response=await f.job.source.serve(new Request('https://internal/provider-source',{headers:{'X-Ocr-Source-Capability':token}}));await assert.rejects(response.arrayBuffer());return Response.json({error:{code:'file_download_error'}},{status:400});};
  await f.job.alarm();const status=await(await f.request('/status',undefined,'GET')).json();assert.equal(status.sourceResponse.outcome,'read_failed');assert.equal(status.sourceResponse.httpStatus,200);assert.equal(status.sourceResponse.bytesEnqueued,8);assert.equal(status.sourceResponse.streamComplete,false);assert.equal(status.providerError.category,'source_fetch_error');assert.equal(status.creditsUsed,0);assert.equal(status.creditsReleased,2);await f.job.alarm();assert.equal(f.calls,1);assert.deepEqual(kinds(f),[['hold',1],['release',1]]);
 });
+
+test('interrupted client upload never dispatches; accepted job survives client replacement and keeps server diagnostics',async()=>{
+ const f=await jobFixture(1),consent={consent:true,consentPolicy:'mistral-temporary-original-2-credit-v2-bounded3',consentScope:'a'};
+ await f.request('/init',{id:f.id,mime:f.mime,bytes:f.bytes.length,name:'synthetic.pdf',...consent});
+ const body=new ReadableStream({start(c){c.enqueue(f.bytes.slice(0,8));c.error(Error('Synthetic mobile transport interruption'));}});
+ const failed=await f.job.fetch(new Request('https://internal/upload',{method:'PUT',headers:{'X-Ocr-Owner':'a','Content-Type':f.mime},body,duplex:'half'}));
+ assert.ok(failed.status>=400);assert.equal(f.calls,0);assert.equal(await f.row(),null);assert.equal(f.objects.size,0);
+ const g=await jobFixture(1);await g.start();await g.accept();g.env.ASSETS={fetch:async()=>Response.json({commit:'c'.repeat(40)})};
+ // A new server instance models the client closing/backgrounding after acceptance.
+ g.job=new OcrJob(g.ctx,g.env,g.options);await g.job.alarm();const state=await g.job.status(await g.job.owned('a'));
+ assert.equal(state.state,'ready');assert.equal(g.calls,1);assert.equal(state.dispatchBuild,'c'.repeat(40));assert.ok(state.providerResponseAt>=state.providerRequestStartedAt);
+ assert.ok(state.sourceResponse.events.some(x=>x.kind==='admitted'));assert.equal(state.creditsUsed,2);
+});
