@@ -1,0 +1,7 @@
+Historical user-supplied OCR sample, October 26, 2026.
+Input examples only: no math narration behavior is asserted or implemented here.
+
+- Difference of squares is $a^2 - b^2$ (minus only).
+- In $ax^2 + bx + c$, think "multiply to $a \cdot c$, add to $b$."
+
+$$1^2 = 1 \quad 6^2 = 36$$

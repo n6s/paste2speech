@@ -4,9 +4,12 @@ A repeated file selection must not masquerade as a new provider failure. Staging
 offers a priced Retry action for existing no-contact recovery proofs or a confirmed
 terminal provider rejection: HTTP 400, 413, 415 or 422; zero consumed pages; the
 whole hold released; source access closed and original revoked/deleted; no active
-local processing. Selecting the file never automatically retries it.
+local processing. A fresh disclosed picker selection is the deliberate retry
+action and admits one eligible replacement without an extra Retry button. The
+legacy upload/Scan flow retains its normal priced Scan action. No retry occurs
+without a fresh user action.
 
-A replacement upload is verified and quoted. The explicit Retry click sends the
+A replacement upload is verified and quoted. The normal scan action sends the
 quoted prior job ID. The server rechecks the prior actor and appends a linked
 admission. Existing financial/source identities remain intact. The unique child
 index, one-active-upload rules, account/source/model/page/cost checks and wallet
@@ -36,3 +39,7 @@ attempts to enable retries.
 Synthetic tests cover row preservation, native workerd/D1/R2/DO retry and concurrent
 acceptance, active/ambiguous guards, old receipts and mobile picker/legacy UI.
 They use mocked providers. Real Mistral and physical Android are not tested.
+
+The input-only fixture `tests/fixtures/ocr-explicit-math-sample.txt` preserves
+user-supplied OCR examples with single-dollar inline and double-dollar display
+notation for future research. No math narration or parsing change is included.
