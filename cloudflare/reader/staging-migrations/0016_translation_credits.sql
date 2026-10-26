@@ -1,5 +1,6 @@
 -- Staging only. Four integer ledger units per source Unicode code point.
 -- No existing rows, grants or payment configuration are changed.
+SELECT json(CASE WHEN EXISTS(SELECT 1 FROM unified_controls WHERE id='staging' AND version='unified-v1') THEN 'true' ELSE 'STAGING_ONLY_TRANSLATION' END);
 CREATE TABLE translation_attempts(
  id TEXT PRIMARY KEY,account TEXT NOT NULL REFERENCES accounts(id),fingerprint TEXT NOT NULL CHECK(length(fingerprint)=64),target TEXT NOT NULL,
  characters INTEGER NOT NULL CHECK(characters BETWEEN 1 AND 30000),units INTEGER NOT NULL CHECK(units=characters*4),
