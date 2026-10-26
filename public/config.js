@@ -45,3 +45,5 @@ export const LOCAL_TEXT_IMPORT = false;
 
 // Device audio persistence is an explicit staging trial.
 export const PERSISTENT_AUDIO = false;
+
+export const MATH_SPEECH_PREVIEW=false;

@@ -1,3 +1,4 @@
+import {setupMathSpeechPreview} from './math-speech-ui.js';
 import {setupDeviceAudio} from './device-audio-ui.js';
 import {inputActionCopy} from './input-copy.js';
 import {clipboardPayload} from './clipboard-payload.js';
@@ -16,7 +17,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { PERSISTENT_AUDIO, WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { MATH_SPEECH_PREVIEW, PERSISTENT_AUDIO, WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import {setupInputQueue} from './input-queue-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
@@ -31,7 +32,7 @@ if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 const sectionProgress=SECTION_PROGRESS?setupSectionProgress(undefined,{compact:STAGING_READER_LAYOUT}):null;
 if(STAGING_READER_LAYOUT){setupStagingReaderLayout();setupProcessingIndicator();}
-let summaryMode=null;
+let summaryMode=null,mathSpeechPreview=null;
 let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
@@ -176,7 +177,7 @@ function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepi
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   const diagnosticStarted=pasteDiagnostics?.mark('preview-editor', $('text').value);
-  summaryMode?.sourceChanged();
+  summaryMode?.sourceChanged();mathSpeechPreview?.sourceChanged();
   previewedText = $('text').value;
   cleaned = cleanText(previewedText, options, {proseSymbols:activeSpeechTextVersion>=2,urlLabels:activeSpeechTextVersion>=3,expanded:activeSpeechTextVersion>=4});
   if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
@@ -426,7 +427,7 @@ for (const [key, label] of Object.entries({ markdown: 'Markdown formatting', cit
   if(key==='math'&&!DOCUMENT_IMPORT)continue;
   const wrapper = document.createElement('label'); const input = document.createElement('input');
   input.type = 'checkbox'; input.checked = options[key]; input.id = `clean-${key}`;if(key==='math'){input.title='Skip balanced LaTeX delimiters and math environments in playback. Original document exports are kept.';}
-  input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; save(); preview(); });
+  input.addEventListener('change', () => { resetReading(key==='math'); options[key] = input.checked; mathSpeechPreview?.optionsChanged();save(); preview(); });
   const actionLabel={markdown:'Remove Markdown formatting',citations:'Skip citation markers and footnotes',urls:'Skip web addresses',code:'Skip code blocks',tables:'Skip tables',emoji:'Skip emoji',joinLines:'Join broken lines',math:'Skip math notation'}[key];if(STAGING_READER_LAYOUT)input.setAttribute('aria-label',actionLabel);wrapper.append(input,STAGING_READER_LAYOUT?actionLabel:label);$('options').append(wrapper);
   if(key==='math'){const note=document.createElement('p');note.id='math-cleanup-note';note.className='hint';note.textContent='Skips balanced LaTeX delimiters and math environments. Plain symbols, code, and unmatched formulas are kept. Original document exports are unchanged.';input.setAttribute('aria-describedby',note.id);(STAGING_READER_LAYOUT?$('cleanup-info-details')||$('options'):$('options')).append(note);}
 }
@@ -896,3 +897,5 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();
  }
 });
+
+if(MATH_SPEECH_PREVIEW)mathSpeechPreview=setupMathSpeechPreview({getText:()=>$('text').value,getSkip:()=>options.math===true});

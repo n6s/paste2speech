@@ -52,7 +52,8 @@
     "SPEECH_SECTION_RECOVERY": "1",
     "LOGIN_FAIR_ALLOWANCE": "1",
     "LOCAL_TEXT_IMPORT": "1",
-    "PERSISTENT_AUDIO": "1"
+    "PERSISTENT_AUDIO": "1",
+    "MATH_SPEECH_PREVIEW": "1"
   },
   "ai": {
     "binding": "AI"

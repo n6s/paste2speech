@@ -1,7 +1,7 @@
 // Conservative, local-only recognition. This does not interpret or narrate math.
 const environments=new Set(['math','displaymath','equation','equation*','align','align*','aligned','gather','gather*','gathered','multline','multline*','array','cases','matrix','pmatrix','bmatrix','Bmatrix','vmatrix','Vmatrix','split']);
 const escaped=(text,index)=>{let n=0;while(index>0&&text[--index]==='\\')n++;return n%2===1;};
-function codeRanges(text){
+export function mathCodeRanges(text){
  const ranges=[];let offset=0,fence;
  for(const line of text.split('\n')){
   const marker=/^ {0,3}(`{3,}|~{3,})(.*)$/.exec(line);
@@ -11,7 +11,7 @@ function codeRanges(text){
   offset+=line.length+1;
  }
  if(fence)ranges.push({start:fence.start,end:text.length,kind:'code'});
- for(const pattern of [/(`+)[^`\n]*?\1/g,/(?:https?:\/\/|www\.)[^\s<>]+/gi])for(const match of text.matchAll(pattern))ranges.push({start:match.index,end:match.index+match[0].length,kind:'code'});
+ for(const [pattern,kind] of [[/(`+)[^`\n]*?\1/g,'code'],[/(?:https?:\/\/|www\.)[^\s<>]+/gi,'url']])for(const match of text.matchAll(pattern))ranges.push({start:match.index,end:match.index+match[0].length,kind});
  return ranges.sort((a,b)=>a.start-b.start||b.end-a.end);
 }
 function bracesBalanced(body){let depth=0;for(let i=0;i<body.length;i++){if(body[i]!=='{'&&body[i]!=='}')continue;if(escaped(body,i))continue;if(body[i]==='{')depth++;if(body[i]==='}'&&--depth<0)return false;}return depth===0;}
@@ -21,9 +21,9 @@ function environmentEnd(text,start){
  for(let match;(match=pattern.exec(text));){if(escaped(text,match.index))continue;if(match[1]==='begin')stack.push(match[2]);else if(stack.pop()!==match[2])return -1;if(!stack.length)return pattern.lastIndex;}
  return -1;
 }
-export function mathSpans(text){
+export function mathSpans(text,{polynomial=false}={}){
  if(!text.includes('$')&&!text.includes('\\(')&&!text.includes('\\[')&&!text.includes('\\begin{'))return [];
- const ranges=codeRanges(text),spans=[];let rangeIndex=0;
+ const ranges=mathCodeRanges(text),spans=[];let rangeIndex=0;
  for(let i=0;i<text.length;){
   while(rangeIndex<ranges.length&&ranges[rangeIndex].end<=i)rangeIndex++;
   if(ranges[rangeIndex]?.start<=i){i=Math.max(i+1,ranges[rangeIndex].end);continue;}
@@ -43,7 +43,8 @@ export function mathSpans(text){
    const at=closing(text,i+open.length,close);if(at<0){if(open!=='$')break;i+=open.length;continue;}end=at+close.length;
   }
   const body=text.slice(i+open.length,end-(close?.length||0));
-  const dollarMath=open!=='$'||(!body.includes('\n')&&!body.includes('$')&&(/\\[A-Za-z]+/.test(body)||(!/[A-Za-z]{2,}/.test(body)&&(/[_^=+*/<>]/.test(body)||/[A-Za-z0-9]\s*-\s*[A-Za-z0-9]/.test(body)||/^\p{L}$/u.test(body.trim())))));
+  const polynomialBody=polynomial&&/[_^=+*/<>-]/.test(body)&&/^[a-z0-9\s_^=+*/<>.(){}-]+$/.test(body)&&(body.match(/[a-z]+/g)||[]).every(word=>word.length<=2);
+  const dollarMath=open!=='$'||polynomialBody||(!body.includes('\n')&&!body.includes('$')&&(/\\[A-Za-z]+/.test(body)||(!/[A-Za-z]{2,}/.test(body)&&(/[_^=+*/<>]/.test(body)||/[A-Za-z0-9]\s*-\s*[A-Za-z0-9]/.test(body)||/^\p{L}$/u.test(body.trim())))));
   let crossesCode=false;for(let n=rangeIndex;n<ranges.length&&ranges[n].start<end;n++){if(ranges[n].end>i&&ranges[n].kind!=='indent'){crossesCode=true;break;}}
   if(body.trim()&&bracesBalanced(body)&&dollarMath&&!crossesCode){spans.push({start:i,end,display});i=end;}else i+=open.length;
  }
