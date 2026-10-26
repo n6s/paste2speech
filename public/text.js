@@ -77,10 +77,10 @@ function blocks(text, proseSymbols = true) {
   return result;
 }
 
-export function cleanText(input, options = defaults, {proseSymbols=true}={}) {
+export function cleanText(input, options = defaults, {proseSymbols=true,urlLabels=true}={}) {
   const text = input.replace(/\r\n?/g, '\n');
   if (!Object.values(options).some(Boolean)) return text;
-  options={...options,proseSymbols};
+  options={...options,proseSymbols,urlLabels};
   const math=transformMath(text,options.math===true);
   const rendered = blocks(math.text, proseSymbols).flatMap(block => {
     const separate = value => options.markdown || options.joinLines ? '\n' + value + '\n' : value;
@@ -138,7 +138,7 @@ function inlineLiterals(text, markdown) {
     const value = decodeEntity(entity);
     return /[\\*_~`[\]()!>#|+-]/.test(value) ? shield(value) : value;
   });
-  return {text, restore: value => value.replace(new RegExp(prefix + '(\\d+)\uE001', 'g'), (_, index) => literals[Number(index)])};
+  return {text, shield, restore: value => value.replace(new RegExp(prefix + '(\\d+)\uE001', 'g'), (_, index) => literals[Number(index)])};
 }
 
 // Currency-only cardinal expansion avoids a year-style reading of four digits.
@@ -173,8 +173,20 @@ function proseAmounts(text) {
   );
 }
 
+// Only an entire URL-shaped link label is shortened. URL parses the actual
+// hostname (including IDN/IPv6 and ports); prose and email labels stay prose.
+function urlLabelHostname(label) {
+  const value=label.trim();
+  if(/[\s<>]/u.test(value)||!/^(?:https?:\/\/|\/\/|www\.|(?:[\p{L}\p{N}-]+\.)+[\p{L}]{2,}(?::[0-9]+)?(?:[/?#]|$))/iu.test(value))return null;
+  try {
+    const url=new URL(/^https?:\/\//i.test(value)?value:value.startsWith('//')?'https:'+value:'https://'+value);
+    return /^https?:$/.test(url.protocol)&&url.hostname?url.hostname.replace(/\.$/,''):null;
+  }catch{return null;}
+}
+
 function cleanInline(text, options, decode = true) {
   const literal = decode ? inlineLiterals(text, options.markdown) : {text, restore: value => value};
+  const linkLabel=label=>{const host=options.urlLabels===false?null:urlLabelHostname(label);return host?literal.shield(host):label;};
   // Discretionary hyphens and stray BOMs are copy artifacts in prose.
   // Keep joiners, directional marks, and literal code untouched.
   text = literal.text.replace(/[\u00ad\ufeff]/g, '');
@@ -184,7 +196,7 @@ function cleanInline(text, options, decode = true) {
     /\uE200(?:link|cite)\uE202([^\uE200-\uE202]*)\uE202([^\uE200-\uE202]*)\uE201/g,
     (token, url, label) => {
       if (!/^(?:https?:\/\/|www\.)[^\s<>]+$/i.test(url) || !label.trim()) return token;
-      return options.urls ? label : `${label} (${url})`;
+      return options.urls ? linkLabel(label) : `${label} (${url})`;
     }
   );
   if (options.citations) text = text
@@ -193,8 +205,9 @@ function cleanInline(text, options, decode = true) {
     .replace(/【[^】]*(?:†|turn\d|source)[^】]*】/gi, '')
     .replace(/\[\^\d+\](?::[^\n]*)?/g, '')
     .replace(/\b(?:turn\d+(?:search|view|fetch|file|news)\d+)\b/g, '');
-  if (options.markdown || options.urls) text = text.replace(/!?\[([^\]]*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
-    (_, label, url) => options.urls ? label : `${label} (${url})`);
+  if (options.markdown || options.urls) text = text.replace(/!?\[((?:\[[^\[\]\r\n]*\]|[^\[\]\r\n])*)\]\(([^\s)]*)(?:\s+"[^"]*")?\)/g,
+    (_, label, url) => options.urls ? linkLabel(label) : `${label} (${url})`);
+  if(options.markdown&&options.urls)text=text.replace(/!?(\[([^\]]+)\])\[[^\]]*\]/g,(_,token,label)=>linkLabel(label));
   if (options.urls) text = text.replace(/(?:https?:\/\/|www\.)[^\s<>\uE200-\uE202]+/gi, '').replace(/<\s*>/g, '');
   if (options.markdown) text = text
     .replace(/^ {0,3}>[ \t]?/gm, '')
