@@ -1,3 +1,4 @@
+import {mathSpans} from './math-notation.js';
 import {explicitMathSpans,assembleMathPreview,MATH_PREVIEW_LIMITS} from './math-speech-spans.js';
 
 // One bounded local conversion boundary for preview and reader preparation.
@@ -10,6 +11,8 @@ export function convertMathSpeech(text,{skip=false,signal,createWorker=()=>new W
   if(signal?.aborted){abort();return;}
   signal?.addEventListener('abort',abort,{once:true});
   try{
+   // Large ordinary readings must not inherit the optional formula engine's source limit.
+   if(text.length>MATH_PREVIEW_LIMITS.source&&(skip||(!/<math\b|\\\\[([]/.test(text)&&!mathSpans(text,{polynomial:true,indented:true}).length))){finish(null,{text,formulas:[],skip});return;}
    const spans=explicitMathSpans(text);
    if(skip||!spans.length){finish(null,assembleMathPreview(text,spans,[],{skip}));return;}
    worker=createWorker();

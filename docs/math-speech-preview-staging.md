@@ -1,8 +1,9 @@
 # Explicit math wording preview — staging prototype
 
-This is wording review only. It does not connect generated prose to Play, paid
-speech, OCR, saved audio, source text or exports. Open Text cleanup, then
-Math wording preview, and choose Preview wording. Copying is explicit.
+On staging, new readings convert explicit math locally before Read mode and Play.
+The editable original and exports remain unchanged. Older saved audio keeps its
+original wording. Open Text cleanup, then Math wording preview, to inspect or
+copy wording without starting speech. No OCR or provider call is made by preview.
 
 The preview uses official pinned MathJax 4.1.3 TeX-to-MathML and Speech Rule Engine
 4.1.5 ClearSpeak English. MathJax parses the math; no custom algebra parser,

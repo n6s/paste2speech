@@ -24,6 +24,6 @@ export function setupMathSpeechPreview({getText,getSkip,onResult=()=>{},createWo
    worker.postMessage({id:n,formulas:spans.map(({kind,body,display})=>({kind,body,display}))});
   }catch{invalidate('The local math engine could not be loaded. Your original is unchanged.');}
  };
- el('copy').onclick=async()=>{try{await navigator.clipboard.writeText(el('result').value);el('status').textContent='Wording copied. It has not been applied to the reader.';}catch{el('result').focus();el('result').select();el('status').textContent='Select and copy the wording using your browser.';}};
+ el('copy').onclick=async()=>{try{await navigator.clipboard.writeText(el('result').value);el('status').textContent='Wording copied. Your editable original is unchanged.';}catch{el('result').focus();el('result').select();el('status').textContent='Select and copy the wording using your browser.';}};
  return {sourceChanged(){const next=getText();if(next!==source){source=next;invalidate('Source changed. Preview again when ready.');}},optionsChanged(){invalidate('Cleanup choice changed. Preview again to apply it.');}};
 }

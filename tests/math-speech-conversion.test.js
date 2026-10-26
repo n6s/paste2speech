@@ -33,3 +33,8 @@ test('doubled clipboard delimiters convert only bounded explicit math outside li
  assert.equal(explicitMathSpans('`'+source+'`').length,0);
  assert.equal(explicitMathSpans(String.raw`\\(ordinary prose\\)`).length,0);
 });
+
+test('long prose with currency does not load or inherit the math worker limit',async()=>{
+ const text='Ordinary reading. '.repeat(7000)+'Workbook costs $12.50 and pencil costs $2.00.';
+ assert.equal((await convertMathSpeech(text,{createWorker(){throw Error('must not load');}})).text,text);
+});
