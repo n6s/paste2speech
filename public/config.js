@@ -47,3 +47,4 @@ export const LOCAL_TEXT_IMPORT = false;
 export const PERSISTENT_AUDIO = false;
 
 export const MATH_SPEECH_PREVIEW=false;
+export const TRANSLATION_UI = false;

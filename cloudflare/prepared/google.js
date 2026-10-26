@@ -27,7 +27,7 @@ export async function readBounded(response, maximum){
   for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.length;}
   return bytes;
 }
-export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fetch(...args),now=Date.now,includeExpiry=false}={}){
+async function scopedAccessToken(accountJson,scope,{fetcher=(...args)=>globalThis.fetch(...args),now=Date.now,includeExpiry=false}={}){
   let stage='credential parsing',httpStatus;
   try {
     const account=JSON.parse(accountJson);
@@ -36,7 +36,7 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
     const seconds=Math.floor(now()/1000);
     const header=b64url(encoder.encode(JSON.stringify({alg:'RS256',typ:'JWT'})));
     const claims=b64url(encoder.encode(JSON.stringify({iss:account.client_email,
-      scope:'https://www.googleapis.com/auth/cloud-platform',aud:TOKEN_URL,iat:seconds,exp:seconds+3600})));
+      scope,aud:TOKEN_URL,iat:seconds,exp:seconds+3600})));
     const pem=account.private_key.replace(/-----[^-]+-----/g,'').replace(/\s/g,'');
     stage='key import';
     const key=await crypto.subtle.importKey('pkcs8',Uint8Array.from(atob(pem),c=>c.charCodeAt(0)),
@@ -55,6 +55,8 @@ export async function accessToken(accountJson,{fetcher=(...args)=>globalThis.fet
     return includeExpiry?{token:result.access_token,expires:now()+ttl*1000}:result.access_token;
   }catch(error){throw Error(`Google authorization failed during ${stage}${httpStatus?` (HTTP ${httpStatus})`:` (${['TypeError','DataError','OperationError'].includes(error.name)?error.name:'request error'})`}. No speech request was retried.`);}
 }
+export const accessToken=(json,options)=>scopedAccessToken(json,'https://www.googleapis.com/auth/cloud-platform',options);
+export const translationAccessToken=(json,options)=>scopedAccessToken(json,'https://www.googleapis.com/auth/cloud-translation',options);
 export async function synthesize(text,voice,token,{fetcher=(...args)=>globalThis.fetch(...args)}={}){
   if(!WAVENET_VOICE_IDS.includes(voice) || typeof text!=='string' ||
      !text.trim() || encoder.encode(text).length>5000)throw Error('Unsupported speech input');

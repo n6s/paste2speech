@@ -1,4 +1,5 @@
 import {createMathSpeechCache} from './math-speech-conversion.js';
+import {setupTranslation} from './translation-ui.js';
 import {setupDeviceAudio} from './device-audio-ui.js';
 import {inputActionCopy} from './input-copy.js';
 import {clipboardPayload} from './clipboard-payload.js';
@@ -17,7 +18,7 @@ import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from '.
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
-import { MATH_SPEECH_PREVIEW, PERSISTENT_AUDIO, WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
+import { MATH_SPEECH_PREVIEW, TRANSLATION_UI, PERSISTENT_AUDIO, WORKSTATION, KOKORO_ENABLED, CLOUD_READER, STAGING_READER_LAYOUT, INPUT_QUEUE_UI,INPUT_QUEUE_REFINEMENTS, OCR_PICKER_AUTOSCAN, MSE_STAGING, MSE_ENABLED, FULL_AUDIO_PREFETCH, SECTION_PROGRESS, VIDEO_DOWNLOAD, LONG_READINGS, DOCUMENT_IMPORT, SUMMARY_ENABLED, UNIFIED_CREDITS, RELEASE, BUILD_COMMIT } from './config.js';
 import {setupVideoDownload} from './video-ui.js';
 import {setupInputQueue} from './input-queue-ui.js';
 import { LocalKokoro } from './local-kokoro.js';
@@ -32,7 +33,7 @@ if(CLOUD_READER)discardLegacyPositions();
 const $ = id => document.getElementById(id);
 const sectionProgress=SECTION_PROGRESS?setupSectionProgress(undefined,{compact:STAGING_READER_LAYOUT}):null;
 if(STAGING_READER_LAYOUT){setupStagingReaderLayout();setupProcessingIndicator();}
-let summaryMode=null;
+let summaryMode=null,translationMode=null;
 let pasteDiagnostics=null;
 const extensionRecommendation = document.querySelector('.extension-recommendation');
 if (extensionRecommendation) {
@@ -180,7 +181,7 @@ function settings() { return { provider:isGoogle()?'google':isDeepInfra()?'deepi
 function save() { try { localStorage.setItem('paste2speech.settings', JSON.stringify({ ...options, engineSchema: 2, kokoroEnabled: localAllowed, useGPU: localKokoro.useGPU===true, rate: settings().rate, voice: browserVoice, workstationVoice, engine: $('engine').value, followReading: $('follow-reading').checked, readingSize: Number($('reading-size').value) })); } catch {} }
 function preview() {
   const diagnosticStarted=pasteDiagnostics?.mark('preview-editor', $('text').value);
-  summaryMode?.sourceChanged();
+  summaryMode?.sourceChanged();translationMode?.sourceChanged();
   previewedText = $('text').value;
   cleaned = cleanText((MATH_SPEECH_PREVIEW&&activeSpeechTextVersion>=5?mathSpeechCache.ready(previewedText,options.math===true)?.text:null)??previewedText, options, {proseSymbols:activeSpeechTextVersion>=2,urlLabels:activeSpeechTextVersion>=3,expanded:activeSpeechTextVersion>=4});
   if(diagnosticStarted!=null)pasteDiagnostics.record('cleanup-complete',cleaned,{elapsedMs:Math.round(performance.now()-diagnosticStarted)});
@@ -282,12 +283,13 @@ function markReadingPosition(p) {
 }
 function setMode(mode) {
   const reading = mode === 'read';
-  const summarizing=mode==='summary';
+  const summarizing=mode==='summary',translating=mode==='translate';
+  translationMode?.setVisible(translating);
   summaryMode?.setVisible(summarizing);
   if (!reading) closeReadingSize();
-  $('edit-view').hidden = reading||summarizing;
+  $('edit-view').hidden = reading||summarizing||translating;
   $('read-view').hidden = !reading;
-  $('edit-mode').setAttribute('aria-pressed', String(!reading&&!summarizing));
+  $('edit-mode').setAttribute('aria-pressed', String(!reading&&!summarizing&&!translating));
   $('read-mode').setAttribute('aria-pressed', String(reading));
   if (reading) followParagraph($('preview').querySelector('[aria-current=true]'));
 }
@@ -523,7 +525,7 @@ $('text').addEventListener('paste', event => {
 let pasteRequest = 0, activePasteRequest = 0;
 let pdfRequest = 0, activePdfController;
 $('text').addEventListener('input',()=>{pasteRequest++;inputQueue?.model.stop();if(intakeContext?.intent==='play')intakeContext.intent='editor';});
-$('text').addEventListener('paste',event=>{summaryMode?.clearSource();pasteRequest++;if(!documentImport?.busy&&Array.from(event.clipboardData?.types||[]).some(type=>type==='text/plain'||type==='text/html'))documentImport?.clear();},{capture:true});
+$('text').addEventListener('paste',event=>{summaryMode?.clearSource();translationMode?.clearSource();pasteRequest++;if(!documentImport?.busy&&Array.from(event.clipboardData?.types||[]).some(type=>type==='text/plain'||type==='text/html'))documentImport?.clear();},{capture:true});
 async function pasteFromClipboard({replace=false}={}){
   if(documentImport?.busy||$('text').readOnly)return;
   rememberPasteSelection();
@@ -547,7 +549,7 @@ async function pasteFromClipboard({replace=false}={}){
     const text=payload.text;
     if (!text.trim()||replace&&!cleanText(text,options).trim()) throw new Error('empty');
     documentImport?.clear();
-    summaryMode?.clearSource();
+    summaryMode?.clearSource();translationMode?.clearSource();
     if(replace){
       if(PERSISTENT_AUDIO)await deviceAudio?.replace();else inputQueue?.model.stop();resetReading();$('text').value=text;pasteDiagnostics?.record('paste-button-editor-assigned',$('text').value);preview();if(PERSISTENT_AUDIO)await deviceAudio?.registerCurrentMetadata();if(request===pasteRequest)readAndPlay();
     }else{
@@ -579,7 +581,7 @@ async function pasteFromClipboard({replace=false}={}){
 }
 $('paste')?.addEventListener('click',()=>void pasteFromClipboard());
 $('paste-play').addEventListener('click',()=>void pasteFromClipboard({replace:true}));
-$('clear').addEventListener('click', () => { activePasteRequest=0;inputQueue?.clear();if(INPUT_QUEUE_UI)for(const context of intakeContexts.values())context.cancelled=true;summaryMode?.clearSource(); documentImport?.clear(); if(!PERSISTENT_AUDIO)workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading();deviceAudio?.clearEditor(); $('text').value = ''; preview(); setMode('edit'); disablePasteButtons(!!documentImport?.busy||$('text').readOnly);$('text').focus(); });
+$('clear').addEventListener('click', () => { activePasteRequest=0;inputQueue?.clear();if(INPUT_QUEUE_UI)for(const context of intakeContexts.values())context.cancelled=true;summaryMode?.clearSource();translationMode?.clearSource(); documentImport?.clear(); if(!PERSISTENT_AUDIO)workstationPlayer.longReadings?.clearSavedReadings(); pasteRequest++; $('paste-status').hidden = true; resetReading();deviceAudio?.clearEditor(); $('text').value = ''; preview(); setMode('edit'); disablePasteButtons(!!documentImport?.busy||$('text').readOnly);$('text').focus(); });
 $('rate').addEventListener('input', () => { $('rate-value').textContent = `${$('rate').value}×`; updateVoiceSummary(); if (isWorkstation()) workstationPlayer.setRate(settings().rate); else if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save(); });
 $('voice').addEventListener('change', () => { if(PERSISTENT_AUDIO&&isGoogle())deviceAudio?.voiceChanging();deviceAudio?.capture();void deviceAudio?.flush();selectedVoice = $('voice').value; if (isKokoro()) workstationVoice = selectedVoice; else browserVoice = selectedVoice; updateVoiceSummary(); if(FULL_AUDIO_PREFETCH&&player===workstationPlayer&&player.settings?.voice!==selectedVoice)player.invalidate({preservePreparation:PERSISTENT_AUDIO}); if (['playing', 'preparing', 'buffering'].includes(player?.state)) player.pause(); localKokoro.resetMetrics(); render(player); save();if(PERSISTENT_AUDIO&&isGoogle()===false)void deviceAudio?.engineChanged({voiceChanged:true}); });
 function navigableSections(p){return !p||p.state==='idle'?0:p===browserPlayer?p.chunks.length:preparedChunkCount(p);}
@@ -725,7 +727,7 @@ if(DOCUMENT_IMPORT)documentImport=setupDocumentImport({input:$('pdf-file'),paste
   fail(context,message){if(context?.queueId&&!context.cancelled)inputQueue.model.fail(context.queueId,message);},
   cancel(context){if(!context)return;context.cancelled=true;if(context.queueId)inputQueue.model.remove(context.queueId);}
  }:undefined,
- async accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}if(context?.intent==='play'&&!cleanText(data.text,context.snapshot.cleanup).trim()){inputQueue?.error('Nothing remains after cleanup. Your previous reading is kept.');return;}if(context?.intent==='play'&&PERSISTENT_AUDIO){if(context.queueId){for(const id of context.replaceIds||[])await inputQueue.model.playlist?.remove(id);}else await deviceAudio?.replace();}if(context?.cancelled)return;summaryMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(PERSISTENT_AUDIO&&context&&context.intent!=='play'){if(context.queueId)inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId||context.key);await deviceAudio?.registerCurrentMetadata();}if(context?.intent==='play')requestAnimationFrame(async()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);if(PERSISTENT_AUDIO){if(context.queueId){inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId);}await deviceAudio?.registerCurrentMetadata();}if(!context.cancelled&&$('text').value===data.text)readAndPlay();}});},
+ async accept(data,context){if(context?.cancelled)return;if(context?.background){inputQueue.model.resolve(context.queueId,data.text);if(intakeContext===context)intakeContext=null;return;}if(context?.intent==='play'&&!cleanText(data.text,context.snapshot.cleanup).trim()){inputQueue?.error('Nothing remains after cleanup. Your previous reading is kept.');return;}if(context?.intent==='play'&&PERSISTENT_AUDIO){if(context.queueId){for(const id of context.replaceIds||[])await inputQueue.model.playlist?.remove(id);}else await deviceAudio?.replace();}if(context?.cancelled)return;summaryMode?.clearSource();translationMode?.clearSource();resetReading();$('text').value=data.text;preview();setMode('edit');if(PERSISTENT_AUDIO&&context&&context.intent!=='play'){if(context.queueId)inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId||context.key);await deviceAudio?.registerCurrentMetadata();}if(context?.intent==='play')requestAnimationFrame(async()=>{if(!context.cancelled&&$('text').value===data.text&&!documentImport.busy){applyInputSnapshot(context.snapshot);if(PERSISTENT_AUDIO){if(context.queueId){inputQueue.model.resolve(context.queueId,data.text);deviceAudio?.setAddedAt(context.createdAt,context.queueId);}await deviceAudio?.registerCurrentMetadata();}if(!context.cancelled&&$('text').value===data.text)readAndPlay();}});},
  pauseReading(){if(!intakeContext?.background&&['playing','preparing','buffering'].includes(player?.state))player.pause();},
  onBusy(value){if(!intakeContext?.background){summaryMode?.setBusy(value);if(value)pasteRequest++;$('text').readOnly=value;}disablePasteButtons(value);$('clear').disabled=false;if(!value&&!intakeContext?.background)preview();if(player)render(player);}
 });
@@ -752,7 +754,7 @@ async function readQueuedClipboard(intent){
 }
 if(INPUT_QUEUE_UI){
  inputQueue=setupInputQueue({changed:()=>deviceAudio?.queueChanged(),refined:INPUT_QUEUE_REFINEMENTS,persistent:PERSISTENT_AUDIO,snapshot:inputSnapshot,readClipboard:readQueuedClipboard,openFile(intent){nextFileIntent=intent;$('document-choose-file').click();},
-  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();await checkQueuedAccount(item.snapshot);if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');summaryMode?.clearSource();resetReading();applyInputSnapshot(item.snapshot);$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt,item.id);await deviceAudio.registerCurrentMetadata({id:item.id,createdAt:item.createdAt,valid:current});if(!current())return false;workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true,queuedStart:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
+  async start(item,current){if(PERSISTENT_AUDIO&&deviceAudio?.expiredIntent(item)){inputQueue.model.remove(item.id);inputQueue.model.advance();return false;}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio?.scope)throw Error('The account changed after this item was queued. Re-add it for the current profile. No speech was started.');await deviceAudio?.flush();await checkQueuedAccount(item.snapshot);if(!current())return false;if(!cleanText(item.text,item.snapshot.cleanup).trim())throw Error('Nothing remains after this item’s cleanup settings.');summaryMode?.clearSource();translationMode?.clearSource();resetReading();applyInputSnapshot(item.snapshot);$('text').value=item.text;preview();if(PERSISTENT_AUDIO&&deviceAudio){if(!await deviceAudio.beforePlay()||!current())return false;deviceAudio.setAddedAt(item.createdAt,item.id);await deviceAudio.registerCurrentMetadata({id:item.id,createdAt:item.createdAt,valid:current});if(!current())return false;workstationPlayer.longReadings.nextAddedAt=item.createdAt;}if(!readAndPlay({retentionChecked:true,queuedStart:true}))throw Error('This item cannot start yet. No automatic retry was made.');return true;},
   cancelItem(item,{consumed=false}={}){for(const [key,context]of intakeContexts)if(context.queueId===item.id){if(!consumed){context.cancelled=true;documentImport.cancelDestination?.(context);}intakeContexts.delete(key);}},
   clearAll(){for(const context of intakeContexts.values())context.cancelled=true;intakeContexts.clear();intakeContext=null;}
  });
@@ -784,7 +786,7 @@ if(!DOCUMENT_IMPORT)$('pdf-file').addEventListener('change', async () => {
     const data=await extractPdf(file, pdfController.signal, {maxCharacters: LONG_READINGS ? Infinity : 1000000});
     if (request !== pdfRequest) return;
     resetReading();
-    summaryMode?.clearSource();
+    summaryMode?.clearSource();translationMode?.clearSource();
     $('text').value = data.text;
     preview();
     setMode('edit');
@@ -829,7 +831,7 @@ if(MSE_STAGING){
   const data=await response.json(),voice=settings().voice;
   const sections=data.voices[voice];if(!sections){$('status').textContent='Select a WaveNet voice first.';return;}
   resetReading();stagingSampleText=Array.from({length:$('mse-cached').checked&&$('mse-scenario').value==='long'?8:1},()=>sections).flat().join('\n\n');
-  summaryMode?.clearSource();$('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
+  summaryMode?.clearSource();translationMode?.clearSource();$('text').value=stagingSampleText;preview();$('status').textContent='Sample loaded. Press Play to start.';
  };
  $('mse-cached').onchange=()=>{if(!$('mse-cached').checked)$('mse-scenario').value='normal';};
  $('mse-results').onclick=()=>{const url=URL.createObjectURL(new Blob([JSON.stringify(workstationPlayer.diagnostics(),null,2)],{type:'application/json'}));const a=document.createElement('a');a.href=url;a.download=`staging-playback-${workstationPlayer.id||'idle'}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);};
@@ -867,7 +869,7 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
   $('pdf-status').textContent = '';
   $('paste-status').hidden = true;
   resetReading();
-  summaryMode?.clearSource();
+  summaryMode?.clearSource();translationMode?.clearSource();
   $('text').value = text;
   preview();
   setMode('read');
@@ -879,7 +881,8 @@ if (CLOUD_READER) setupExtensionHandoff({accept(text, {autoplay}) {
   }
 }});
 
-if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});
+if(SUMMARY_ENABLED)summaryMode=setupSummary({getText:()=>$('text').value,setText(text){translationMode?.clearSource();resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode});
+if(TRANSLATION_UI)translationMode=setupTranslation({getText:()=>$('text').value,setText(text){resetReading();$('text').value=text;preview();setMode('edit');$('text').focus();},setMode,getVoiceLanguage:()=> $('engine').value==='google'?workstationVoice.slice(0,2):speechSynthesis.getVoices().find(v=>v.name===browserVoice||v.voiceURI===browserVoice)?.lang,isBusy:()=>!!documentImport?.busy||$('text').readOnly});
 
 if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlayer,getActive:()=>player,getEngine:()=>$('engine').value,getChunks:()=>chunks,prepare:prepareMathReading,getText:()=>$('text').value,
  matches:matchesPreparedDeviceReading,refresh:()=>{if(player)render(player);},getQueue:()=>inputQueue?.model,renderQueue:()=>inputQueue?.render(),playSaved:()=>readAndPlay(),
@@ -895,7 +898,7 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   activeSpeechTextVersion=record.options?.speechTextVersion||1;
   if(MATH_SPEECH_PREVIEW&&activeSpeechTextVersion>=5)mathSpeechCache.seed(record.text,record.options?.cleanup?.math===true,record.options?.mathSpeechText);
   Object.assign(options,record.options?.cleanup);for(const key of Object.keys(options)){const input=$('clean-'+key);if(input)input.checked=options[key];}
-  $('voice').value=voice;if(engine==='browser')browserVoice=voice;else workstationVoice=voice;selectedVoice=voice;$('rate').value=record.options?.rate||1;summaryMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();
+  $('voice').value=voice;if(engine==='browser')browserVoice=voice;else workstationVoice=voice;selectedVoice=voice;$('rate').value=record.options?.rate||1;summaryMode?.clearSource();translationMode?.clearSource();$('text').value=record.text;preview();setMode('read');save();
   if(engine==='browser'){
     let index=record.nativeIndex,offset=record.nativeOffset;
     if(browserOverride&&index==null){
@@ -909,9 +912,9 @@ if(PERSISTENT_AUDIO)deviceAudio=setupDeviceAudio({getPlayer:()=>workstationPlaye
   return {engine,voice,voiceUnavailable};
  },
  async loadQueued(item,{recovering=false}={}){
-  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();if(recovering)item.queuedReplay=true;resetReading();applyInputSnapshot(item.snapshot);$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id,queueIntent:item.snapshot,consume:!recovering});save();
+  const model=inputQueue?.model;if(!model?.has(item.id))return;if(deviceAudio.expiredIntent(item)){model.remove(item.id);throw Error("That reading expired after 24 hours. Add it again if you want to listen.");}if(item.snapshot.libraryScope&&item.snapshot.libraryScope!==deviceAudio.scope)throw Error('The account changed; re-add this reading for the current profile.');model.stop();if(recovering)item.queuedReplay=true;translationMode?.clearSource();resetReading();applyInputSnapshot(item.snapshot);$('text').value=item.text;preview();setMode('read');await deviceAudio.rememberCurrent({createdAt:item.createdAt,id:item.id,queueIntent:item.snapshot,consume:!recovering});save();
  },
  async regenerate(record){
-  workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);resetReading();$('text').value=record.text;preview();readAndPlay();
+  workstationPlayer.longReadings.localRestore=null;sessionStorage.removeItem(record.key);translationMode?.clearSource();resetReading();$('text').value=record.text;preview();readAndPlay();
  }
 });
