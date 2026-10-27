@@ -29,6 +29,7 @@ export class UnifiedWallet extends UsageLedger {
   if((this.env.READER_MODE==='staging'||reviewedReaderLive(this.env))&&this.env.OCR_DURABLE_JOBS==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM ocr_jobs WHERE account=? AND state='held'",account).first()).held;
   if(this.env.READER_MODE==='staging'&&this.env.TRANSLATION_BILLING_SCHEMA==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units),0) held FROM translation_attempts WHERE account=? AND state='held'",account).first()).held;
   if(this.env.READER_MODE==='staging'&&this.env.TRANSLATION_DOCUMENT_SCHEMA==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units-consumed),0) held FROM translation_documents WHERE account=? AND state IN('active','pausing')",account).first()).held;
+  if(this.env.READER_MODE==='staging'&&this.env.SUMMARY_DOCUMENT_SCHEMA==='1')held.held+=(await this.query("SELECT COALESCE(SUM(units-consumed),0) held FROM summary_documents WHERE account=? AND state IN('active','pausing')",account).first()).held;
   return {...(row||{balance:0,debt:0}),held:held.held,unitsPerCredit:UNITS_PER_CREDIT,walletVersion:'unified-v1'};
  }
  async newOrder(account,offer){

@@ -1524,3 +1524,15 @@ subprocess groups and waits for teardown before rejecting; the next run starts n
 isolated fixtures. A five-minute per-suite timeout prevents an unnoticed hung gate.
 Keep real audio timing assertions and heavyweight export/storage checks serialized;
 do not classify a new suite as light merely because it usually finishes quickly.
+
+## Staging hierarchical Summary documents
+
+See `docs/summary-documents-staging.md`. Apply the additive, rehearsed staging-only
+`staging-migrations/0018_summary_documents.sql` before deploying the
+`SUMMARY_DOCUMENT_SCHEMA=1` staging Worker. This does not migrate production.
+Keep a private backup and row/capacity/integrity preservation proof. Full release
+checks include the synthetic document Summary browser gate; no paid AI probes are
+part of the suite. Public builds exclude its controller, and public API routes
+reject the staging journal. Ordinary Summary remains one click; internal maximum
+reservations and exact settlement are mandatory even when routine quotes are not
+shown. Never replace a live wallet with a pre-migration backup during rollback.

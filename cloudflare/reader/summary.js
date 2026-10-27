@@ -1,3 +1,5 @@
+import {summaryDocumentResponse} from './summary-document-route.js';
+import {SUMMARY_DOCUMENT_VERSION} from '../../public/summary-document-plan.js';
 import {SummaryCredits,summaryPriced} from './summary-credits.js';
 import {digest} from '../prepared/ledger.js';
 import {CLOUD_POLICIES,SUMMARY_CREDIT_POLICY} from '../../public/cloud-choices.js';
@@ -41,7 +43,9 @@ export function classifySummaryError(status,data){
 export async function summaryResponse(request,env,account,{now=Date.now,timeoutMs=30000,ctx}={}){
  if(env.READER_MODE!=='staging'&&!publicMode(env))return reply({detail:'Not found.'},404);
  const priced=summaryPriced(env),credits=priced?new SummaryCredits(env,now):null,policy=priced?SUMMARY_CREDIT_POLICY:CLOUD_POLICIES.summary;
- const path=new URL(request.url).pathname,receiptRequest=path!=='/api/summary'&&path!=='/api/summary/config';
+ const path=new URL(request.url).pathname;
+ if(path==='/api/summary/documents'){if(!summaryAvailable(env,account))return reply({detail:'Summary service unavailable. No new work started.'},503);return summaryDocumentResponse(request,env,account,{now,ctx});}
+ const receiptRequest=path!=='/api/summary'&&path!=='/api/summary/config';
  if(receiptRequest){
   if(!priced||!['/api/summary/accept','/api/summary/cancel','/api/summary/result'].includes(path))return reply({detail:'Not found.'},404);
   if(!account?.summaryVerified||(publicMode(env)?!customerAllowed(env,account):account.email!==env.OWNER_EMAIL))return reply({detail:'Verified account required.'},403);
@@ -70,7 +74,8 @@ export async function summaryResponse(request,env,account,{now=Date.now,timeoutM
  let current=await gate();if(current.circuit_until>now()&&!configRequest)return dailyReply(current.circuit_until,now(),configRequest?200:429);
  if(configRequest){
   let wallet;try{if(priced){await credits.check();wallet=await credits.balance(account.id);}}catch{return reply({available:false,reason:'configuration',detail:'Summary credit billing is not ready. Nothing was sent.'});}
-  const quota=current.circuit_until>now();return reply({available:!quota,consentScope:account.id,consentPolicy:policy.version,model:SUMMARY_MODEL,maxSourceBytes:SUMMARY_SOURCE_BYTES,maxEncodedSourceBytes:SUMMARY_ENCODED_SOURCE_BYTES,maxOutputTokens:512,allowance:'shared Workers Free daily allocation',perUserQuota:false,priceCredits:priced?1:0,unitsPerSummary:priced?1000:0,...(priced?{wallet,canSubmit:wallet.debt===0&&wallet.balance>=1000}:{}),...(quota?{reason:'daily_quota',resetAt:new Date(current.circuit_until).toISOString(),detail:'The shared provider allowance is used up. Summary becomes available at 00:00 UTC; no customer credit is used while unavailable.'}:{})});
+  let documents=false;if(env.READER_MODE==='staging'&&env.SUMMARY_DOCUMENT_SCHEMA==='1'){try{await env.LEDGER.prepare('SELECT id FROM summary_documents LIMIT 1').first();documents=true;}catch{return reply({available:false,detail:'Summary document billing is not ready. Nothing was sent.'});}}
+  const quota=current.circuit_until>now();return reply({...documents?{documents:true,documentVersion:SUMMARY_DOCUMENT_VERSION}: {},available:!quota,consentScope:account.id,consentPolicy:policy.version,model:SUMMARY_MODEL,maxSourceBytes:SUMMARY_SOURCE_BYTES,maxEncodedSourceBytes:SUMMARY_ENCODED_SOURCE_BYTES,maxOutputTokens:512,allowance:'shared Workers Free daily allocation',perUserQuota:false,priceCredits:priced?1:0,unitsPerSummary:priced?1000:0,...(priced?{wallet,canSubmit:wallet.debt===0&&wallet.balance>=1000}:{}),...(quota?{reason:'daily_quota',resetAt:new Date(current.circuit_until).toISOString(),detail:'The shared provider allowance is used up. Summary becomes available at 00:00 UTC; no customer credit is used while unavailable.'}:{})});
  }
  if(request.method!=='POST')return reply({detail:'Method not allowed.'},405);
  let input;try{input=await boundedJSON(request.body,150000);}catch{return reply({detail:'Source is invalid or too large.'},422);}
