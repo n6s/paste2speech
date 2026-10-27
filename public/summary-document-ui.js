@@ -1,7 +1,7 @@
 import{summaryDocumentStatus}from'./summary-document-status.js';
 import{summarySourceFits}from'./summary-limits.js';
 import{saveSummaryDraft,readSummaryDraft,clearSummaryDraft}from'./summary-document-draft.js';
-import{planSummaryDocument,SUMMARY_DOCUMENT_VERSION,summaryStage}from'./summary-document-plan.js';
+import{planSummaryDocument,SUMMARY_BUDGET_POLICY,SUMMARY_DOCUMENT_VERSION,summaryStage}from'./summary-document-plan.js';
 import{showProcessing,hideProcessing}from'./processing-indicator.js';
 const number=n=>Number(n.toFixed(3)).toLocaleString('en-US',{maximumFractionDigits:3});
 /** Staging-only controller, activated by an authenticated document-schema config. */
@@ -12,7 +12,7 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
  const key=()=>JSON.stringify([scope,source,select.value]);
  const status=text=>{el('summary-status').textContent=text;};
  const update=()=>{button.disabled=externalBusy||!source.trim()||!available;button.title=!available?'Summary availability is being checked':'';el('summarize').disabled=button.disabled;el('summary-use').disabled=busy||resultSource!==source||!result.value.trim();el('summary-restore').disabled=original===null;el('summary-cancel').hidden=!busy;el('summary-cancel').textContent='Pause';};
- const request=async(action,data={})=>{const response=await fetcher('/api/summary/documents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,scope,version:SUMMARY_DOCUMENT_VERSION,...data})});const value=await response.json();if(!response.ok)throw Error(value.detail||'Summary could not be checked. Saved work is kept.');return value;};
+ const request=async(action,data={})=>{const response=await fetcher('/api/summary/documents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,scope,version:SUMMARY_DOCUMENT_VERSION,budgetPolicy:SUMMARY_BUDGET_POLICY,...data})});const value=await response.json();if(!response.ok)throw Error(value.detail||'Summary could not be checked. Saved work is kept.');return value;};
  const documentStatus=summaryDocumentStatus;
  const show=(text,doc,{cached=false,partial=false}={})=>{result.value=text;result.disabled=!text;resultSource=source;resultKey=key();displayedDocument=doc;displayedPartial=partial;el('summary-output-label').textContent=(partial?'Summary so far':'Summary')+' · '+select.value[0].toUpperCase()+select.value.slice(1)+(partial&&doc.maps?' · '+Math.min(doc.next,doc.maps)+' of '+doc.maps+' parts':'');el('summary-use').textContent=partial?'Use partial summary in reader':'Use summary in reader';status(cached?'Saved summary · no new charge.':documentStatus(doc));};
  const partial=()=>[...notes.entries()].filter(([i])=>i<plan.maps).sort((a,b)=>a[0]-b[0]).map(([i,text])=>plan.maps>1?`Section ${i+1}\n${text}`:text).join('\n\n');
@@ -31,11 +31,11 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
    if(summarySourceFits(submitted)){const legacy=await request('legacy',{text:submitted,preset});if(!current())return;if(legacy.blocked)throw Error(legacy.detail);if(legacy.text){original??=submitted;const doc={state:'ready',passes:1,creditsUsed:0};show(legacy.text,doc,{cached:true});saved.set(key(),{text:legacy.text,doc});return;}}
    if(planKey!==key()){const planned=await planSummaryDocument(submitted,preset,{signal:planning.signal});if(!current())return;plan=planned;planKey=key();notes.clear();job=null;exception=null;}
    if(!current())return;const identity={root:plan.root,maps:plan.maps,bytes:plan.bytes,preset,version:SUMMARY_DOCUMENT_VERSION};const quote=await request('quote',identity);if(!current())return;
-   if(quote.shortfallUnits>0||quote.wallet?.debt){status(`Summary needs ${number(quote.shortfallUnits/1000)} more credits.`);const link=document.createElement('a');link.href='/billing.html';link.target='_blank';link.rel='noopener';link.textContent=' Add credits';el('summary-status').append(link);return;}
+   if(quote.shortfallUnits>0){status(`Summary needs ${number(quote.shortfallUnits/1000)} more credits.`);const link=document.createElement('a');link.href='/billing.html';link.target='_blank';link.rel='noopener';link.textContent=' Add credits';el('summary-status').append(link);return;}
    // An exceptional price is shown before a second explicit click; ordinary jobs
    // retain the approved one-click flow with the general cost explanation in Info.
    if(quote.requiredUnits>6000&&exception!==key()){exception=key();status(`This longer summary can use up to ${number(quote.requiredUnits/1000)} credits. Click Summary to start.`);return;}
-   const opened=await request('open',{...identity,requestId:crypto.randomUUID(),quoteUnits:quote.remainingUnits,restartExpired:quote.document?.state==='expired'});if(!current()){if(opened.document?.id)void request('pause',{id:opened.document.id});return;}job=opened.document;
+   const opened=await request('open',{...identity,requestId:crypto.randomUUID(),quoteUnits:quote.remainingUnits,restartExpired:quote.document?.state==='expired',recoverOutput:quote.document?.recoverable===true});if(!current()){if(opened.document?.id)void request('pause',{id:opened.document.id});return;}job=opened.document;
    window.dispatchEvent(new Event('speech-credit-change'));original??=submitted;void saveSummaryDraft({scope,source:submitted,preset,expires:job.expires},current);notes.clear();
    // Only ready source notes are needed for partial delivery; saved internal merge
    // stages remain server-side and are never regenerated on resume.
@@ -46,7 +46,7 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
    if(notes.size)show(partial(),job,{partial:true});
    while(current()&&job.state==='active'){
     const descriptor=summaryStage(plan.maps,preset,job.next),chunk=descriptor.kind==='map'?plan.chunks[job.next]:null;
-    status(documentStatus(job));showProcessing('summary-documents',run,`Summarizing · pass ${job.next+1} of ${job.stages}…`);const data=await request('step',{id:job.id,...chunk?{text:chunk.text,proof:chunk.proof}: {}});if(!current())return;job=data.document;if(data.text&&data.part<plan.maps)notes.set(data.part,data.text);
+    status(documentStatus(job));showProcessing('summary-documents',run,documentStatus(job));const data=await request('step',{id:job.id,...chunk?{text:chunk.text,proof:chunk.proof}: {}});if(!current())return;job=data.document;if(data.text&&data.part<plan.maps)notes.set(data.part,data.text);
     if(data.pending){status('Another Summary request is still finishing. Saved work is kept; click Summary to check again.');return;}
     if(job.state==='ready'){
      const final=data.text|| (await request('result',{id:job.id,part:plan.stages-1})).text;if(!current())return;

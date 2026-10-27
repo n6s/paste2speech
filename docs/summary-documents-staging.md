@@ -98,3 +98,14 @@ usable generated results retain their existing private 24-hour storage. This doe
 not relax retry safeguards. Existing `uncertain` records stay unclassified; no
 new cause is inferred or backfilled into old jobs. No schema migration or new
 Worker variable is required for these categories.
+
+
+## Confirmed output-limit recovery (0019, staging only)
+
+The provider model has an 80,000-token context ([model documentation](https://developers.cloudflare.com/workers-ai/models/llama-3.2-3b-instruct/)). Source partitions remain 67,712 UTF-8/model bytes so existing source proofs and saved notes retain identity. Intermediate factual notes receive 4,096 output tokens independent of final Brief/Standard/Detailed length. A confirmed output-limit response permits one enlargement to 8,192; source/prompt/output plus reserved template headroom still fit context. Final output initially retains its chosen presentation budget, with one bounded doubling when confirmed truncated. Output is never silently accepted as complete at the limit.
+
+The whole-job reservation includes the largest usable output at each stage. Only accepted reusable output with validated usage is settled, cumulatively; discarded truncated output is not charged. Failed attempt overhead is bounded and absorbed within the existing retail margin. Ordinary one-credit jobs remain one credit, including successful recovery. Unknown outcomes do not retry. Cancellation/pause wins before the next attempt. Archived dispatch records remain immutable.
+
+Migration 0019 is additive and changes no existing job, attempt, result, balance or expiry. A previously blocked **classified output_limit** job can be recovered only after a fresh explicit Summary action, with an atomic approved budget revision and a normal remaining-credit hold. Saved successful work is reused. Unclassified/unknown outcomes cannot use this path. Expiry stays anchored to original addition; no deployment-time replay occurs.
+
+Spinner and result status both count **completed** passes, including during recovery. A failed attempt never increments completion. Final status distinguishes complete from partial and shows actual settled credits. No real-book/provider validation is implied by synthetic tests.

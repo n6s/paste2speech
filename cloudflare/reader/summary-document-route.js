@@ -1,5 +1,5 @@
 import{summarySourceFits}from'../../public/summary-limits.js';
-import{SUMMARY_DOCUMENT_MODEL,summaryDigest}from'../../public/summary-document-plan.js';
+import{SUMMARY_DOCUMENT_MODEL,SUMMARY_BUDGET_POLICY,summaryDigest}from'../../public/summary-document-plan.js';
 import{SummaryDocuments}from'./summary-documents.js';
 import{summaryDocumentProvider}from'./summary-document-provider.js';
 import{SUMMARY_DOCUMENT_VERSION}from'../../public/summary-document-plan.js';
@@ -14,6 +14,7 @@ export async function summaryDocumentResponse(request,env,account,{now=Date.now,
  const service=new SummaryDocuments(env,{now,provider:provider||((text,stage,preset)=>summaryDocumentProvider(env,text,stage,preset))});
  try{
   if(input.action==='legacy'){await service.check(account);if(typeof input.text!=='string'||!summarySourceFits(input.text)||!['brief','standard','detailed'].includes(input.preset))return reply({});const fingerprint=await summaryDigest(JSON.stringify([SUMMARY_DOCUMENT_MODEL,input.text,'general',input.preset]));const row=await service.q("SELECT a.state,r.summary,r.expires FROM summary_credit_attempts a LEFT JOIN summary_credit_results r ON r.attempt=a.id WHERE a.account=? AND a.fingerprint=? AND a.state IN('ready','held','prepared','uncertain') ORDER BY a.created DESC LIMIT 1",account.id,fingerprint).first();if(row?.state==='ready'&&row.expires>now()&&row.summary)return reply({text:row.summary,cached:true});if(row&&row.state!=='ready')return reply({blocked:true,detail:'The previous Summary outcome needs checking. No duplicate request was made.'});return reply({});}
+  if(['quote','open','step'].includes(input.action)&&input.budgetPolicy!==SUMMARY_BUDGET_POLICY)return reply({detail:'Summary budgeting changed. Refresh to continue; saved work is kept.'},409);
   if(input.action==='quote')return reply(await service.quote(account,input));
   if(!['open','status','pause','result','step'].includes(input.action))return reply({detail:'Unknown Summary action.'},422);
   if(input.action==='open')return reply({document:await service.open(account,input)});
