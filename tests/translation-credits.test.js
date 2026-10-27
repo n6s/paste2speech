@@ -50,11 +50,11 @@ test('prepared HTTP seam enforces account, quoted price and stable request; usab
 
 test('bounded live proof atomically permits at most two dispatches and 5000 total code points; cache is free',async()=>{
  const f=await fixture();f.env.TRANSLATION_LIVE_TEST_BUDGET='1';const before=await f.wallet.balance('a');
- const requests=await Promise.all(['A'.repeat(2500),'B'.repeat(2500),'C'].map(text=>f.request({text})));
+ const inputs=['A','B','C'].map(letter=>letter.repeat(2500));const requests=await Promise.all(inputs.map(text=>f.request({text})));
  assert.equal(f.calls(),2);assert.equal(requests.filter(r=>r.status===200).length,2);assert.equal(requests.filter(r=>r.status===409).length,1);
  const budget=f.sql.prepare('SELECT COUNT(*) n,SUM(characters) characters FROM translation_attempts WHERE dispatched IS NOT NULL').get();assert.deepEqual({...budget},{n:2,characters:5000});
  const after=await f.wallet.balance('a');assert.equal(before.balance-after.balance,20000);assert.equal(after.held,0);
- assert.equal((await f.request({text:'A'.repeat(2500)})).cached,true);assert.equal(f.calls(),2);assert.equal((await f.wallet.balance('a')).balance,after.balance);
+ assert.equal((await f.request({text:inputs[requests.findIndex(r=>r.status===200)]})).cached,true);assert.equal(f.calls(),2);assert.equal((await f.wallet.balance('a')).balance,after.balance);
 });
 test('a single oversized live proof input never reaches provider and returns its entire hold',async()=>{
  const f=await fixture();f.env.TRANSLATION_LIVE_TEST_BUDGET='1';const before=await f.wallet.balance('a');const result=await f.request({text:'x'.repeat(5001)});assert.equal(result.status,409);assert.equal(f.calls(),0);assert.equal((await f.wallet.balance('a')).balance,before.balance);assert.equal((await f.wallet.balance('a')).held,0);
