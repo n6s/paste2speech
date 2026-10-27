@@ -1,3 +1,4 @@
+import{summaryDocumentStatus}from'./summary-document-status.js';
 import{summarySourceFits}from'./summary-limits.js';
 import{saveSummaryDraft,readSummaryDraft,clearSummaryDraft}from'./summary-document-draft.js';
 import{planSummaryDocument,SUMMARY_DOCUMENT_VERSION,summaryStage}from'./summary-document-plan.js';
@@ -12,7 +13,7 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
  const status=text=>{el('summary-status').textContent=text;};
  const update=()=>{button.disabled=externalBusy||!source.trim()||!available;button.title=!available?'Summary availability is being checked':'';el('summarize').disabled=button.disabled;el('summary-use').disabled=busy||resultSource!==source||!result.value.trim();el('summary-restore').disabled=original===null;el('summary-cancel').hidden=!busy;el('summary-cancel').textContent='Pause';};
  const request=async(action,data={})=>{const response=await fetcher('/api/summary/documents',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,scope,version:SUMMARY_DOCUMENT_VERSION,...data})});const value=await response.json();if(!response.ok)throw Error(value.detail||'Summary could not be checked. Saved work is kept.');return value;};
- const documentStatus=doc=>doc.detail|| (doc.state==='ready'?`Summarized in ${doc.passes} ${doc.passes===1?'pass':'passes'} for ${number(doc.creditsUsed)} ${doc.creditsUsed===1?'credit':'credits'}.`:doc.state==='paused'?`Summary paused · ${number(doc.creditsUsed)} credits used. Click Summary to continue.`:doc.state==='blocked'?'Summary needs attention. Saved sections are kept; no automatic retry.':`Summarizing · ${doc.next} of ${doc.stages} passes complete…`);
+ const documentStatus=summaryDocumentStatus;
  const show=(text,doc,{cached=false,partial=false}={})=>{result.value=text;result.disabled=!text;resultSource=source;resultKey=key();el('summary-output-label').textContent=(partial?'Summary so far':'Summary')+' · '+select.value[0].toUpperCase()+select.value.slice(1);status(cached?'Saved summary · no new charge.':documentStatus(doc));};
  const partial=()=>[...notes.entries()].filter(([i])=>i<plan.maps).sort((a,b)=>a[0]-b[0]).map(([i,text])=>plan.maps>1?`Section ${i+1}\n${text}`:text).join('\n\n');
  const pause=()=>{planning?.abort();planning=null;const id=['active','pausing'].includes(job?.state)?job.id:null,submitted=source,preset=job?.preset||select.value,currentScope=scope,stopped=++epoch;busy=false;hideProcessing('summary-documents');if(id)void(async()=>{try{let data=await request('pause',{id});for(let poll=0;poll<125;poll++){if(epoch!==stopped||getText()!==submitted||select.value!==preset||scope!==currentScope)return;job=data.document;if(!job)return;if(job.state!=='pausing'){for(let i=0;i<Math.min(job.next,plan.maps);i++){const saved=await request('result',{id,part:i});if(epoch!==stopped)return;if(saved.text)notes.set(i,saved.text);}if(notes.size)show(partial(),job,{partial:job.state!=='ready'});status(documentStatus(job));window.dispatchEvent(new Event('speech-credit-change'));return;}status(documentStatus(job));await new Promise(r=>setTimeout(r,500));if(epoch!==stopped)return;data=await request('status',{id});}if(epoch===stopped)status('Summary pause is awaiting confirmation. Saved work is kept; no new sections start here.');}catch{if(epoch===stopped)status('Pause could not be confirmed. No new sections will start in this tab. Saved work is kept.');}})();update();};
@@ -35,7 +36,7 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
    // retain the approved one-click flow with the general cost explanation in Info.
    if(quote.requiredUnits>6000&&exception!==key()){exception=key();status(`This longer summary can use up to ${number(quote.requiredUnits/1000)} credits. Click Summary to start.`);return;}
    const opened=await request('open',{...identity,requestId:crypto.randomUUID(),quoteUnits:quote.remainingUnits,restartExpired:quote.document?.state==='expired'});if(!current()){if(opened.document?.id)void request('pause',{id:opened.document.id});return;}job=opened.document;
-   original??=submitted;void saveSummaryDraft({scope,source:submitted,preset,expires:job.expires},current);notes.clear();
+   window.dispatchEvent(new Event('speech-credit-change'));original??=submitted;void saveSummaryDraft({scope,source:submitted,preset,expires:job.expires},current);notes.clear();
    // Only ready source notes are needed for partial delivery; saved internal merge
    // stages remain server-side and are never regenerated on resume.
    for(let i=0;i<Math.min(job.next,plan.maps);i++){const data=await request('result',{id:job.id,part:i});if(!current())return;if(data.text)notes.set(i,data.text);}
@@ -45,7 +46,7 @@ export function setupSummaryDocuments({getText,setText,setMode,fetcher=fetch,con
    if(notes.size)show(partial(),job,{partial:true});
    while(current()&&job.state==='active'){
     const descriptor=summaryStage(plan.maps,preset,job.next),chunk=descriptor.kind==='map'?plan.chunks[job.next]:null;
-    status(documentStatus(job));const data=await request('step',{id:job.id,...chunk?{text:chunk.text,proof:chunk.proof}: {}});if(!current())return;job=data.document;if(data.text&&data.part<plan.maps)notes.set(data.part,data.text);
+    status(documentStatus(job));showProcessing('summary-documents',run,`Summarizing · pass ${job.next+1} of ${job.stages}…`);const data=await request('step',{id:job.id,...chunk?{text:chunk.text,proof:chunk.proof}: {}});if(!current())return;job=data.document;if(data.text&&data.part<plan.maps)notes.set(data.part,data.text);
     if(data.pending){status('Another Summary request is still finishing. Saved work is kept; click Summary to check again.');return;}
     if(job.state==='ready'){
      const final=data.text|| (await request('result',{id:job.id,part:plan.stages-1})).text;if(!current())return;
