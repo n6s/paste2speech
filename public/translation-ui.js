@@ -35,7 +35,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){cache.clear();ids.clear();retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
   scope=next.scope??null;config=next;return next;
  };
- const check=async()=>{const n=epoch;try{await availability();if(n===epoch)update();}catch(e){if(e.name==='AbortError')return;if(n===epoch){config={enabled:false,detail:e.message};update();status(e.message);}}};
+ const check=async()=>{const request=configRequest+1;try{await availability();update();}catch(e){if(e.name==='AbortError'||request!==configRequest)return;config={enabled:false,detail:e.message};update();status(e.message);}};
  button.onclick=()=>setMode('translate');suggest.onclick=()=>{target.value='en';setMode('translate');};
  target.onchange=()=>{cancel();retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('Choose Translate to request this language. Your original is unchanged.');update();};
  el('cancel').onclick=()=>{cancel();status('Stopped waiting. If already accepted, translation may finish and use the quoted credits once. Reopening checks the same request; your original is unchanged.');};
