@@ -6,7 +6,7 @@ export function documentTranslationClient({fetcher,scope,valid,onProgress,onBill
  const emit=parts=>{if(valid())onProgress({document,text:parts.join('\n\n'),partial:document.state!=='ready'});};
  const load=async()=>{const parts=[];for(let i=0;i<document.next;i++){if(!valid())return parts;const r=await request('part',{id:document.id,part:i});if(typeof r.text!=='string')throw Error('A saved portion could not be loaded. No regeneration was requested.');parts.push(r.text);}emit(parts);return parts;};
  return{
-  async inspect(text,target,signal){stop=false;plan=await planTranslationDocument(text,target,{signal});if(!valid())return null;document=await request('lookup',{target,sourceHash:plan.hash,manifest:plan.manifest});if(document)await load();return document;},
+  async inspect(text,target,signal){stop=false;plan=await planTranslationDocument(text,target,{signal});if(!valid())return null;document=await request('lookup',{target,sourceHash:plan.hash,manifest:plan.manifest});if(document){if(document.state==='expired')emit([]);else await load();}return document;},
   async run(text,target,signal){stop=false;owns=true;if(!plan||plan.text!==text||plan.target!==target)plan=await planTranslationDocument(text,target,{signal});if(!valid())return;
    document=await request('open',{requestId:crypto.randomUUID(),restartExpired:true,target,sourceHash:plan.hash,characters:plan.characters,manifest:plan.manifest,...(plan.characters<=30000?{legacySource:text}:{})});if(typeof document.legacyText==='string'){emit([document.legacyText]);return document;}let parts=await load();if(!valid()||stop)return;
    if(document.state==='paused')document=await request('resume',{id:document.id});

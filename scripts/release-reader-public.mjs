@@ -1,5 +1,8 @@
 // No remote changes without the explicit production-approved deployment flag.
-import {execFileSync} from 'node:child_process';
+import {execFileSync as rawExecFileSync} from 'node:child_process';
+import {createGateRunner,readerGateIdentity} from './reader-gate-runner.mjs';
+const gateRunner=createGateRunner({reuse:process.argv.includes('--reuse-gates'),identity:readerGateIdentity,run:rawExecFileSync});
+const execFileSync=(...args)=>gateRunner.run(...args);
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';

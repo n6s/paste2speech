@@ -1,6 +1,9 @@
 // Both environments are built and checked together. Production promotes the
 // exact clean commit already served by staging; no secrets or data are copied.
-import {execFileSync} from 'node:child_process';
+import {execFileSync as rawExecFileSync} from 'node:child_process';
+import {createGateRunner,readerGateIdentity} from './reader-gate-runner.mjs';
+const gateRunner=createGateRunner({reuse:process.argv.includes('--reuse-gates'),identity:readerGateIdentity,run:rawExecFileSync});
+const execFileSync=(...args)=>gateRunner.run(...args);
 import {readFileSync,writeFileSync,readdirSync,mkdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -30,6 +33,7 @@ if(settings.staging.vars.MATH_SPEECH_PREVIEW==='1')for(const file of ['tests/mat
 if(settings.staging.vars.TRANSLATION_UI==='1')execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
 if(settings.staging.vars.TRANSLATION_DOCUMENT_SCHEMA==='1')execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
+if(args.includes('--measure-reuse')){const benchmark=createGateRunner({reuse:true,identity:readerGateIdentity,run:rawExecFileSync});benchmark.run('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});writeFileSync('work/reader-gates/reuse-benchmark.json',JSON.stringify(benchmark.timings,null,2)+'\n');}
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
 for(const file of ['index.html','billing.html','billing.js'])if(/paddle|sandbox|staging|test purchases|Upgrade with a speech pack/i.test(readFileSync(sites.production+'/'+file,'utf8')))throw Error('Staging or checkout content in production assets: '+file);
 assert.equal(readdirSync(sites.production+'/samples').length,0,'Test audio must not ship in production assets');
@@ -47,6 +51,7 @@ async function verifyHosted(name){
  return hosted;
 }
 if(deploy&&environment==='production')await verifyHosted('staging');
+if(deploy){assert.equal(execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim(),'','Release changed during gates');assert.equal(execFileSync('git',['rev-parse','HEAD'],{encoding:'utf8'}).trim(),releases[environment].commit,'Commit changed during gates');}
 execFileSync('node',['node_modules/wrangler/bin/wrangler.js','deploy','--config',config(environment),...(deploy?[]:['--dry-run','--outdir',`work/shared-reader/${environment}-worker`])],{stdio:'inherit'});
 if(deploy){
  // A successful upload can precede the edge serving the new asset manifest.

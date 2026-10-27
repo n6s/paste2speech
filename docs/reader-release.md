@@ -1490,3 +1490,14 @@ compatibility, rollback and verification details. Run the usual same-clean-commi
 staging/public release commands. Public preparation additionally checks TXT import
 and native-audio section recovery/MP4 export in both builds. Offline audio storage
 redesign and the existing 64 MiB tab cache are outside this release.
+
+## Interrupted gate recovery
+
+Reader release runners now log START/PASS/FAIL with elapsed milliseconds and keep
+successful local receipts under `work/reader-gates/`. A deliberate recovery run may
+add `--reuse-gates` to reuse only exact clean-commit, actual built-asset,
+configuration, Node/Chrome/dependency and non-secret environment identities.
+Changed inputs rerun; failed fresh reruns invalidate earlier receipts. Builds,
+migrations, uploads and hosted verification are never cached. Browser/media gates
+remain serial to avoid resource contention. A fresh release still runs every gate.
+Do not use reuse to ignore a newly observed failure or a changed artifact.
