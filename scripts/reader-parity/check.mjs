@@ -111,7 +111,7 @@ try{
   // Browser speech uses the same controls without creating audio jobs.
   await page.addInitScript(()=>{
    window.__spoken=[];
-   Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[{name:'Fixture',voiceURI:'fixture',lang:'en-US',localService:true}],addEventListener(){},cancel(){},speak(u){window.__spoken.push(u);}}});
+   Object.defineProperty(window,'speechSynthesis',{value:{getVoices:()=>[{name:'Fixture',voiceURI:'fixture',lang:'en-US',localService:true}],addEventListener(){},cancel(){},speak(u){window.__spoken.push(u);queueMicrotask(()=>u.onstart?.());}}});
    window.SpeechSynthesisUtterance=class{constructor(text){this.text=text;}};
   });
   await page.goto(origin);await page.locator('#voice-settings').evaluate(e=>e.open=true);await page.selectOption('#engine','browser');
@@ -124,6 +124,7 @@ try{
   assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
   await page.locator('#seek').dispatchEvent('pointercancel');assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');
   await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());await page.click('#play');
+  await page.waitForFunction(()=>document.querySelector('#seek').value==='0'&&document.querySelector('#status').textContent==='Reading aloud');
   assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
   await page.setViewportSize({width:1280,height:900});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-desktop.png`});
   await page.setViewportSize({width:412,height:915});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-mobile.png`});
