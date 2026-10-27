@@ -1,7 +1,7 @@
 // Model-specific safe bounds. Llama's byte-level tokenizer cannot require more
 // content tokens than UTF-8 bytes; prompt/template headroom is reserved separately.
 export const SUMMARY_DOCUMENT_VERSION='summary-tree-llama32-v1';
-export const SUMMARY_BUDGET_POLICY='context-output-recovery-v2';
+export const SUMMARY_BUDGET_POLICY='context-output-recovery-generations-v3';
 export const SUMMARY_DOCUMENT_MODEL='@cf/meta/llama-3.2-3b-instruct';
 export const SUMMARY_CONTEXT_TOKENS=80000,SUMMARY_PROMPT_TOKENS=2048,SUMMARY_MAX_OUTPUT_TOKENS=8192,SUMMARY_CONTEXT_HEADROOM=2048;
 export const SUMMARY_MAP_BYTES=SUMMARY_CONTEXT_TOKENS-SUMMARY_PROMPT_TOKENS-SUMMARY_MAX_OUTPUT_TOKENS-SUMMARY_CONTEXT_HEADROOM,SUMMARY_NOTE_BYTES=16384,SUMMARY_FINAL_BYTES=32768,SUMMARY_FANOUT=4;

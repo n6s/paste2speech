@@ -109,3 +109,12 @@ The whole-job reservation includes the largest usable output at each stage. Only
 Migration 0019 is additive and changes no existing job, attempt, result, balance or expiry. A previously blocked **classified output_limit** job can be recovered only after a fresh explicit Summary action, with an atomic approved budget revision and a normal remaining-credit hold. Saved successful work is reused. Unclassified/unknown outcomes cannot use this path. Expiry stays anchored to original addition; no deployment-time replay occurs.
 
 Spinner and result status both count **completed** passes, including during recovery. A failed attempt never increments completion. Final status distinguishes complete from partial and shows actual settled credits. No real-book/provider validation is implied by synthetic tests.
+
+
+## Explicit fresh generations (0020, staging only)
+
+The existing main Summary button requests a fresh generation with the selected preset; there is no additional Generate again button. Its dropdown allows free passive viewing/preset selection. No generation begins on navigation, source restoration or preset selection alone. The prior visible result remains until a usable final replacement is accepted; failure/credit shortfall preserves it. Saved source/preset results and edits are not relabeled as a different preset.
+
+Each explicit action has a UUID generation identity, separate from stable source identity. Replaying the same action reuses its admission, stages and settlement. A paused/interrupted admitted action retains that UUID locally for reconciliation/resume, including reload; it does not create another full paid job. Double-click events and in-flight main-button actions are suppressed. A later fresh action after completion or a confirmed blocked outcome gets a new UUID. The new receipt links to its prior receipt without mutating or retrying the old unknown request.
+
+Migration 0020 adds generation/replacement identity and expands the source index while retaining the account's single active-generation gate. Existing records, attempts, financial events, saved results and original expiries are unchanged. Normal read-only reopening prefers a ready result if a later replacement failed. Billing remains normal cumulative validated-usage pricing, with the existing minimum and quote ceiling; requesting a new result is not a free saved-result reopen. Unknown outcomes remain preserved independently, never relabeled or automatically retried.
