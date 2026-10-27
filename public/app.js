@@ -266,6 +266,7 @@ function readFromSection(index){
     if(request!==sectionTapRequest||target!==player||text!==$('text').value||source!==chunks)return;
     inputQueue?.model.stop();inputQueue?.model.resume();
     if(['idle','done'].includes(target.state))countNextPlayback=true;
+    deviceAudio?.setPlayIntent('playing',{nativeChunks:source});
     Promise.resolve(target.start(source,settings(),index)).catch(error=>{if(request===sectionTapRequest&&target===player)render(target,error.message);});
   };
   if(deviceAudio?.needsPlaybackGuard())void deviceAudio.beforePlay().then(allowed=>{if(allowed)start();});
@@ -313,7 +314,7 @@ function readAndPlay({retentionChecked=false,queuedStart=false,mathChecked=false
   const pending=deviceAudio?.pendingPlayback;
   if(pending&&!queuedStart){pending.snapshot={...pending.snapshot,engine:$('engine').value,voice:$('voice').value,rate:Number($('rate').value),cleanup:{...options},speechTextVersion:activeSpeechTextVersion};void deviceAudio.retryPending(pending);return true;}
   if(deviceAudio?.singleQueuedPlayback){inputQueue.model.advance();return true;}
-  if(PERSISTENT_AUDIO&&deviceAudio?.needsPlaybackGuard()&&!retentionChecked){void deviceAudio.beforePlay().then(allowed=>{if(allowed)readAndPlay({retentionChecked:true});});return true;}
+  if(PERSISTENT_AUDIO&&deviceAudio?.needsPlaybackGuard()&&!retentionChecked){const request=sectionTapRequest,voice=$('voice').value;void deviceAudio.beforePlay().then(allowed=>{if(allowed&&(!PODCAST_PLAYLIST||request===sectionTapRequest&&voice===$('voice').value))readAndPlay({retentionChecked:true});});return true;}
   inputQueue?.model.resume();
   voicePreviews?.stop();
   $('text').blur();

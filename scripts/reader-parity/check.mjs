@@ -123,8 +123,13 @@ try{
   await page.locator('#seek').evaluate(e=>{e.value=0;e.dispatchEvent(new Event('input',{bubbles:true}));});
   assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
   await page.locator('#seek').dispatchEvent('pointercancel');assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'3 / 3');assert.equal(await page.locator('#seek').inputValue(),'2');
-  await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());await page.click('#play');
-  await page.waitForFunction(()=>document.querySelector('#seek').value==='0'&&document.querySelector('#status').textContent==='Reading aloud');
+  const beforeFinalUtterance=await page.evaluate(()=>__spoken.length);
+  await page.click('#play');
+  // Play may first validate local ownership. End the new utterance, never a
+  // canceled utterance from the previous paused generation.
+  await page.waitForFunction(count=>__spoken.length>count&&document.querySelector('#status').textContent==='Reading aloud',beforeFinalUtterance);
+  await page.evaluate(()=>__spoken.at(-1).onend());await page.click('#play');
+  try{await page.waitForFunction(()=>document.querySelector('#seek').value==='0'&&document.querySelector('#status').textContent==='Reading aloud');}catch(error){console.error('Replay handoff state',await page.evaluate(async()=>{const db=await new Promise(r=>{const q=indexedDB.open('paste2speech-device-audio-v1');q.onsuccess=()=>r(q.result);});const saved={};for(const name of ['readings','usage','positions','lifecycle'])if(db.objectStoreNames.contains(name))saved[name]=await new Promise(r=>{const q=db.transaction(name).objectStore(name).getAll();q.onsuccess=()=>r(q.result);});db.close();return{status:document.querySelector('#status').textContent,detail:document.querySelector('#device-audio-status')?.textContent,seek:document.querySelector('#seek').value,spoken:__spoken.map(u=>u.text),queue:document.querySelector('#queue-items')?.textContent,saved};}));throw error;}
   assert.equal(await page.locator('#seek-time').textContent(),reviewedLayout?'— / —':'1 / 3');assert.equal(await page.locator('#seek').inputValue(),'0');
   await page.setViewportSize({width:1280,height:900});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-desktop.png`});
   await page.setViewportSize({width:412,height:915});await page.screenshot({path:`work/shared-reader/${environment}-browser-controls-mobile.png`});

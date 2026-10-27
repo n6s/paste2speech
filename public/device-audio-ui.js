@@ -65,9 +65,10 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
     if(target?.state.version===2){change(target.state);void target.edit(change).catch(error=>message(error.message));}
     if(text)message(text);return {id,outcome};
   }
-  function setPlayIntent(value){
+  function setPlayIntent(value,{nativeChunks}={}){
     if(!podcast||!playlist)return;
-    if(value!=='playing'){playlistTransition++;waitingEntry=null;handoffBusy=false;}
+    if(value==='playing'&&selected?.text===getText()){selected.runRequested=true;if(selected.engine==='browser')selected.nativeChunks=nativeChunks||(getActive()?.state==='paused'?getActive().chunks:getChunks());}
+    if(value!=='playing'){if(selected)selected.runRequested=false;playlistTransition++;waitingEntry=null;handoffBusy=false;}
     const target=playlist,owner=scope(),revision=playlistTransition;
     target.state.playIntent=value;target.state.handoff=value==='playing'?'starting':value;
     void target.edit(state=>{if(target===playlist&&owner===scope()&&revision===playlistTransition){state.playIntent=value;state.handoff=value==='playing'?'starting':value;}}).catch(error=>message(error.message));
@@ -191,7 +192,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
   const rememberSelection=id=>{if(recoveredId&&recoveredId!==id){recoveredId=null;recoveredItem=null;}if(getText().trim()){editorCleared=false;sessionStorage.removeItem(blankKey);}localStorage.setItem(latestKey(),id);localStorage.setItem(selectionKey(),id);if(podcast)message('');if(podcast&&playlist){const target=playlist,owner=scope(),revision=playlistTransition;void target.edit(state=>{if(target===playlist&&owner===scope()&&revision===playlistTransition&&state.order.includes(id)){if(state.currentId!==id)state.playIntent="paused";state.currentId=id;}}).catch(error=>message(error.message));}};
   const activeStore = (record) => record?.scope === scope() ? store() : null;
   function capture() {
-    if (!selected) return;
+    if (!selected||podcast&&selected.awaitingRun) return;
     const player = getActive();
     if (selected.engine === "browser") {
       if (getEngine() === "browser" && player?.state !== "idle" && player?.chunks === selected.nativeChunks) selected.lastPlace = { index: player.index || 0, offset: player.offset || 0, rate: player.settings?.rate || 1 };
@@ -394,7 +395,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       }
     }
     if(replacing===replacement)releaseReplacement();
-    if(activate)await openReading(record);else{if(!await holdSelected(record,{valid})||!valid())return;selected={...record,groupId:reusedGroup?.id,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:engine==="browser"?getActive()?.chunks:null};rememberSelection(id);}
+    if(activate)await openReading(record);else{if(!await holdSelected(record,{valid})||!valid())return;selected={...record,groupId:podcast?undefined:reusedGroup?.id,lastPlace:{position:record.position||0,index:record.nativeIndex||0,offset:record.nativeOffset||0,rate:options.rate},nativeChunks:!podcast&&engine==="browser"?getActive()?.chunks:null,awaitingRun:podcast||undefined};rememberSelection(id);}
     if(reusedGroup)void shell().catch(error=>message(error.message));
     await list();
     if(consume)getQueue()?.removePending(id,{consumed:true});await persistPending();await cleanup();await list();notifyPlaylist();
@@ -617,10 +618,13 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       void flush();
     }, 500);
     const player = getActive(), group = natural.getVideoPreparation?.();
+    // A requested start can emit rate/ownership changes while the old run is
+    // still done. Bind only after the player enters its new active run.
+    if(podcast&&selected?.awaitingRun&&selected.runRequested&&['preparing','buffering','playing'].includes(player?.state)){selected.awaitingRun=false;if(selected.engine==='browser')selected.nativeChunks=player.chunks;}
     // Staging's zero-cost fixture bypasses LongReadingTransport groups. Bind
     // its real player run to the explicitly admitted logical reading instead.
     if(podcast&&selected?.engine==='google'&&natural.settings?.cached===true&&natural.id&&intent?.id===selected.id&&matches())selected.groupId=natural.id;
-    const sameReading=selected&&(selected.engine==='browser'?getEngine()==='browser'&&selected.nativeChunks===player?.chunks:(selected.groupId===natural.id||group?.id===natural.id&&group.logicalReading?.id===selected.id)&&matches());
+    const sameReading=selected&&(!podcast||!selected.awaitingRun)&&(selected.engine==='browser'?getEngine()==='browser'&&selected.nativeChunks===player?.chunks:(selected.groupId===natural.id||group?.id===natural.id&&group.logicalReading?.id===selected.id)&&matches());
     if(podcast&&sameReading&&!opening&&!handoffBusy&&!finishingEntries.has(selected.id)&&!['opening','waiting','needs-action'].includes(playlist?.state.handoff)&&['paused','idle'].includes(player?.state)){
       const nextIntent=player.state==='paused'?'paused':'stopped';
       if(selected.intentState!==nextIntent){selected.intentState=nextIntent;const id=selected.id,target=playlist;void target.edit(state=>{if(target===playlist&&state.currentId===id)state.playIntent=nextIntent;}).catch(error=>message(error.message));}
@@ -636,14 +640,16 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       selected.finishedAt = null;
       selected.lifecycleSave = store().setLifecycle(selected.id, { finishedAt: null }).then(() => list()).catch((error) => message(error.message));
     }
-    if (!opening && !saving && !attaching && enabled()) {
-      if (getEngine() === "google" && assets.store && group && !group.cancelled && (!suppressed.has(naturalLogicalId(group))||rekeep.has(naturalLogicalId(group))) && matches() && (selected?.groupId !== group.id||group.logicalReading?.id&&selected?.id!==group.logicalReading.id)) {
+    // Metadata registration is not a new playback run. An ended old player must
+    // not bind or complete a fresh logical entry before its explicit start.
+    if (!opening && !saving && !attaching && enabled() && (!podcast||!selected?.awaitingRun)) {
+      if (getEngine() === "google" && (!podcast||natural.state!=="done"||selected?.awaitingRun===false) && assets.store && group && !group.cancelled && (!suppressed.has(naturalLogicalId(group))||rekeep.has(naturalLogicalId(group))) && matches() && (selected?.groupId !== group.id||group.logicalReading?.id&&selected?.id!==group.logicalReading.id)) {
         attaching = true;
         void saveNatural(group).finally(() => {
           attaching = false;
           setTimeout(update, 200);
         });
-      } else if (getEngine() === "browser" && player?.synth && player?.chunks?.length && player.state !== "idle" && (nativeBlocked?.chunks !== player.chunks || nativeBlocked?.voice !== player.settings?.voice?.voiceURI) && selected?.nativeChunks !== player.chunks) {
+      } else if (getEngine() === "browser" && player?.synth && player?.chunks?.length && player.state !== "idle" && (!podcast||player.state!=="done"||selected?.awaitingRun===false) && (nativeBlocked?.chunks !== player.chunks || nativeBlocked?.voice !== player.settings?.voice?.voiceURI) && selected?.nativeChunks !== player.chunks) {
         attaching = true;
         void saveNative(player).finally(() => {
           attaching = false;
