@@ -15,7 +15,7 @@ import {setupDomainMoveNotice} from './domain-move.js';
 setupDomainMoveNotice();
 import {setupExtensionHandoff} from './extension-handoff.js';
 import {checkQueuedAccount} from './queue-preflight.js';
-import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline} from './playback-controls.js';
+import {SPEED_PRESETS, presetRate, preparedChunkCount, playbackTimeline, explicitEndSeek} from './playback-controls.js';
 import {WAVENET_VOICES} from './wavenet-voices.js';
 import {setupVoicePreviews} from './voice-previews.js';
 import {cloudFetch, setupCloudReader} from './cloud-reader.js';
@@ -621,7 +621,7 @@ function resetReading(preserveReady=false) { mathPlayRequest++; workstationPlaye
 if(CLOUD_READER){
   const seek=$('seek');
   seek.addEventListener('input',()=>{seek.dataset.dragging='true';render(player);});
-  seek.addEventListener('change',()=>{const target=Number(seek.value),finish=PODCAST_PLAYLIST&&player?.state==='playing'&&!player.starting&&(player===browserPlayer||player.audio&&!player.audio.paused&&!player.audio.ended)&&Number(seek.max)>0&&target>=Number(seek.max);delete seek.dataset.dragging;if(finish){void deviceAudio?.markCurrentRead();return;}seekSection(target);render(player);});
+  seek.addEventListener('change',()=>{const target=Number(seek.value),finish=PODCAST_PLAYLIST&&explicitEndSeek(player,target,Number(seek.max),{browser:player===browserPlayer});delete seek.dataset.dragging;if(finish){void deviceAudio?.markCurrentRead();return;}seekSection(target);render(player);});
   seek.addEventListener('pointercancel',()=>{delete seek.dataset.dragging;render(player);});
   const button=$('speed-preset');
   const updateSpeed=()=>{button.textContent=`${$('rate').value}×`;button.setAttribute('aria-label',`Playback speed: ${$('rate').value}×. Activate to change speed.`);};

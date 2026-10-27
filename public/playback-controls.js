@@ -24,3 +24,11 @@ export function playbackTimeline(player,{rate=1,natural=true,selected=null}={}) 
  return {label:`${position===null?'—':clock(position)} / ${duration===null?'—':complete?clock(duration):'—'}`,
   detail:duration&&!complete?`${clock(duration)} audio prepared · total duration unknown`:`${speed}× playback time`,position,duration:complete?duration:null};
 }
+
+// The end of a growing prepared prefix is not the end of the source reading.
+export function explicitEndSeek(player,target,max,{browser=false}={}) {
+  return !!player&&player.state==='playing'&&!player.starting&&
+    (browser||!!player.audio&&!player.audio.paused&&!player.audio.ended)&&
+    Number.isFinite(target)&&Number.isFinite(max)&&max>0&&target>=max&&
+    (browser?player.chunks.length:preparedChunkCount(player))===player.chunks.length;
+}

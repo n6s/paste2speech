@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {presetRate, preparedChunkCount, playbackTimeline} from '../public/playback-controls.js';
+import {presetRate, preparedChunkCount, playbackTimeline, explicitEndSeek} from '../public/playback-controls.js';
 test('speed migration chooses nearest preset and lower speed on ties',()=>{
   assert.equal(presetRate(undefined),1);assert.equal(presetRate(1.1),1);
   assert.equal(presetRate(1.125),1);assert.equal(presetRate(1.9),2);
@@ -22,4 +22,15 @@ test('timeline scales verified source time without changing position or playback
  assert.match(playbackTimeline({...p,complete:false},{rate:2}).detail,/30:00 audio prepared.*unknown/);
  assert.equal(playbackTimeline(p,{natural:false}).label,'— / —');
  assert.equal(playbackTimeline({duration:0,starts:[]},{rate:2}).label,'— / —');
+});
+
+test('seek to a prepared prefix boundary cannot retire unfinished source',()=>{
+  const player={state:'playing',starting:false,chunks:['one','two','three'],starts:[0,2],duration:4,audio:{paused:false,ended:false}};
+  assert.equal(explicitEndSeek(player,1,1),false);
+  player.starts.push(4);player.duration=6;
+  assert.equal(explicitEndSeek(player,2,2),true);
+  player.state='paused';assert.equal(explicitEndSeek(player,2,2),false);
+  player.state='playing';player.starting=true;assert.equal(explicitEndSeek(player,2,2),false);
+  player.starting=false;player.audio.paused=true;assert.equal(explicitEndSeek(player,2,2),false);
+  assert.equal(explicitEndSeek({...player,audio:null},2,2,{browser:true}),true);
 });
