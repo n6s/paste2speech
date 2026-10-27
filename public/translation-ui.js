@@ -25,7 +25,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
 
  const el=id=>document.getElementById('translation-'+id),target=el('target');
  for(const [code,name]of Object.entries(TRANSLATION_LANGUAGES).sort(([a,x],[b,y])=>a==='en'?-1:b==='en'?1:x.localeCompare(y,'en'))){const option=document.createElement('option');option.value=code;option.textContent=name;target.append(option);}try{target.value=localStorage.getItem('paste2speech.translation.target')||'en';}catch{target.value='en';}if(!target.value)target.value='en';
- let actionOpening=false,config=null,scope=null,visible=false,busy=false,controller=null,epoch=0,source=getText(),result=null,original=null,applying=false;
+ let targetPending=false,actionOpening=false,config=null,scope=null,visible=false,busy=false,controller=null,epoch=0,source=getText(),result=null,original=null,applying=false;
  let documents=null;const documentEdits=[];const cache=new Map(),ids=new Map();let configRequest=0,retryOffer=null,checkingExisting=false,readOnlyTimer=null,pausedChecks=0;
  const status=message=>{el('status').textContent=message;};
  const sourceText=()=>original?.text??getText();
@@ -33,7 +33,8 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  const permitted=()=>config?.enabled===true&&typeof config.scope==='string'&&config.scope&&Number.isFinite(config.priceCreditsPer1000)&&config.priceCreditsPer1000>0;
  const languageName=()=>TRANSLATION_LANGUAGES[target.value]||target.value;
  const credits=value=>Number(value||0).toLocaleString(undefined,{maximumFractionDigits:3});
- const labelResult=()=>{el('result-label').textContent=`Translation · ${languageName()}${result?.edited?' · your edits':result?.partial?' · partial':''}`;el('result').placeholder=`Your ${languageName()} translation will appear here.`;};
+ const targetCue=()=>`Click Translate to translate into ${languageName()}.`;
+ const labelResult=()=>{const actual=result?TRANSLATION_LANGUAGES[result.target]||result.target:languageName();el('result-label').textContent=`Translation · ${actual}${result?.edited?' · your edits':result?.partial?' · partial':''}`;el('result').placeholder=targetCue();};
  const knownLanguages=new Map();
  let evidenceSource=null,evidenceLanguage=null;const sourceLanguage=()=>{const text=sourceText(),known=knownLanguages.get(text);if(known)return known;if(text!==evidenceSource){evidenceSource=text;evidenceLanguage=confidentTranslationLanguage(text);}return evidenceLanguage;};
  const alreadyTarget=()=>sourceLanguage()===target.value;
@@ -50,7 +51,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  const showResult=value=>{result=value;el('result').value=value.text;el('result').lang=value.target;el('result').dir='auto';status(value.noOp?`Already in ${languageName()}.`:value.cached?'Saved translation · no new charge.':Number.isFinite(value.creditsUsed)?`Translated ${characterCount(value.source).toLocaleString()} characters for ${credits(value.creditsUsed)} credits.`:'Translation ready.');if(!value.noOp&&!value.edited){knownLanguages.set(value.text,value.target);while(knownLanguages.size>3)knownLanguages.delete(knownLanguages.keys().next().value);}update();};
  const availability=async()=>{
   const checkId=++configRequest;const response=await fetcher('/api/translation/config',{cache:'no-store'});if(!response.ok)throw Error('Translation availability could not be checked. Your text is unchanged.');
-  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){original=null;source=getText();cache.clear();ids.clear();knownLanguages.clear();documentEdits.length=0;documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
+  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){targetPending=false;original=null;source=getText();cache.clear();ids.clear();knownLanguages.clear();documentEdits.length=0;documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
   scope=next.scope??null;config=next;return next;
  };
  const makeDocuments=(n,text,language,owner,inspection=false)=>{const client=documentTranslationClient({fetcher,onBillingChange:()=>window.dispatchEvent(new Event('speech-credit-change')),scope:()=>owner,verifyScope:async()=>{if(n!==epoch)throw new DOMException('Translation changed','AbortError');await availability();if(scope!==owner)throw Error('Your account changed. No prior-account translation is shown.');},valid:()=>n===epoch&&text===sourceText()&&language===target.value&&scope===owner,onProgress:({document,text:translated,partial})=>{
@@ -58,12 +59,12 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   const count=document.state==='ready'?document.characters:Math.round(document.creditsUsed*1000/4);
   if(document.detail)status(document.detail);else if(document.state==='ready')status(client.inspection||document.creditsUsed===0?'Saved translation · no new charge.':`Translated ${count.toLocaleString()} characters for ${credits(document.creditsUsed)} credits.`);else status(`${document.state==='active'?'Translating':'Paused'} · ${count.toLocaleString()} characters · ${credits(document.creditsUsed)} credits used.`);update();
  }});client.inspection=inspection;return client;};
- const check=async()=>{const request=configRequest+1;try{await availability();update();if(config.documents&&!busy&&sourceText().trim()&&!alreadyTarget()){const n=epoch,text=sourceText(),language=target.value;const edited=result&&!result.partial&&result.source===text&&result.target===language?result:documentEdits.find(r=>r.source===text&&r.target===language);if(edited){showResult(edited);return;}documents=makeDocuments(n,text,language,scope,true);const inspected=await documents.inspect(text,language);if(n===epoch){update();if(inspected?.state==='pausing'&&pausedChecks++<8){clearTimeout(readOnlyTimer);readOnlyTimer=setTimeout(()=>{if(n===epoch&&!busy&&visible)void check();},Math.min(2000,250*2**pausedChecks));}}}}catch(e){if(e.name==='AbortError'||request!==configRequest)return;status(e.message);update();}};
+ const check=async()=>{const request=configRequest+1;try{await availability();update();if(config.documents&&!busy&&!targetPending&&sourceText().trim()&&!alreadyTarget()){const n=epoch,text=sourceText(),language=target.value;const edited=result&&!result.partial&&result.source===text&&result.target===language?result:documentEdits.find(r=>r.source===text&&r.target===language);if(edited){showResult(edited);return;}documents=makeDocuments(n,text,language,scope,true);const inspected=await documents.inspect(text,language);if(n===epoch){update();if(inspected?.state==='pausing'&&pausedChecks++<8){clearTimeout(readOnlyTimer);readOnlyTimer=setTimeout(()=>{if(n===epoch&&!busy&&visible)void check();},Math.min(2000,250*2**pausedChecks));}}}}catch(e){if(e.name==='AbortError'||request!==configRequest)return;status(e.message);update();}};
  button.onclick=()=>{optionPopup.close(false);actionOpening=true;setMode('translate');actionOpening=false;if(!busy)void translate();};suggest.onclick=()=>{target.value='en';setMode('translate');};
- target.onchange=()=>{optionPopup.close(true);try{localStorage.setItem('paste2speech.translation.target',target.value);}catch{}cancel();documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('');update();if(visible)void check();};
+ target.onchange=()=>{optionPopup.close(true);try{localStorage.setItem('paste2speech.translation.target',target.value);}catch{}cancel();targetPending=true;documents=null;retryOffer=null;checkingExisting=false;status(targetCue());update();};
  el('cancel').onclick=()=>{const paused=cancel(),n=epoch;void Promise.resolve(paused).then(()=>{if(n===epoch&&visible&&!busy&&config?.documents)void check();});status(config?.documents?'Paused · saved work is kept.':'Stopped waiting · your text is kept.');};
  const translate=async()=>{
-  if(busy||isBusy())return;clearTimeout(readOnlyTimer);pausedChecks=0;
+  if(busy||isBusy())return;targetPending=false;clearTimeout(readOnlyTimer);pausedChecks=0;
   if(alreadyTarget()){showResult({text:sourceText(),target:target.value,source:sourceText(),noOp:true});return;}
   const text=sourceText(),language=target.value,n=++epoch;busy=true;controller=new AbortController();const signal=controller.signal;update();status('Checking translation…');
   try{
@@ -88,7 +89,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   }catch(e){if(n===epoch)status(e.name==='AbortError'?'Request interrupted. Your original is unchanged.':e.message);}
   finally{if(n===epoch){busy=false;controller=null;update();}}
  };
- el('copy').onclick=async()=>{try{await navigator.clipboard.writeText(el('result').value);status('Translation copied.');}catch{el('result').focus();el('result').select();status('Select and copy the translation using your browser.');}};
+ el('copy').onclick=async()=>{try{await navigator.clipboard.writeText(el('result').value);status(targetPending?'Translation copied. '+targetCue():'Translation copied.');}catch{el('result').focus();el('result').select();status('Select and copy the translation using your browser.');}};
  el('use').onclick=()=>{
   if(!result||busy||isBusy())return;
   if(original){status('Your translated text is already in the editor. Its edits are kept. Restore the original before replacing it.');return;}
@@ -107,7 +108,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  suggestion.hidden=!foreignLanguageHint(source);update();void check();
  return {
   setVisible(value){visible=value;panel.hidden=!value;button.setAttribute('aria-pressed',String(value));suggestion.hidden=value||!!original||!foreignLanguageHint(getText());if(value){source=sourceText();update();if(!actionOpening&&!busy)void check();}},
-  sourceChanged(){if(applying)return;const next=getText();if(next===source){update();return;}source=next;cancel();documents=null;if(!original){retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('');}suggestion.hidden=visible||!!original||!foreignLanguageHint(next);update();if(visible)void check();},
-  clearSource(){cancel();retryOffer=null;checkingExisting=false;original=null;result=null;cache.clear();documentEdits.length=0;el('result').value='';el('voice').textContent='';suggestion.hidden=true;source=getText();status('');update();}
+  sourceChanged(){if(applying)return;const next=getText();if(next===source){update();return;}source=next;cancel();targetPending=false;documents=null;if(!original){retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('');}suggestion.hidden=visible||!!original||!foreignLanguageHint(next);update();if(visible)void check();},
+  clearSource(){cancel();targetPending=false;retryOffer=null;checkingExisting=false;original=null;result=null;cache.clear();documentEdits.length=0;el('result').value='';el('voice').textContent='';suggestion.hidden=true;source=getText();status('');update();}
  };
 }
