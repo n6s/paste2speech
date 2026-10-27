@@ -28,6 +28,7 @@ if(settings.staging.vars.PERSISTENT_AUDIO==='1'){for(const file of ['tests/natur
 if(settings.staging.vars.PERSISTENT_AUDIO==='1')execFileSync('node',['tests/saved-tap-resume-browser.mjs'],{stdio:'inherit',env:{...process.env,AUDIT_DELIVERY:'mse',WINDOWED_RELOAD:'1'}});
 if(settings.staging.vars.MATH_SPEECH_PREVIEW==='1')for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
 if(settings.staging.vars.TRANSLATION_UI==='1')execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
+execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
 for(const file of ['index.html','billing.html','billing.js'])if(/paddle|sandbox|staging|test purchases|Upgrade with a speech pack/i.test(readFileSync(sites.production+'/'+file,'utf8')))throw Error('Staging or checkout content in production assets: '+file);
 assert.equal(readdirSync(sites.production+'/samples').length,0,'Test audio must not ship in production assets');

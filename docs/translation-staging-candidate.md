@@ -90,3 +90,12 @@ filtering. A broader official NMT target list needs no additional permissions or
 new API but should be versioned/tested separately. Translation target support
 does not promise a device or WaveNet speech voice. Only one agent live attempt
 remains; use an independent benign source rather than retry the uncertain one.
+
+Native workerd subsequently reproduced the actual compatibility defect: its
+Request implementation rejects `redirect: error` before network dispatch. The
+original adapter used that unsupported option; mocked fetch ignored it. The
+corrected adapter uses `manual`, constructs both OAuth/NMT requests successfully
+in native workerd, and does not follow redirects. The maintained native regression
+uses generated synthetic credentials/responses and forbids all external requests.
+The original refunded receipt stays intact; this diagnosis does not reclaim an
+additional live-test attempt.
