@@ -34,7 +34,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  const languageName=()=>TRANSLATION_LANGUAGES[target.value]||target.value;
  const credits=value=>Number(value||0).toLocaleString(undefined,{maximumFractionDigits:3});
  const targetCue=()=>`Click Translate to translate into ${languageName()}.`;
- const labelResult=()=>{const actual=result?TRANSLATION_LANGUAGES[result.target]||result.target:languageName();el('result-label').textContent=`Translation · ${actual}${result?.edited?' · your edits':result?.partial?' · partial':''}`;el('result').placeholder=targetCue();};
+ const labelResult=()=>{const actual=result?TRANSLATION_LANGUAGES[result.target]||result.target:languageName();el('result-label').textContent=`Translation · ${actual}${result?.edited?' · your edits':result?.partial?' · partial':''}`;el('result').placeholder=busy?'Translating…':targetCue();};
  const knownLanguages=new Map();
  let evidenceSource=null,evidenceLanguage=null;const sourceLanguage=()=>{const text=sourceText(),known=knownLanguages.get(text);if(known)return known;if(text!==evidenceSource){evidenceSource=text;evidenceLanguage=confidentTranslationLanguage(text);}return evidenceLanguage;};
  const alreadyTarget=()=>sourceLanguage()===target.value;
