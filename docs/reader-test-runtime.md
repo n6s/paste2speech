@@ -37,7 +37,7 @@ and shared output families and repeated variants have locks.
 
 No existing assertion, fixture duration or timeout threshold was relaxed. Runner
 tests cover resource locks, first-failure propagation, draining/cancellation,
-owned Chrome/server teardown, serial mode, already-canceled admissions and async
+owned Chrome/server teardown (including a slow child after its parent exits), serial mode, already-canceled admissions and async
 receipt completion/invalidation. Credential environment and external preload
 changes invalidate receipts without writing their values into receipt files.
 
@@ -62,3 +62,24 @@ under `work/reader-gates/`. Keep those artifacts before a later preparation repl
 latest-run summaries. Remaining costs are predominantly serialized integration and
 real playback checks; reducing those further requires targeted test-design work,
 not deleting coverage or globally shortening waits.
+
+Final validation also completed a fresh public preparation on `06871d9` in 436.02
+seconds, with all 762 unit tests and 38 integration gates passing. This is a
+functional verification of public flags and the public runner, not a separate
+before/after speedup claim. A final cancellation-only refinement was then covered
+by the full unit suite: wait for owned process-group descendants to finish their
+cleanup after an npm-style parent exits, without sending signals to stale PIDs.
+The normal successful-gate path and application artifacts are unchanged.
+
+A final unprofiled unit rerun exposed a pre-existing OCR fixture race: concurrent
+statuses were `[200,404,200]`, but the test demanded `[200,200,404]`. Its early
+assertion also bypassed stream cleanup, keeping that worker alive. The fixture now
+holds both admitted source reads with an explicit barrier, asserts the third is
+denied before they finish, checks the same admission/byte/content budgets, and
+always cleans up streams. No application admission rule was changed. A measured
+four-worker unit run took 7.14 seconds (slower than the normal 5–6 second runs), so
+unit concurrency was not changed merely to suppress the symptom.
+
+After these fixes, all **763 unit tests passed twice** with no failures, cancellations
+or skips; the complete 15-test OCR source fixture also passed five further fresh
+runs. The successful integration path and application source remain unchanged.

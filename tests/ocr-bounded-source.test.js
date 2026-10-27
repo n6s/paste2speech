@@ -13,8 +13,29 @@ test('reproduce two-fetch failure today; candidate allows two identical reads in
  for(const proposed of [false,true]){const f=await setup(proposed);let gets=0;f.provider=async(_url,init)=>{const token=new URL(JSON.parse(init.body).document.document_url).pathname.split('/').at(-1);for(let i=0;i<2;i++){const r=await f.job.source.serve(get(token));gets++;if(r.status!==200)return Response.json({message:'Failed to fetch document'},{status:400});assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(f.bytes));}return Response.json({model:'mistral-ocr-4-1',pages:[{index:0,markdown:'Synthetic text.'}],usage_info:{pages_processed:1}});};await f.job.alarm();assert.equal(f.calls,1);assert.equal(gets,2);assert.equal((await f.row()).state,proposed?'ready':'uncertain');assert.deepEqual(events(f),proposed?[['hold',-2000],['settle',0]]:[['hold',-2000],['release',2000]]);await f.job.alarm();await f.accept();assert.equal(f.calls,1);}
 });
 test('three total reads, two concurrent streams, full-byte reservations; concurrent admission never exceeds either cap',async()=>{
- const f=await setup(),g=await grant(f),source=f.job.source;const responses=await Promise.all([source.serve(get(g.token)),source.serve(get(g.token)),source.serve(get(g.token))]);assert.deepEqual(responses.map(r=>r.status),[200,200,404]);let record=await source.read();assert.equal(record.providerReads.length,2);assert.equal(record.providerReadReservedBytes,f.bytes.length*2);for(const r of responses.filter(r=>r.ok))assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(f.bytes));const third=await source.serve(get(g.token));assert.equal(third.status,200);await third.arrayBuffer();assert.equal((await source.serve(get(g.token))).status,404);record=await source.read();assert.equal(record.providerReads.length,3);assert.equal(record.providerReadReservedBytes,f.bytes.length*3);assert.ok(record.providerReads.every(x=>x.streamComplete&&x.bytesEnqueued===f.bytes.length));assert.ok(!JSON.stringify(record).includes(g.token));await source.revoke('a');
+ const f=await setup(),g=await grant(f),source=f.job.source,original=f.env.AUDIO.get;
+ let release,started,waiting=0,timer,third;
+ const held=new Promise(resolve=>release=resolve),bothStarted=new Promise(resolve=>started=resolve);
+ // Keep admitted streams active. Arrival order of concurrent calls is not an API
+ // guarantee; two successes and one rejection are, regardless of Promise index.
+ f.env.AUDIO.get=async(...args)=>{const object=await original(...args);if(args[0].startsWith('ocr-originals/')){if(++waiting===2)started();await held;}return object;};
+ const pending=[source.serve(get(g.token)),source.serve(get(g.token)),source.serve(get(g.token))];
+ try{
+  await Promise.race([bothStarted,new Promise((_,reject)=>timer=setTimeout(()=>reject(Error('Two source reads never reached held storage')),5000))]);clearTimeout(timer);
+  assert.equal((await Promise.race(pending)).status,404,'third concurrent admission is denied before either active stream completes');
+  release();f.env.AUDIO.get=original;const responses=await Promise.all(pending);
+  assert.deepEqual(responses.map(r=>r.status).sort((a,b)=>a-b),[200,200,404]);
+  let record=await source.read();assert.equal(record.providerReads.length,2);assert.equal(record.providerReadReservedBytes,f.bytes.length*2);
+  for(const r of responses.filter(r=>r.ok))assert.equal(hash(Buffer.from(await r.arrayBuffer())),hash(f.bytes));
+  third=await source.serve(get(g.token));assert.equal(third.status,200);await third.arrayBuffer();assert.equal((await source.serve(get(g.token))).status,404);
+  record=await source.read();assert.equal(record.providerReads.length,3);assert.equal(record.providerReadReservedBytes,f.bytes.length*3);assert.ok(record.providerReads.every(x=>x.streamComplete&&x.bytesEnqueued===f.bytes.length));assert.ok(!JSON.stringify(record).includes(g.token));
+ }finally{
+  clearTimeout(timer);release();f.env.AUDIO.get=original;
+  const settled=await Promise.allSettled(pending);for(const item of settled)if(item.status==='fulfilled')await item.value.body?.cancel().catch(()=>{});
+  await third?.body?.cancel().catch(()=>{});await source.revoke('a');
+ }
 });
+
 test('restart keeps exhausted budget and token hashing; short expiry and admission deadline cannot slide',async()=>{
  const f=await setup(),g=await grant(f);const row=await f.row();assert.equal(g.expires,Math.min(f.clock+600000,(await f.job.source.read()).expires,row.deadline));for(let i=0;i<3;i++)await(await f.job.source.serve(get(g.token))).arrayBuffer();const source=new Proposal(f.ctx.storage,f.env.AUDIO,f.optionsProposal);assert.equal((await source.serve(get(g.token))).status,404);await assert.rejects(source.issueCapability());await source.revoke('a');
  const h=await setup();h.clock=(await h.row()).deadline-5000;const short=await grant(h);assert.equal(short.expires,(await h.row()).deadline);h.clock=short.expires;assert.equal((await h.job.source.serve(get(short.token))).status,404);await h.job.source.revoke('a');

@@ -57,3 +57,14 @@ test('release signal handling drains owned fixtures and removes its listeners',a
  const result=JSON.parse(readFileSync(join(dir,'fresh-run.json')));assert.equal(result.timings.length,1);assert.equal(result.timings[0].success,false);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });
+
+test('cancellation waits for a slow descendant after npm-style parent exits',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'reader-group-drain-'));try{
+ const ready=join(dir,'ready'),controller=new AbortController();
+ const childCode=`const s=require('http').createServer((q,r)=>r.end('fixture'));s.listen(0,'127.0.0.1',()=>require('fs').writeFileSync(${JSON.stringify(ready)},String(s.address().port)));process.on('SIGTERM',()=>setTimeout(()=>s.close(()=>process.exit(0)),150));`;
+ const parentCode=`require('child_process').spawn(process.execPath,['-e',${JSON.stringify(childCode)}],{stdio:'inherit'});setInterval(()=>{},1000);`;
+ const running=executeGate({command:process.execPath,args:['-e',parentCode],options:{}},controller.signal,{logFile:join(dir,'log'),timeoutMs:15000});let failure;running.catch(error=>{failure=error;});const deadline=Date.now()+10000;
+ while(!existsSync(ready)&&!failure&&Date.now()<deadline)await delay(10);if(failure)throw failure;assert(existsSync(ready));const port=Number(readFileSync(ready));
+ controller.abort(Error('tree canceled'));await assert.rejects(running,/tree canceled/);await assert.rejects(fetch('http://127.0.0.1:'+port));
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});

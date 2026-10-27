@@ -1,4 +1,4 @@
-import{spawn}from'node:child_process';import{createGateRunner,readerGateIdentity}from'./reader-gate-runner.mjs';import{mkdirSync,openSync,closeSync,readFileSync,writeFileSync}from'node:fs';import{resolve}from'node:path';
+import{spawn}from'node:child_process';import{createGateRunner,readerGateIdentity}from'./reader-gate-runner.mjs';import{mkdirSync,openSync,closeSync,readFileSync,writeFileSync,readdirSync}from'node:fs';import{resolve}from'node:path';
 const light=new Set(['npm:check:reader:paste','npm:check:reader:modes','npm:check:reader:unified',...['cloud-choice','summary-credits','summary-consent-recovery','word-import','screenshot-recovery','scan-outcome','intake-summary-ui','plain-text','pdf-native-routing','input-copy','ocr-picker','reading-lifecycle','reading-history','reading-retention','unavailable-reading-voice','temporary-playlist','mobile-input-controls','math-speech-engine','math-speech-ui','math-speech-reading','translation','translation-documents'].map(n=>'node:tests/'+n+'-browser.mjs')]);
 export function gateClass(command,args){return light.has(command+':'+(command==='npm'?args[1]:args[0]))?'light':'heavy';}
 export function gateResources(command,args){const path=args.join(' ');return /math-speech/.test(path)?['math-output']:/translation/.test(path)?['translation-output']:/reading-history|reading-lifecycle|temporary-playlist|mobile-input-controls|unavailable-reading-voice|image-queue|natural-.*queue|native-queue|prose-symbols|saved-tap-resume|clear-reload|repeated-paste-play|queue-recovery/.test(path)?['reading-history-output']:[];}
@@ -12,6 +12,18 @@ export async function scheduleGates(gates,{run,concurrency=2,onEvent=()=>{},sign
  if(failure)throw failure;
 }
 export const isReaderCheck=(command,args)=>command==='npm'&&(args[0]==='test'||args[0]==='run'&&args[1]?.startsWith('check:'))||command==='node'&&(args[0]?.startsWith('tests/')||args[0]?.startsWith('scripts/reader-parity/')||args[0]==='scripts/video-download/check.mjs');
+// npm/shell may exit before a child finishes its SIGTERM cleanup. Read only
+// process-group metadata; never signal a stale PID after the owned leader exits.
+async function drainOwnedGroup(pid){
+ const deadline=Date.now()+5000;
+ for(;;){
+  const live=[];
+  for(const entry of readdirSync('/proc')){if(!/^\d+$/.test(entry))continue;try{const stat=readFileSync('/proc/'+entry+'/stat','utf8'),fields=stat.slice(stat.lastIndexOf(')')+2).split(' ');if(Number(fields[2])===pid&&Number(fields[3])===pid&&!['Z','X'].includes(fields[0]))live.push(entry);}catch{}}
+  if(!live.length)return;
+  if(Date.now()>=deadline)throw Error('Owned gate descendants did not finish teardown: '+live.join(', '));
+  await new Promise(resolve=>setTimeout(resolve,25));
+ }
+}
 export function executeGate(gate,signal,{logFile,timeoutMs=300000,spawnProcess=spawn}={}){
  if(signal?.aborted)return Promise.reject(signal.reason||Error('Gate canceled before start'));
  const fd=openSync(logFile,'w'),controller=new AbortController(),combined=AbortSignal.any([signal,controller.signal].filter(Boolean));let child,spawnError,force;
@@ -20,7 +32,7 @@ export function executeGate(gate,signal,{logFile,timeoutMs=300000,spawnProcess=s
  // The group is created by this spawn; signal only while its owned child is live.
  const stop=kind=>{if(child.exitCode===null&&child.signalCode===null){try{process.kill(-child.pid,kind);}catch(error){if(error.code!=='ESRCH')throw error;}}};
  const abort=()=>{stop('SIGTERM');force=setTimeout(()=>stop('SIGKILL'),5000);force.unref();};combined.addEventListener('abort',abort,{once:true});if(combined.aborted)abort();
- child.on('error',error=>{spawnError=error;});child.once('close',(code,termination)=>{clearTimeout(timeout);clearTimeout(force);combined.removeEventListener('abort',abort);closeSync(fd);if(code===0&&!combined.aborted&&!spawnError)resolveResult();else reject(combined.reason||spawnError||Error('Gate failed ('+(termination||code)+'): '+gate.args.join(' ')+' · '+logFile));});});
+ child.on('error',error=>{spawnError=error;});child.once('close',async(code,termination)=>{clearTimeout(timeout);clearTimeout(force);combined.removeEventListener('abort',abort);closeSync(fd);if((combined.aborted||spawnError||code!==0)&&child.pid){try{await drainOwnedGroup(child.pid);}catch(error){reject(error);return;}}if(code===0&&!combined.aborted&&!spawnError)resolveResult();else reject(combined.reason||spawnError||Error('Gate failed ('+(termination||code)+'): '+gate.args.join(' ')+' · '+logFile));});});
 }
 
 // Every gate retains its own process, browser profile, server and assertions.
