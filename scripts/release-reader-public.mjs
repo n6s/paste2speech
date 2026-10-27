@@ -2,7 +2,9 @@
 import {execFileSync as rawExecFileSync} from 'node:child_process';
 import {createGateRunner,readerGateIdentity} from './reader-gate-runner.mjs';
 const gateRunner=createGateRunner({reuse:process.argv.includes('--reuse-gates'),identity:readerGateIdentity,run:rawExecFileSync});
-const execFileSync=(...args)=>gateRunner.run(...args);
+import {isReaderCheck,runFreshChecks,gateEnvironment} from './reader-fresh-gates.mjs';
+const checks=[];
+const execFileSync=(command,args,options={})=>{if(isReaderCheck(command,args)&&!(command==='npm'&&args[0]==='test')){checks.push({command,args,options});return;}return gateRunner.run(command,args,options);};
 import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -47,6 +49,7 @@ execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
 for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
+await runFreshChecks(checks,{reuse:process.argv.includes('--reuse-gates'),concurrency:process.argv.includes('--serial-gates')?1:2});
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
 if(readdirSync(site+'/samples').length)throw Error('Test audio must not ship');

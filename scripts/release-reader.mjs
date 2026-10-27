@@ -3,7 +3,9 @@
 import {execFileSync as rawExecFileSync} from 'node:child_process';
 import {createGateRunner,readerGateIdentity} from './reader-gate-runner.mjs';
 const gateRunner=createGateRunner({reuse:process.argv.includes('--reuse-gates'),identity:readerGateIdentity,run:rawExecFileSync});
-const execFileSync=(...args)=>gateRunner.run(...args);
+import {isReaderCheck,runFreshChecks,gateEnvironment} from './reader-fresh-gates.mjs';
+const checks=[];
+const execFileSync=(command,args,options={})=>{if(isReaderCheck(command,args)&&!(command==='npm'&&args[0]==='test')){checks.push({command,args,options});return;}return gateRunner.run(command,args,options);};
 import {readFileSync,writeFileSync,readdirSync,mkdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
@@ -33,7 +35,8 @@ if(settings.staging.vars.MATH_SPEECH_PREVIEW==='1')for(const file of ['tests/mat
 if(settings.staging.vars.TRANSLATION_UI==='1')execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
 if(settings.staging.vars.TRANSLATION_DOCUMENT_SCHEMA==='1')execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
-if(args.includes('--measure-reuse')){const benchmark=createGateRunner({reuse:true,identity:readerGateIdentity,run:rawExecFileSync});benchmark.run('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});writeFileSync('work/reader-gates/reuse-benchmark.json',JSON.stringify(benchmark.timings,null,2)+'\n');}
+await runFreshChecks(checks,{reuse:args.includes('--reuse-gates'),concurrency:args.includes('--serial-gates')?1:2});
+if(args.includes('--measure-reuse')){const benchmark=createGateRunner({reuse:true,identity:readerGateIdentity,run:rawExecFileSync});benchmark.run('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit',env:gateEnvironment()});writeFileSync('work/reader-gates/reuse-benchmark.json',JSON.stringify(benchmark.timings,null,2)+'\n');}
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
 for(const file of ['index.html','billing.html','billing.js'])if(/paddle|sandbox|staging|test purchases|Upgrade with a speech pack/i.test(readFileSync(sites.production+'/'+file,'utf8')))throw Error('Staging or checkout content in production assets: '+file);
 assert.equal(readdirSync(sites.production+'/samples').length,0,'Test audio must not ship in production assets');

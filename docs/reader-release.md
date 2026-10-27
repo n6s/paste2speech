@@ -1501,3 +1501,26 @@ Changed inputs rerun; failed fresh reruns invalidate earlier receipts. Builds,
 migrations, uploads and hosted verification are never cached. Browser/media gates
 remain serial to avoid resource contention. A fresh release still runs every gate.
 Do not use reuse to ignore a newly observed failure or a changed artifact.
+
+## Fresh gate scheduling and timing
+
+Fresh preparation still executes every required assertion. After the unit tests and
+immutable site builds, the runner permits at most two integration suites at once:
+one serialized media/large-storage lane and an explicitly audited lightweight lane.
+New or unknown suites default to the media lane. Shared output families and repeated
+variants of the same suite are locked; every suite keeps its own browser profile,
+server and fixture state. No application runtime or provider settings change.
+
+Use `--serial-gates` for a serial diagnostic run. `--reuse-gates` remains opt-in;
+fresh scheduling does not depend on receipts. Receipts include clean Git identity,
+built asset/config/dependency/runtime hashes, environment and preload contents.
+Only successful completed async gates produce reusable receipts. Build, deploy and
+remote verification operations are never cached.
+
+`work/reader-gates/fresh-run.json` records the planned catalog, concurrency, wall time
+and individual timings. `work/reader-gates/logs/` holds separate suite output, also
+printed on completion. Failure stops new admissions, cancels only release-owned
+subprocess groups and waits for teardown before rejecting; the next run starts new
+isolated fixtures. A five-minute per-suite timeout prevents an unnoticed hung gate.
+Keep real audio timing assertions and heavyweight export/storage checks serialized;
+do not classify a new suite as light merely because it usually finishes quickly.
