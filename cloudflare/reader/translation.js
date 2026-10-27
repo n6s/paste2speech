@@ -26,15 +26,20 @@ export async function liveTranslationResponse(request,env,account,{ctx,provider}
  const operation=service.request(account,input);ctx?.waitUntil(operation.catch(()=>{}));
  try{const result=await operation;return json(result,result.status);}catch{return json({detail:'Translation admission could not be confirmed. Check the same request; no automatic retry was made.'},409);}
 }
-// Server-only adapter, deliberately not reachable from the gated HTTP handler.
-// Future durable admission must precede this call, with no blind provider retry.
+// Server-only standard NMT adapter. Durable admission precedes every call.
+// Failure metadata contains only a bounded stage/status, never provider text or credentials.
 export async function translateWithGoogle(text,target,credential,{fetcher=(...a)=>globalThis.fetch(...a),signal}={}){
  validateTranslation(text,target);
- let account;try{account=JSON.parse(credential);if(account.project_id!==PROJECT||account.client_email!=='p2s-translation-staging@paste-to-speech.iam.gserviceaccount.com')throw Error();}catch{throw Object.assign(Error('Translation credential does not match staging.'),{translationNotDispatched:true});}
- let token;try{if(signal?.aborted)throw Error('Canceled before dispatch');token=await translationAccessToken(credential,{fetcher});}catch{throw Object.assign(Error('Translation authorization failed before text was sent.'),{translationNotDispatched:true});}
- const response=await fetcher(`https://translation.googleapis.com/v3/projects/${PROJECT}/locations/global:translateText`,{method:'POST',redirect:'error',signal:signal||AbortSignal.timeout(60000),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({contents:[text],targetLanguageCode:target,mimeType:'text/plain',model:`projects/${PROJECT}/locations/global/models/general/nmt`})});
- if(!response.ok)throw Object.assign(Error('Translation did not complete. The provider outcome needs reconciliation before any retry.'),{translationRejected:[400,401,403,413,422].includes(response.status)});
- const body=JSON.parse(new TextDecoder().decode(await readBounded(response,1000000)));
- if(body.translations?.length!==1||typeof body.translations[0].translatedText!=='string'||!body.translations[0].translatedText.trim())throw Error('A complete translation was not returned.');
+ let account;try{account=JSON.parse(credential);if(account.project_id!==PROJECT||account.client_email!=='p2s-translation-staging@paste-to-speech.iam.gserviceaccount.com')throw Error();}catch{throw Object.assign(Error('Translation credential does not match staging.'),{translationNotDispatched:true,translationStage:'authorization'});}
+ let token;try{if(signal?.aborted)throw Error('Canceled before dispatch');token=await translationAccessToken(credential,{fetcher});}catch{throw Object.assign(Error('Translation authorization failed before text was sent.'),{translationNotDispatched:true,translationStage:'authorization'});}
+ let response;try{response=await fetcher(`https://translate.googleapis.com/v3/projects/${PROJECT}/locations/global:translateText`,{method:'POST',redirect:'manual',signal:signal||AbortSignal.timeout(60000),headers:{Authorization:`Bearer ${token}`,'Content-Type':'application/json'},body:JSON.stringify({contents:[text],targetLanguageCode:target,mimeType:'text/plain',model:`projects/${PROJECT}/locations/global/models/general/nmt`})});}catch{throw Object.assign(Error('Translation transport outcome is unresolved.'),{translationStage:'provider_transport'});}
+ if(!response.ok){
+  let detail;try{detail=JSON.parse(new TextDecoder().decode(await readBounded(response,64000))).error;}catch{}
+  const codes=['PERMISSION_DENIED','UNAUTHENTICATED','NOT_FOUND','INVALID_ARGUMENT','RESOURCE_EXHAUSTED','UNAVAILABLE','INTERNAL','FAILED_PRECONDITION'];
+  const reasons=['SERVICE_DISABLED','BILLING_DISABLED','IAM_PERMISSION_DENIED','ACCESS_TOKEN_SCOPE_INSUFFICIENT','CONSUMER_INVALID'];const reason=detail?.details?.find(value=>reasons.includes(value?.reason))?.reason;
+  throw Object.assign(Error('Translation did not complete. The provider outcome needs reconciliation before any retry.'),{translationRejected:[400,401,403,413,422].includes(response.status),translationStage:'provider_http',translationStatus:response.status,...(codes.includes(detail?.status)?{translationCode:detail.status}:{}),...(reason?{translationReason:reason}:{})});
+ }
+ let body;try{body=JSON.parse(new TextDecoder().decode(await readBounded(response,1000000)));}catch{throw Object.assign(Error('The provider response could not be verified.'),{translationStage:'provider_response',translationStatus:response.status});}
+ if(body.translations?.length!==1||typeof body.translations[0].translatedText!=='string'||!body.translations[0].translatedText.trim())throw Object.assign(Error('A complete translation was not returned.'),{translationStage:'provider_response',translationStatus:response.status});
  return {text:body.translations[0].translatedText,target,sourceLanguage:body.translations[0].detectedLanguageCode||null};
 }

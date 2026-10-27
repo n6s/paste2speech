@@ -59,3 +59,11 @@ test('bounded live proof atomically permits at most two dispatches and 5000 tota
 test('a single oversized live proof input never reaches provider and returns its entire hold',async()=>{
  const f=await fixture();f.env.TRANSLATION_LIVE_TEST_BUDGET='1';const before=await f.wallet.balance('a');const result=await f.request({text:'x'.repeat(5001)});assert.equal(result.status,409);assert.equal(f.calls(),0);assert.equal((await f.wallet.balance('a')).balance,before.balance);assert.equal((await f.wallet.balance('a')).held,0);
 });
+
+test('failure diagnostics distinguish provider HTTP from settlement without recording source or raw errors',async()=>{
+ for(const mode of ['http','settlement']){
+  const f=await fixture(mode==='http'?async()=>{throw Object.assign(Error('SECRET RAW PROVIDER BODY'),{translationStage:'provider_http',translationStatus:429});}:undefined),events=[];f.service.diagnose=event=>events.push(event);
+  if(mode==='settlement')f.sql.exec("CREATE TRIGGER synthetic_translation_settlement_failure BEFORE UPDATE OF state ON translation_attempts WHEN NEW.state='ready' BEGIN SELECT RAISE(ABORT,'SECRET RAW SQL MESSAGE'); END;");
+  const result=await f.request({text:'PRIVATE SOURCE MUST NOT ENTER DIAGNOSTICS'});assert.equal(result.status,503);assert.equal(result.failure.stage,mode==='http'?'provider_http':'settlement');assert.equal(events.length,1);assert.doesNotMatch(JSON.stringify(events),/PRIVATE SOURCE|SECRET RAW/);if(mode==='http')assert.equal(result.failure.httpStatus,429);assert.equal(f.calls(),1);assert.equal((await f.wallet.balance('a')).held,0);
+ }
+});

@@ -29,11 +29,13 @@ test('server-only standard NMT adapter uses scoped OAuth and exact complete plai
  const source='Título\n\nTexto íntegro <sin HTML> & símbolos.\nÚltima línea.',calls=[];
  const fetcher=async(url,options)=>{calls.push(url);assert.equal(options.method,'POST');if(url==='https://oauth2.googleapis.com/token'){
   const jwt=new URLSearchParams(options.body).get('assertion');const claims=JSON.parse(Buffer.from(jwt.split('.')[1],'base64url'));assert.equal(claims.scope,'https://www.googleapis.com/auth/cloud-translation');return Response.json({access_token:'synthetic-token',token_type:'Bearer',expires_in:3600});
- }assert.equal(url,'https://translation.googleapis.com/v3/projects/paste-to-speech/locations/global:translateText');const b=JSON.parse(options.body);assert.deepEqual(b.contents,[source]);assert.equal(b.targetLanguageCode,'en');assert.equal(b.mimeType,'text/plain');assert.match(b.model,/\/models\/general\/nmt$/);return Response.json({translations:[{translatedText:'Full synthetic translation.\nLast line.',detectedLanguageCode:'es'}]});};
+ }assert.equal(url,'https://translate.googleapis.com/v3/projects/paste-to-speech/locations/global:translateText');assert.equal(options.redirect,'manual');const b=JSON.parse(options.body);assert.deepEqual(b.contents,[source]);assert.equal(b.targetLanguageCode,'en');assert.equal(b.mimeType,'text/plain');assert.match(b.model,/\/models\/general\/nmt$/);return Response.json({translations:[{translatedText:'Full synthetic translation.\nLast line.',detectedLanguageCode:'es'}]});};
  assert.deepEqual(await translateWithGoogle(source,'en',credential,{fetcher}),{text:'Full synthetic translation.\nLast line.',target:'en',sourceLanguage:'es'});assert.equal(calls.length,2);
  await assert.rejects(translateWithGoogle(source,'bad',credential,{fetcher}));assert.equal(calls.length,2);
  await assert.rejects(translateWithGoogle(source,'en',credential.replace('paste-to-speech"','wrong-project"'),{fetcher}));assert.equal(calls.length,2);
  let dispatched=0;await assert.rejects(translateWithGoogle(source,'en',credential,{fetcher:async(url,o)=>{if(url.includes('oauth2'))return fetcher(url,o);dispatched++;return new Response('{}',{status:503});}}));assert.equal(dispatched,1);
+ let failure;try{await translateWithGoogle(source,'en',credential,{fetcher:async(url,o)=>{if(url.includes('oauth2'))return fetcher(url,o);return Response.json({error:{status:'PERMISSION_DENIED',message:'PRIVATE PROVIDER BODY',details:[{reason:'SERVICE_DISABLED',metadata:{secret:'MUST NOT COPY'}}]}},{status:403});}});}catch(error){failure=error;}
+ assert.equal(failure.translationStage,'provider_http');assert.equal(failure.translationStatus,403);assert.equal(failure.translationCode,'PERMISSION_DENIED');assert.equal(failure.translationReason,'SERVICE_DISABLED');assert.doesNotMatch(JSON.stringify(failure),/PRIVATE PROVIDER|MUST NOT COPY/);
 });
 
 test('invalid Unicode is rejected before identity or provider serialization; valid astral characters count once',async()=>{
@@ -46,4 +48,8 @@ test('live staging activation still requires verified owner and the migrated bil
  const env={READER_MODE:'staging',TRANSLATION_UI:'1',TRANSLATION_LIVE_APPROVED:'1',TRANSLATION_BILLING_SCHEMA:'1',OWNER_EMAIL:'owner@example.invalid'};
  const r=await translationResponse(new Request('https://fixture/api/translation/config'),env);assert.equal(r.status,403);
  for(const mode of ['production-public','production-trial'])assert.equal((await translationResponse(new Request('https://fixture/api/translation/config'),{...env,READER_MODE:mode})).status,404);
+});
+
+test('Esperanto and Igbo are accepted NMT targets independently from speech voices',()=>{
+ for(const target of ['eo','ig'])assert.equal(validateTranslation('A complete sentence.',target).target,target);
 });

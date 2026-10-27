@@ -71,3 +71,22 @@ Official references: https://cloud.google.com/products/translate/pricing,
 https://docs.cloud.google.com/translate/quotas,
 https://docs.cloud.google.com/translate/docs/languages,
 https://docs.cloud.google.com/translate/docs/reference/rest/v3/projects/translateText.
+
+## Live-proof diagnostics and language follow-up
+
+The initial 192-code-point proof was refunded in full and remains uncertain; its
+original provider error was not recorded, so do not retry it or claim its cause.
+A local replay against the real staging schema settles a synthetic success
+correctly. Both Google hostnames serve the same discovery metadata; this alone
+does not establish an alias routing failure. The adapter now uses the canonical
+REST documentation hostname and manual redirects without following credentials.
+Failure diagnostics record only attempt ID, bounded stage, numeric status and
+allowlisted Google status/reason codes. Raw messages, response bodies, source text,
+keys and bearer tokens are excluded. Provider and settlement failures are distinct.
+
+Esperanto (`eo`) and Igbo (`ig`) are standard NMT targets confirmed by Google's
+language table; their prior omission was the manual initial shortlist, not voice
+filtering. A broader official NMT target list needs no additional permissions or
+new API but should be versioned/tested separately. Translation target support
+does not promise a device or WaveNet speech voice. Only one agent live attempt
+remains; use an independent benign source rather than retry the uncertain one.
