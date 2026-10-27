@@ -79,3 +79,22 @@ Official references:
 - https://developers.cloudflare.com/workers-ai/models/llama-3.2-3b-instruct/
 - https://developers.cloudflare.com/workers-ai/platform/pricing/
 - https://github.com/meta-llama/llama3/blob/main/llama/tokenizer.py
+
+## Partial-result status and failure diagnostics
+
+Active progress names the current pass (starting at one) in the shared processing
+indicator. Partial/error status always includes completed passes and settled
+credits; a saved partial is not presented as a finished whole-document summary.
+Its label identifies how many source parts have been covered, and its reader
+action explicitly says partial. Opening a saved job refreshes the balance even
+when no new work can start. Existing source and result identity rules still apply.
+
+New failures retain an allowlisted category in the existing `reason` field and a
+safe diagnostic phase in authenticated responses: provider response/HTTP status,
+malformed response, output limit/empty/invalid output, unverified usage, dispatch
+or settlement acknowledgement, or deadline. No provider message, prompt, source,
+credential, token or response-body copy is added to failure diagnostics. Normal
+usable generated results retain their existing private 24-hour storage. This does
+not relax retry safeguards. Existing `uncertain` records stay unclassified; no
+new cause is inferred or backfilled into old jobs. No schema migration or new
+Worker variable is required for these categories.
