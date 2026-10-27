@@ -39,7 +39,7 @@ await context.route('**/*',async route=>{
  if(!path.startsWith('/api/'))return route.continue();
  if(req.method()!=='GET')apiWrites++;
  if(path==='/api/reader')return route.fulfill({json:{eligible:true,accessAllowed:true,account:{...wallet,verified:true,creditRequired:true},voices:['en-US-Wavenet-F']}});
- if(path==='/api/events'||path==='/api/summary/config'||path==='/api/billing/session')return route.fulfill({json:{available:false}});
+ if(path==='/api/translation/config')return route.fulfill({json:{enabled:false,scope:'synthetic-owner',priceCreditsPer1000:null,detail:'Translation is not exercised by this scan fixture.'}});if(path==='/api/events'||path==='/api/summary/config'||path==='/api/billing/session')return route.fulfill({json:{available:false}});
  if(path==='/api/ocr/jobs/config')return route.fulfill({json:config});
  if(path==='/api/ocr/jobs/recent'){
   const snapshot=[...jobs.values()].map(j=>({...j}));await hold('recent');
