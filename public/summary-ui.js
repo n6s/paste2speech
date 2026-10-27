@@ -23,7 +23,7 @@ export function setupSummary({getText,setText,setMode,fetcher=fetch}){
   const info=document.createElement('button');info.type='button';info.id='summary-info';info.textContent='ⓘ';info.setAttribute('aria-label','Summary information');options.querySelector('.reader-popover-heading').append(info);
   const details=document.createElement('div');details.id='summary-info-details';details.append(disclosure);attachReaderPopover(info,details,{label:'Summary information',anchor:toggle,returnFocus:toggle});
   const settings=el('summary-settings');for(const node of [el('summary-source'),el('summary-limit-reason'),el('summary-allowance'),el('summary-disclosure')])details.append(node);
-  const limit=document.createElement('p');limit.textContent='Brief, Standard and Detailed use the existing 24,000-byte source and 512-token output limits. Detailed adds explanation within that same limit.';details.append(limit);
+  el('summary-source').hidden=true;el('summary-disclosure').hidden=true;el('summary-allowance').hidden=true;
   settings.remove();rememberLabel.hidden=true;el('summarize').hidden=true;
   panel.querySelector('h2').remove();panel.querySelector('p').remove();
   const box=document.createElement('div');box.className='summary-content-box';box.id='summary-content-box';
@@ -46,7 +46,8 @@ export function setupSummary({getText,setText,setMode,fetcher=fetch}){
   el('summarize').textContent=priced?'Summarize · 1 credit ($0.01)':'Summarize';
   if(priced)el('summary-disclosure').textContent='Confirm 1 shared credit ($0.01 at pack price) for this summary. Text goes to Cloudflare AI. One credit is held while working; failure or cancellation before acceptance releases it. Accepted summaries are saved privately for 24 hours; your source is not stored. Reopening the result uses no more credits. Paid speech is separate.';
   else if(UNIFIED_CREDITS)el('summary-disclosure').textContent='Creating summaries uses no credits. Making paid-voice audio from a summary uses the usual speech credits. Browser voices are free. Text is sent to Cloudflare AI when you summarize.';
-  if(STAGING_READER_LAYOUT){button.textContent='Summary';el('summary-action-disclosure').textContent=priced?'1 credit per accepted summary. Uses Cloudflare AI.':'Uses Cloudflare AI';}
+  if(STAGING_READER_LAYOUT){button.textContent='Summary';el('summary-action-disclosure').textContent=priced?'Choose Brief, Standard, or Detailed with ▼, then click Summary. Each summary costs 1 credit. Reuse a saved summary for 24 hours at no extra charge.':'Choose Brief, Standard, or Detailed with ▼, then click Summary. Creating summaries uses no credits.';}
+  if(STAGING_READER_LAYOUT)el('summary-allowance').hidden=data.available===true&&(!priced||canSubmit);
   clearTimeout(resetTimer);ready=data.available===true;blockedUntil=data.reason==='daily_quota'?Date.parse(data.resetAt):0;
   if(Number.isFinite(blockedUntil)&&blockedUntil>Date.now()){el('summary-allowance').textContent=`${data.detail} Next reset: ${new Date(blockedUntil).toUTCString()}`;resetTimer=setTimeout(loadAvailability,blockedUntil-Date.now()+50);}
   else el('summary-allowance').textContent=ready?(priced?(canSubmit?'1 credit per accepted summary. Failure or cancellation before acceptance releases the hold.':'Summary needs 1 available credit. Add credit in Balance & usage; nothing was sent.'):(UNIFIED_CREDITS?'Creating summaries uses no credits. Service availability limits still apply.':'Free summaries share a daily allowance.')):data.detail||'Summary service is unavailable.';
