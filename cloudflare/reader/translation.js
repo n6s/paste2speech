@@ -1,3 +1,4 @@
+import {TranslationDocuments} from './translation-documents.js';
 import {TRANSLATION_LANGUAGES,TRANSLATION_MAX_CHARACTERS,validateTranslation} from '../../public/translation-contract.js';
 import {readBounded,translationAccessToken} from '../prepared/google.js';
 import {TranslationCredits,TRANSLATION_RATE} from './translation-credits.js';
@@ -18,7 +19,16 @@ export async function liveTranslationResponse(request,env,account,{ctx,provider}
  const json=(value,status=200)=>Response.json(value,{status,headers:{'Cache-Control':'no-store'}});
  if(env.READER_MODE!=='staging'||env.TRANSLATION_UI!=='1')return json({},404);
  if(!account?.translationVerified||account.email!==env.OWNER_EMAIL||account.enabled!==1)return json({detail:'Sign in with the staging owner account. Nothing was sent.'},403);
- if(request.method==='GET'&&new URL(request.url).pathname==='/api/translation/config')return json({enabled:true,scope:account.translationScope,priceCreditsPer1000:TRANSLATION_RATE,maxCharacters:TRANSLATION_MAX_CHARACTERS,languages:TRANSLATION_LANGUAGES,...(env.TRANSLATION_LIVE_TEST_BUDGET==='1'?{limitedLiveTest:true}:{})});
+ if(request.method==='GET'&&new URL(request.url).pathname==='/api/translation/config')return json({enabled:true,scope:account.translationScope,priceCreditsPer1000:TRANSLATION_RATE,maxCharacters:TRANSLATION_MAX_CHARACTERS,documents:env.TRANSLATION_DOCUMENT_SCHEMA==='1',languages:TRANSLATION_LANGUAGES,...(env.TRANSLATION_LIVE_TEST_BUDGET==='1'?{limitedLiveTest:true}:{})});
+ if(new URL(request.url).pathname.startsWith('/api/translation/documents')){
+  if(env.TRANSLATION_DOCUMENT_SCHEMA!=='1')return json({},404);
+  const service=new TranslationDocuments(env,{provider:provider||((text,target)=>translateWithGoogle(text,target,env.GOOGLE_TRANSLATION_SERVICE_ACCOUNT_JSON))});
+  let input;try{input=JSON.parse(new TextDecoder().decode(await readBounded(request,1000000)));}catch{return json({detail:'Translation plan exceeds the 1 MB request envelope or is invalid. Source is unchanged.'},422);}
+  if(request.method!=='POST'||input.scope!==account.translationScope||input.priceCreditsPer1000!==4)return json({detail:'Review the current account and quote.'},409);
+  const operations={open:()=>service.open(account,input),lookup:()=>service.lookup(account,input),status:()=>service.status(account,input.id),pause:()=>service.pause(account,input.id),resume:()=>service.resume(account,input.id),part:()=>service.part(account,input.id,input.part,input.text)};
+  if(!Object.hasOwn(operations,input.action))return json({},422);
+  const operation=operations[input.action]();ctx?.waitUntil(operation.catch(()=>{}));try{return json(await operation);}catch(error){const detail=String(error?.message).includes('insufficient shared credits')?'There are not enough available credits for the remaining quoted translation. Completed portions are kept; add credits or translate a smaller document.':error?.message==='Pause the current translation before starting another document.'?error.message:'Document operation could not be confirmed. Completed portions are kept. Check the same document before retrying; no automatic paid retry.';return json({detail},409);}
+ }
  if(request.method!=='POST'||new URL(request.url).pathname!=='/api/translation')return json({},405);
  let input;try{input=JSON.parse(new TextDecoder().decode(await readBounded(request,256000)));}catch{return json({detail:'Translation input is invalid or too large. Nothing was sent.'},422);}
  if(input.scope!==account.translationScope||input.requestId!==request.headers.get('Idempotency-Key'))return json({detail:'The account or request changed. Review the current quote. Nothing was sent.'},409);

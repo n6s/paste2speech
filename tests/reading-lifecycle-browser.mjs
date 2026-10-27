@@ -103,14 +103,12 @@ try {
     if (!interrupted || !await store.section("job-unfinished", 0) || (await store.reading(again.id)).audioMissing) throw Error("Interrupted cleanup published partial state");
     checks2.push("aborted cleanup retains audio, text and bookmark atomically");
     await store.transaction("usage", "readwrite", (s) => s.put(512 * 1024 * 1024, "audio-bytes"));
-    let budget = false;
-    try {
-      await store.writeSection("new", 0, entry);
-    } catch (error) {
-      budget = error.name === "AudioBudgetExceededError";
-    }
-    if (!budget || await store.section("new", 0)) throw Error("Application audio budget not enforced");
-    checks2.push("512 MiB budget has a distinct error and no partial section");
+    await store.writeSection("new",0,entry);
+    if(!await store.section("new",0))throw Error("Available storage rejected above the former cap");
+    store.storage={estimate:async()=>({quota:4,usage:0})};
+    let quota=false;try{await store.writeSection("insufficient-headroom",0,entry);}catch(error){quota=error.name==="QuotaExceededError";}
+    if(!quota||await store.section("insufficient-headroom",0))throw Error("Quota failure published a partial section");
+    checks2.push("former byte cap removed; actual quota/headroom failure remains atomic");
     return checks2;
   });
   const proof = { crossTabReadingAndExportProtection: true, cleanupAfterLastRelease: true, finishedAudioOnly: true, textAndPlaceRetained: true, checks, realProviderCalls: 0, realUserDataTouched: false };

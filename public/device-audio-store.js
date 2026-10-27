@@ -1,7 +1,6 @@
 // Private to this browser origin. No audio, text or account identifiers leave
 // this store. Transactions publish complete verified sections, never partial data.
 export const digest = async (value) => [...new Uint8Array(await crypto.subtle.digest("SHA-256", typeof value === "string" ? new TextEncoder().encode(value) : value))].map((n) => n.toString(16).padStart(2, "0")).join("");
-export const DEVICE_AUDIO_BUDGET = 512 * 1024 * 1024;
 export class DeviceAudioStore {
   constructor(scope, { indexedDB = globalThis.indexedDB, name = "paste2speech-device-audio-v1", storage = globalThis.navigator?.storage } = {}) {
     if (!scope) throw Error("Confirm your account before saving audio.");
@@ -108,21 +107,7 @@ export class DeviceAudioStore {
         const r = tx.objectStore("removed").get(this.key("reading:" + id));
         r.addEventListener("success", () => {
           if (r.result && !rekeep) return fail(this.removedError());
-          const keys = store.getAllKeys(IDBKeyRange.bound([this.scope], [this.scope, []]));
-          keys.addEventListener("success", () => {
-            const check = retired => {
-            const visible=keys.result.filter(key=>!retired.includes(key[1]));
-            if (visible.length >= 20 && !visible.some(key => key[1] === id)) {
-              const error = Error("20 readings are kept on this device. Remove a saved reading to enable more offline copies. Online playback can continue.");
-              error.name = "QuotaExceededError";
-              return fail(error);
-            }
-            put();
-            };
-            if(!automatic)return check([]);
-            const membership=tx.objectStore("usage").get(this.key("temporary-playlist"));
-            membership.onsuccess=()=>check(membership.result?.scope===this.scope?membership.result.retired||[]:[]);
-          });
+          put();
         });
         return r;
       }
@@ -151,8 +136,10 @@ export class DeviceAudioStore {
     return this.transaction("sections", "readonly", (s) => s.get(this.key(id, index)));
   }
   async writeSection(id, index, entry, { valid = () => true, reference } = {}) {
+    const existing = await this.section(id,index);
+    const growth=Math.max(0,entry.bytes-(existing?.bytes||0));
     const estimate = await this.storage?.estimate?.().catch(() => null);
-    if (estimate && Number.isFinite(estimate.quota) && Number.isFinite(estimate.usage) && estimate.quota - estimate.usage < entry.bytes) {
+    if (estimate && Number.isFinite(estimate.quota) && Number.isFinite(estimate.usage) && estimate.quota - estimate.usage < growth + entry.bytes) {
       const e = Error("Not enough device storage. Saved sections are kept; online playback can continue.");
       e.name = "QuotaExceededError";
       throw e;
@@ -173,10 +160,6 @@ export class DeviceAudioStore {
             const previous = store.get(this.key(id, index));
             previous.onsuccess = () => {
               const next = used - (previous.result?.bytes || 0) + entry.bytes;
-              if (next > DEVICE_AUDIO_BUDGET) {
-                const error = Error("Device audio reached its 512 MiB limit. Remove saved readings to make space; online playback can continue.");
-                error.name = "AudioBudgetExceededError"; tx.pasteToSpeechError = error; tx.abort(); return;
-              }
               if (!valid()) { tx.abort(); return; }
               usageStore.put(next, "audio-bytes");
               if(reference)tx.objectStore("references").put(true,this.key(reference.readingId,id));
@@ -214,24 +197,12 @@ export class DeviceAudioStore {
     }
   }
   async readings() {
-    let keys;
-    const range = IDBKeyRange.bound([this.scope], [this.scope, []]);
-    const all = await this.transaction("readings", "readonly", (store) => {
-      const r = store.getAllKeys(range);
-      r.addEventListener("success", () => keys = r.result);
-      return store.getAll(range);
-    });
-    const verified = [];
-    for (let i = 0; i < all.length; i++) {
-      const { sha256, ...data } = all[i], id = keys[i][1];
-      if (data.scope !== this.scope || data.id !== id || typeof data.text !== "string" || await digest(JSON.stringify(data)) !== sha256) {
-        verified.push({ id, scope: this.scope, text: "Saved reading needs verification", damaged: true, updated: 0 });
-        continue;
-      }
-      const reading = await this.reading(id);
-      if (reading) verified.push(reading);
-    }
-    return verified.sort((a, b) => (b.updated || 0) - (a.updated || 0));
+    // Keep only keys plus the verified result set, rather than getAll() copying
+    // every full document and then reading/verifying each full document again.
+    const keys=await this.transaction("readings","readonly",store=>store.getAllKeys(IDBKeyRange.bound([this.scope],[this.scope,[]])));
+    const verified=[];
+    for(const key of keys){try{const record=await this.reading(key[1]);if(record){if(typeof record.text!=="string")throw Error("Invalid saved source");verified.push(record);}}catch{verified.push({id:key[1],scope:this.scope,text:"Saved reading needs verification",damaged:true,updated:0});}}
+    return verified.sort((a,b)=>(b.updated||0)-(a.updated||0));
   }
   async setLifecycle(id, changes, {valid=()=>true}={}) {
     const record=await this.get("readings",id);

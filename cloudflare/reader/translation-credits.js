@@ -1,3 +1,4 @@
+import {TranslationDocuments} from './translation-documents.js';
 import {assertUnifiedEnvironment,UnifiedWallet} from './unified-wallet.js';
 import {translationIdentity,validateTranslation} from '../../public/translation-contract.js';
 export const TRANSLATION_RATE=4;
@@ -51,4 +52,4 @@ export class TranslationCredits{
  }
 }
 
-export async function maintainTranslationCredits(env){if(env.READER_MODE==='staging'&&env.TRANSLATION_BILLING_SCHEMA==='1')await new TranslationCredits(env).expire();}
+export async function maintainTranslationCredits(env){if(env.READER_MODE==='staging'&&env.TRANSLATION_BILLING_SCHEMA==='1'){await new TranslationCredits(env).expire();if(env.TRANSLATION_DOCUMENT_SCHEMA==='1')await new TranslationDocuments(env).expire();}}

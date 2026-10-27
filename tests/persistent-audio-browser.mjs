@@ -92,10 +92,11 @@ try {
     const { PersistentReadingAssets } = await import("/public/persistent-reading-assets.js"), { DeviceAudioStore, digest } = await import("/public/device-audio-store.js"), { inspectMp3 } = await import("/cloudflare/prepared/mp3.js");
     const bytes = new Uint8Array(await (await fetch("/tests/fixtures/wavenet/en-US-Wavenet-F-00.mp3")).arrayBuffer()), meta = inspectMp3(bytes), sha256 = await digest(bytes), status = { state: "ready", total: 1, completed: 1, sections: [{ index: 0, start: 0, bytes: meta.bytes, samples: meta.samples, sha256 }], starts: [0], duration: meta.samples / 24e3 };
     const checks = [];
-    for (const mode of ["quota", "abort"]) {
+    for (const mode of ["quota", "abort", "actual-quota"]) {
       let blocked = true, calls = 0;
       const backing = new DeviceAudioStore("failure-" + mode, { storage: { estimate: async () => blocked && mode === "quota" ? { quota: 0, usage: 0 } : { quota: 1e9, usage: 0 } } }), transaction = backing.transaction.bind(backing);
       backing.transaction = (name, modeName, operation) => transaction(name, modeName, (store) => {
+        if(blocked&&mode==="actual-quota"&&(Array.isArray(name)?name.includes("sections"):name==="sections")&&modeName==="readwrite")throw new DOMException("Synthetic real write quota failure despite optimistic estimate","QuotaExceededError");
         const request = operation(store);
         if (blocked && mode === "abort" && (Array.isArray(name) ? name.includes("sections") : name === "sections") && modeName === "readwrite") store.transaction.abort();
         return request;
@@ -293,17 +294,19 @@ try {
     if(!automaticallyRemoved||await automatic.reading(book.id))throw Error("Automatic save resurrected a removed reading");
     let lateBlocked=false;try{await automatic.writeSection("late-new-job",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples},{reference:{readingId:book.id,generation:book.generation}});}catch(e){lateBlocked=e.name==="LocalCopyRemovedError";}
     if(!lateBlocked||await automatic.section("late-new-job",0))throw Error("Late admission survived parent reading deletion");
-    for(let i=0;i<20;i++)await automatic.save("readings","bounded-"+i,{id:"bounded-"+i,text:"Synthetic"},{automatic:true});
-    let limited=false;try{await automatic.save("readings","over-limit",{id:"over-limit",text:"Synthetic"},{automatic:true});}catch(e){limited=e.name==="QuotaExceededError";}
-    if(!limited)throw Error("Automatic playlist is unbounded");
-    await automatic.save("usage","temporary-playlist",{id:"temporary-playlist",order:[],pending:[],retired:["bounded-0"]});
-    await automatic.save("readings","replacement",{id:"replacement",text:"Replacement while retired source stays protected"},{automatic:true});
-    if(!await automatic.reading("bounded-0")||!await automatic.reading("replacement"))throw Error("Protected retired source blocked its replacement metadata");
-    // A ledger seeded at the bound simulates disk occupancy without a 512 MiB fixture.
-    await automatic.transaction("usage","readwrite",s=>s.put(512*1024*1024,"audio-bytes"));
-    let byteLimited=false;try{await automatic.writeSection("over-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){byteLimited=e.name==="AudioBudgetExceededError";}
-    if(!byteLimited||await automatic.section("over-budget",0))throw Error("Audio budget was exceeded");
-    checks.push("automatic reading tombstones, 20-book limit and transactional 512 MiB audio budget");
+    for(let i=0;i<100;i++)await automatic.save("readings","quota-aware-"+i,{id:"quota-aware-"+i,text:"Synthetic reading "+i},{automatic:true});
+    if((await automatic.readings()).length<100)throw Error("Readings were capped or hidden");
+    // Seed logical usage above the former cap without consuming half a GB of test disk.
+    await automatic.transaction("usage","readwrite",s=>s.put(600*1024*1024,"audio-bytes"));
+    await automatic.writeSection("above-former-budget",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});
+    if(!await automatic.section("above-former-budget",0))throw Error("Former 512 MiB cap still rejects available storage");
+    automatic.storage={estimate:async()=>({quota:bytes.length*2-1,usage:0})};
+    let quotaLimited=false;try{await automatic.writeSection("real-quota",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});}catch(e){quotaLimited=e.name==="QuotaExceededError";}
+    if(!quotaLimited||await automatic.section("real-quota",0))throw Error("Quota/headroom failure published partial audio");
+    automatic.storage={estimate:async()=>{throw Error("Estimate unavailable");}};
+    await automatic.writeSection("no-estimate",0,{blob:new Blob([bytes]),bytes:bytes.length,samples:status.sections[0].samples});
+    if(!await automatic.section("no-estimate",0))throw Error("Unavailable estimate prevented an otherwise valid write");
+    checks.push("100 readings without count cap, logical audio above 512 MiB, quota-aware transactional writes with headroom and unavailable-estimate fallback");
     let releaseWrite;
     const nonblocking=new PersistentReadingAssets(async()=>new Response(bytes),{storeFactory:()=>({get:async()=>null,section:async()=>null,save:async()=>{},writeSection:()=>new Promise(resolve=>releaseWrite=resolve)})});
     nonblocking.setScope("nonblocking");nonblocking.allow("nonblocking");nonblocking.register("nonblocking",["text"],"F");nonblocking.observe("nonblocking",status);

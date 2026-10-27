@@ -1,3 +1,4 @@
+import {documentTranslationClient} from './translation-document-client.js';
 import {TRANSLATION_LANGUAGES,TRANSLATION_MAX_CHARACTERS,translationCharacters,translationIdentity,foreignLanguageHint} from './translation-contract.js';
 
 export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>null,isBusy=()=>false,fetcher=fetch}){
@@ -10,35 +11,36 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  document.getElementById('summary-view')?.after(panel);if(!panel.isConnected)document.getElementById('edit-view').after(panel);
  const voiceNotice=panel.querySelector('#translation-voice');suggestion.after(voiceNotice);
  const el=id=>document.getElementById('translation-'+id),target=el('target');
- for(const [code,name]of Object.entries(TRANSLATION_LANGUAGES)){const option=document.createElement('option');option.value=code;option.textContent=name;target.append(option);}target.value='en';
+ for(const [code,name]of Object.entries(TRANSLATION_LANGUAGES).sort(([a,x],[b,y])=>a==='en'?-1:b==='en'?1:x.localeCompare(y,'en'))){const option=document.createElement('option');option.value=code;option.textContent=name;target.append(option);}target.value='en';
  let config=null,scope=null,visible=false,busy=false,controller=null,epoch=0,source=getText(),result=null,original=null,applying=false;
- const cache=new Map(),ids=new Map();let configRequest=0,retryOffer=null,checkingExisting=false;
+ let documents=null;const documentEdits=[];const cache=new Map(),ids=new Map();let configRequest=0,retryOffer=null,checkingExisting=false;
  const status=message=>{el('status').textContent=message;};
  const sourceText=()=>original?.text??getText();
  const permitted=()=>config?.enabled===true&&typeof config.scope==='string'&&config.scope&&Number.isFinite(config.priceCreditsPer1000)&&config.priceCreditsPer1000>0;
  const update=()=>{
-  const text=sourceText(),count=translationCharacters(text,TRANSLATION_MAX_CHARACTERS),oversized=count>TRANSLATION_MAX_CHARACTERS;
-  el('source').textContent=`${oversized?'More than 30,000':count.toLocaleString()} source characters · maximum 30,000. The whole source is kept.`;
-  el('start').disabled=busy||isBusy()||!text.trim()||oversized||!permitted();
+  const text=sourceText(),count=translationCharacters(text,config?.documents?Infinity:TRANSLATION_MAX_CHARACTERS),oversized=!config?.documents&&count>TRANSLATION_MAX_CHARACTERS;
+  el('source').textContent=config?.documents?`${count.toLocaleString()} source characters · automatically translated in bounded portions. The whole source is kept.`:`${oversized?'More than 30,000':count.toLocaleString()} source characters · maximum 30,000. The whole source is kept.`;
+  el('start').disabled=busy||isBusy()||!text.trim()||oversized||!permitted()||config?.documents&&documents?.current?.state==='blocked';el('cancel').textContent=config?.documents?'Pause translation':'Cancel';
   el('cancel').hidden=!busy;el('copy').disabled=!result;el('use').disabled=!result||busy||isBusy();el('restore').disabled=!original||busy||isBusy();
   if(!config)el('disclosure').textContent='Checking translation availability. No text is sent while checking.';
   else if(!permitted())el('disclosure').textContent=config.detail||'Translation pricing and credit handling are not ready. No text is sent to Google.';
-  else el('disclosure').textContent=`Translate the complete source with Google Cloud Translation: ${(count*config.priceCreditsPer1000/1000).toLocaleString(undefined,{maximumFractionDigits:3})} credits. Paid speech is separate. Nothing is sent until you press Translate.${config.limitedLiveTest?' Staging live-test limit: two requests and 5,000 source characters total. Saved results reopen without a new charge.':''}`;
-  el('start').textContent=result?'Reopen translation':retryOffer?'Translate again':checkingExisting?'Check translation':'Translate';
+  else el('disclosure').textContent=`Translate the complete source with Google Cloud Translation: ${(count*config.priceCreditsPer1000/1000).toLocaleString(undefined,{maximumFractionDigits:3})} credits. Paid speech is separate. ${config.documents?'Completed portions are saved and charged once. Pause releases unused credits; an in-flight portion may finish. Resume reuses saved portions. ':''}Nothing is sent until you press Translate.${config.limitedLiveTest?' Staging live-test limit: two requests and 5,000 source characters total. Saved results reopen without a new charge.':''}`;
+  el('start').textContent=config?.documents&&documents?.current?.state==='expired'?'Translate again':config?.documents&&documents?.current?.state==='blocked'?'Unavailable':config?.documents&&documents?.current&&documents.current.state!=='ready'?'Resume translation':result?'Reopen translation':retryOffer?'Translate again':checkingExisting?'Check translation':'Translate';
   if(oversized)status('This text exceeds the first release’s 30,000-character limit. Nothing is shortened or sent. Copy a smaller excerpt into a separate tab.');
   else if(el('status').textContent.startsWith('This text exceeds'))status(permitted()?'Ready to translate. Nothing has been sent.':config?.detail||'Checking translation availability.');
  };
- const cancel=()=>{epoch++;controller?.abort();controller=null;busy=false;update();};
+ const cancel=()=>{void documents?.pause().catch(()=>{});epoch++;controller?.abort();controller=null;busy=false;update();};
  const showResult=value=>{result=value;el('result-label').textContent=value.edited?'Translation · your edits':'Translation';el('result').value=value.text;el('result').lang=value.target;el('result').dir='auto';status('Translation ready. Review before using it.');update();};
  const availability=async()=>{
   const checkId=++configRequest;const response=await fetcher('/api/translation/config',{cache:'no-store'});if(!response.ok)throw Error('Translation availability could not be checked. Your text is unchanged.');
-  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){cache.clear();ids.clear();retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
+  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){cache.clear();ids.clear();documentEdits.length=0;documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
   scope=next.scope??null;config=next;return next;
  };
- const check=async()=>{const request=configRequest+1;try{await availability();update();}catch(e){if(e.name==='AbortError'||request!==configRequest)return;config={enabled:false,detail:e.message};update();status(e.message);}};
+ const makeDocuments=(n,text,language,owner)=>documentTranslationClient({fetcher,onBillingChange:()=>window.dispatchEvent(new Event('speech-credit-change')),scope:()=>owner,verifyScope:async()=>{await availability();if(scope!==owner)throw Error('Your account changed. No prior-account translation is shown.');},valid:()=>n===epoch&&text===sourceText()&&language===target.value&&scope===owner,onProgress:({document,text:translated,partial})=>{if(translated){result={text:translated,target:language,source:text,partial};el('result').value=translated;el('result').lang=language;el('result-label').textContent=partial?'Translation · completed portions':'Translation';}status(document.detail||`${document.next} of ${document.parts} portions saved · ${document.creditsUsed.toLocaleString(undefined,{maximumFractionDigits:3})} credits used.${document.state==='ready'?' Translation ready.':document.state==='active'?' Preparing the next portion.':' Resume when ready.'}`);update();}});
+ const check=async()=>{const request=configRequest+1;try{await availability();update();if(config.documents&&!busy&&sourceText().trim()){const n=epoch,text=sourceText(),language=target.value;const edited=documentEdits.find(r=>r.source===text&&r.target===language);if(edited){showResult(edited);return;}documents=makeDocuments(n,text,language,scope);await documents.inspect(text,language);if(n===epoch)update();}}catch(e){if(e.name==='AbortError'||request!==configRequest)return;status(e.message);update();}};
  button.onclick=()=>setMode('translate');suggest.onclick=()=>{target.value='en';setMode('translate');};
- target.onchange=()=>{cancel();retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('Choose Translate to request this language. Your original is unchanged.');update();};
- el('cancel').onclick=()=>{cancel();status('Stopped waiting. If already accepted, translation may finish and use the quoted credits once. Reopening checks the same request; your original is unchanged.');};
+ target.onchange=()=>{cancel();documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';status('Choose Translate to request this language. Your original is unchanged.');update();};
+ el('cancel').onclick=()=>{cancel();status(config?.documents?'Pausing translation. Completed portions remain usable; unused credits are released after any in-flight portion finishes.':'Stopped waiting. If already accepted, translation may finish and use the quoted credits once. Reopening checks the same request; your original is unchanged.');};
  el('start').onclick=async()=>{
   if(busy||isBusy())return;
   const text=sourceText(),language=target.value,n=++epoch;busy=true;controller=new AbortController();const signal=controller.signal;update();status('Checking the current translation terms…');
@@ -47,6 +49,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
    if(n!==epoch||signal.aborted||text!==sourceText()||language!==target.value)return;
    if(!permitted())throw Error(config.detail||'Translation is not enabled. Nothing was sent.');
    if(quotedScope!==scope||quotedRate!==config.priceCreditsPer1000)throw Error('Your account or price changed. Review the updated terms, then press Translate. Nothing was sent.');
+   if(config.documents){const edited=documentEdits.find(r=>r.source===text&&r.target===language);if(edited){showResult(edited);return;}documents=makeDocuments(n,text,language,quotedScope);const completed=await documents.run(text,language,signal);if(n===epoch&&completed?.state==='ready')status('Translation ready. All portions are saved; reopening does not charge again.');return;}
    if(translationCharacters(text,TRANSLATION_MAX_CHARACTERS)>TRANSLATION_MAX_CHARACTERS)throw Error('The source is too large. Nothing was shortened or sent.');
    const key=await translationIdentity(text,language,scope);if(n!==epoch)return;
    if(cache.has(key)){showResult(cache.get(key));return;}
@@ -74,14 +77,14 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  };
  el('restore').onclick=()=>{
   if(!original||busy||isBusy())return;const before=getText(),text=original.text;
-  if(before!==original.applied){el('result').value=before;result.text=before;result.edited=true;el('result-label').textContent='Translation · your edits';status('Original restored. Your edited translation is kept above for copying.');}
+  if(before!==original.applied){el('result').value=before;result.text=before;result.edited=true;if(config?.documents){documentEdits.unshift(result);documentEdits.length=Math.min(3,documentEdits.length);}el('result-label').textContent='Translation · your edits';status('Original restored. Your edited translation is kept above for copying.');}
   else status('Original restored. Translation remains available above.');
   original=null;applying=true;try{setText(text);}finally{applying=false;}source=text;update();
  };
  suggestion.hidden=!foreignLanguageHint(source);
  return {
   setVisible(value){visible=value;panel.hidden=!value;button.setAttribute('aria-pressed',String(value));suggestion.hidden=value||!!original||!foreignLanguageHint(getText());if(value){source=sourceText();update();void check();}},
-  sourceChanged(){if(applying)return;const next=getText();if(next===source)return;source=next;cancel();if(!original){retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';}suggestion.hidden=visible||!!original||!foreignLanguageHint(next);update();},
-  clearSource(){cancel();retryOffer=null;checkingExisting=false;original=null;result=null;cache.clear();el('result').value='';el('voice').textContent='';suggestion.hidden=true;source=getText();update();}
+  sourceChanged(){if(applying)return;const next=getText();if(next===source)return;source=next;cancel();documents=null;if(!original){retryOffer=null;checkingExisting=false;result=null;el('result').value='';el('voice').textContent='';}suggestion.hidden=visible||!!original||!foreignLanguageHint(next);update();},
+  clearSource(){cancel();retryOffer=null;checkingExisting=false;original=null;result=null;cache.clear();documentEdits.length=0;el('result').value='';el('voice').textContent='';suggestion.hidden=true;source=getText();update();}
  };
 }

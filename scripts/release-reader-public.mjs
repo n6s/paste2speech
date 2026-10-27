@@ -41,6 +41,7 @@ for(const variant of ['staging','public']){
 }
 execFileSync('node',['tests/device-audio-public-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
+execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
 for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
 const site='work/production-reader/site';

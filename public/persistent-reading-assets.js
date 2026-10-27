@@ -232,7 +232,6 @@ export class PersistentReadingAssets extends ReadingAssets {
   }
   storageMessage(e) {
     if (e.name === "LocalCopyRemovedError") return e.message;
-    if(e.name === "AudioBudgetExceededError")return "The 512 MiB offline-audio limit is reached. No safely removable finished audio remains. Keep listening online, or manage saved audio in Readings.";
     return e.name === "QuotaExceededError" ? "The browser cannot store more audio right now. Saved sections are kept. Online playback can continue; free device space or manage saved audio, then Retry offline saving." : "Device storage is unavailable or a write was interrupted. Saved sections are kept; Retry saving.";
   }
   async section(id, index, { signal, background = false } = {}) {
