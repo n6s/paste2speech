@@ -85,7 +85,14 @@ try {
   await page.click("#play");
   await page.waitForFunction(() => document.querySelector("#status").textContent === "Reading aloud");
   await page.locator("#device-readings").evaluate((e) => e.open = true);
-  await page.waitForFunction(() => document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"), {}, { timeout: 9e4 });
+  await page.waitForFunction(() => document.querySelector("#offline-progress").textContent==="Ready for offline listening.", {}, { timeout: 9e4 });
+  await page.waitForFunction(()=>document.querySelector("#device-audio-status").textContent==="");
+  assert.equal(await page.locator("#device-audio-status").textContent(),"");
+  assert.equal(await page.locator("#device-audio-status").getAttribute("role"),"status");
+  assert.equal(await page.locator("#offline-progress").isVisible(),true);
+  assert.equal(await page.locator("#offline-progress").getAttribute("role"),"status");
+  assert.equal(await page.locator(".player").evaluate(el=>(el.innerText.match(/ready (?:for )?offline/gi)||[]).length),1,"One visible readiness message in the player");
+  assert.match(await page.locator("#device-readings").textContent(),/Unfinished readings expire 24 hours/);
   assert.equal(posts, 1);
   await page.click("#pause");
   await page.locator("#next-section").click();
@@ -132,7 +139,7 @@ try {
   assert.equal(await peer.locator("#automatic-device-audio").isChecked(),false);
   assert.equal(posts,before.posts);assert.equal(sectionGets,before.sectionGets);
   await peer.close();await page.locator("#automatic-device-audio").evaluate(e=>{e.checked=true;e.dispatchEvent(new Event("change"));});
-  await page.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"));
+  await page.waitForFunction(()=>document.querySelector("#offline-progress").textContent==="Ready for offline listening.");
   await page.click("#clear");
   await page.reload();await page.waitForTimeout(500);
   assert.equal(await page.locator("#text").inputValue(),"","Clear must remain blank in this tab after reload");
@@ -193,12 +200,12 @@ try {
   await partial.reload();
   await partial.waitForFunction(t=>document.querySelector("#text").value===t,partialText);
   assert.equal(await partial.locator("#status").textContent(),"Ready when you are");
-  assert.ok(!await partial.locator("#device-audio-status").textContent().then(t=>t.startsWith("Ready offline")));
+  assert.ok(!await partial.locator("#offline-progress").textContent().then(t=>t.includes("Ready for offline listening")));
   await partial.click("#play");await partial.waitForFunction(()=>document.querySelector("#status").textContent==="Reading aloud");await partial.click("#pause");
   assert.equal(posts,partialPosts+1);assert.equal(sectionGets,partialGets+2);
   available=10000;preparing=false;await partialContext.setOffline(false);
   await partial.evaluate(()=>window.dispatchEvent(new Event("online")));
-  try { await partial.waitForFunction(()=>document.querySelector("#device-audio-status").textContent.startsWith("Ready offline"),{},{timeout:30000}); }
+  try { await partial.waitForFunction(()=>document.querySelector("#offline-progress").textContent==="Ready for offline listening.",{},{timeout:30000}); }
   catch(error){console.log("PARTIAL RESUME",await partial.evaluate(async()=>{const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});const records=await new Promise(resolve=>{const r=db.transaction("readings").objectStore("readings").getAll();r.onsuccess=()=>resolve(r.result);});db.close();return {status:document.querySelector("#status").textContent,device:document.querySelector("#device-audio-status").textContent,records};}),{posts,sectionGets});throw error;}
   assert.equal(posts,partialPosts+1,"Interrupted preparation must never admit new speech on reload");
   assert.deepEqual(await partial.evaluate(()=>[...document.querySelectorAll("#save-device-reading")].length),0);

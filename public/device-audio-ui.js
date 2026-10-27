@@ -54,7 +54,7 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
   panel.innerHTML = '<p class="hint">Unfinished readings expire 24 hours after adding. Finished readings leave when you move on. Download an MP4 to keep one longer.</p><p id="device-audio-status" class="hint" role="status"></p><div class="controls"><button id="retry-device-reading" type="button" hidden>Retry offline saving</button><button id="regenerate-device-reading" type="button" hidden>Generate missing audio again…</button><button id="keep-device-reading" type="button" hidden>Keep current reading again</button></div><input id="automatic-device-audio" type="checkbox" checked hidden><ul id="device-audio-list" hidden></ul>';
   document.getElementById("section-progress").after(nav, panel);
   const $ = (id) => panel.querySelector("#" + id), message = (text) => { const warning="The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play.";
-    $("device-audio-status").textContent = selected?.voiceUnavailable&&text!==warning?warning+(text?" "+text:""):text; };
+    const node=$("device-audio-status"),next=selected?.voiceUnavailable&&text!==warning?warning+(text?" "+text:""):text;if(node.textContent!==next)node.textContent=next; };
   const clock=new RetentionClock();
   let cleaning=null,lastCleanup=0,expiredSource=null,pendingAddedAt=null,shellError=false;
   const rekeep=new Set();
@@ -521,7 +521,8 @@ function setupDeviceAudio({ getPlayer, getActive = getPlayer, getEngine = () => 
     $("regenerate-device-reading").hidden = selected?.engine !== "google" || !selected.records?.some((part) => assets.jobs.get(part.id)?.audioUnavailable);
     if (selected?.engine === "google" && group?.id === selected.groupId) {
       const info = natural.offlineInfo;
-      if (info?.ready) message("Ready offline · kept for this reading’s 24-hour lifetime.");
+      // The player owns offline readiness; this area is only for distinct recovery/voice notices.
+      if (info?.ready) message("");
       else if(info?.error||player?.state==="playing")message("");
     }
     for (const group2 of transport.groups.values()) if (group2.localSave && group2.ownerScope === assets.scope && group2.done && !group2.manifestSync && group2.deviceReference) {
