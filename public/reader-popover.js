@@ -4,7 +4,7 @@ function install(){
  if(installed)return;installed=true;
  document.addEventListener('pointerdown',event=>{
   swallowClick=false;if(!active||active.content.contains(event.target)||active.button.contains(event.target)||event.target.closest?.('.reader-info-button,.reader-popup-toggle'))return;
-  const paidAction=event.target.closest?.('#summary-mode,#document-ocr,#play,#paste-play,#credit-resume');active.close(!!paidAction);if(paidAction){swallowClick=true;event.preventDefault();event.stopImmediatePropagation();}
+  const paidAction=event.target.closest?.('#summary-mode,#translate-mode,#document-ocr,#play,#paste-play,#credit-resume');active.close(!!paidAction);if(paidAction){swallowClick=true;event.preventDefault();event.stopImmediatePropagation();}
  },true);
  document.addEventListener('click',event=>{if(swallowClick){swallowClick=false;event.preventDefault();event.stopImmediatePropagation();}},true);
  document.addEventListener('pointercancel',()=>{swallowClick=false;},true);

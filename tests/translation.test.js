@@ -1,5 +1,5 @@
 import test from 'node:test';import assert from 'node:assert/strict';
-import {validateTranslation,translationIdentity,foreignLanguageHint} from '../public/translation-contract.js';
+import {validateTranslation,translationIdentity,foreignLanguageHint,confidentTranslationLanguage} from '../public/translation-contract.js';
 import {translationResponse,translateWithGoogle} from '../cloudflare/reader/translation.js';
 test('translation source/target identity is exact, scoped and Unicode-counted without truncation',async()=>{
  assert.equal(validateTranslation('😀'.repeat(30000),'en').characters,30000);
@@ -52,4 +52,16 @@ test('live staging activation still requires verified owner and the migrated bil
 
 test('Esperanto and Igbo are accepted NMT targets independently from speech voices',()=>{
  for(const target of ['eo','ig'])assert.equal(validateTranslation('A complete sentence.',target).target,target);
+});
+
+test('same-language no-op evidence declines short, mixed scripts and ambiguous foreign passages',()=>{
+ const english='This is the text that we have for you and your readers. These are the words that they can read with their friends, and this is not a request for a different language.';
+ assert.equal(confidentTranslationLanguage(english),'en');
+ assert.equal(confidentTranslationLanguage('Este es el texto para los lectores. Las palabras de nuestro idioma tambien son muy importantes porque esta es una historia. '.repeat(3)),'es');
+ assert.equal(confidentTranslationLanguage('This short text.'),null);
+ assert.equal(confidentTranslationLanguage(english+' La internacia lingvo estas facila.'),null);
+ assert.equal(confidentTranslationLanguage(english+' 你好世界。'),null);
+ assert.equal(confidentTranslationLanguage(english+' Este es el texto para los lectores. Las palabras de nuestro idioma tambien son muy importantes.'),null);
+ assert.equal(confidentTranslationLanguage('x + y = 4; $12.50'),null);
+ assert.equal(confidentTranslationLanguage(english.repeat(60)+' Este es otro idioma.'),null,'a prefix cannot establish a whole long document language');
 });

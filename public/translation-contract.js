@@ -23,3 +23,21 @@ export function foreignLanguageHint(text){
  const scores=Object.entries(sets).map(([code,list])=>{const hits=new Set(list.split(' '));const matched=words.filter(w=>hits.has(w));return {code,score:matched.length,unique:new Set(matched).size};}).sort((a,b)=>b.score-a.score);
  const best=scores[0];return best.code!=='en'&&best.unique>=4&&best.score>=8&&best.score>=2*(scores[1]?.score||0)?best.code:null;
 }
+
+// Local same-language no-op evidence only. Mixed/short/uncertain text is never
+// declared equivalent to a destination, and script variants remain distinct.
+export function confidentTranslationLanguage(text){
+ if(typeof text!=='string'||text.length>8192)return null;
+ const sample=text.slice(0,8192).toLowerCase().normalize('NFD').replace(/\p{M}/gu,'');
+ if((sample.match(/\p{L}/gu)||[]).some(letter=>!/^\p{Script=Latin}$/u.test(letter)))return null;
+ const words=sample.match(/\p{L}+/gu)||[];
+ if(words.length<30)return null;
+ const sets={en:'the this that these those is are was were with from for and have has not your you they their will would can should',es:'el los las una unos unas esta este esto estan para pero porque tambien muy del texto idioma cuando como nuestros',fr:'les des une est sont dans pour avec mais cette ces nous vous notre texte langue aussi',pt:'os uma umas sao nao para com mas isto tambem muito texto idioma voce voces nosso'};
+ const scores=Object.entries(sets).map(([code,list])=>{const hits=new Set(list.split(' ')),matched=words.filter(w=>hits.has(w));return{code,score:matched.length,unique:new Set(matched).size,matched};}).sort((a,b)=>b.score-a.score);
+ const [best,second]=scores;
+ if(best.unique<5||best.score<10||best.score/words.length<.25||best.score<2*second.score)return null;
+ const common=new Set(sets[best.code].split(' '));
+ if(scores.slice(1).some(other=>new Set(other.matched.filter(word=>!common.has(word))).size>=3))return null;
+ for(const phrase of sample.split(/[.!?;,:\n]+/)){const terms=phrase.match(/\p{L}+/gu)||[];if(terms.length>=2&&!terms.some(word=>common.has(word)))return null;}
+ return best.code;
+}
