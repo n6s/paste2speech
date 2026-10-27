@@ -1,3 +1,4 @@
+import {showProcessing,hideProcessing} from './processing-indicator.js';
 import {attachReaderPopover} from './reader-popover.js';
 import {documentTranslationClient} from './translation-document-client.js';
 import {TRANSLATION_LANGUAGES,TRANSLATION_MAX_CHARACTERS,translationCharacters,translationIdentity,foreignLanguageHint,confidentTranslationLanguage} from './translation-contract.js';
@@ -37,6 +38,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  let evidenceSource=null,evidenceLanguage=null;const sourceLanguage=()=>{const text=sourceText(),known=knownLanguages.get(text);if(known)return known;if(text!==evidenceSource){evidenceSource=text;evidenceLanguage=confidentTranslationLanguage(text);}return evidenceLanguage;};
  const alreadyTarget=()=>sourceLanguage()===target.value;
  const update=()=>{
+  if(busy)showProcessing('translation',epoch,'Translating…');else hideProcessing('translation');
   const text=sourceText(),count=characterCount(text),oversized=!config?.documents&&count>TRANSLATION_MAX_CHARACTERS;
   button.disabled=!busy&&(isBusy()||!text.trim()||oversized&&!alreadyTarget()||!alreadyTarget()&&(!permitted()||config?.documents&&['blocked','pausing'].includes(documents?.current?.state)));
   button.textContent='Translate';button.setAttribute('aria-busy',String(busy));button.setAttribute('aria-label',`Translate to ${languageName()}`);toggle.setAttribute('aria-label',`Translation language: ${languageName()} selected`);
