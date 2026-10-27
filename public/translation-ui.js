@@ -42,7 +42,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   const text=sourceText(),count=characterCount(text),oversized=!config?.documents&&count>TRANSLATION_MAX_CHARACTERS;
   button.disabled=!busy&&(isBusy()||!text.trim()||oversized&&!alreadyTarget()||!alreadyTarget()&&(!permitted()||config?.documents&&['blocked','pausing'].includes(documents?.current?.state)));
   button.textContent='Translate';button.setAttribute('aria-busy',String(busy));button.setAttribute('aria-label',`Translate to ${languageName()}`);toggle.setAttribute('aria-label',`Translation language: ${languageName()} selected`);
-  el('cancel').textContent=config?.documents?'Pause translation':'Cancel';el('cancel').hidden=!busy;el('copy').disabled=!result;el('use').disabled=!result||busy||isBusy();el('restore').disabled=!original||busy||isBusy();labelResult();
+  el('cancel').textContent=config?.documents?'Pause translation':'Cancel';el('cancel').hidden=!busy;el('copy').disabled=!result;el('use').disabled=!result||busy||isBusy();el('restore').disabled=!(original||result&&result.source===getText())||busy||isBusy();labelResult();
   quote.hidden=!text.trim()||!!result&&!result.partial&&result.source===text&&result.target===target.value;quote.textContent=alreadyTarget()?`Already in ${languageName()} · no credits`:!config?'Checking translation availability…':!permitted()?config.detail||'Translation is unavailable.':`${languageName()} · ${count.toLocaleString()} characters · ${credits(count*config.priceCreditsPer1000/1000)} credits${result?.partial?' total':''}`;
   if(oversized&&!alreadyTarget())status('This text exceeds the available request limit. Your full source is kept.');
  };
@@ -50,7 +50,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  const showResult=value=>{result=value;el('result').value=value.text;el('result').lang=value.target;el('result').dir='auto';status(value.noOp?`Already in ${languageName()}.`:value.cached?'Saved translation · no new charge.':Number.isFinite(value.creditsUsed)?`Translated ${characterCount(value.source).toLocaleString()} characters for ${credits(value.creditsUsed)} credits.`:'Translation ready.');if(!value.noOp&&!value.edited){knownLanguages.set(value.text,value.target);while(knownLanguages.size>3)knownLanguages.delete(knownLanguages.keys().next().value);}update();};
  const availability=async()=>{
   const checkId=++configRequest;const response=await fetcher('/api/translation/config',{cache:'no-store'});if(!response.ok)throw Error('Translation availability could not be checked. Your text is unchanged.');
-  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){cache.clear();ids.clear();knownLanguages.clear();documentEdits.length=0;documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
+  const next=await response.json();if(checkId!==configRequest)throw new DOMException('Superseded availability check','AbortError');if(scope!==null&&scope!==next.scope){original=null;source=getText();cache.clear();ids.clear();knownLanguages.clear();documentEdits.length=0;documents=null;retryOffer=null;checkingExisting=false;result=null;el('result').value='';}
   scope=next.scope??null;config=next;return next;
  };
  const makeDocuments=(n,text,language,owner,inspection=false)=>{const client=documentTranslationClient({fetcher,onBillingChange:()=>window.dispatchEvent(new Event('speech-credit-change')),scope:()=>owner,verifyScope:async()=>{if(n!==epoch)throw new DOMException('Translation changed','AbortError');await availability();if(scope!==owner)throw Error('Your account changed. No prior-account translation is shown.');},valid:()=>n===epoch&&text===sourceText()&&language===target.value&&scope===owner,onProgress:({document,text:translated,partial})=>{
@@ -98,7 +98,7 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   el('voice').textContent=matches?'Your current voice matches the target language. Press Play when ready.':`Choose a voice for ${TRANSLATION_LANGUAGES[result.target]} before pressing Play. The voice has not been changed and playback has not started.`;update();
  };
  el('restore').onclick=()=>{
-  if(!original||busy||isBusy())return;const before=getText(),text=original.text;
+  if(busy||isBusy())return;if(!original){if(result&&getText()===result.source){setMode('edit');document.getElementById('text')?.focus();status('Original shown. Your translation is kept.');}return;}const before=getText(),text=original.text;
   if(before!==original.applied){el('result').value=before;result.text=before;result.edited=true;if(config?.documents){documentEdits.unshift(result);documentEdits.length=Math.min(3,documentEdits.length);}el('result-label').textContent='Translation · your edits';status('Original restored. Your edited translation is kept above for copying.');}
   else status('Original restored. Translation remains available above.');
   original=null;applying=true;try{setText(text);}finally{applying=false;}source=text;update();
