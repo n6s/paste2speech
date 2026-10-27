@@ -135,3 +135,6 @@ button.reader-info-button,button.reader-popover-close{display:inline-flex!import
 @media(max-width:360px){.staging-reader-layout .mode-controls.has-translation :is(#summary-mode,#translate-mode){font-size:.8rem;padding-inline:4px}}
 
 .staging-reader-layout .mode-controls.has-translation{margin-bottom:10px}
+
+#summary-pending-partial{margin-top:10px}
+#summary-pending-partial>summary{min-height:44px;padding:8px 0}
