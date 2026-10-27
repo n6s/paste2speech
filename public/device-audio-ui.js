@@ -117,7 +117,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       if(waiting.autoplay)getQueue().retry(item.id);else void goToEntry(item,{autoplay:false});
     });
   }
-  async function finishEntry(id,{reason='read',autoplay=true}={}){
+  async function finishEntry(id,{reason='read',autoplay=true,advance=true}={}){
     if(!podcast||finishingEntries.has(id)||!entries().some(item=>item.id===id))return;
     if(selected?.id!==id&&playlist?.state.currentId!==id){const owner=scope(),target=playlist;await target.edit(state=>{if(owner===scope()&&target===playlist)retireUnfinished(state,[id]);});if(owner===scope()&&target===playlist){getQueue()?.removePending(id);notifyPlaylist();}return;}
     finishingEntries.add(id);const request=++playlistTransition,owner=scope(),stateStore=playlist,audioStore=store(),model=getQueue(),record=selected?.id===id?selected:null;
@@ -133,7 +133,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       model.removePending(id);suppressed.add(id);
       if(record&&ownsSelection&&selected===record){finishedText=record.text;nativeBlocked={chunks:getActive()?.chunks,voice:getActive()?.settings?.voice?.voiceURI||''};selectedRelease?.();selectedRelease=null;selected=null;intent=null;transport.nextLogicalReading=null;}
       notifyPlaylist();
-      if(ownsSelection&&nextId&&entries().some(item=>item.id===nextId))await goToEntry(nextId,{autoplay:autoplay&&model.version===version});
+      if(advance&&ownsSelection&&nextId&&entries().some(item=>item.id===nextId))await goToEntry(nextId,{autoplay:autoplay&&model.version===version});
       else if(ownsSelection)message(entries().length?'No more readings ahead. Choose an unfinished reading.':'Playlist finished.');
     }catch(error){message(error.message);}finally{finishingEntries.delete(id);refresh();}
   }
@@ -159,7 +159,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
       },
       open:(item,options)=>goToEntry(item,options),
       markRead:id=>finishEntry(id,{reason:'manual',autoplay:['playing','buffering'].includes(getActive()?.state)}),
-      remove:id=>finishEntry(id,{reason:'remove',autoplay:next.state.playIntent==='playing'}),
+      remove:(id,{advance=true}={})=>finishEntry(id,{reason:'remove',autoplay:advance&&next.state.playIntent==='playing',advance}),
     });
   }
   const nav = document.createElement("div");

@@ -73,4 +73,4 @@ await page.evaluate(()=>__spoken.at(-1).onend());await page.waitForFunction(()=>
 assert.equal(speechCount(),0);assert.equal(posts.filter(p=>p.kind==='scan').length,5);
 assert.deepEqual(errors,[]);assert.deepEqual(external,[]);
 console.log(JSON.stringify({firstScanPreserved:true,queuedScanImmediatelyVisible:true,outOfOrderCompletion:true,sameLogicalIds:true,roundtrip:true,singlePendingAndFailureVisible:true,explicitOpenPlayAndNativeQueueAdvance:true,originalEntriesReplacedWithoutRemovingLaterEnqueue:true,realProviderCalls:0,realApiWrites:0,errors}));
-}finally{await browser.close();await new Promise(r=>server.close(r));}
+}catch(error){await writeFile(out+'/image-queue-failure.json',JSON.stringify({error:error.stack,ui:await page.evaluate(()=>({text:document.querySelector('#text').value,status:document.querySelector('#status').textContent,device:document.querySelector('#device-audio-status').textContent,spoken:__spoken.map(u=>u.text),queue:document.querySelector('#queue-items').textContent})),errors,posts},null,2));throw error;}finally{await browser.close();await new Promise(r=>server.close(r));}
