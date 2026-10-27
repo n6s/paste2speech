@@ -148,6 +148,9 @@ try {
   assert.equal(disk.sections, 0);
   assert.deepEqual(requests.filter((r) => r.path.startsWith("/api/readings") || r.path.includes("synth") || r.method === "POST" && r.path !== "/api/events"), []);
   assert.deepEqual(errors, []);
+  // Restore an unfinished browser reading; completed newsletter membership is retired.
+  await page.click("#previous-reading");
+  await page.waitForFunction(()=>document.querySelector("#voice").value==="native-a"&&!document.querySelector("#play").disabled);
   // A newer Natural bookmark must not override a browser-engine preference.
   await page.evaluate(async()=>{
     const db=await new Promise(resolve=>{const r=indexedDB.open("paste2speech-device-audio-v1");r.onsuccess=()=>resolve(r.result);});
@@ -158,8 +161,8 @@ try {
   const end=Date.now()+90000;
   for(;;){const ready=await page.evaluate(async()=>{const registration=await navigator.serviceWorker.getRegistration("/");if(!registration?.active||!navigator.serviceWorker.controller)return false;return new Promise(resolve=>{const channel=new MessageChannel(),timer=setTimeout(()=>resolve(false),10000);channel.port1.onmessage=event=>{clearTimeout(timer);resolve(event.data.ok===true);};registration.active.postMessage({type:"CHECK_OFFLINE_SHELL"},[channel.port2]);});});if(ready)break;if(Date.now()>end)throw Error("Native offline shell did not finish");await page.waitForTimeout(100);}
   await context.setOffline(true);await page.reload();
-  await page.waitForFunction(async()=>document.querySelector("#engine").value==="browser"&&!document.querySelector("#play").disabled&&document.querySelector("#text").value==="Queued native newsletter.");
-  assert.equal(await page.evaluate(()=>__spoken.length),0);assert.equal(await page.locator("#voice").inputValue(),"native-b");await page.click("#play");assert.ok(await page.evaluate(()=>__spoken.length)>0);await page.click("#pause");
+  await page.waitForFunction(async()=>document.querySelector("#engine").value==="browser"&&!document.querySelector("#play").disabled&&document.querySelector("#text").value.startsWith("First native section."));
+  assert.equal(await page.evaluate(()=>__spoken.length),0);assert.equal(await page.locator("#voice").inputValue(),"native-a");await page.click("#play");assert.ok(await page.evaluate(()=>__spoken.length)>0);await page.click("#pause");
   await context.setOffline(false);accountScope=null;await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(async()=>(await window.__readingCount())===0);
   await page.click("#edit-mode");await page.fill("#text","Signed-out native reading.");await page.click("#play");await page.waitForFunction(async()=>(await window.__readingCount())===1);
   accountScope="different-owner";await page.evaluate(()=>window.dispatchEvent(new Event("focus")));await page.waitForFunction(async()=>(await window.__readingCount())===0);

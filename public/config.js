@@ -48,3 +48,5 @@ export const PERSISTENT_AUDIO = false;
 
 export const MATH_SPEECH_PREVIEW=false;
 export const TRANSLATION_UI = false;
+
+export const PODCAST_PLAYLIST = false;

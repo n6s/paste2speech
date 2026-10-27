@@ -15,7 +15,7 @@ export class ReadingQueue {
   remove(id){if(this.playlist){void this.playlist.remove(id);return;}this.removePending(id);}
   removePending(id,{consumed=false}={}){const index=this.items.findIndex(item=>item.id===id);if(index<0)return;const [item]=this.items.splice(index,1);this.removed(item,{consumed});this.changed();this.schedule();}
   move(id,delta){if(this.playlist){void this.playlist.move(id,delta);return;}const index=this.items.findIndex(item=>item.id===id),next=index+delta;if(index<0||next<0||next>=this.items.length)return;[this.items[index],this.items[next]]=[this.items[next],this.items[index]];this.changed();this.schedule();}
-  observe(state){if(state==='done'&&this.lastState!=='done'&&this.entries.length&&!this.halted){this.armed=true;this.schedule();}this.lastState=state;}
+  observe(state){if(this.playlist?.managedCompletion){this.lastState=state;return;}if(state==='done'&&this.lastState!=='done'&&this.entries.length&&!this.halted){this.armed=true;this.schedule();}this.lastState=state;}
   stop(){this.retryingId=null;this.version++;this.halted=true;this.armed=false;}
   resume(){this.halted=false;}
   clear(){this.stop();const old=this.items;this.items=[];this.playlist?.clearPending?.(old);for(const item of old)this.removed(item);this.changed();}

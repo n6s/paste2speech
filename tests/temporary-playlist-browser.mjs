@@ -57,9 +57,10 @@ try {
   await page.locator("#voice-settings").evaluate((e) => e.open = true);
   await page.selectOption("#engine", "browser");
   await page.selectOption("#voice", "native-a");
+  const podcast=await page.locator("#reading-queue").getAttribute("data-podcast")==="true";
   await page.evaluate(()=>clipboardText='Lone queued reading.');await page.click('#paste-options');await page.click('#paste-queue');
   await page.waitForFunction(()=>document.querySelectorAll('#queue-items li').length===1&&!document.querySelector('#play').disabled);
-  assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.evaluate(()=>__spoken.length),0);await page.click('#play');await page.waitForFunction(()=>__spoken.at(-1)?.text==='Lone queued reading.');await page.click('#pause');
+  assert.equal(await page.locator('#reading-queue').isVisible(),podcast);assert.equal(await page.evaluate(()=>__spoken.length),0);await page.click('#play');await page.waitForFunction(()=>__spoken.at(-1)?.text==='Lone queued reading.');await page.click('#pause');
   await page.evaluate(()=>clipboardText='First native section.\n\nSecond native section.\n\nThird native section.');await page.click('#paste-play');
   await page.waitForFunction(async () => document.querySelector("#status").textContent === "Reading aloud");
   await page.waitForFunction(()=>!document.querySelector("#paste-play").disabled);
@@ -98,7 +99,7 @@ try {
   await enqueue('Third queued newsletter.');await waitRows(3);const beforeReload=await ids();await page.waitForTimeout(300);await page.reload();await waitRows(3);
   assert.deepEqual(await ids(),beforeReload);assert.equal(await page.evaluate(()=>__spoken.length),0);
   await page.locator('#reading-queue').evaluate(el=>el.open=true);
-  await page.getByRole('button',{name:'Open reading: Third queued newsletter.',exact:true}).click();await page.waitForFunction(()=>document.querySelector('#text').value==='Third queued newsletter.'&&!document.querySelector('#play').disabled);
+  await page.getByRole('button',{name:'Open reading: Third queued newsletter.',exact:true}).click();await page.waitForFunction(podcast=>document.querySelector('#text').value==='Third queued newsletter.'&&(podcast?!document.querySelector('#pause').disabled:!document.querySelector('#play').disabled),podcast);if(podcast)await page.click('#pause');
   await waitRows(3);assert.deepEqual(await ids(),beforeReload);
   // Identical text intentionally enqueued twice remains two distinct logical entries.
   await enqueue('Third queued newsletter.');await waitRows(4);assert.equal(new Set(await ids()).size,4);
@@ -116,8 +117,8 @@ try {
 
   await enqueue('After completion.');await waitRows(2);
   await page.click('#play');await page.evaluate(()=>__spoken.at(-1).onend());
-  await page.waitForFunction(()=>document.querySelector('#text').value==='After completion.');await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);
-  await page.click('#pause');await enqueue('Remaining queued reading.');await waitRows(2);await page.locator('#reading-queue').evaluate(el=>el.open=true);await page.getByLabel('Actions: After completion.',{exact:true}).click();await page.getByRole('button',{name:'Remove: After completion.',exact:true}).click();await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);await page.waitForTimeout(700);assert.equal(await page.locator('#queue-items li').count(),1,'Removing the current reading must not silently save it again');
+  await page.waitForFunction(()=>document.querySelector('#text').value==='After completion.'&&document.querySelector('#status').textContent==='Reading aloud'&&document.querySelector('#reading-queue').hidden);await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),false);assert.equal(await page.locator('#reading-navigation').isVisible(),false);
+  await page.click('#pause');await enqueue('Remaining queued reading.');await waitRows(2);await page.locator('#reading-queue').evaluate(el=>el.open=true);await page.getByLabel('Actions: After completion.',{exact:true}).click();await page.getByRole('button',{name:'Remove: After completion.',exact:true}).click();await waitRows(1);assert.equal(await page.locator('#reading-queue').isVisible(),podcast);await page.waitForTimeout(700);assert.equal(await page.locator('#queue-items li').count(),1,'Removing the current reading must not silently save it again');
   await page.click('#play');await page.waitForFunction(()=>__spoken.at(-1)?.text==='Remaining queued reading.');assert.equal(await page.locator('#reading-queue').isVisible(),false);await page.click('#pause');
   assert.equal(await page.locator('#device-audio-list li').count(),0);
   assert.deepEqual(requests.filter(r=>r.path.startsWith('/api/readings')||r.path.includes('synth')||r.method==='POST'&&r.path!=='/api/events'),[]);assert.deepEqual(errors,[]);
