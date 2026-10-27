@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import {mkdtempSync,rmSync,readFileSync,existsSync} from 'node:fs';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
-import {scheduleGates,gateClass,executeGate,gateEnvironment} from '../scripts/reader-fresh-gates.mjs';
+import {scheduleGates,gateClass,executeGate,gateEnvironment,runFreshChecks} from '../scripts/reader-fresh-gates.mjs';
 const delay=ms=>new Promise(resolve=>setTimeout(resolve,ms));
 test('bounded scheduler serializes heavy work and shared artifacts, with unknown suites heavy',async()=>{
  assert.equal(gateClass('node',['tests/new-media-browser.mjs']),'heavy');
@@ -39,5 +39,21 @@ test('cancellation releases an isolated Chrome and HTTP fixture',async()=>{
  const {port}=JSON.parse(readFileSync(ready));assert.equal((await fetch('http://127.0.0.1:'+port)).status,200);
  controller.abort(Error('fixture cancellation'));await assert.rejects(running,/fixture cancellation/);
  await assert.rejects(fetch('http://127.0.0.1:'+port));
+ }finally{rmSync(dir,{recursive:true,force:true});}
+});
+
+test('serial mode and external cancellation preserve order and drain active work',async()=>{
+ let active=0,max=0;const order=[];await scheduleGates([{name:'a',resourceClass:'light'},{name:'b',resourceClass:'heavy'}],{concurrency:1,run:async g=>{max=Math.max(max,++active);await delay(5);order.push(g.name);active--;}});assert.equal(max,1);assert.deepEqual(order,['a','b']);
+ const controller=new AbortController();controller.abort(Error('already canceled'));let started=false;
+ await assert.rejects(scheduleGates([{name:'never'}],{signal:controller.signal,run:()=>{started=true;}}),/already canceled/);assert.equal(started,false);
+ await assert.rejects(executeGate({command:'must-not-spawn',args:[]},controller.signal,{}),/already canceled/);
+});
+test('release signal handling drains owned fixtures and removes its listeners',async()=>{
+ const dir=mkdtempSync(join(tmpdir(),'reader-release-signal-'));try{
+ const ready=join(dir,'ready'),before=process.listenerCount('SIGTERM');
+ const running=runFreshChecks([{command:'node',args:['tests/fixtures/reader-gate-teardown.mjs',ready],options:{}}],{directory:dir});let failure;running.catch(error=>{failure=error;});const deadline=Date.now()+15000;
+ while(!existsSync(ready)&&!failure&&Date.now()<deadline)await delay(20);if(failure)throw failure;assert(existsSync(ready));const {port}=JSON.parse(readFileSync(ready));
+ process.emit('SIGTERM');await assert.rejects(running,/interrupted by SIGTERM/);assert.equal(process.listenerCount('SIGTERM'),before);await assert.rejects(fetch('http://127.0.0.1:'+port));
+ const result=JSON.parse(readFileSync(join(dir,'fresh-run.json')));assert.equal(result.timings.length,1);assert.equal(result.timings[0].success,false);
  }finally{rmSync(dir,{recursive:true,force:true});}
 });

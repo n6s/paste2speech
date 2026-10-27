@@ -1,0 +1,8 @@
+import{mkdirSync,writeFileSync}from'node:fs';import{performance}from'node:perf_hooks';
+const script=process.argv[1]||'',enabled=/\/(tests|scripts\/reader-parity|scripts\/video-download)\//.test(script)&&script.endsWith('.mjs');
+if(enabled){const{chromium}=await import('playwright'),events=[],seen=new WeakSet(),started=performance.now(),cpu=process.cpuUsage();
+const wrap=(object,method,kind,after)=>{if(typeof object[method]!=='function')return;const original=object[method];object[method]=async function(...args){const begin=performance.now(),site=new Error().stack?.split('\n').find(line=>line.includes('.mjs:')&&!line.includes(import.meta.url))?.trim();try{const result=await original.apply(this,args);after?.(result);return result;}finally{events.push({kind,ms:performance.now()-begin,...(method==='waitForTimeout'?{requestedMs:args[0],site}:{})});}};};
+const page=p=>{if(seen.has(p))return;seen.add(p);wrap(p,'goto','navigation');wrap(p,'reload','navigation');wrap(p,'waitForTimeout','fixedWait');};
+const context=c=>{if(seen.has(c))return;seen.add(c);wrap(c,'newPage','page',page);};
+const browser=b=>{wrap(b,'newContext','context',context);wrap(b,'newPage','page',page);wrap(b,'close','browserClose');};wrap(chromium,'launch','browserLaunch',browser);
+process.on('exit',()=>{const directory=process.env.READER_PROFILE_DIR||'work/reader-gates/profile';mkdirSync(directory,{recursive:true});writeFileSync(`${directory}/${process.pid}.json`,JSON.stringify({script:script.replace(process.cwd()+'/',''),delivery:process.env.AUDIT_DELIVERY||null,windowed:process.env.WINDOWED_RELOAD||null,elapsedMs:performance.now()-started,cpu:process.cpuUsage(cpu),maxRssKiB:process.resourceUsage().maxRSS,events},null,2));});}
