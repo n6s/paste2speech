@@ -35,7 +35,7 @@ if(settings.staging.vars.MATH_SPEECH_PREVIEW==='1')for(const file of ['tests/mat
 if(settings.staging.vars.PODCAST_PLAYLIST==='1'){for(const file of ['tests/podcast-playlist-browser.mjs','tests/podcast-migration-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});for(const mode of ['complete','mse'])execFileSync('node',['tests/podcast-natural-browser.mjs'],{stdio:'inherit',env:{...process.env,AUDIT_DELIVERY:mode}});}
 if(settings.staging.vars.TRANSLATION_UI==='1')execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
 if(settings.staging.vars.TRANSLATION_DOCUMENT_SCHEMA==='1')execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
-if(settings.staging.vars.SUMMARY_DOCUMENT_SCHEMA==='1')execFileSync('node',['tests/summary-documents-browser.mjs'],{stdio:'inherit'});
+if(settings.staging.vars.SUMMARY_DOCUMENT_SCHEMA==='1')for(const file of ['tests/summary-documents-browser.mjs','tests/summary-documents-native.mjs'])execFileSync('node',[file],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
 await runFreshChecks(checks,{reuse:args.includes('--reuse-gates'),concurrency:args.includes('--serial-gates')?1:2});
 if(args.includes('--measure-reuse')){const benchmark=createGateRunner({reuse:true,identity:readerGateIdentity,run:rawExecFileSync});benchmark.run('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit',env:gateEnvironment()});writeFileSync('work/reader-gates/reuse-benchmark.json',JSON.stringify(benchmark.timings,null,2)+'\n');}

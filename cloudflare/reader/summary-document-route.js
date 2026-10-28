@@ -25,5 +25,5 @@ export async function summaryDocumentResponse(request,env,account,{now=Date.now,
   // Admission and dispatch checks live in the coordinator. Keep an already admitted
   // operation alive after a disconnected caller, without starting any extra work.
   const work=service.step(account,input.id,input);ctx?.waitUntil(work.catch(()=>{}));return reply(await work);
- }catch(e){return reply({detail:/credit|capacity|quote|Source|source|Summary|summary|account/.test(e.message||'')?e.message:'Summary could not be checked. Existing work is kept; no automatic retry.'},409);}
+ }catch(e){if(/UNIQUE constraint failed:\s*summary_documents\.account/.test(e.message||'')){const busy=await service.q("SELECT id,preset FROM summary_documents WHERE account=? AND state IN('active','pausing')",account.id).first();if(busy)e.summaryBusy=busy;else return reply({detail:'Summary availability changed. Click Summary to check again. Your saved result is kept.'},409);e.message='Finishing the previous summary. Your new request has not started.';}if(e.summaryBusy)return reply({code:'summary_busy',waitingFor:e.summaryBusy.id,detail:e.message},409);return reply({detail:/credit|capacity|quote|Source|source|Summary|summary|account/.test(e.message||'')?e.message:'Summary could not be checked. Existing work is kept; no automatic retry.'},409);}
 }

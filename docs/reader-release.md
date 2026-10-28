@@ -1536,3 +1536,13 @@ part of the suite. Public builds exclude its controller, and public API routes
 reject the staging journal. Ordinary Summary remains one click; internal maximum
 reservations and exact settlement are mandatory even when routine quotes are not
 shown. Never replace a live wallet with a pre-migration backup during rollback.
+
+### Summary native D1 ownership regression
+
+Summary stage claims use the exact conditional `RETURNING` row and matching
+request lease, not `meta.changes`: native D1 includes audit-trigger writes in that
+count. `tests/summary-documents-native.mjs` is a required staging gate when the
+Summary document schema is enabled. It starts disposable local workerd/D1 with
+synthetic accounts and a mocked provider; it checks trigger-backed recovery,
+acknowledgement loss, duplicate calls, competing preset admission and unknown
+outcome protection. It never invokes Workers AI or a paid provider.
