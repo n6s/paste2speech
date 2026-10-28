@@ -774,14 +774,14 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
     registration.active.postMessage({ type: "CHECK_OFFLINE_SHELL" }, [channel.port2]);
   }).catch(() => {
   });
-  async function beforePlay(){
+  async function beforePlay({queuedAdmission=false}={}){
     const text=getText(),engine=getEngine(),owner=scope();
     if(podcast&&finishedText===text&&!selected){finishedText=null;intent={id:crypto.randomUUID(),createdAt:Date.now(),text};transport.nextLogicalReading={...intent};await rememberCurrent({...intent,activate:false});}
     await cleanup();
     if(getText()!==text||getEngine()!==engine||scope()!==owner)return false;
     // Editor transformations do not rewrite a queued source. Admit their new
     // logical reading only on Play, before binding the actual player/audio run.
-    if(podcast&&selected&&selected.text!==text){
+    if(podcast&&!queuedAdmission&&selected&&selected.text!==text){
       if(!currentAdmission){
         const next={id:crypto.randomUUID(),createdAt:Date.now(),text};intent=next;transport.nextLogicalReading={...next};
         const work=rememberCurrent({...next,activate:false,valid:()=>getText()===text&&getEngine()===engine&&scope()===owner});currentAdmission=work;

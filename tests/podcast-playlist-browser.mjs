@@ -59,7 +59,7 @@ try {
   await page.selectOption("#voice", "native-a");
 
   const rows=()=>page.locator('#queue-items li').count();
-  const waitRows=n=>page.waitForFunction(n=>document.querySelectorAll('#queue-items li').length===n,n);
+  const waitRows=async n=>{try{await page.waitForFunction(n=>document.querySelectorAll('#queue-items li').length===n,n);}catch(error){console.error('Playlist rows',await page.locator('#queue-items li').allTextContents());throw error;}};
   const enqueue=async text=>{await page.evaluate(text=>clipboardText=text,text);await page.click('#paste-options');await page.click('#paste-queue');await page.waitForFunction(text=>[...document.querySelectorAll('.queue-title')].some(row=>row.textContent.includes(text)),text);};
   const paste=async text=>{await page.evaluate(text=>clipboardText=text,text);await page.click('#paste-play');await playing(text);};
   const playing=text=>page.waitForFunction(text=>document.querySelector('#text').value===text&&document.querySelector('#status').textContent==='Reading aloud',text);
