@@ -1,9 +1,10 @@
-import {PDFParser,PDFObjectStreamParser,PDFXRefStreamParser,PDFRawStream,PDFName,PDFNumber,PDFArray,PDFDict,PDFRef} from 'pdf-lib';
+import {readPdfRevisions} from './pdf-revisions.js';
+import {PDFRawStream,PDFName,PDFNumber,PDFArray,PDFDict,PDFRef,PDFNull} from 'pdf-lib';
 import {decodeXrefPredictor} from './pdf-predictor.js';
 import {readBounded} from '../prepared/google.js';
 export class PdfAdmissionError extends Error {constructor(code){super(code);this.code=code;}}
-export function pdfAdmissionMessage(error){const messages={complexity:'This PDF has too much structural metadata for safe page verification. Export a new unencrypted PDF with 1–10 pages and try again.',encrypted:'This PDF is encrypted. Save an unencrypted copy before using cloud OCR.',pages:'Cloud OCR accepts PDFs with 1–10 pages. Split this document locally before choosing it again.',incomplete:'This PDF is incomplete. Download or export a complete copy and try again.',structure:'The PDF page structure could not be verified safely. Try exporting a new unencrypted PDF, then choose that copy.'};return error instanceof PdfAdmissionError?messages[error.code]||messages.structure:null;}
-const name=PDFName.of,endobj=new TextEncoder().encode('endobj');
+export function pdfAdmissionMessage(error){const messages={unsupported:'This PDF uses unsupported structural compression. Re-export it as a standard PDF, then choose that copy.',complexity:'This PDF has too much structural metadata for safe page verification. Export a new unencrypted PDF with 1–10 pages and try again.',encrypted:'This PDF is encrypted. Save an unencrypted copy before using cloud OCR.',pages:'Cloud OCR accepts PDFs with 1–10 pages. Split this document locally before choosing it again.',incomplete:'This PDF is incomplete. Download or export a complete copy and try again.',structure:'The PDF page structure could not be verified safely. Try exporting a new unencrypted PDF, then choose that copy.'};return error instanceof PdfAdmissionError?messages[error.code]||messages.structure:null;}
+const name=PDFName.of;
 const integer=(value,max)=>{const n=value instanceof PDFNumber?value.asNumber():NaN;if(!Number.isSafeInteger(n)||n<0||n>max)throw Error('Invalid PDF structure');return n;};
 // Pin pdf-lib 1.17.1. Its default page traversal trusts /Count and recursively
 // follows Kids. Instead, bound parsing, decompress only structural streams with
@@ -42,12 +43,12 @@ async function verifyPdfPages(bytes,limits,onStats){
   }
   const rawInt=parser.parseRawInt;if(rawInt)parser.parseRawInt=function(){check();return rawInt.call(this);};const original=parser.parseObject;parser.parseObject=function(){check();if(++budget.depth>64){budget.depth--;throw Error('PDF nesting limit');}try{return original.call(this);}finally{budget.depth--;}};return parser;}
  async function structuralStream(stream,width=null){
-  let filter=stream.dict.lookup(name('Filter'));if(filter instanceof PDFArray){if(filter.size()!==1)throw Error('Unsupported PDF filters');filter=filter.lookup(0);}
+  let filter=stream.dict.lookup(name('Filter'));if(filter===PDFNull)filter=null;if(filter instanceof PDFArray){if(filter.size()!==1)throw new PdfAdmissionError('unsupported');filter=filter.lookup(0);}
   let data=stream.contents;
-  if(filter){if(filter!==name('FlateDecode'))throw Error('Unsupported structural PDF compression');data=await readBounded({body:new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'))},2*1024*1024);}
-  if(data.length>2*1024*1024||(budget.inflated+=data.length)>4*1024*1024||Date.now()>budget.deadline)throw Error('PDF structural expansion limit');
+  if(filter){if(filter!==name('FlateDecode'))throw new PdfAdmissionError('unsupported');try{data=await readBounded({body:new Blob([data]).stream().pipeThrough(new DecompressionStream('deflate'))},2*1024*1024);}catch(error){if(error.message==='Response too large')throw new PdfAdmissionError('complexity');throw error;}}
+  if(data.length>2*1024*1024||(budget.inflated+=data.length)>4*1024*1024||Date.now()>budget.deadline)throw new PdfAdmissionError('complexity');
   let params=stream.dict.lookup(name('DecodeParms'));
-  if(params instanceof PDFArray){if(params.size()!==1)throw Error('Unsupported PDF predictor parameters');params=params.lookup(0);}
+  if(params instanceof PDFArray){if(params.size()!==1)throw new PdfAdmissionError('unsupported');params=params.lookup(0);}if(params===PDFNull)params=null;
   if(params){
    if(width==null||!(params instanceof PDFDict)||filter!==name('FlateDecode'))throw Error('Unsupported structural PDF predictor');
    const parameter=(key,fallback)=>params.has(name(key))?integer(params.lookup(name(key)),65536):fallback;
@@ -55,45 +56,20 @@ async function verifyPdfPages(bytes,limits,onStats){
   }
   const dict=stream.dict.clone();dict.delete(name('Filter'));dict.delete(name('DecodeParms'));return PDFRawStream.of(dict,data);
  }
- const parser=bound(PDFParser.forBytesWithOptions(bytes,100,true,false));
- // Ambiguous duplicate definitions (including incremental revisions) are
- // rejected rather than choosing objects differently from the provider.
- const assign=parser.context.assign.bind(parser.context);parser.context.assign=(ref,object)=>{if(parser.context.lookup(ref))throw Error('Duplicate PDF object');assign(ref,object);};
- // Do not silently recover a missing/invalid trailer Root from arbitrary objects.
- parser.maybeRecoverRoot=function(){if(!this.context.trailerInfo.Root)throw Error('Missing PDF root');};
- parser.parseIndirectObject=async function(){
-  check();const ref=this.parseIndirectObjectHeader();this.skipWhitespaceAndComments();const object=this.parseObject();this.skipWhitespaceAndComments();if(!this.matchKeyword(endobj))throw Error('Incomplete PDF object');
-  if(object instanceof PDFRawStream){
-   const type=object.dict.lookup(name('Type'));
-   if(type===name('ObjStm')){
-    const count=integer(object.dict.lookup(name('N')),2048),first=integer(object.dict.lookup(name('First')),2*1024*1024);if(!count||budget.nodes+count>limits.nodes)throw Error('PDF object limit');
-    const safe=await structuralStream(object);if(first>=safe.contents.length)throw Error('Invalid PDF object stream');
-    const sub=bound(PDFObjectStreamParser.forStream(safe,this.shouldWaitForTick));
-    // Validate offsets before the library parses individual object bodies.
-    const headers=sub.parseOffsetsAndObjectNumbers();if(sub.bytes.offset()>first||headers.some(({objectNumber:id,offset},i)=>!Number.isSafeInteger(id)||id<1||!Number.isSafeInteger(offset)||offset<0||first+offset>=safe.contents.length||i&&offset<=headers[i-1].offset)||new Set(headers.map(h=>h.objectNumber)).size!==count)throw Error('Invalid PDF object offsets');
-    sub.bytes.moveTo(0);await sub.parseIntoContext();return ref;
-   }
-   if(type===name('XRef')){
-    integer(object.dict.lookup(name('Size')),limits.xref);const widths=object.dict.lookup(name('W'));if(!(widths instanceof PDFArray)||widths.size()!==3)throw Error('Invalid PDF xref');const width=Array.from({length:3},(_,i)=>integer(widths.lookup(i),8)).reduce((a,b)=>a+b,0);if(!width)throw Error('Invalid PDF xref width');
-    const index=object.dict.lookup(name('Index'));let entries=integer(object.dict.lookup(name('Size')),limits.xref);if(index){if(!(index instanceof PDFArray)||index.size()%2||index.size()>128)throw Error('Invalid PDF xref index');entries=0;for(let i=0;i<index.size();i+=2){integer(index.lookup(i),limits.xref);entries+=integer(index.lookup(i+1),limits.xref);}}if(entries>limits.xref)throw Error('PDF xref limit');
-    const safe=await structuralStream(object,width);if(safe.contents.length!==entries*width)throw Error('Incomplete PDF xref');PDFXRefStreamParser.forStream(safe).parseIntoContext();return ref;
-   }
+ try{
+  const view=await readPdfRevisions({bytes,limits,budget,check,bound,structuralStream});if(view.encrypted)throw new PdfAdmissionError('encrypted');
+  const root=await view.resolve(view.root);if(!(root instanceof PDFDict)||await view.resolve(root.get(name('Type')))!==name('Catalog'))throw Error('Invalid PDF catalog');
+  const seen=new Set();let visited=0;
+  async function walk(ref,parent,depth=0){
+   if(!(ref instanceof PDFRef)||seen.has(ref.toString())||++visited>limits.visited||depth>32)throw Error('Invalid PDF page tree');seen.add(ref.toString());
+   const dict=await view.resolve(ref);if(!(dict instanceof PDFDict))throw Error('Missing PDF page');
+   if(parent&&dict.get(name('Parent'))?.toString()!==parent.toString())throw Error('Invalid PDF page parent');if(!parent&&dict.has(name('Parent')))throw Error('Invalid PDF page root');
+   const type=await view.resolve(dict.get(name('Type')));if(type===name('Page'))return 1;if(type!==name('Pages'))throw Error('Invalid PDF page type');
+   const kids=await view.resolve(dict.get(name('Kids')));if(!(kids instanceof PDFArray)||kids.size()<1||kids.size()>limits.maxPages)throw Error('Invalid PDF page children');
+   let count=0;for(let i=0;i<kids.size();i++){count+=await walk(kids.get(i),ref,depth+1);if(count>limits.maxPages)throw new PdfAdmissionError('pages');}
+   if(integer(await view.resolve(dict.get(name('Count'))),limits.maxPages)!==count)throw Error('Inconsistent PDF page count');return count;
   }
-  this.context.assign(ref,object);return ref;
- };
- let context;try{context=await parser.parseDocument();}catch(error){throw new PdfAdmissionError(budget.failure||'structure');}if(context.trailerInfo.Encrypt)throw new PdfAdmissionError('encrypted');
- const root=context.lookup(context.trailerInfo.Root);if(!(root instanceof PDFDict)||root.lookup(name('Type'))!==name('Catalog'))throw Error('Invalid PDF catalog');
- const seen=new Set();let visited=0;
- function walk(ref,parent,depth=0){
-  if(!(ref instanceof PDFRef)||seen.has(ref.toString())||++visited>limits.visited||depth>32)throw Error('Invalid PDF page tree');seen.add(ref.toString());
-  const dict=context.lookup(ref);if(!(dict instanceof PDFDict))throw Error('Missing PDF page');
-  if(parent&&dict.get(name('Parent'))?.toString()!==parent.toString())throw Error('Invalid PDF page parent');
-  if(!parent&&dict.has(name('Parent')))throw Error('Invalid PDF page root');
-  const type=dict.lookup(name('Type'));if(type===name('Page'))return 1;
-  if(type!==name('Pages'))throw Error('Invalid PDF page type');
-  const kids=dict.lookup(name('Kids'));if(!(kids instanceof PDFArray)||kids.size()<1||kids.size()>limits.maxPages)throw Error('Invalid PDF page children');
-  let count=0;for(let i=0;i<kids.size();i++){count+=walk(kids.get(i),ref,depth+1);if(count>limits.maxPages)throw new PdfAdmissionError('pages');}
-  if(integer(dict.lookup(name('Count')),limits.maxPages)!==count)throw Error('Inconsistent PDF page count');return count;
- }
- const pages=walk(root.get(name('Pages')),null);if(pages<1||pages>limits.maxPages)throw new PdfAdmissionError('pages');if(typeof onStats==='function'){const buffers=new Set([bytes.buffer]);for(const [,object]of context.enumerateIndirectObjects())if(object instanceof PDFRawStream)buffers.add(object.contents.buffer);onStats({nodes:budget.nodes,textBytes:budget.textBytes,inflatedBytes:budget.inflated,pages,sourceAndRawStreamBufferCount:buffers.size,sourceAndRawStreamBufferBytes:Array.from(buffers).reduce((n,b)=>n+b.byteLength,0)});}return pages;
+  const pages=await walk(root.get(name('Pages')),null);if(pages<1||pages>limits.maxPages)throw new PdfAdmissionError('pages');
+  if(typeof onStats==='function'){const buffers=new Set([bytes.buffer,...view.structuralBuffers]);for(const [,object]of view.context.enumerateIndirectObjects())if(object instanceof PDFRawStream)buffers.add(object.contents.buffer);onStats({nodes:budget.nodes,textBytes:budget.textBytes,inflatedBytes:budget.inflated,pages,revisions:view.revisionCount,xrefEntries:view.xrefEntries,sourceAndRawStreamBufferCount:buffers.size,sourceAndRawStreamBufferBytes:Array.from(buffers).reduce((n,b)=>n+b.byteLength,0)});}return pages;
+ }catch(error){throw error instanceof PdfAdmissionError?error:new PdfAdmissionError(budget.failure||'structure');}
 }

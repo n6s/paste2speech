@@ -12,7 +12,7 @@ const messages={
  upload_expired:'The upload expired before acceptance. No provider call or customer charge was made.',
  upload_setup:'Another scan is active or upload setup could not be confirmed.',
  upload_verification:'The whole upload could not be verified. No OCR call or customer charge was made.',
- ...Object.fromEntries(['complexity','encrypted','pages','incomplete','structure'].map(code=>['pdf_'+code,largePdfAdmissionMessage(new PdfAdmissionError(code))]))
+ ...Object.fromEntries(['complexity','encrypted','pages','incomplete','structure','unsupported'].map(code=>['pdf_'+code,largePdfAdmissionMessage(new PdfAdmissionError(code))]))
 };
 const phases=['upload','verifying','verified','accepting','accepted','dispatched','finalizing','failed','uncertain','expired'];
 const stages=['dispatch','source_handoff','provider_request','result_validation'];

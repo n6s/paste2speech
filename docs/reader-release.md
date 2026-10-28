@@ -1601,3 +1601,30 @@ Feedback copies the sanitized diagnostics. Existing lost reasons cannot be rebui
 The keys are additive Durable Object metadata; no database migration or paid retry
 is required. Synthetic OCR unit/feedback tests and the native workerd/D1 gate cover
 failure→cancel, cleanup/restart, late abort, and completion/cancel races.
+
+## Revision-aware PDF admission — October 28, 2026
+
+PDF admission now follows the final `startxref` and authoritative `/Prev` chain,
+including hybrid cross-reference supplements and compressed page-tree objects.
+Newer live/free entries supersede older definitions with exact generation checks;
+missing offsets are not repaired by searching arbitrary objects. The pinned
+`pdf-lib` token/object/stream parsers remain the syntax implementation. Forms,
+actions, attachments and page-content streams are neither executed nor rendered.
+
+The synthetic corpus covers incremental tables, stream/table revisions, hybrid
+precedence, forward `/Prev` topology, sparse indexes, generations/free entries,
+null parameters, wide-field overflow, encryption, invalid offsets/cycles,
+structural expansion and cancellation during verification. Native local workerd
+checks include hybrid admission and 1,000-page/50 MB sources. A privately attached
+731-page multi-revision document was verified locally; it is not a fixture or a
+provider test. A late verifier failure cannot relabel an already canceled upload.
+
+Admission still requires an unencrypted, structurally verifiable PDF. Structural
+streams support uncompressed or Flate data and the existing supported xref
+predictors; other structural codecs/filter chains require re-export. Password
+handling, damaged-file repair and arbitrary codec support are not provided.
+Existing page/file, parsed-node, string, depth, xref, decompression, elapsed-time
+and concurrent-verification bounds remain. Sparse index ranges are bounded by
+those entry/resource budgets rather than an unrelated 64-range cutoff. These
+checks establish page admission, not OCR provider success or universal PDF support.
+Shared parser/job changes require the full staging release gates.
