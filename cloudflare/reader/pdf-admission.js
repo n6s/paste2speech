@@ -57,7 +57,7 @@ async function verifyPdfPages(bytes,limits,onStats){
   const dict=stream.dict.clone();dict.delete(name('Filter'));dict.delete(name('DecodeParms'));return PDFRawStream.of(dict,data);
  }
  try{
-  const view=await readPdfRevisions({bytes,limits,budget,check,bound,structuralStream});if(view.encrypted)throw new PdfAdmissionError('encrypted');
+  const view=await readPdfRevisions({bytes,limits,budget,check,bound,structuralStream});if(view.encrypted)throw new PdfAdmissionError('encrypted');await view.validateActive();
   const root=await view.resolve(view.root);if(!(root instanceof PDFDict)||await view.resolve(root.get(name('Type')))!==name('Catalog'))throw Error('Invalid PDF catalog');
   const seen=new Set();let visited=0;
   async function walk(ref,parent,depth=0){

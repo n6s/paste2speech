@@ -1607,7 +1607,9 @@ failure→cancel, cleanup/restart, late abort, and completion/cancel races.
 PDF admission now follows the final `startxref` and authoritative `/Prev` chain,
 including hybrid cross-reference supplements and compressed page-tree objects.
 Newer live/free entries supersede older definitions with exact generation checks;
-missing offsets are not repaired by searching arbitrary objects. The pinned
+missing offsets are not repaired by searching arbitrary objects. All active objects
+are syntax/resource-checked, including metadata outside the page tree; superseded
+objects are not mistaken for duplicate live definitions. The pinned
 `pdf-lib` token/object/stream parsers remain the syntax implementation. Forms,
 actions, attachments and page-content streams are neither executed nor rendered.
 

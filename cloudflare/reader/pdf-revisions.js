@@ -46,5 +46,6 @@ export async function readPdfRevisions({bytes,limits,budget,check,bound,structur
  }
  async function load(ref){const key=ref.toString();if(cached.has(key))return cached.get(key);if(loading.has(key)||loading.size>=64)fail();loading.add(key);try{check();const entry=sections.get(ref.objectNumber);if(!entry||entry.type===0||ref.generationNumber!==(entry.type===2?0:entry.generation))fail();let object;if(entry.type===1){const parsed=raw(entry.offset);if(parsed.ref!==ref)fail();object=parsed.object;}else{const c=await container(entry.offset),header=c.headers[entry.generation];if(header?.objectNumber!==ref.objectNumber)fail();c.sub.bytes.moveTo(c.first+header.offset);object=c.sub.parseObject();c.sub.skipWhitespaceAndComments();const end=entry.generation+1<c.headers.length?c.first+c.headers[entry.generation+1].offset:c.safe.contents.length;if(c.sub.bytes.offset()>end||object instanceof PDFRawStream)fail();}cached.set(key,object);context.assign(ref,object);return object;}finally{loading.delete(key);}}
  async function resolve(value){const seen=new Set();while(value instanceof PDFRef){if(seen.has(value.toString())||seen.size>=64)fail();seen.add(value.toString());value=await load(value);}return value;}
- return {context,root,encrypted,resolve,revisionCount,xrefEntries:sections.size,structuralBuffers};
+ async function validateActive(){for(const [id,entry]of sections)if(id&&entry.type!==0)await load(PDFRef.of(id,entry.type===2?0:entry.generation));}
+ return {context,root,encrypted,resolve,validateActive,revisionCount,xrefEntries:sections.size,structuralBuffers};
 }
