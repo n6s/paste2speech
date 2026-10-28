@@ -11,8 +11,9 @@ const {default:worker}=await import('data:text/javascript;base64,'+Buffer.from(b
 const now=Date.parse('2026-09-29T12:00:00Z');
 function setup(){
  const sql=new DatabaseSync(':memory:');
- for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name<'0018').sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
+ for(const name of readdirSync('cloudflare/reader/migrations').filter(name=>name.endsWith('.sql')).sort())sql.exec(readFileSync('cloudflare/reader/migrations/'+name,'utf8'));
  sql.exec(readFileSync('migrations/0001.sql','utf8'));
+ sql.exec("INSERT INTO ocr_business_budget(id,cap_cents) VALUES('sandbox-retail',NULL)");
  const db={prepare(text){return {bind(...args){return {first:async()=>sql.prepare(text).get(...args)||null,all:async()=>({results:sql.prepare(text).all(...args)})};}};}};
  sql.exec("INSERT INTO accounts VALUES('owner','Owner',1,100000),('customer','Customer',1,100000); INSERT INTO identities VALUES('owner@example.invalid','owner'),('customer@example.invalid','customer')");
  const env={LEDGER:db,DB:db,OWNER_EMAIL:'owner@example.invalid',READER_MODE:'production-public',READER_ORIGIN:'https://pastetospeech.com'};
@@ -63,4 +64,76 @@ test('UTC windows handle calendar boundaries and empty periods stay zero',async(
  assert.equal(reportWindow('today',now).start,Date.parse('2026-09-29T00:00:00Z'));
  assert.equal(reportWindow('week',now).day,'2026-09-23');assert.equal(reportWindow('launch',now).day,'2026-09-28');assert.throws(()=>reportWindow('all',now));
  const {sql,env}=setup();const report=await ownerReport(env,'today',now);assert.equal(report.groups.customers.accounts,1);assert.equal(report.groups.customers.purchases,0);assert.deepEqual(report.events,[]);sql.close();
+});
+function purchase(sql,source,id,{account='customer',transaction=id,status='credited',environment='live',created=now-1000,revoked=0}={}){
+ const table={speech:'orders',credits:'unified_orders',ocr:'ocr_orders'}[source];
+ const sync={speech:'payment_sync',credits:'unified_payment_sync',ocr:'ocr_payment_sync'}[source];
+ const columns=['id','account','transaction_id','created','status','environment'];
+ const values=[id,account,transaction,new Date(created).toISOString(),status,environment];
+ if(source!=='speech'){columns.push('price_id','product_id','amount','currency',source==='credits'?'units':'pages');values.push('price_fixture','product_fixture','1000','USD',source==='credits'?1000000:500);}
+ sql.prepare(`INSERT INTO ${table}(${columns}) VALUES(${values.map(()=>'?')})`).run(...values);
+ if(revoked)sql.prepare(`INSERT INTO ${sync}(order_id,checked,revoked,state) VALUES(?,?,?,'completed')`).run(id,now,revoked);
+}
+test('all purchase systems count once per payment, separate unknown identities, and include current reversals',async()=>{
+ const {sql,env}=setup();
+ sql.exec("INSERT INTO accounts VALUES('unknown','Old account',1,100000)");
+ purchase(sql,'speech','legacy',{transaction:'same-payment'});
+ purchase(sql,'credits','migrated',{transaction:'same-payment',revoked:1}); // partial reversal counts, no double purchase
+ purchase(sql,'credits','credits');
+ purchase(sql,'ocr','ocr',{revoked:500});
+ purchase(sql,'credits','mine',{account:'owner'});
+ purchase(sql,'ocr','unknown',{account:'unknown'});
+ purchase(sql,'speech','no-id',{transaction:null});
+ purchase(sql,'credits','no-id',{transaction:null}); // unrelated missing IDs must not collapse
+ purchase(sql,'credits','pending',{status:'pending'});
+ purchase(sql,'ocr','canceled',{status:'canceled'});
+ purchase(sql,'ocr','sandbox',{environment:'sandbox'});
+ purchase(sql,'credits','old',{created:Date.parse('2026-09-20')});
+ purchase(sql,'credits','future',{created:now+1000});
+ const before=sql.prepare('SELECT total_changes() n').get().n;
+ const report=await ownerReport(env,'week',now);
+ assert.equal(report.groups.customers.purchases,5);
+ assert.equal(report.groups.customers.reversedPurchases,2);
+ assert.equal(report.groups.owner.purchases,1);
+ assert.equal(report.groups.unverified.accounts,1);
+ assert.equal(report.groups.unverified.purchases,1);
+ assert.equal(sql.prepare('SELECT total_changes() n').get().n,before);
+ // Current reversal state, not an immutable "ever refunded" total.
+ sql.prepare("UPDATE unified_payment_sync SET revoked=0 WHERE order_id='migrated'").run();
+ assert.equal((await ownerReport(env,'week',now)).groups.customers.reversedPurchases,1);
+ env.READER_MODE='staging';
+ assert.equal((await ownerReport(env,'week',now)).groups.customers.purchases,1);
+ sql.close();
+});
+test('cross-account transaction conflicts are not attributed to owner or verified customers',async()=>{
+ const {sql,env}=setup();
+ purchase(sql,'speech','owner-copy',{transaction:'conflict',account:'owner'});
+ purchase(sql,'credits','customer-copy',{transaction:'conflict'});
+ const report=await ownerReport(env,'week',now);
+ assert.equal(report.groups.unverified.purchases,1);assert.equal(report.groups.owner.purchases,0);assert.equal(report.groups.customers.purchases,0);
+ sql.close();
+});
+test('unknown public preparation accounts stay separate and payment health covers newer systems',async()=>{
+ const {sql,env}=setup();sql.exec("INSERT INTO accounts VALUES('unknown','Old account',1,100000)");
+ sql.prepare("INSERT INTO reservations(job,account,fingerprint,plan,total,remaining,state,outcome,created,consumed) VALUES('unknown-job','unknown','f','[]',100,0,'closed','ready',?,10)").run(now-1000);
+ sql.exec("INSERT INTO public_jobs VALUES('unknown-job','unknown')");
+ for(const [source,id] of [['speech','old'],['credits','new'],['ocr','scan']]){
+  purchase(sql,source,id,{revoked:1});
+  const prefix={speech:'',credits:'unified_',ocr:'ocr_'}[source];
+  sql.prepare(`UPDATE ${prefix}payment_sync SET state='error' WHERE order_id=?`).run(id);
+  sql.prepare(`INSERT INTO ${prefix}webhook_events(id,transaction_id,received) VALUES(?,?,?)`).run(id,id,now-300001);
+ }
+ sql.prepare("INSERT INTO unified_webhook_events(id,transaction_id,received,processed) VALUES('handled','handled',?,?)").run(now-600000,now);
+ sql.prepare("INSERT INTO ocr_webhook_events(id,transaction_id,received) VALUES('recent','recent',?)").run(now);
+ const report=await ownerReport(env,'today',now);
+ assert.equal(report.groups.unverified.readings,1);assert.equal(report.groups.customers.readings,0);
+ assert.equal(report.health.delayedWebhooks,3);assert.equal(report.health.paymentErrors,3);
+ sql.close();
+});
+test('anonymous activity is not fabricated into customer counts or production-only attribution',async()=>{
+ const {sql,env}=setup();
+ sql.exec("INSERT INTO daily_events VALUES('2026-09-29','playback_start','browser','none','production-public',4,0),('2026-09-29','playback_start','browser','none','production-trial',3,0)");
+ const report=await ownerReport(env,'today',now);
+ assert.equal(report.events[0].count,7);assert.equal(report.groups.customers.accounts,1);assert.equal(report.groups.customers.activeAccounts,0);
+ sql.close();
 });

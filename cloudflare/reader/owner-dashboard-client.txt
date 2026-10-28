@@ -9,7 +9,7 @@
    $('status').textContent='Updated '+new Date(data.generatedAt).toLocaleString()+'. Reporting days use UTC.';
    const totals={page_view:0,playback_start:0};for(const row of data.events)totals[row.event]+=row.count;
    $('views').textContent=number(totals.page_view);$('plays').textContent=number(totals.playback_start);
-   for(const audience of ['customers','owner'])for(const [key,value] of Object.entries(data.groups[audience])){
+   for(const audience of ['customers','owner','unverified'])for(const [key,value] of Object.entries(data.groups[audience])){
     const cell=document.querySelector(`[data-audience="${audience}"][data-metric="${key}"]`);if(cell)cell.textContent=number(value);
    }
    const body=$('days');body.replaceChildren();const days=new Map();
