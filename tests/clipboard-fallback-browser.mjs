@@ -67,7 +67,7 @@ try{
     checks.push({configuration,startupUnavailable,button,mode,success:true,calls});
    }
    for(const mode of ['denied','security','abort','fallback-empty','fallback-denied','fallback-failure']){
-    await select('Keep selected source.',5,13);await page.locator('#play').click();await page.locator('#edit-mode').click();
+    await select('Keep selected source.',5,13);const startedBefore=await page.evaluate(()=>spoken.length);await page.locator('#play').click();await page.waitForFunction(n=>spoken.length===n+1,startedBefore);await page.locator('#edit-mode').click();
     await page.locator('#text').focus();await page.locator('#text').evaluate(el=>el.setSelectionRange(5,13));
     await page.evaluate(mode=>installClipboard(mode),mode);
     const actionCheckpoint=requests.length;
