@@ -21,7 +21,7 @@ try{for(const variant of process.env.TRANSLATION_ORIGIN?['staging']:['staging','
  });
  await page.goto(origin);if(await page.getByRole('button',{name:'Dismiss guide',exact:true}).isVisible())await page.getByRole('button',{name:'Dismiss guide',exact:true}).click();
  await page.fill('#text',spanish);
- if(variant==='public'){assert.equal(await page.locator('#translate-mode,#translation-suggestion,#translation-view').count(),0);assert.equal(configCalls,0);assert.equal(posts.length,0);checks.push({publicExcluded:true});await context.close();continue;}
+ if(variant==='public'&&process.env.PUBLIC_FEATURES_PROOF!=='1'){assert.equal(await page.locator('#translate-mode,#translation-suggestion,#translation-view').count(),0);assert.equal(configCalls,0);assert.equal(posts.length,0);checks.push({publicExcluded:true});await context.close();continue;}
  const choose=async language=>{await page.click('#translation-options-toggle');await page.selectOption('#translation-target',language);await page.waitForFunction(()=>document.querySelector('#translation-options-toggle').getAttribute('aria-expanded')==='false');};
  const ready=()=>page.waitForFunction(()=>!document.querySelector('#translate-mode').disabled);
  await page.locator('#translation-suggestion').waitFor({state:'visible'});assert.equal(posts.length,0);

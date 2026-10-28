@@ -1,3 +1,4 @@
+import {readerFeature,featureCustomer,featureAdmissionLimit} from './reader-features.js';
 import{summarySourceFits}from'../../public/summary-limits.js';
 import{SUMMARY_DOCUMENT_MODEL,SUMMARY_BUDGET_POLICY,summaryDigest}from'../../public/summary-document-plan.js';
 import{SummaryDocuments}from'./summary-documents.js';
@@ -5,9 +6,9 @@ import{summaryDocumentProvider}from'./summary-document-provider.js';
 import{SUMMARY_DOCUMENT_VERSION}from'../../public/summary-document-plan.js';
 const reply=(data,status=200)=>Response.json(data,{status,headers:{'Cache-Control':'no-store'}});
 async function body(request){const reader=request.body?.getReader();if(!reader)throw Error('Summary request required.');const chunks=[];let size=0;for(;;){const{done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>524288){await reader.cancel();throw Error('Summary request exceeds the transport limit. Your full source is kept.');}chunks.push(value);}const bytes=new Uint8Array(size);let at=0;for(const c of chunks){bytes.set(c,at);at+=c.byteLength;}return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes));}
-export async function summaryDocumentResponse(request,env,account,{now=Date.now,ctx,provider}={}){
- if(env.READER_MODE!=='staging'||env.SUMMARY_DOCUMENT_SCHEMA!=='1')return reply({detail:'Not found.'},404);
- if(!account?.summaryVerified||account.email!==env.OWNER_EMAIL||account.enabled!==1)return reply({detail:'Verified staging account required.'},403);
+export async function summaryDocumentResponse(request,env,account,{now=Date.now,ctx,provider,allowNewWork=true}={}){
+ if(!readerFeature(env,'SUMMARY_DOCUMENT_SCHEMA'))return reply({detail:'Not found.'},404);
+ if(!featureCustomer(env,account,'summaryVerified'))return reply({detail:'Verified reader account required.'},403);
  if(request.method!=='POST')return reply({detail:'Method not allowed.'},405);
  let input;try{input=await body(request);}catch(e){return reply({detail:e.message||'Invalid Summary request.'},422);}
  if(input.scope!==account.id||input.version!==SUMMARY_DOCUMENT_VERSION)return reply({detail:'Summary account or policy changed. Nothing was sent.'},409);
@@ -17,6 +18,8 @@ export async function summaryDocumentResponse(request,env,account,{now=Date.now,
   if(['quote','open','step'].includes(input.action)&&input.budgetPolicy!==SUMMARY_BUDGET_POLICY)return reply({detail:'Summary budgeting changed. Refresh to continue; saved work is kept.'},409);
   if(input.action==='quote')return reply(await service.quote(account,input));
   if(!['open','status','pause','result','step'].includes(input.action))return reply({detail:'Unknown Summary action.'},422);
+  if(['open','step'].includes(input.action)&&!allowNewWork)return reply({detail:'New Summary preparation is unavailable. Saved results are kept.'},503);
+  if(input.action==='open'&&!await featureAdmissionLimit(env,account))return reply({detail:'Too many new requests. Please try again shortly; saved results are kept.'},429);
   if(input.action==='open')return reply({document:await service.open(account,input)});
   if(typeof input.id!=='string'||!/^[a-f0-9-]{36}$/.test(input.id))return reply({detail:'Summary identity required.'},422);
   if(input.action==='status')return reply({document:await service.status(account,input.id)});

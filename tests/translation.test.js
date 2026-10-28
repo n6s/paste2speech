@@ -65,3 +65,13 @@ test('same-language no-op evidence declines short, mixed scripts and ambiguous f
  assert.equal(confidentTranslationLanguage('x + y = 4; $12.50'),null);
  assert.equal(confidentTranslationLanguage(english.repeat(60)+' Este es otro idioma.'),null,'a prefix cannot establish a whole long document language');
 });
+
+test('production accepts only its dedicated translation identity; neither deployment accepts the other credential',async()=>{
+ const key=await crypto.subtle.generateKey({name:'RSASSA-PKCS1-v1_5',modulusLength:2048,publicExponent:new Uint8Array([1,0,1]),hash:'SHA-256'},true,['sign','verify']);
+ const pem='-----BEGIN PRIVATE KEY-----\n'+Buffer.from(await crypto.subtle.exportKey('pkcs8',key.privateKey)).toString('base64')+'\n-----END PRIVATE KEY-----';
+ const credential=who=>JSON.stringify({type:'service_account',project_id:'paste-to-speech',client_email:`p2s-translation-${who}@paste-to-speech.iam.gserviceaccount.com`,private_key:pem});let calls=0;
+ const fetcher=async url=>{calls++;return url.includes('oauth2')?Response.json({access_token:'synthetic-only',token_type:'Bearer',expires_in:3600}):Response.json({translations:[{translatedText:'Synthetic complete output.',detectedLanguageCode:'es'}]});};
+ await assert.rejects(translateWithGoogle('Una frase completa.','en',credential('staging'),{environment:'production-public',fetcher}));
+ await assert.rejects(translateWithGoogle('Una frase completa.','en',credential('production'),{fetcher}));assert.equal(calls,0);
+ assert.equal((await translateWithGoogle('Una frase completa.','en',credential('production'),{environment:'production-public',fetcher})).text,'Synthetic complete output.');assert.equal(calls,2);
+});

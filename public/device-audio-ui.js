@@ -177,7 +177,7 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
   const $ = (id) => panel.querySelector("#" + id), message = (text) => { const warning="The saved browser voice is unavailable. Your text and place are kept. Choose an available browser voice, then Play.";
     const node=$("device-audio-status"),next=selected?.voiceUnavailable&&text!==warning?warning+(text?" "+text:""):text;if(node.textContent!==next)node.textContent=next; };
   const clock=new RetentionClock();
-  let cleaning=null,lastCleanup=0,expiredSource=null,pendingAddedAt=null,shellError=false;
+  let cleaning=null,lastCleanup=0,expiredSource=null,pendingAddedAt=null,shellError=false,currentAdmission=null;
   const rekeep=new Set();
   $("automatic-device-audio").checked = localStorage.getItem(preferenceKey) !== "false";
   assets.writesEnabled = $("automatic-device-audio").checked;
@@ -779,6 +779,17 @@ function setupDeviceAudio({ podcast=false,getPlayer, getActive = getPlayer, getE
     if(podcast&&finishedText===text&&!selected){finishedText=null;intent={id:crypto.randomUUID(),createdAt:Date.now(),text};transport.nextLogicalReading={...intent};await rememberCurrent({...intent,activate:false});}
     await cleanup();
     if(getText()!==text||getEngine()!==engine||scope()!==owner)return false;
+    // Editor transformations do not rewrite a queued source. Admit their new
+    // logical reading only on Play, before binding the actual player/audio run.
+    if(podcast&&selected&&selected.text!==text){
+      if(!currentAdmission){
+        const next={id:crypto.randomUUID(),createdAt:Date.now(),text};intent=next;transport.nextLogicalReading={...next};
+        const work=rememberCurrent({...next,activate:false,valid:()=>getText()===text&&getEngine()===engine&&scope()===owner});currentAdmission=work;
+        work.finally(()=>{if(currentAdmission===work)currentAdmission=null;}).catch(()=>{});
+      }
+      await currentAdmission;
+      if(getText()!==text||getEngine()!==engine||scope()!==owner||selected?.text!==text)return false;
+    }
     if(expiredSource?.text===text){
       if(engine==='google'&&!confirm('This reading has expired. Prepare it again using normal speech credit? Download an MP4 to keep readings longer.'))return false;
       rekeep.add(expiredSource.id);suppressed.delete(expiredSource.id);nativeBlocked=null;expiredSource=null;
@@ -834,7 +845,7 @@ await ensurePlaylist();const ids=entries().map(item=>item.id),model=getQueue();
     }catch{message('Account check failed. Your text is kept. No speech was started.');}
     finally{recoveryChecking=false;refresh();}
   }
-  return { setPlayIntent,markCurrentRead:()=>selected&&finishEntry(selected.id,{reason:"seek",autoplay:true}),clearEditor,retryPending,get recoveryChecking(){return recoveryChecking||podcast&&finishingEntries.size>0;},get pendingPlayback(){const pending=getQueue()?.items.find(item=>item.id===(recoveredId||selected?.id)&&item.queuedReplay&&item.text===getText()&&!(selected?.id===item.id&&selected.queueStartedAt));return pending||recoveredItem?.text===getText()&&recoveredItem||null;}, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText()||podcast&&finishedText===getText());}, replace, async registerCurrentMetadata(options={}){const replacing=replacement;try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}finally{if(replacing===replacement)releaseReplacement();}}, queueChanged(){if(recoveredItem&&!getQueue()?.has(recoveredItem.id)&&getText()===recoveredItem.text&&['playing','preparing','buffering'].includes(getActive()?.state)){recoveredId=null;recoveredItem=null;}void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!(podcast&&finishedText===getText())||!!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
+  return { setPlayIntent,markCurrentRead:()=>selected&&finishEntry(selected.id,{reason:"seek",autoplay:true}),clearEditor,retryPending,get recoveryChecking(){return recoveryChecking||podcast&&finishingEntries.size>0;},get pendingPlayback(){const pending=getQueue()?.items.find(item=>item.id===(recoveredId||selected?.id)&&item.queuedReplay&&item.text===getText()&&!(selected?.id===item.id&&selected.queueStartedAt));return pending||recoveredItem?.text===getText()&&recoveredItem||null;}, get singleQueuedPlayback(){const all=entries();return all.length===1&&!all[0].saved&&all[0].state==='ready'&&(!getText().trim()||removedCurrentText===getText()||podcast&&finishedText===getText());}, replace, async registerCurrentMetadata(options={}){const replacing=replacement;try{await rememberCurrent({...intent,...options,activate:false});}catch(error){message(error.message);}finally{if(replacing===replacement)releaseReplacement();}}, queueChanged(){if(recoveredItem&&!getQueue()?.has(recoveredItem.id)&&getText()===recoveredItem.text&&['playing','preparing','buffering'].includes(getActive()?.state)){recoveredId=null;recoveredItem=null;}void persistPending().catch(error=>message(error.message));update();refresh();}, update, flush, capture, list, openReading, rememberCurrent, beforePlay, engineChanged, voiceChanging, expiredIntent(item){return Number.isFinite(item.createdAt)&&clock.now()-item.createdAt>=86400000;}, needsPlaybackGuard(){const same=selected&&(selected.engine==='browser'?getEngine()==='browser'&&getActive()?.chunks===selected.nativeChunks:natural.id===selected.groupId&&matches());return !!(podcast&&finishedText===getText())||!!(podcast&&selected&&selected.text!==getText())||!!expiredSource||!!selected&&(!selectedRelease||!!removalReason(selected,{now:clock.now(),currentId:same?selected.id:null}));}, setAddedAt(time,id){pendingAddedAt=time;intent={id:id||crypto.randomUUID(),createdAt:time,text:getText()};transport.nextLogicalReading={...intent};}, get scope() {
     return scope();
   }, get opening() {
     return opening||handoffBusy;

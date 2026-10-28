@@ -1,3 +1,4 @@
+import {readerFeature,featureCustomer} from './reader-features.js';
 import {TranslationDocuments} from './translation-documents.js';
 import {assertUnifiedEnvironment,UnifiedWallet} from './unified-wallet.js';
 import {translationIdentity,validateTranslation} from '../../public/translation-contract.js';
@@ -8,7 +9,7 @@ export class TranslationCredits{
  async read(id,account){return this.query('SELECT * FROM translation_attempts WHERE id=? AND account=?',id,account).first();}
  async expire(){const time=this.now();await this.query("UPDATE translation_attempts SET state='expired',updated=?,retry_safe=CASE WHEN dispatched IS NULL THEN 1 ELSE 0 END WHERE state='held' AND deadline<?",time,time).run();await this.query("UPDATE translation_attempts SET state='expired',updated=?,result=NULL,retry_safe=1 WHERE state='ready' AND expires<=?",time,time).run();}
  async request(account,input){
-  if(this.env.READER_MODE!=='staging'||this.env.TRANSLATION_UI!=='1'||!account?.translationVerified||account.enabled!==1||account.email!==this.env.OWNER_EMAIL)throw Error('Verified staging owner required.');
+  if(!readerFeature(this.env,'TRANSLATION_UI')||!featureCustomer(this.env,account,'translationVerified'))throw Error('Verified reader account required.');
   if(typeof this.provider!=='function')throw Error('Translation provider is disabled.');
   await assertUnifiedEnvironment(this.db,this.env);await this.expire();
   const {text,target,characters}=validateTranslation(input.text,input.target);
@@ -18,6 +19,7 @@ export class TranslationCredits{
   if(row&&row.fingerprint!==fingerprint)throw Error('Translation request identity was reused for different content.');
   if(!row)row=await this.query("SELECT * FROM translation_attempts WHERE account=? AND fingerprint=? ORDER BY created DESC,rowid DESC LIMIT 1",account.id,fingerprint).first();
   if(row?.state==='ready')return {status:200,id:row.id,text:row.result,target,cached:true,creditsUsed:0,originalCredits:row.consumed/1000};
+  if(this.env.PAID_ADMISSIONS_PAUSED==='1')throw Error('New translation is paused. Saved results are kept.');
   if(row?.state==='held')return {status:202,id:row.id,pending:true,detail:'The same translation is already processing. No second request was dispatched.'};
   if(row){
    if(!row.retry_safe||input.retryOf!==row.id||input.requestId===row.id)return {status:409,id:row.id,retryEligible:!!row.retry_safe,detail:row.retry_safe?'The prior translation failed or expired. A new paid attempt needs an explicit request at the current quote.':'The prior provider outcome is unresolved. No automatic paid retry is allowed.'};
@@ -52,4 +54,4 @@ export class TranslationCredits{
  }
 }
 
-export async function maintainTranslationCredits(env){if(env.READER_MODE==='staging'&&env.TRANSLATION_BILLING_SCHEMA==='1'){await new TranslationCredits(env).expire();if(env.TRANSLATION_DOCUMENT_SCHEMA==='1')await new TranslationDocuments(env).expire();}}
+export async function maintainTranslationCredits(env){if(readerFeature(env,'TRANSLATION_BILLING_SCHEMA')){await new TranslationCredits(env).expire();if(readerFeature(env,'TRANSLATION_DOCUMENT_SCHEMA'))await new TranslationDocuments(env).expire();}}

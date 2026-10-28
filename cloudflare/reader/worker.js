@@ -1,3 +1,4 @@
+import {readerFeature} from './reader-features.js';
 import{SummaryDocuments}from'./summary-documents.js';
 import {maintainTranslationCredits} from './translation-credits.js';
 import {translationResponse} from './translation.js';
@@ -56,7 +57,7 @@ async function asset(request,env,path){
  return new Response(response.body,{status:response.status,headers});
 }
 export default {
- async scheduled(_event,env,ctx){if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1')ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));await runMaintenance(env);await maintainSummaryCredits(env);if(env.READER_MODE==='staging'&&env.SUMMARY_DOCUMENT_SCHEMA==='1')await new SummaryDocuments(env).expire();await maintainTranslationCredits(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
+ async scheduled(_event,env,ctx){if(unifiedEnabled(env)&&env.ENABLE_UNIFIED_PAYMENTS==='1')ctx.waitUntil(env.PAYMENTS.get(env.PAYMENTS.idFromName('unified-v1')).fetch('https://payments/unified',{method:'POST',body:JSON.stringify({action:'wake'})}));await runMaintenance(env);await maintainSummaryCredits(env);if(readerFeature(env,'SUMMARY_DOCUMENT_SCHEMA'))await new SummaryDocuments(env).expire();await maintainTranslationCredits(env);await maintainRetailOcr(env);await purgeOcrCache(env);await probeOcrAccess(env);if(env.BACKGROUND_WORK_PAUSED==='1')return;if(publicMode(env))ctx.waitUntil(recordOperations(env));if(production(env)||(new Date(_event.scheduledTime).getUTCHours()===0&&new Date(_event.scheduledTime).getUTCMinutes()===0))await publicWorker.scheduled(_event,feedbackEnv(env),ctx);if(ocrRetailEnabled(env)&&env.OCR_PAYMENTS&&env.LOCAL_READER!=='1')await env.OCR_PAYMENTS.get(env.OCR_PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});if(!trialMode(env)&&env.LOCAL_READER!=='1')await env.PAYMENTS.get(env.PAYMENTS.idFromName('coordinator')).fetch('https://payments/wake',{method:'POST',body:JSON.stringify({action:'wake'})});},
  async fetch(request,env,ctx){
   if(env.READER_MODE==='staging'&&env.LOCAL_READER!=='1'&&env.READER_ORIGIN==='https://staging.pastetospeech.com'&&new URL(request.url).origin==='https://speak-staging.rogerpbrown.com'){
    if(!await privateAccess(request,{...env,READER_ORIGIN:'https://speak-staging.rogerpbrown.com'}))return json({detail:'Private reader access required.'},403);
@@ -88,7 +89,7 @@ export default {
   try{
    if(['/api/events','/api/feedback','/api/feedback-ticket'].includes(url.pathname))return publicWorker.handle(request,{...feedbackEnv(env),PUBLIC_ORIGIN:url.origin},ctx);
    if(url.pathname==='/api/translation'||url.pathname.startsWith('/api/translation/')){
-    if(env.READER_MODE!=='staging'||env.TRANSLATION_UI!=='1')return translationResponse(request,env);
+    if(!readerFeature(env,'TRANSLATION_UI'))return translationResponse(request,env);
     const t=cookie(request,'p2s_private_reader')||cookie(request,'p2s_sandbox'),l=new ReaderLedger(env.LEDGER,env),s=await l.session(t),a=s?await l.account(s.id):null;
     const verified=t?await l.query("SELECT 1 verified FROM sessions WHERE token_hash=? AND kind='verified' AND expires>?",await digest(t),Date.now()).first():null;
     return translationResponse(request,env,a?{...a,translationVerified:!!verified,translationScope:await digest('translation-v1:'+a.id)}:null,{ctx});

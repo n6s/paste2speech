@@ -16,6 +16,17 @@ if(deploy){
  if(!process.argv.includes('--production-approved'))throw Error('Review and approve the exact release before deployment');
  if(execFileSync('git',['status','--porcelain'],{encoding:'utf8'}).trim())throw Error('Commit the release before deployment');
  assertPublicSharedCatalog(settings.vars);
+ // Provisioning and additive migration are separate approved operations. Never
+ // deploy an enabled UI against missing credentials or an older ledger schema.
+ if(settings.vars.READER_FEATURES_VERSION==='reader-2026-10-28'){
+  const secrets=JSON.parse(execFileSync('node',['node_modules/wrangler/bin/wrangler.js','secret','list','--config',config],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+  assert.ok(secrets.some(s=>s.name==='GOOGLE_TRANSLATION_SERVICE_ACCOUNT_JSON'),'Production Translation credential must be provisioned before deployment');
+  assert.ok(Object.keys(settings.vars).length+secrets.length<=64,'Reviewed Free-plan binding budget exceeded');
+  const journal=JSON.parse(execFileSync('node',['node_modules/wrangler/bin/wrangler.js','d1','execute','LEDGER','--remote','--config',config,'--command','SELECT name FROM d1_migrations','--json'],{encoding:'utf8',stdio:['ignore','pipe','pipe']}));
+  const applied=new Set(journal.flatMap(x=>x.results||[]).map(x=>x.name));
+  for(const name of readdirSync('cloudflare/reader/migrations').filter(x=>x.endsWith('.sql')))assert.ok(applied.has(name),'Production migration required before deployment: '+name);
+ }
+
  if(!/^pri_[a-z0-9]{26}$/.test(settings.vars.PADDLE_PRICE_ID)||!/^pro_[a-z0-9]{26}$/.test(settings.vars.PADDLE_PRODUCT_ID))throw Error('Verified live catalog is required');
 }
 execFileSync('npm',['test'],{stdio:'inherit'});
@@ -46,10 +57,13 @@ for(const variant of ['staging','public']){
  if(settings.vars.SPEECH_SECTION_RECOVERY==='1')execFileSync('node',['tests/speech-section-recovery-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:variant}});
 }
 execFileSync('node',['tests/device-audio-public-browser.mjs'],{stdio:'inherit'});
-execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit'});
-execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
+execFileSync('node',['tests/translation-browser.mjs'],{stdio:'inherit',env:{...process.env,PUBLIC_FEATURES_PROOF:'1'}});
+execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_SITE:'work/production-reader/site'}});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
-for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit'});
+for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,PUBLIC_FEATURES_PROOF:'1'}});
+execFileSync('node',['tests/summary-documents-native.mjs'],{stdio:'inherit',env:{...process.env,PUBLIC_FEATURES_PROOF:'1'}});
+for(const file of ['tests/podcast-playlist-browser.mjs','tests/podcast-migration-browser.mjs','tests/podcast-natural-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,READER_SITE:'work/production-reader/site',READER_VARIANT:'public'}});
+execFileSync('node',['tests/public-customer-journey-browser.mjs'],{stdio:'inherit'});
 await runFreshChecks(checks,{reuse:process.argv.includes('--reuse-gates'),concurrency:process.argv.includes('--serial-gates')?1:2});
 const site='work/production-reader/site';
 for(const file of ['index.html','billing.html'])if(/private staging|owner-only trial|test checkout|test buying/i.test(readFileSync(site+'/'+file,'utf8')))throw Error('Test/trial wording in public assets');
