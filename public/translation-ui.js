@@ -38,7 +38,14 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
  const knownLanguages=new Map();
  let evidenceSource=null,evidenceLanguage=null;const sourceLanguage=()=>{const text=sourceText(),known=knownLanguages.get(text);if(known)return known;if(text!==evidenceSource){evidenceSource=text;evidenceLanguage=confidentTranslationLanguage(text);}return evidenceLanguage;};
  const alreadyTarget=()=>sourceLanguage()===target.value;
+ const updateVoiceNotice=()=>{
+  const language=original?.language;
+  if(!language||getText()!==original.applied){el('voice').textContent='';return;}
+  const voice=getVoiceLanguage(),matches=voice&&voice.split('-')[0].toLowerCase()===language.split('-')[0];
+  el('voice').textContent=matches?'':`Choose a voice for ${TRANSLATION_LANGUAGES[language]} before pressing Play.`;
+ };
  const update=()=>{
+  updateVoiceNotice();
   if(busy)showProcessing('translation',epoch,'Translating…');else hideProcessing('translation');
   const text=sourceText(),count=characterCount(text),oversized=!config?.documents&&count>TRANSLATION_MAX_CHARACTERS;
   button.disabled=!busy&&(isBusy()||!text.trim()||oversized&&!alreadyTarget()||!alreadyTarget()&&(!permitted()||config?.documents&&['blocked','pausing'].includes(documents?.current?.state)));
@@ -94,9 +101,8 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   if(!result||busy||isBusy())return;
   if(original){status('Your translated text is already in the editor. Its edits are kept. Restore the original before replacing it.');return;}
   if(getText()!==result.source){status('The source changed. Your edits are kept; request a translation of the current source.');return;}
-  original={text:getText(),applied:result.text};applying=true;try{setText(result.text);}finally{applying=false;}
-  const voice=getVoiceLanguage(),matches=voice&&voice.split('-')[0].toLowerCase()===result.target.split('-')[0];
-  el('voice').textContent=matches?'Your current voice matches the target language. Press Play when ready.':`Choose a voice for ${TRANSLATION_LANGUAGES[result.target]} before pressing Play. The voice has not been changed and playback has not started.`;update();
+  original={text:getText(),applied:result.text,language:result.target};applying=true;try{setText(result.text);}finally{applying=false;}
+  update();
  };
  el('restore').onclick=()=>{
   if(busy||isBusy())return;if(!original){if(result&&getText()===result.source){setMode('edit');document.getElementById('text')?.focus();status('Original shown. Your translation is kept.');}return;}const before=getText(),text=original.text;
@@ -104,7 +110,9 @@ export function setupTranslation({getText,setText,setMode,getVoiceLanguage=()=>n
   else status('Original restored. Translation remains available above.');
   original=null;applying=true;try{setText(text);}finally{applying=false;}source=text;update();
  };
- window.addEventListener('focus',()=>{if(!busy)void check();});
+ for(const id of ['voice','engine'])document.getElementById(id)?.addEventListener('change',updateVoiceNotice);
+ globalThis.speechSynthesis?.addEventListener('voiceschanged',updateVoiceNotice);
+ window.addEventListener('focus',()=>{updateVoiceNotice();if(!busy)void check();});
  suggestion.hidden=!foreignLanguageHint(source);update();void check();
  return {
   setVisible(value){visible=value;panel.hidden=!value;button.setAttribute('aria-pressed',String(value));suggestion.hidden=value||!!original||!foreignLanguageHint(getText());if(value){source=sourceText();update();if(!actionOpening&&!busy)void check();}},

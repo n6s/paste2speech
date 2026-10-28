@@ -15,21 +15,21 @@ export class Player {
     this.offset=Math.max(0,Math.min(chunks[this.index]?.length||0,Math.trunc(offset)||0));
     this.state=chunks.length?'paused':'idle';this.emit();
   }
-  speak() {
+  speak({continuation=false}={}) {
     const generation = ++this.generation;
     const utterance = new this.Utterance(this.chunks[this.index].slice(this.offset));
     this.utterance = utterance; // Keep a strong reference while speaking.
     utterance.rate = this.settings.rate;
     if (this.settings.voice) { utterance.voice = this.settings.voice; utterance.lang = this.settings.voice.lang; }
-    if(this.trackStart)this.starting=true;
+    if(this.trackStart&&!continuation)this.starting=true;
     const base = this.offset;
     const valid = () => generation === this.generation && this.state === 'playing';
     if(this.trackStart)utterance.onstart=()=>{if(valid()){this.starting=false;this.emit();}};
     utterance.onboundary = event => { if (valid() && event.name === 'word'){this.offset = base + event.charIndex;if(this.starting){this.starting=false;this.emit();}} };
     utterance.onend = () => {
       if (!valid()) return;
-      clearTimeout(this.timer); this.offset = 0; this.index++;
-      if (this.index < this.chunks.length) this.speak();
+      clearTimeout(this.timer); this.starting=false;this.offset = 0; this.index++;
+      if (this.index < this.chunks.length) this.speak({continuation:true});
       else { this.starting=false;this.state = 'done'; this.utterance = null; this.emit(); }
     };
     utterance.onerror = event => { if (valid()) this.fail(event.error === 'not-allowed' ? 'Press Play to start' : `Speech stopped (${event.error || 'voice error'}). Tap Play to retry this part, or choose another voice.`); };
