@@ -4,7 +4,7 @@ import {execFileSync} from 'node:child_process';
 import {readFileSync,existsSync,mkdirSync,writeFileSync,renameSync,unlinkSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import {preloadIdentity} from './reader-gate-runner.mjs';
-export const SCOPE_POLICY='reader-scope-v2';
+export const SCOPE_POLICY='reader-scope-v3';
 export const SUMMARY_GATES=Object.freeze(['tests/summary-credits-browser.mjs','tests/summary-consent-recovery-browser.mjs','tests/intake-summary-ui-browser.mjs','tests/summary-documents-browser.mjs','tests/summary-documents-native.mjs']);
 const summaryFile=/^(?:public\/summary-document-[a-z-]+\.js|cloudflare\/reader\/summary-document(?:s|-[a-z-]+)\.js|tests\/summary-document(?:s|-?[a-z-]+)\.(?:test\.js|mjs)|docs\/summary-documents-staging\.md)$/;
 export const summaryOnlyPath=path=>typeof path==='string'&&!path.includes('..')&&summaryFile.test(path);
@@ -23,11 +23,12 @@ export function decideScope({requested='full',environment='staging',clean=true,b
 const hash=value=>createHash('sha256').update(value).digest('hex');
 const git=args=>execFileSync('git',args,{encoding:'utf8',stdio:['ignore','pipe','pipe']}).trim();
 const fileHash=path=>existsSync(path)?hash(readFileSync(path)):null;
+export function scopeEnvironmentIdentity(env){const entries=Object.entries(env).filter(([key])=>!/^npm_/i.test(key)&&!['_','SHLVL','PWD','OLDPWD','INIT_CWD','PATH','CODEX_TOOL_CALL_ID'].includes(key)).sort(([a],[b])=>a.localeCompare(b));return hash(JSON.stringify(entries));}
 export function scopeRuntime(env=process.env){
  // Hash values, never persist credentials. Ignore only shell/npm invocation
  // bookkeeping; application/test overrides and preloads remain in the identity.
- const environment=Object.entries(env).filter(([key])=>!/^npm_/i.test(key)&&!['_','SHLVL','PWD','OLDPWD','INIT_CWD','PATH'].includes(key)).sort(([a],[b])=>a.localeCompare(b));
- return{git:git(['--version']),node:process.version,nodeExecutable:process.execPath,npm:execFileSync('npm',['--version'],{encoding:'utf8'}).trim(),npmExecutable:execFileSync('which',['npm'],{encoding:'utf8'}).trim(),chrome:execFileSync('/usr/bin/google-chrome',['--version'],{encoding:'utf8'}).trim(),lock:fileHash('package-lock.json'),dependencies:fileHash('node_modules/.package-lock.json'),configs:['staging','production','public'].map(name=>fileHash('cloudflare/reader/wrangler.'+name+'.jsonc')),preloads:preloadIdentity(env),environment:hash(JSON.stringify(environment))};
+
+ return{git:git(['--version']),node:process.version,nodeExecutable:process.execPath,npm:execFileSync('npm',['--version'],{encoding:'utf8'}).trim(),npmExecutable:execFileSync('which',['npm'],{encoding:'utf8'}).trim(),chrome:execFileSync('/usr/bin/google-chrome',['--version'],{encoding:'utf8'}).trim(),lock:fileHash('package-lock.json'),dependencies:fileHash('node_modules/.package-lock.json'),configs:['staging','production','public'].map(name=>fileHash('cloudflare/reader/wrangler.'+name+'.jsonc')),preloads:preloadIdentity(env),environment:scopeEnvironmentIdentity(env)};
 }
 export function validBaseline(value,{base,tree,runtime}){
  return!!value&&value.policy===SCOPE_POLICY&&value.scope==='full'&&value.environment==='staging'&&value.success===true&&value.commit===base&&value.tree===tree&&value.gates>=72&&value.runtime?.preloads!==null&&JSON.stringify(value.runtime)===JSON.stringify(runtime);

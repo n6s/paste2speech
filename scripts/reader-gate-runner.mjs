@@ -13,7 +13,7 @@ export function createGateRunner({reuse=false,directory='work/reader-gates',iden
  return {timings,run(command,args,options={}){
   const relevant=command==='npm'&&(args[0]==='test'||args[0]==='run'&&args[1]?.startsWith('check:'))||command==='node'&&(args[0]?.startsWith('tests/')||args[0]?.startsWith('scripts/reader-parity/')||args[0]==='scripts/video-download/check.mjs');
   if(!relevant)return run(command,args,options);
-  const start=now(),base=identity?identity():null,preloads=preloadIdentity(options.env),context=base&&preloads?{base,preloads}:null,env=Object.fromEntries(Object.entries(options.env||process.env).sort());
+  const start=now(),base=identity?identity():null,preloads=preloadIdentity(options.env),context=base&&preloads?{base,preloads}:null,env=Object.fromEntries(Object.entries(options.env||process.env).filter(([key])=>key!=='CODEX_TOOL_CALL_ID').sort());
   const key=sha(JSON.stringify([context,command,args,env])),file=`${directory}/${key}.json`,label=[command,...args].join(' ');
   if(reuse&&context&&existsSync(file)){const saved=JSON.parse(readFileSync(file,'utf8'));if(saved.key===key&&saved.success===true){const item={gate:label,reused:true,elapsedMs:now()-start,originalElapsedMs:saved.elapsedMs};timings.push(item);writeFileSync(`${directory}/latest-timings.json`,JSON.stringify(timings,null,2)+'\n');console.log('REUSED exact verified gate: '+label+' ('+Math.round(saved.elapsedMs)+' ms original)');return;}}
   // A failed forced fresh rerun must invalidate an earlier successful receipt.

@@ -86,7 +86,7 @@ under the existing one-heavy/one-light scheduler.
 Full proof is written only after complete successful validation to
 `work/reader-scopes/baselines/<commit>.json`. It binds the full commit/tree to
 Node, npm, Git, Chrome, installed dependencies, locks, all environment configs,
-preloads and hashed test environment. Only shell/npm invocation bookkeeping is
+preloads and hashed test environment. Only shell/npm invocation bookkeeping and the changing Codex tool-call ID are
 excluded; executable paths/versions are checked. A fresh failed full rerun removes
 prior proof. A scoped success never creates full proof. The same last full baseline
 can cover several successive Summary-only commits; any shared change requires a
