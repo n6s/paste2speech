@@ -1589,3 +1589,15 @@ Summary document schema is enabled. It starts disposable local workerd/D1 with
 synthetic accounts and a mocked provider; it checks trigger-backed recovery,
 acknowledgement loss, duplicate calls, competing preset admission and unknown
 outcome protection. It never invokes Workers AI or a paid provider.
+
+### Original OCR failure diagnostics
+
+OCR jobs retain their first safe terminal failure separately from cancellation
+history. Only fixed error codes/messages and bounded state/timestamp metadata are
+stored; raw provider responses, source text, filenames and credentials are excluded.
+Later cancellation and cleanup cannot replace the original reason. Successful
+settlement wins a cancellation race and preserves its output and single charge.
+Feedback copies the sanitized diagnostics. Existing lost reasons cannot be rebuilt.
+The keys are additive Durable Object metadata; no database migration or paid retry
+is required. Synthetic OCR unit/feedback tests and the native workerd/D1 gate cover
+failure→cancel, cleanup/restart, late abort, and completion/cancel races.

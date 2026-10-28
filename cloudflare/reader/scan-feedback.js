@@ -1,3 +1,4 @@
+import {safeTerminalFailure,safeCancellation} from './ocr-terminal-diagnostics.js';
 // Owner staging diagnostics reuse the existing private feedback queue and R2 binding.
 import {OCR_SOURCE_DENIAL_REASONS} from './ocr-source.js';
 import {digest} from '../prepared/ledger.js';
@@ -35,7 +36,7 @@ async function evidence(env,account,id,now){
  return {jobId:id,previousJobId:UUID.test(row.recovery_of||'')?row.recovery_of:null,attemptAvailable:true,model:row.model,mime:row.mime,bytes:row.bytes,pages:integer(row.pages),originalHash:row.source_hash||row.jobHash||row.document_hash||null,
   uploadStartedAt:integer(row.started),acceptedAt:integer(row.acceptedAt),dispatchJournalAt:integer(row.dispatched),updatedAt:integer(row.updated),
   state:safeCode(row.jobState||row.state,['awaiting-upload','verified','held','ready','failed','uncertain','canceled','expired']),
-  failureStage:safeCode(status?.failureStage,['dispatch','source_handoff','provider_request','result_validation']),providerHttpStatus:integer(status?.providerHttpStatus),sourceLinkUsedAt:integer(status?.sourceLinkUsedAt),
+  terminalFailure:safeTerminalFailure(status?.terminalFailure),cancellation:safeCancellation(status?.cancellation),failureStage:safeCode(status?.failureStage,['dispatch','source_handoff','provider_request','result_validation']),providerHttpStatus:integer(status?.providerHttpStatus),sourceLinkUsedAt:integer(status?.sourceLinkUsedAt),
   dispatchBuild:/^[a-f0-9]{40}$/.test(status?.dispatchBuild||'')?status.dispatchBuild:null,providerRequestStartedAt:integer(status?.providerRequestStartedAt),providerResponseAt:integer(status?.providerResponseAt),providerRequestId:safeProviderRequestId(status?.providerRequestId),providerError:status?.providerError&&PROVIDER_ERROR_CATEGORIES.includes(status.providerError.category)?{category:status.providerError.category,classificationSource:safeCode(status.providerError.classificationSource,['provider_code','message_pattern','http_status_only']),code:safeCode(status.providerError.code,PROVIDER_ERROR_CODES),bodyState:safeCode(status.providerError.bodyState,['unavailable','oversized','parsed','unreadable','timeout'])}:null,sourceResponse:safeSourceResponse(status?.sourceResponse),originalCloudflareRayId:null,credits:{held:row.jobState==='held'?row.units/1000:0,used:row.consumed===null?null:(row.consumed||0)*2,released:row.released===null?null:(row.released||0)*2},capturedAt:now};
 }
 export async function scanFeedbackResponse(request,env,{token,accessIdentity=null,now=Date.now,ctx={waitUntil(){}}}={}){
