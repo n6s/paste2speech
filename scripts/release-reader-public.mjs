@@ -62,7 +62,8 @@ execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
 for(const file of ['tests/math-speech-engine-browser.mjs','tests/math-speech-ui-browser.mjs','tests/math-speech-reading-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,PUBLIC_FEATURES_PROOF:'1'}});
 execFileSync('node',['tests/summary-documents-native.mjs'],{stdio:'inherit',env:{...process.env,PUBLIC_FEATURES_PROOF:'1'}});
-for(const file of ['tests/podcast-playlist-browser.mjs','tests/podcast-migration-browser.mjs','tests/podcast-natural-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,READER_SITE:'work/production-reader/site',READER_VARIANT:'public'}});
+for(const file of ['tests/podcast-playlist-browser.mjs','tests/podcast-migration-browser.mjs'])execFileSync('node',[file],{stdio:'inherit',env:{...process.env,READER_SITE:'work/production-reader/site',READER_VARIANT:'public'}});
+for(const mode of ['complete','mse'])execFileSync('node',['tests/podcast-natural-browser.mjs'],{stdio:'inherit',env:{...process.env,READER_VARIANT:'public',AUDIT_DELIVERY:mode}});
 execFileSync('node',['tests/public-customer-journey-browser.mjs'],{stdio:'inherit'});
 await runFreshChecks(checks,{reuse:process.argv.includes('--reuse-gates'),concurrency:process.argv.includes('--serial-gates')?1:2});
 const site='work/production-reader/site';
