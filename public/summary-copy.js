@@ -1,0 +1,2 @@
+// Informational copy only; prices, consent, and admission remain server-authoritative.
+export const SUMMARY_DOCUMENT_INFO='Choose Brief, Standard, or Detailed with ▼, then click Summary. Summaries start at 1 credit; longer or more detailed work can cost more. Saved results expire 24 hours after the request starts; reopening them uses no more credits. Requesting a fresh summary uses credits again. Completed sections are kept and charged if you pause; unused reserved credits are returned.';
