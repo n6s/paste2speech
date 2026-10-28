@@ -9,6 +9,7 @@ import {readFileSync,writeFileSync,readdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
 import {assertPublicSharedCatalog} from './reader-release-policy.mjs';
+if(process.argv.some(value=>value==='--scope'||value.startsWith('--scope=')))throw Error('Public production promotion always requires the full suite; scoped validation is staging-only.');
 const config='cloudflare/reader/wrangler.public.jsonc',settings=JSON.parse(readFileSync(config)),deploy=process.argv.includes('--deploy');
 if(settings.vars.READER_MODE!=='production-public'||settings.vars.PADDLE_ENVIRONMENT!=='live'||settings.vars.LOCAL_READER!=='0')throw Error('Invalid public release configuration');
 if(deploy){

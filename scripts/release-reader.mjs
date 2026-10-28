@@ -9,10 +9,14 @@ const execFileSync=(command,args,options={})=>{if(isReaderCheck(command,args)&&!
 import {readFileSync,writeFileSync,readdirSync,mkdirSync} from 'node:fs';
 import {createHash} from 'node:crypto';
 import assert from 'node:assert/strict';
+import {resolveScope,selectScopeChecks,invalidateFullBaseline,recordScopeSuccess} from './reader-scope-policy.mjs';
 import {validateEnvironments,assertStagingPromotion} from './reader-release-policy.mjs';
 const args=process.argv.slice(2),deploy=args.includes('--deploy');
 if(args.includes('--staging')===args.includes('--production'))throw Error('Choose exactly one of --staging or --production');
 const environment=args.includes('--staging')?'staging':'production';
+const scopeStarted=performance.now();let scopePlan=resolveScope(args,environment);
+if(args.includes('--plan')){console.log(JSON.stringify({scope:scopePlan.scope,requested:scopePlan.requested,reason:scopePlan.reason,base:scopePlan.base,changed:scopePlan.changed},null,2));process.exit(0);}
+invalidateFullBaseline(scopePlan);console.log('Reader validation scope: '+scopePlan.scope+' · '+scopePlan.reason);
 const config=name=>`cloudflare/reader/wrangler.${name}.jsonc`;
 const settings=Object.fromEntries(['staging','production'].map(name=>[name,JSON.parse(readFileSync(config(name),'utf8'))]));
 validateEnvironments(settings.staging,settings.production);
@@ -37,7 +41,13 @@ if(settings.staging.vars.TRANSLATION_UI==='1')execFileSync('node',['tests/transl
 if(settings.staging.vars.TRANSLATION_DOCUMENT_SCHEMA==='1')execFileSync('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit'});
 if(settings.staging.vars.SUMMARY_DOCUMENT_SCHEMA==='1')for(const file of ['tests/summary-documents-browser.mjs','tests/summary-documents-native.mjs'])execFileSync('node',[file],{stdio:'inherit'});
 execFileSync('node',['tests/translation-native.mjs'],{stdio:'inherit'});
-await runFreshChecks(checks,{reuse:args.includes('--reuse-gates'),concurrency:args.includes('--serial-gates')?1:2});
+const selection=selectScopeChecks(checks,scopePlan);scopePlan=selection.plan;invalidateFullBaseline(scopePlan);
+console.log('Integration coverage: '+selection.checks.length+' of '+checks.length+' gates · '+scopePlan.scope);
+// This check builds/restores public/trial assets before parallel browser readers.
+rawExecFileSync('node',['tests/summary-public-boundary.mjs'],{stdio:'inherit'});
+const integrationStarted=performance.now();
+await runFreshChecks(selection.checks,{reuse:args.includes('--reuse-gates'),concurrency:args.includes('--serial-gates')?1:2});
+const integrationMs=performance.now()-integrationStarted;
 if(args.includes('--measure-reuse')){const benchmark=createGateRunner({reuse:true,identity:readerGateIdentity,run:rawExecFileSync});benchmark.run('node',['tests/translation-documents-browser.mjs'],{stdio:'inherit',env:gateEnvironment()});writeFileSync('work/reader-gates/reuse-benchmark.json',JSON.stringify(benchmark.timings,null,2)+'\n');}
 const sites={staging:'work/private-reader/site',production:'work/production-reader/site'};
 for(const file of ['index.html','billing.html','billing.js'])if(/paddle|sandbox|staging|test purchases|Upgrade with a speech pack/i.test(readFileSync(sites.production+'/'+file,'utf8')))throw Error('Staging or checkout content in production assets: '+file);
@@ -68,4 +78,5 @@ if(deploy){
 }
 mkdirSync('work/shared-reader',{recursive:true});
 writeFileSync(`work/shared-reader/${environment}-${deploy?'deployed':'prepared'}.json`,JSON.stringify(releases[environment],null,2)+'\n');
+recordScopeSuccess(scopePlan,{gates:selection.checks.length,elapsedMs:performance.now()-scopeStarted,integrationMs});
 console.log(deploy?`${environment} deployed and served assets verified at ${releases[environment].commit}.`:'Both readers passed parity checks. Prepared locally; nothing deployed.');

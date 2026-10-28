@@ -53,6 +53,49 @@ private-build favicon copy, and protection for the installed extension directory
 The hosted sites remain on their last explicitly deployed commit until the next
 requested release.
 
+## Change-scoped staging checks (October 28, 2026)
+
+The default staging run and every production promotion retain the full suite.
+A **staging Summary document-only** change can explicitly request a smaller
+integration set after a compatible full baseline has succeeded:
+
+```sh
+npm run release:reader:staging
+# After committing a later Summary-only change:
+npm run release:reader:staging -- --scope summary --base <full-validated-commit> --plan
+npm run release:reader:staging -- --scope summary --base <full-validated-commit>
+# Add --deploy only when that staging deployment is authorized.
+```
+
+`--plan` reports selection and changed paths without building, testing or deploying.
+It derives impact from Git, including both sides of renames. Scope defaults back
+to full for dirty/untracked changes, missing/incompatible proof, removed files,
+new/changed imports, shared app/UI/CSS, wallet/auth/router changes, migrations,
+configuration, dependency locks, harness changes or unknown paths. There is no
+manually supplied shortened file list. Production rejects scope flags.
+
+Every scope runs **all unit tests**, both staging/trial builds, the public Summary
+exclusion/server-rejection/public-billing check, and a staging Worker dry run.
+Summary scope retains the actual document workflow/fault/billing browser suite,
+the native workerd/D1 recovery and ownership suite, legacy Summary credits and consent recovery, and intake/Summary mobile/accessibility
+checks. It omits unrelated playlist, audio, video, OCR and offline browser suites
+only when their dependencies have not changed. The public boundary build is
+completed/restored before browser gates run; resource-heavy suites remain isolated
+under the existing one-heavy/one-light scheduler.
+
+Full proof is written only after complete successful validation to
+`work/reader-scopes/baselines/<commit>.json`. It binds the full commit/tree to
+Node, npm, Git, Chrome, installed dependencies, locks, all environment configs,
+preloads and hashed test environment. Only shell/npm invocation bookkeeping is
+excluded; executable paths/versions are checked. A fresh failed full rerun removes
+prior proof. A scoped success never creates full proof. The same last full baseline
+can cover several successive Summary-only commits; any shared change requires a
+new full baseline. `--reuse-gates` remains separate, opt-in exact-input receipt
+reuse; it is not the performance measurement for scoped fresh runs.
+
+This workflow changes test orchestration, not test assertions or deployment
+approval. Production promotion always validates the exact candidate broadly.
+
 ## Consolidation verification
 
 From the canonical checkout: 235 JavaScript tests and 115 Python tests passed,
