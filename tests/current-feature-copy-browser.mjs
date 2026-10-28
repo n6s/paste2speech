@@ -27,7 +27,7 @@ try{
   unavailable=failed;await page.goto(origin);await page.fill('#text','A harmless local review fixture.');
   await page.click('#summary-options-toggle');await page.getByText('Fuller explanation and more source detail',{exact:true}).waitFor();
   await page.click('#summary-info');const info=page.locator('#summary-info-details');await info.waitFor({state:'visible'});
-  const text=await info.innerText();assert.match(text,/Summaries start at 1 credit/);assert.match(text,/longer or more detailed work can cost more/);assert.doesNotMatch(text,/uses no credits|free summaries|1 credit each/i);
+  const text=await info.innerText();assert.match(text,/Summaries start at 1 credit/);assert.match(text,/Longer or more detailed summaries can cost more/);assert.doesNotMatch(text,/uses no credits|free summaries|1 credit each|pause|partial|reserv|held|passes/i);
   assert.equal(await page.locator('#summary-mode').isDisabled(),true);
   await page.screenshot({path:`${out}/signed-out-summary-${failed?'unavailable':'normal'}-desktop.png`,fullPage:true});
  }

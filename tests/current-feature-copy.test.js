@@ -48,5 +48,7 @@ test('late legacy build substitutions cannot restore flat/free claims in reviewe
   assert.doesNotMatch(html,/Each accepted summary uses 1 shared credit|summaries 1 credit each|Creating summaries uses no credits/);
  }
  assert.match(SUMMARY_DOCUMENT_INFO,/start at 1 credit/);assert.doesNotMatch(SUMMARY_DOCUMENT_INFO,/free|1 credit each/);
+ assert.match(SUMMARY_DOCUMENT_INFO,/24 hours from the original request/);
+ assert.doesNotMatch(SUMMARY_DOCUMENT_INFO,/pause|partial|reserv|held|passes/i);
  assert.throws(()=>currentFeatureCopy('missing',{surface:'pricing',...flags}),/Missing reviewed copy slot/);
 });
